@@ -843,39 +843,7 @@ contract HypERC20MemoTest is HypTokenTest {
         _performRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
         assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
 
-        bytes memory lastMessage = MockMailbox(address(remoteMailbox))
-            .inboundMessages(0);
-        uint256 ix = 77 + 64;
-        bytes memory body = sliceBytes(
-            lastMessage,
-            ix,
-            lastMessage.length - ix
-        );
-
         assertEq(HypERC20Memo(address(localToken)).called(), true);
-        _ = body;
-    }
-
-    function sliceBytes(
-        bytes memory data,
-        uint256 start,
-        uint256 length
-    ) internal pure returns (bytes memory result) {
-        require(data.length >= start + length, "slice: out of bounds");
-        assembly {
-            result := mload(0x40)
-            mstore(result, length)
-            let src := add(add(data, 0x20), start)
-            let dest := add(result, 0x20)
-            for {
-                let i := 0
-            } lt(i, length) {
-                i := add(i, 0x20)
-            } {
-                mstore(add(dest, i), mload(add(src, i)))
-            }
-            mstore(0x40, add(dest, length))
-        }
     }
 
     function testRemoteTransfer_invalidAllowance() public {
