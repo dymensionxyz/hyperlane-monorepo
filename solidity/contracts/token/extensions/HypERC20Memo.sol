@@ -7,10 +7,13 @@ import {FungibleTokenRouter} from "../libs/FungibleTokenRouter.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+event MemoEmit(bytes memo);
+
 contract HypERC20Memo is FungibleTokenRouter {
     using SafeERC20 for IERC20;
     mapping(address => mapping(uint256 => bytes)) private _memos;
     mapping(address => uint256) private _nonces;
+    bool public called; // TODO: clear up
 
     IERC20 public immutable wrappedToken;
 
@@ -24,6 +27,7 @@ contract HypERC20Memo is FungibleTokenRouter {
         address _mailbox
     ) FungibleTokenRouter(_scale, _mailbox) {
         require(Address.isContract(erc20), "HypERC20: invalid token");
+        called = false;
         wrappedToken = IERC20(erc20);
     }
 
@@ -53,7 +57,8 @@ contract HypERC20Memo is FungibleTokenRouter {
 
         delete _memos[msg.sender][_nonces[msg.sender]];
         _nonces[msg.sender]++;
-
+        called = true;
+        emit MemoEmit(memo);
         return memo;
     }
 
