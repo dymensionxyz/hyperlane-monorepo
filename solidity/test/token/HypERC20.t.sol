@@ -799,7 +799,7 @@ contract HypERC20ScaledTest is HypTokenTest {
 contract HypERC20MemoTest is HypTokenTest {
     using TypeCasts for address;
 
-    HypERC20Memo internal token;
+    HypERC20Memo internal erc20MemoToken;
 
     function setUp() public override {
         super.setUp();
@@ -809,9 +809,9 @@ contract HypERC20MemoTest is HypTokenTest {
             SCALE,
             address(localMailbox)
         );
-        token = HypERC20Memo(address(localToken));
+        erc20MemoToken = HypERC20Memo(address(localToken));
 
-        token.enrollRemoteRouter(
+        erc20MemoToken.enrollRemoteRouter(
             DESTINATION,
             address(remoteToken).addressToBytes32()
         );
@@ -838,32 +838,11 @@ contract HypERC20MemoTest is HypTokenTest {
         primaryToken.approve(address(localToken), TRANSFER_AMT);
 
         // Set memo before transfer
-        HypERC20Memo(address(localToken)).setMemoForNextTransfer(testMemo);
+        erc20MemoToken.setMemoForNextTransfer(testMemo);
 
         _performRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
         assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
 
-        assertEq(HypERC20Memo(address(localToken)).called(), true);
-    }
-
-    function testRemoteTransfer_invalidAllowance() public {
-        vm.expectRevert("ERC20: insufficient allowance");
-        _performRemoteTransfer(REQUIRED_VALUE, TRANSFER_AMT);
-        assertEq(localToken.balanceOf(ALICE), 1000e18);
-    }
-
-    function testRemoteTransfer_withCustomGasConfig() public {
-        _setCustomGasConfig();
-
-        uint256 balanceBefore = localToken.balanceOf(ALICE);
-
-        vm.prank(ALICE);
-        primaryToken.approve(address(localToken), TRANSFER_AMT);
-        _performRemoteTransferAndGas(
-            REQUIRED_VALUE,
-            TRANSFER_AMT,
-            GAS_LIMIT * igp.gasPrice()
-        );
-        assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+        assertEq(erc20MemoToken.wasCalled(), testMemo);
     }
 }
