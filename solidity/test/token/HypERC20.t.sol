@@ -831,18 +831,15 @@ contract HypERC20MemoTest is HypTokenTest {
 
     function testRemoteTransfer() public {
         uint256 balanceBefore = localToken.balanceOf(ALICE);
-
-        vm.prank(ALICE);
         bytes memory testMemo = "test memo";
 
+        vm.prank(ALICE);
         primaryToken.approve(address(localToken), TRANSFER_AMT);
-
-        // Set memo before transfer
+        vm.prank(ALICE);
         erc20MemoToken.setMemoForNextTransfer(testMemo);
-
         _performRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
-        assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
 
-        assertEq(erc20MemoToken.wasCalled(), testMemo);
+        assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+        assertEq(erc20MemoToken.testMemo(), testMemo);
     }
 }

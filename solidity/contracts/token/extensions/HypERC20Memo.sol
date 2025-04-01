@@ -12,7 +12,7 @@ contract HypERC20Memo is FungibleTokenRouter {
     using SafeERC20 for IERC20;
     mapping(address => mapping(uint256 => bytes)) private _memos;
     mapping(address => uint256) private _nonces;
-    bytes public wasCalled; // TODO: clear up
+    bytes public testMemo; // TODO: clear up
 
     IERC20 public immutable wrappedToken;
 
@@ -26,7 +26,7 @@ contract HypERC20Memo is FungibleTokenRouter {
         address _mailbox
     ) FungibleTokenRouter(_scale, _mailbox) {
         require(Address.isContract(erc20), "HypERC20: invalid token");
-        wasCalled = "";
+        testMemo = "";
         wrappedToken = IERC20(erc20);
     }
 
@@ -45,10 +45,6 @@ contract HypERC20Memo is FungibleTokenRouter {
     }
 
     function setMemoForNextTransfer(bytes calldata memo) external {
-        if (memo.length == 0) {
-            revert("memo empty A");
-        }
-        console.log("setMemoForNextTransfer");
         _memos[msg.sender][_nonces[msg.sender]] = memo;
     }
 
@@ -58,14 +54,9 @@ contract HypERC20Memo is FungibleTokenRouter {
         wrappedToken.safeTransferFrom(msg.sender, address(this), _amount);
         bytes memory memo = _memos[msg.sender][_nonces[msg.sender]];
 
-        if (memo.length == 0) {
-            // revert
-            revert("memo empty B");
-        }
-
         delete _memos[msg.sender][_nonces[msg.sender]];
         _nonces[msg.sender]++;
-        wasCalled = memo;
+        testMemo = memo;
         return memo;
     }
 
