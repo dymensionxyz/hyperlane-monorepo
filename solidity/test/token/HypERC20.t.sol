@@ -29,6 +29,7 @@ import {Router} from "../../contracts/client/Router.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {HypERC20Memo} from "../../contracts/token/extensions/HypERC20Memo.sol";
 import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
+import {HypERC20CollateralMemo} from "../../contracts/token/extensions/HypERC20CollateralMemo.sol";
 import {HypXERC20Lockbox} from "../../contracts/token/extensions/HypXERC20Lockbox.sol";
 import {IXERC20} from "../../contracts/token/interfaces/IXERC20.sol";
 import {IFiatToken} from "../../contracts/token/interfaces/IFiatToken.sol";
@@ -822,13 +823,6 @@ contract HypERC20MemoTest is HypTokenTest {
         _enrollRemoteTokenRouter();
     }
 
-    function test_constructor_revert_ifInvalidToken() public {
-        vm.expectRevert("HypERC20Collateral: invalid token");
-        new HypERC20Collateral(address(0), SCALE, address(localMailbox));
-    }
-
-    function testInitialize_revert_ifAlreadyInitialized() public {}
-
     function testRemoteTransfer() public {
         uint256 balanceBefore = localToken.balanceOf(ALICE);
         bytes memory testMemo = "test memo";
@@ -841,5 +835,46 @@ contract HypERC20MemoTest is HypTokenTest {
 
         assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
         assertEq(erc20MemoToken.testMemo(), testMemo);
+    }
+}
+
+contract HypERC20CollateralMemoTest is HypTokenTest {
+    using TypeCasts for address;
+
+    HypERC20CollateralMemo internal erc20CollateralMemoToken;
+
+    function setUp() public override {
+        super.setUp();
+
+        localToken = new HypERC20CollateralMemo(
+            address(primaryToken),
+            SCALE,
+            address(localMailbox)
+        );
+        erc20CollateralMemoToken = HypERC20CollateralMemo(address(localToken));
+
+        erc20CollateralMemoToken.enrollRemoteRouter(
+            DESTINATION,
+            address(remoteToken).addressToBytes32()
+        );
+
+        primaryToken.transfer(address(localToken), 1000e18);
+        primaryToken.transfer(ALICE, 1000e18);
+
+        _enrollRemoteTokenRouter();
+    }
+
+    function testRemoteTransfer() public {
+        uint256 balanceBefore = localToken.balanceOf(ALICE);
+        bytes memory testMemo = "test memo";
+
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), TRANSFER_AMT);
+        vm.prank(ALICE);
+        erc20CollateralMemoToken.setMemoForNextTransfer(testMemo);
+        _performRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
+
+        assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+        assertEq(erc20CollateralMemoToken.testMemo(), testMemo);
     }
 }

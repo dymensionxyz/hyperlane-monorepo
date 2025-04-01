@@ -8,6 +8,9 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {console} from "forge-std/console.sol";
 
+// HypERC20 is equivalen to Synthetic
+// We extend fungible token router rather than hyperc20 because hyperc20 does not allow overriding _transferFromSender
+// See HypERC20Collateral for the same pattern
 contract HypERC20Memo is FungibleTokenRouter {
     using SafeERC20 for IERC20;
     mapping(address => mapping(uint256 => bytes)) private _memos;
