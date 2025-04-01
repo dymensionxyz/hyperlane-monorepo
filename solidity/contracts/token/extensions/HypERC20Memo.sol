@@ -4,57 +4,74 @@ pragma solidity >=0.8.0;
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {HypERC20} from "../HypERC20.sol";
 import {FungibleTokenRouter} from "../libs/FungibleTokenRouter.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {console} from "forge-std/console.sol";
+import {TokenRouter} from "../libs/TokenRouter.sol";
 
-// HypERC20 is equivalen to Synthetic
-// We extend fungible token router rather than hyperc20 because hyperc20 does not allow overriding _transferFromSender
-// See HypERC20Collateral for the same pattern
-contract HypERC20Memo is FungibleTokenRouter {
-    using SafeERC20 for IERC20;
+// We have to copy and change the original code because the original _transferFromSender method is internal and not virtual
+contract HypERC20Memo is ERC20Upgradeable, FungibleTokenRouter {
     mapping(address => mapping(uint256 => bytes)) private _memos;
     mapping(address => uint256) private _nonces;
     bytes public testMemo; // TODO: clear up
-
-    IERC20 public immutable wrappedToken;
-
-    /**
-     * @notice Constructor
-     * @param erc20 Address of the token to keep as collateral
-     */
-    constructor(
-        address erc20,
-        uint256 _scale,
-        address _mailbox
-    ) FungibleTokenRouter(_scale, _mailbox) {
-        require(Address.isContract(erc20), "HypERC20: invalid token");
-        testMemo = "";
-        wrappedToken = IERC20(erc20);
-    }
-
-    function initialize(
-        address _hook,
-        address _interchainSecurityModule,
-        address _owner
-    ) public virtual initializer {
-        _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
-    }
-
-    function balanceOf(
-        address _account
-    ) external view override returns (uint256) {
-        return wrappedToken.balanceOf(_account);
-    }
+    /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    uint8 private immutable _decimals;
 
     function setMemoForNextTransfer(bytes calldata memo) external {
         _memos[msg.sender][_nonces[msg.sender]] = memo;
     }
 
+    constructor(
+        uint8 __decimals,
+        uint256 _scale,
+        address _mailbox
+    ) FungibleTokenRouter(_scale, _mailbox) {
+        _decimals = __decimals;
+    }
+
+    /**
+     * @notice Initializes the Hyperlane router, ERC20 metadata, and mints initial supply to deployer.
+     * @param _totalSupply The initial supply of the token.
+     * @param _name The name of the token.
+     * @param _symbol The symbol of the token.
+     */
+    function initialize(
+        uint256 _totalSupply,
+        string memory _name,
+        string memory _symbol,
+        address _hook,
+        address _interchainSecurityModule,
+        address _owner
+    ) public virtual initializer {
+        // Initialize ERC20 metadata
+        __ERC20_init(_name, _symbol);
+        _mint(msg.sender, _totalSupply);
+        _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
+    }
+
+    function decimals() public view virtual override returns (uint8) {
+        return _decimals;
+    }
+
+    function balanceOf(
+        address _account
+    )
+        public
+        view
+        virtual
+        override(TokenRouter, ERC20Upgradeable)
+        returns (uint256)
+    {
+        return ERC20Upgradeable.balanceOf(_account);
+    }
+
+    /**
+     * @dev Burns `_amount` of token from `msg.sender` balance.
+     * @inheritdoc TokenRouter
+     */
     function _transferFromSender(
         uint256 _amount
-    ) internal virtual override returns (bytes memory) {
-        wrappedToken.safeTransferFrom(msg.sender, address(this), _amount);
+    ) internal override returns (bytes memory) {
+        _burn(msg.sender, _amount);
         bytes memory memo = _memos[msg.sender][_nonces[msg.sender]];
 
         delete _memos[msg.sender][_nonces[msg.sender]];
@@ -63,11 +80,15 @@ contract HypERC20Memo is FungibleTokenRouter {
         return memo;
     }
 
+    /**
+     * @dev Mints `_amount` of token to `_recipient` balance.
+     * @inheritdoc TokenRouter
+     */
     function _transferTo(
         address _recipient,
         uint256 _amount,
         bytes calldata // no metadata
     ) internal virtual override {
-        wrappedToken.safeTransfer(_recipient, _amount);
+        _mint(_recipient, _amount);
     }
 }
