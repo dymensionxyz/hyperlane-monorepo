@@ -797,6 +797,7 @@ contract HypERC20ScaledTest is HypTokenTest {
     }
 }
 
+// TODO: should probably reinclude the other tests from ERC20Collateral
 contract HypERC20MemoTest is HypTokenTest {
     using TypeCasts for address;
 
@@ -838,6 +839,7 @@ contract HypERC20MemoTest is HypTokenTest {
     }
 }
 
+// TODO: should probably reinclude the other tests from ERC20Collateral
 contract HypERC20CollateralMemoTest is HypTokenTest {
     using TypeCasts for address;
 
