@@ -176,6 +176,7 @@ export async function createWarpRouteDeployConfig({
       type === TokenType.syntheticUri || type === TokenType.collateralUri;
 
     switch (type) {
+      case TokenType.collateralMemo:
       case TokenType.collateral:
       case TokenType.XERC20:
       case TokenType.XERC20Lockbox:

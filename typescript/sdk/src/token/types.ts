@@ -25,7 +25,11 @@ export type TokenMetadata = z.infer<typeof TokenMetadataSchema>;
 export const isTokenMetadata = isCompliant(TokenMetadataSchema);
 
 export const NativeTokenConfigSchema = TokenMetadataSchema.partial().extend({
-  type: z.enum([TokenType.native, TokenType.nativeScaled]),
+  type: z.enum([
+    TokenType.native,
+    TokenType.nativeScaled,
+    TokenType.nativeMemo,
+  ]),
 });
 export type NativeTokenConfig = z.infer<typeof NativeTokenConfigSchema>;
 export const isNativeTokenConfig = isCompliant(NativeTokenConfigSchema);
@@ -39,6 +43,7 @@ export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
       TokenType.collateralFiat,
       TokenType.fastCollateral,
       TokenType.collateralUri,
+      TokenType.collateralMemo,
     ]),
     token: z
       .string()
@@ -98,6 +103,7 @@ export const SyntheticTokenConfigSchema = TokenMetadataSchema.partial().extend({
     TokenType.synthetic,
     TokenType.syntheticUri,
     TokenType.fastSynthetic,
+    TokenType.syntheticMemo,
   ]),
 });
 export type SyntheticTokenConfig = z.infer<typeof CollateralTokenConfigSchema>;

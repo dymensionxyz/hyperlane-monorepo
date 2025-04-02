@@ -53,9 +53,10 @@ export const hypERC20factories = {
   [TokenType.native]: new HypNative__factory(),
   [TokenType.nativeScaled]: new HypNative__factory(),
   // ~~~~~~~~ DYMENSION ~~~~~~~~~
-  // [TokenType.syntheticMemo]: new HypERC20Memo__factory(),
-  // [TokenType.collateralMemo]: new HypERC20CollateralMemo__factory(),
-  // [TokenType.nativeMemo]: new HypNativeMemo__factory(),
+  // TODO: fix
+  [TokenType.syntheticMemo]: new HypERC20__factory(),
+  [TokenType.collateralMemo]: new HypERC20Collateral__factory(),
+  [TokenType.nativeMemo]: new HypNative__factory(),
 };
 export type HypERC20Factories = typeof hypERC20factories;
 
