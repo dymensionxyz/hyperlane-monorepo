@@ -24,7 +24,7 @@ export enum TokenStandard {
   EvmHypVSXERC20 = 'EvmHypVSXERC20',
   EvmHypVSXERC20Lockbox = 'EvmHypVSXERC20Lockbox',
   // ~~~~~~~~ DYMENSION ~~~~~~~~~
-  ERC20Memo = 'ERC20Memo',
+  EvmHypSyntheticMemo = 'EvmHypSyntheticMemo',
   EvmHypCollateralMemo = 'EvmHypCollateralMemo',
   EvmHypNativeMemo = 'EvmHypNativeMemo',
 
@@ -76,7 +76,7 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
 
   // ~~~~~~~~ DYMENSION ~~~~~~~~~
   EvmHypCollateralMemo: ProtocolType.Ethereum, // erc20 collateral memo
-  ERC20Memo: ProtocolType.Ethereum, // erc20 memo (synthetic)
+  EvmHypSyntheticMemo: ProtocolType.Ethereum, // erc20 memo (synthetic)
   EvmHypNativeMemo: ProtocolType.Ethereum, // native memo
 
   // Sealevel (Solana)
@@ -162,7 +162,7 @@ export const TOKEN_HYP_STANDARDS = [
 
   // ~~~~~~~~ DYMENSION ~~~~~~~~~
   TokenStandard.EvmHypCollateralMemo,
-  TokenStandard.ERC20Memo,
+  TokenStandard.EvmHypSyntheticMemo,
   TokenStandard.EvmHypNativeMemo,
 
   TokenStandard.SealevelHypNative,
@@ -209,7 +209,7 @@ export const TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
   [TokenType.nativeScaled]: TokenStandard.EvmHypNative,
 
   // ~~~~~~~~ DYMENSION ~~~~~~~~~
-  [TokenType.syntheticMemo]: TokenStandard.ERC20Memo,
+  [TokenType.syntheticMemo]: TokenStandard.EvmHypSyntheticMemo,
   [TokenType.collateralMemo]: TokenStandard.EvmHypCollateralMemo,
   [TokenType.nativeMemo]: TokenStandard.EvmHypNativeMemo,
 };

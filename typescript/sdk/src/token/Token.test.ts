@@ -29,14 +29,6 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'USDC',
     name: 'USDC',
   },
-  [TokenStandard.ERC20Memo]: {
-    chainName: TestChainName.test1,
-    standard: TokenStandard.ERC20,
-    addressOrDenom: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
-    decimals: 6,
-    symbol: 'USDC',
-    name: 'USDC',
-  },
   [TokenStandard.ERC721]: null,
   [TokenStandard.EvmNative]: Token.FromChainMetadataNativeToken(test1),
   [TokenStandard.EvmHypNative]: {
@@ -101,6 +93,14 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     name: 'USDC',
   },
   [TokenStandard.EvmHypSynthetic]: {
+    chainName: TestChainName.test2,
+    standard: TokenStandard.EvmHypSynthetic,
+    addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
+    decimals: 6,
+    symbol: 'USDC',
+    name: 'USDC',
+  },
+  [TokenStandard.EvmHypSyntheticMemo]: {
     chainName: TestChainName.test2,
     standard: TokenStandard.EvmHypSynthetic,
     addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
