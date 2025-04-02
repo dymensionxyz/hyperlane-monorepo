@@ -14,14 +14,20 @@ export enum TokenType {
   native = 'native',
   // backwards compatible alias to native
   nativeScaled = 'nativeScaled',
+  // ~~~~~~~~ DYMENSION ~~~~~~~~~
+  syntheticMemo = 'syntheticMemo',
+  collateralMemo = 'collateralMemo',
+  nativeMemo = 'nativeMemo',
 }
 
 export const gasOverhead = (tokenType: TokenType): number => {
   switch (tokenType) {
     case TokenType.fastSynthetic:
     case TokenType.synthetic:
+    case TokenType.syntheticMemo:
       return 64_000;
     case TokenType.native:
+    case TokenType.nativeMemo:
       return 44_000;
     default:
       return 68_000;

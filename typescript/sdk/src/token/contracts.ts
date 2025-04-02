@@ -32,6 +32,10 @@ export const hypERC20contracts = {
   [TokenType.native]: 'HypNative',
   // uses same contract as native
   [TokenType.nativeScaled]: 'HypNative',
+  // ~~~~~~~~ DYMENSION ~~~~~~~~~
+  [TokenType.syntheticMemo]: 'HypERC20Memo',
+  [TokenType.collateralMemo]: 'HypERC20CollateralMemo',
+  [TokenType.nativeMemo]: 'HypNativeMemo',
 };
 export type HypERC20contracts = typeof hypERC20contracts;
 
@@ -48,6 +52,10 @@ export const hypERC20factories = {
   [TokenType.XERC20Lockbox]: new HypXERC20Lockbox__factory(),
   [TokenType.native]: new HypNative__factory(),
   [TokenType.nativeScaled]: new HypNative__factory(),
+  // ~~~~~~~~ DYMENSION ~~~~~~~~~
+  // [TokenType.syntheticMemo]: new HypERC20Memo__factory(),
+  // [TokenType.collateralMemo]: new HypERC20CollateralMemo__factory(),
+  // [TokenType.nativeMemo]: new HypNativeMemo__factory(),
 };
 export type HypERC20Factories = typeof hypERC20factories;
 
