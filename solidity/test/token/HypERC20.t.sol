@@ -30,6 +30,7 @@ import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {HypERC20Memo} from "../../contracts/token/extensions/HypERC20Memo.sol";
 import {HypERC20Collateral} from "../../contracts/token/HypERC20Collateral.sol";
 import {HypERC20CollateralMemo} from "../../contracts/token/extensions/HypERC20CollateralMemo.sol";
+import {HypNativeMemo} from "../../contracts/token/extensions/HypNativeMemo.sol";
 import {HypXERC20Lockbox} from "../../contracts/token/extensions/HypXERC20Lockbox.sol";
 import {IXERC20} from "../../contracts/token/interfaces/IXERC20.sol";
 import {IFiatToken} from "../../contracts/token/interfaces/IFiatToken.sol";
@@ -937,5 +938,131 @@ contract HypERC20CollateralMemoTest is HypTokenTest {
 
         assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
         assertEq(erc20CollateralMemoToken.testMemo(), testMemo);
+    }
+
+    function test_constructor_revert_ifInvalidToken() public {
+        vm.expectRevert("HypERC20Collateral: invalid token");
+        new HypERC20Collateral(address(0), SCALE, address(localMailbox));
+    }
+
+    function testInitialize_revert_ifAlreadyInitialized() public {}
+
+    function testRemoteTransfer_invalidAllowance() public {
+        vm.expectRevert("ERC20: insufficient allowance");
+        _performRemoteTransfer(REQUIRED_VALUE, TRANSFER_AMT);
+        assertEq(localToken.balanceOf(ALICE), 1000e18);
+    }
+
+    function testRemoteTransfer_withCustomGasConfig() public {
+        _setCustomGasConfig();
+
+        uint256 balanceBefore = localToken.balanceOf(ALICE);
+
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), TRANSFER_AMT);
+        _performRemoteTransferAndGas(
+            REQUIRED_VALUE,
+            TRANSFER_AMT,
+            GAS_LIMIT * igp.gasPrice()
+        );
+        assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
+    }
+}
+
+contract HypNativeMemoTest is HypTokenTest {
+    using TypeCasts for address;
+
+    HypNativeMemo internal nativeToken;
+
+    function setUp() public override {
+        super.setUp();
+
+        localToken = new HypNativeMemo(SCALE, address(localMailbox));
+        nativeToken = HypNativeMemo(payable(address(localToken)));
+
+        nativeToken.enrollRemoteRouter(
+            DESTINATION,
+            address(remoteToken).addressToBytes32()
+        );
+
+        vm.deal(address(localToken), 1000e18);
+        vm.deal(ALICE, 1000e18);
+
+        _enrollRemoteTokenRouter();
+    }
+
+    function testTransfer_withHookSpecified(
+        uint256 fee,
+        bytes calldata metadata
+    ) public override {
+        TestPostDispatchHook hook = new TestPostDispatchHook();
+        hook.setFee(fee);
+
+        uint256 value = REQUIRED_VALUE + TRANSFER_AMT;
+
+        vm.prank(ALICE);
+        primaryToken.approve(address(localToken), TRANSFER_AMT);
+        bytes32 messageId = _performRemoteTransferWithHook(
+            value,
+            TRANSFER_AMT,
+            address(hook),
+            metadata
+        );
+        assertTrue(hook.messageDispatched(messageId));
+    }
+
+    function testRemoteTransfer() public {
+        bytes memory testMemo = "test memo";
+        vm.prank(ALICE);
+        nativeToken.setMemoForNextTransfer(testMemo);
+        _performRemoteTransferWithEmit(
+            REQUIRED_VALUE,
+            TRANSFER_AMT,
+            TRANSFER_AMT
+        );
+        assertEq(nativeToken.testMemo(), testMemo);
+    }
+
+    function testRemoteTransfer_invalidAmount() public {
+        vm.expectRevert("Native: amount exceeds msg.value");
+        _performRemoteTransfer(
+            REQUIRED_VALUE + TRANSFER_AMT,
+            TRANSFER_AMT * 10
+        );
+        assertEq(localToken.balanceOf(ALICE), 1000e18);
+    }
+
+    function testRemoteTransfer_withCustomGasConfig() public {
+        _setCustomGasConfig();
+
+        _performRemoteTransferAndGas(
+            REQUIRED_VALUE,
+            TRANSFER_AMT,
+            TRANSFER_AMT + GAS_LIMIT * igp.gasPrice()
+        );
+    }
+
+    function test_transferRemote_reverts_whenAmountExceedsValue(
+        uint256 nativeValue
+    ) public {
+        vm.assume(nativeValue < address(this).balance);
+
+        address recipient = address(0xdeadbeef);
+        bytes32 bRecipient = TypeCasts.addressToBytes32(recipient);
+        vm.expectRevert("Native: amount exceeds msg.value");
+        nativeToken.transferRemote{value: nativeValue}(
+            DESTINATION,
+            bRecipient,
+            nativeValue + 1
+        );
+
+        vm.expectRevert("Native: amount exceeds msg.value");
+        nativeToken.transferRemote{value: nativeValue}(
+            DESTINATION,
+            bRecipient,
+            nativeValue + 1,
+            bytes(""),
+            address(0)
+        );
     }
 }
