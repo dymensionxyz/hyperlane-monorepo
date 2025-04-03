@@ -11,4 +11,5 @@ Copied test for HypNative and added memo check
 Extended HypERC20Collateral with override to include memo in transferFromSender
 Copied test for HypeERC20Collateral and added memo check
 
-Improvements to be made (possibly) - DRY out repetitive memo code in contracts - DRY out repetitive new tests
+Improvements to be made (possibly)
+DRY out repetitive memo code in contracts - DRY out repetitive new tests
