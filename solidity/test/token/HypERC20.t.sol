@@ -875,9 +875,10 @@ contract HypERC20MemoTest is HypTokenTest {
         bytes memory testMemo = "test memo";
         vm.prank(ALICE);
         erc20Token.setMemoForNextTransfer(testMemo);
+        vm.expectEmit(false, false, false, true, address(erc20Token));
+        emit HypERC20Memo.IncludedMemo(testMemo);
         _performRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
         assertEq(erc20Token.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
-        assertEq(erc20Token.testMemo(), testMemo);
     }
 
     function testRemoteTransfer_invalidAmount() public {
@@ -934,10 +935,17 @@ contract HypERC20CollateralMemoTest is HypTokenTest {
         primaryToken.approve(address(localToken), TRANSFER_AMT);
         vm.prank(ALICE);
         erc20CollateralMemoToken.setMemoForNextTransfer(testMemo);
+        vm.expectEmit(
+            false,
+            false,
+            false,
+            true,
+            address(erc20CollateralMemoToken)
+        );
+        emit HypERC20CollateralMemo.IncludedMemo(testMemo);
         _performRemoteTransferWithEmit(REQUIRED_VALUE, TRANSFER_AMT, 0);
 
         assertEq(localToken.balanceOf(ALICE), balanceBefore - TRANSFER_AMT);
-        assertEq(erc20CollateralMemoToken.testMemo(), testMemo);
     }
 
     function test_constructor_revert_ifInvalidToken() public {
@@ -1015,12 +1023,13 @@ contract HypNativeMemoTest is HypTokenTest {
         bytes memory testMemo = "test memo";
         vm.prank(ALICE);
         nativeToken.setMemoForNextTransfer(testMemo);
+        vm.expectEmit(false, false, false, true, address(nativeToken));
+        emit HypNativeMemo.IncludedMemo(testMemo);
         _performRemoteTransferWithEmit(
             REQUIRED_VALUE,
             TRANSFER_AMT,
             TRANSFER_AMT
         );
-        assertEq(nativeToken.testMemo(), testMemo);
     }
 
     function testRemoteTransfer_invalidAmount() public {

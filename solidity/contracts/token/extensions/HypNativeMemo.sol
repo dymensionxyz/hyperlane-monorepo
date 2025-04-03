@@ -12,9 +12,9 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
 contract HypNativeMemo is FungibleTokenRouter {
+    event IncludedMemo(bytes memo);
     mapping(address => mapping(uint256 => bytes)) private _memos;
     mapping(address => uint256) private _nonces;
-    bytes public testMemo; // TODO: clear up
 
     function setMemoForNextTransfer(bytes calldata memo) external {
         _memos[msg.sender][_nonces[msg.sender]] = memo;
@@ -102,7 +102,7 @@ contract HypNativeMemo is FungibleTokenRouter {
 
         delete _memos[msg.sender][_nonces[msg.sender]];
         _nonces[msg.sender]++;
-        testMemo = memo;
+        emit IncludedMemo(memo);
         return memo;
     }
 

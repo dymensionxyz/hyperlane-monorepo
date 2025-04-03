@@ -10,9 +10,10 @@ import {TokenRouter} from "../libs/TokenRouter.sol";
 
 // We have to copy and change the original code because the original _transferFromSender method is internal and not virtual
 contract HypERC20Memo is ERC20Upgradeable, FungibleTokenRouter {
+    event IncludedMemo(bytes memo);
+
     mapping(address => mapping(uint256 => bytes)) private _memos;
     mapping(address => uint256) private _nonces;
-    bytes public testMemo; // TODO: clear up
     /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     uint8 private immutable _decimals;
 
@@ -76,7 +77,7 @@ contract HypERC20Memo is ERC20Upgradeable, FungibleTokenRouter {
 
         delete _memos[msg.sender][_nonces[msg.sender]];
         _nonces[msg.sender]++;
-        testMemo = memo;
+        emit IncludedMemo(memo);
         return memo;
     }
 

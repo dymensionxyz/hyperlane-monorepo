@@ -6,17 +6,15 @@ import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 import {console} from "forge-std/console.sol";
 
 contract HypERC20CollateralMemo is HypERC20Collateral {
+    event IncludedMemo(bytes memo);
     mapping(address => mapping(uint256 => bytes)) private _memos;
     mapping(address => uint256) private _nonces;
-    bytes public testMemo;
 
     constructor(
         address erc20,
         uint256 _scale,
         address _mailbox
-    ) HypERC20Collateral(erc20, _scale, _mailbox) {
-        testMemo = "";
-    }
+    ) HypERC20Collateral(erc20, _scale, _mailbox) {}
 
     function setMemoForNextTransfer(bytes calldata memo) external {
         _memos[msg.sender][_nonces[msg.sender]] = memo;
@@ -30,7 +28,7 @@ contract HypERC20CollateralMemo is HypERC20Collateral {
 
         delete _memos[msg.sender][_nonces[msg.sender]];
         _nonces[msg.sender]++;
-        testMemo = memo;
+        emit IncludedMemo(memo);
         return memo;
     }
 }
