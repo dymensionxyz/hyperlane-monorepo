@@ -135,6 +135,16 @@ fn transfer_remote(
     HyperlaneSealevelToken::<CollateralPlugin>::transfer_remote(program_id, accounts, transfer)
 }
 
+/*
+TODO: Friday reminder:
+Was debating how to best approach this.
+What I did: copy transfer remote entirely in the library and add a memo arg
+In the plugins, I'll need to call that instead
+Two options
+1. Add one new instruction which does both in one
+2. Have another instruction and some state to keep them both separate but bundle them both in the same tx from the client
+ */
+
 // Accounts:
 // 0. `[signer]` Mailbox process authority specific to this program.
 // 1. `[executable]` system_program
