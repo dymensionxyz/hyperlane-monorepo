@@ -20,7 +20,7 @@ use hyperlane_sealevel_mailbox::{
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
-use hyperlane_sealevel_token::{
+use hyperlane_sealevel_token_memo::{
     hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds, plugin::SyntheticPlugin,
     processor::process_instruction,
 };
@@ -801,6 +801,8 @@ async fn test_transfer_remote() {
         .unwrap()
         .unwrap();
 
+   let expect_memo = vec![0x01, 0x02, 0x03];
+
     let message = HyperlaneMessage {
         version: 3,
         nonce: 0,
@@ -809,7 +811,7 @@ async fn test_transfer_remote() {
         destination: REMOTE_DOMAIN,
         recipient: remote_router,
         // Expect the remote_transfer_amount to be in the message.
-        body: TokenMessage::new(remote_token_recipient, remote_transfer_amount, vec![]).to_vec(),
+        body: TokenMessage::new(remote_token_recipient, remote_transfer_amount, expect_memo).to_vec(),
     };
 
     assert_eq!(
