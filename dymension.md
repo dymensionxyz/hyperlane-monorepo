@@ -2,6 +2,7 @@ Testing
 yarn test:forge --match-contract HypERC20MemoTest
 yarn test:forge --match-contract HypERC20CollateralMemoTest
 yarn test:forge --match-contract HypNativeMemoTest
+cargo test --test functional
 
 Notes
 Ethereum
