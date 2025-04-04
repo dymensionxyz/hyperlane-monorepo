@@ -2,14 +2,14 @@
     "solanatestnet": {
         "type": "collateral",
         "decimals": 9,
-        "interchainGasPaymaster": "hBHAApi5ZoeCYHqDdCKkCzVKmBdwywdT3hMqe327eZB"
+        "interchainGasPaymaster": "hBHAApi5ZoeCYHqDdCKkCzVKmBdwywdT3hMqe327eZB",
+        "token": "foo"
     },
     "eclipsetestnet": {
         "type": "synthetic",
         "decimals": 9,
         "name": "Solana (testnet)",
         "symbol": "SOL",
-        "uri": "<permalink to the metadata.json file you merged into hyperlane-registry>",
         "interchainGasPaymaster": "hBHAApi5ZoeCYHqDdCKkCzVKmBdwywdT3hMqe327eZB"
     }
 }
