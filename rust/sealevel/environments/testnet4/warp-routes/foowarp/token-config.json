@@ -1,6 +1,6 @@
 {
     "solanatestnet": {
-      "type": "nativeMemo",
+      "type": "native-memo",
       "decimals": 9,
       "interchainGasPaymaster": "hBHAApi5ZoeCYHqDdCKkCzVKmBdwywdT3hMqe327eZB"
     },
