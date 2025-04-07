@@ -490,7 +490,7 @@ where
         Ok(())
     }
 
-     /// Transfers tokens to a remote. Copy of transfer remote with memo added.
+    /// Transfers tokens to a remote. Copy of transfer remote with memo added.
     pub fn transfer_remote_memo(
         program_id: &Pubkey,
         accounts: &[AccountInfo],

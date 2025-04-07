@@ -30,7 +30,7 @@ use hyperlane_sealevel_mailbox::{
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
-use hyperlane_sealevel_token_collateral::{
+use hyperlane_sealevel_token_collateral_memo::{
     hyperlane_token_ata_payer_pda_seeds, hyperlane_token_escrow_pda_seeds,
     plugin::CollateralPlugin, processor::process_instruction,
 };
@@ -789,13 +789,13 @@ async fn test_transfer_remote_memo(spl_token_program_id: Pubkey) {
 // Test transfer_remote with spl_token
 #[tokio::test]
 async fn test_transfer_remote_spl_token() {
-    test_transfer_remote(spl_token_2022::id()).await;
+    test_transfer_remote_memo(spl_token_2022::id()).await;
 }
 
 // Test transfer_remote with spl_token_2022
 #[tokio::test]
 async fn test_transfer_remote_spl_token_2022() {
-    test_transfer_remote(spl_token_2022::id()).await;
+    test_transfer_remote_memo(spl_token_2022::id()).await;
 }
 
 async fn transfer_from_remote(

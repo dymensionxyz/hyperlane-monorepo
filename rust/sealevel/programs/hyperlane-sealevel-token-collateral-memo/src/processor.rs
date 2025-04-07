@@ -1,5 +1,6 @@
 //! Program processor.
 
+use crate::instruction::{Instruction, TransferRemoteMemo};
 use account_utils::DiscriminatorDecode;
 use hyperlane_sealevel_connection_client::{
     gas_router::GasRouterConfig, router::RemoteRouterConfig,
@@ -57,6 +58,18 @@ pub fn process_instruction(
                 )
             }
         };
+    }
+
+    if let Ok(instr) = Instruction::decode(instruction_data) {
+        return match instr {
+            Instruction::TransferRemoteMemo(xfer) => {
+                transfer_remote_memo(program_id, accounts, xfer)
+            }
+        }
+        .map_err(|err| {
+            msg!("{}", err);
+            err
+        });
     }
 
     // Otherwise, try decoding a "normal" token instruction
@@ -138,9 +151,13 @@ fn transfer_remote(
 fn transfer_remote_memo(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    transfer: TransferRemote,
+    transfer: TransferRemoteMemo,
 ) -> ProgramResult {
-    HyperlaneSealevelToken::<CollateralPlugin>::transfer_remote_memo(program_id, accounts, transfer, memo)
+    let base = transfer.base;
+    let memo = transfer.memo;
+    HyperlaneSealevelToken::<CollateralPlugin>::transfer_remote_memo(
+        program_id, accounts, base, memo,
+    )
 }
 
 // Accounts:
