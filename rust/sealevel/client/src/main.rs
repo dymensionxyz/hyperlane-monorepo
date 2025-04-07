@@ -293,6 +293,7 @@ struct TokenCmd {
 enum TokenSubCmd {
     Query(TokenQuery),
     TransferRemote(TokenTransferRemote),
+    TransferRemoteMemo(TokenTransferRemoteMemo),
     EnrollRemoteRouter(TokenEnrollRemoteRouter),
     TransferOwnership(TransferOwnership),
     SetInterchainSecurityModule(SetInterchainSecurityModule),
@@ -317,6 +318,20 @@ struct TokenQuery {
 
 #[derive(Args)]
 struct TokenTransferRemote {
+    #[arg(long, short, default_value_t = HYPERLANE_TOKEN_PROG_ID)]
+    program_id: Pubkey,
+    // Note this is the keypair for normal account not the derived associated token account or delegate.
+    sender: String,
+    amount: u64,
+    destination_domain: u32,
+    recipient: String,
+    #[arg(value_enum)]
+    token_type: TokenType,
+}
+
+#[derive(Args)]
+// TODO: would have been nice to not duplicate
+struct TokenTransferRemoteMemo {
     #[arg(long, short, default_value_t = HYPERLANE_TOKEN_PROG_ID)]
     program_id: Pubkey,
     // Note this is the keypair for normal account not the derived associated token account or delegate.

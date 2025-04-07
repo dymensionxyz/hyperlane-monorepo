@@ -1,14 +1,7 @@
 {
     "solanatestnet": {
-      "type": "native-memo",
+      "type": "nativeMemo",
       "decimals": 9,
-      "interchainGasPaymaster": "hBHAApi5ZoeCYHqDdCKkCzVKmBdwywdT3hMqe327eZB"
-    },
-    "eclipsetestnet": {
-      "type": "synthetic",
-      "decimals": 9,
-      "name": "Solana (solanatestnet)",
-      "symbol": "SOL",
-      "interchainGasPaymaster": "hBHAApi5ZoeCYHqDdCKkCzVKmBdwywdT3hMqe327eZB"
+      "interchainGasPaymaster": "9SQVtTNsbipdMzumhzi6X8GwojiSMwBfqAhS7FgyTcqy"
     }
 }

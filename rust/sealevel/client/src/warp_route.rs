@@ -100,6 +100,7 @@ impl DecimalMetadata {
 #[serde(tag = "type", rename_all = "camelCase")]
 enum TokenType {
     Native,
+    NativeMemo,
     Synthetic(TokenMetadata),
     Collateral(CollateralInfo),
 }
@@ -113,6 +114,7 @@ impl TokenType {
         match &self {
             TokenType::Synthetic(_) => 64_000,
             TokenType::Native => 44_000,
+            TokenType::NativeMemo => 44_000,
             TokenType::Collateral(_) => 68_000,
         }
     }
@@ -188,6 +190,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
     fn program_name(&self, config: &TokenConfig) -> &str {
         match config.token_type {
             TokenType::Native => "hyperlane_sealevel_token_native",
+            TokenType::NativeMemo => "hyperlane_sealevel_token_native_memo",
             TokenType::Synthetic(_) => "hyperlane_sealevel_token",
             TokenType::Collateral(_) => "hyperlane_sealevel_token_collateral",
         }
@@ -285,6 +288,14 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         match &app_config.token_type {
             TokenType::Native => ctx.new_txn().add(
                 hyperlane_sealevel_token_native::instruction::init_instruction(
+                    program_id,
+                    ctx.payer_pubkey,
+                    init,
+                )
+                .unwrap(),
+            ),
+            TokenType::NativeMemo => ctx.new_txn().add(
+                hyperlane_sealevel_token_native_memo::instruction::init_instruction(
                     program_id,
                     ctx.payer_pubkey,
                     init,
