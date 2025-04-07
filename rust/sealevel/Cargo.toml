@@ -16,7 +16,6 @@ members = [
   "programs/hyperlane-sealevel-igp-test",
   "programs/hyperlane-sealevel-token",
   "programs/hyperlane-sealevel-token-collateral",
-  "programs/hyperlane-sealevel-token-collateral-memo",
   "programs/hyperlane-sealevel-token-native",
   "programs/hyperlane-sealevel-token-native-memo",
   "programs/ism/multisig-ism-message-id",
