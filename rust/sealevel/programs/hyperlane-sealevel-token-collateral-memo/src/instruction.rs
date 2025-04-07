@@ -6,7 +6,9 @@ use hyperlane_sealevel_token_lib::instruction::{
     init_instruction as lib_init_instruction, Init, TransferRemote,
 };
 
-use crate::{hyperlane_token_ata_payer_pda_seeds, hyperlane_token_escrow_pda_seeds};
+use hyperlane_sealevel_token_collateral::{
+    hyperlane_token_ata_payer_pda_seeds, hyperlane_token_escrow_pda_seeds,
+};
 
 use solana_program::{
     instruction::{AccountMeta, Instruction as SolanaInstruction},

@@ -15,7 +15,7 @@ use hyperlane_sealevel_token_lib::{
 };
 use solana_program::{account_info::AccountInfo, entrypoint::ProgramResult, msg, pubkey::Pubkey};
 
-use crate::plugin::CollateralPlugin;
+use hyperlane_sealevel_token_collateral::plugin::CollateralPlugin;
 
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
