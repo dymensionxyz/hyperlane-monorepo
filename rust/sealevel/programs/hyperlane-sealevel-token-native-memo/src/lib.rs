@@ -5,6 +5,7 @@
 #![deny(unsafe_code)]
 
 pub mod instruction;
+pub mod plugin;
 pub mod processor;
 
 pub use spl_noop;
