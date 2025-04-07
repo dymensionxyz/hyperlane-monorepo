@@ -712,7 +712,7 @@ pub fn parse_token_account_data(token_type: FlatTokenType, data: &mut &[u8]) {
     }
 
     match token_type {
-        FlatTokenType::Native => {
+        FlatTokenType::Native | FlatTokenType::NativeMemo => {
             let res = HyperlaneTokenAccount::<NativePlugin>::fetch(data);
             print_data_or_err(res);
         }

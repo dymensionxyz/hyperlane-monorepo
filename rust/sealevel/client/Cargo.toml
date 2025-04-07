@@ -46,6 +46,9 @@ hyperlane-sealevel-token-lib = { path = "../libraries/hyperlane-sealevel-token" 
 hyperlane-sealevel-token-native = { path = "../programs/hyperlane-sealevel-token-native", features = [
     "no-entrypoint",
 ] }
+hyperlane-sealevel-token-native-memo = { path = "../programs/hyperlane-sealevel-token-native-memo", features = [
+    "no-entrypoint",
+] }
 hyperlane-sealevel-validator-announce = { path = "../programs/validator-announce", features = [
     "no-entrypoint",
 ] }

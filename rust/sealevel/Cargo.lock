@@ -2459,6 +2459,7 @@ dependencies = [
  "hyperlane-sealevel-token-collateral",
  "hyperlane-sealevel-token-lib",
  "hyperlane-sealevel-token-native",
+ "hyperlane-sealevel-token-native-memo",
  "hyperlane-sealevel-validator-announce",
  "pretty_env_logger",
  "serde",
