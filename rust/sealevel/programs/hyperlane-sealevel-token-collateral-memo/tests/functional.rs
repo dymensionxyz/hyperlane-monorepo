@@ -32,8 +32,9 @@ use hyperlane_sealevel_message_recipient_interface::{
 };
 use hyperlane_sealevel_token_collateral_memo::{
     hyperlane_token_ata_payer_pda_seeds, hyperlane_token_escrow_pda_seeds,
-    plugin::CollateralPlugin, processor::process_instruction,
     instruction::{Instruction as CollateralMemoInstruction, TransferRemoteMemo},
+    plugin::CollateralPlugin,
+    processor::process_instruction,
 };
 use hyperlane_sealevel_token_lib::{
     accounts::{convert_decimals, HyperlaneToken, HyperlaneTokenAccount},
@@ -658,7 +659,7 @@ async fn test_transfer_remote_memo(spl_token_program_id: Pubkey) {
                     recipient: remote_token_recipient,
                     amount_or_id: transfer_amount.into(),
                 },
-                memo: test_memo,
+                memo: test_memo.clone(),
             })
             .encode()
             .unwrap(),
