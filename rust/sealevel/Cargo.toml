@@ -18,6 +18,7 @@ members = [
   "programs/hyperlane-sealevel-token-collateral",
   "programs/hyperlane-sealevel-token-collateral-memo",
   "programs/hyperlane-sealevel-token-native",
+  "programs/hyperlane-sealevel-token-native-memo",
   "programs/ism/multisig-ism-message-id",
   "programs/ism/test-ism",
   "programs/mailbox",
