@@ -33,6 +33,7 @@ use hyperlane_sealevel_message_recipient_interface::{
 use hyperlane_sealevel_token_collateral_memo::{
     hyperlane_token_ata_payer_pda_seeds, hyperlane_token_escrow_pda_seeds,
     plugin::CollateralPlugin, processor::process_instruction,
+    instruction::{Instruction as CollateralMemoInstruction, TransferRemoteMemo},
 };
 use hyperlane_sealevel_token_lib::{
     accounts::{convert_decimals, HyperlaneToken, HyperlaneTokenAccount},
@@ -645,14 +646,19 @@ async fn test_transfer_remote_memo(spl_token_program_id: Pubkey) {
     let remote_transfer_amount =
         convert_decimals(transfer_amount.into(), LOCAL_DECIMALS, REMOTE_DECIMALS).unwrap();
 
+    let test_memo = vec![1, 2, 3];
+
     let recent_blockhash = banks_client.get_latest_blockhash().await.unwrap();
     let transaction = Transaction::new_signed_with_payer(
         &[Instruction::new_with_bytes(
             program_id,
-            &HyperlaneTokenInstruction::TransferRemote(TransferRemote {
-                destination_domain: REMOTE_DOMAIN,
-                recipient: remote_token_recipient,
-                amount_or_id: transfer_amount.into(),
+            &CollateralMemoInstruction::TransferRemoteMemo(TransferRemoteMemo {
+                base: TransferRemote {
+                    destination_domain: REMOTE_DOMAIN,
+                    recipient: remote_token_recipient,
+                    amount_or_id: transfer_amount.into(),
+                },
+                memo: test_memo,
             })
             .encode()
             .unwrap(),
@@ -746,7 +752,7 @@ async fn test_transfer_remote_memo(spl_token_program_id: Pubkey) {
         destination: REMOTE_DOMAIN,
         recipient: remote_router,
         // Expect the remote_transfer_amount to be in the message.
-        body: TokenMessage::new(remote_token_recipient, remote_transfer_amount, vec![]).to_vec(),
+        body: TokenMessage::new(remote_token_recipient, remote_transfer_amount, test_memo).to_vec(),
     };
 
     assert_eq!(
