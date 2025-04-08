@@ -24,28 +24,64 @@ mod db;
 mod settings;
 mod store;
 
+use hyperlane_sealevel::{
+    account::search_accounts_by_discriminator, ConnectionConf, NativeToken,
+    PriorityFeeOracleConfig, SealevelFallbackRpcClient, SealevelProvider,
+    TransactionSubmitterConfig,
+};
+
+use hyperlane_core::{ChainCommunicationError, HyperlaneDomain, HyperlaneMessage};
+use hyperlane_sealevel_mailbox::accounts::DispatchedMessageAccount;
+use solana_sdk::pubkey::Pubkey;
+use crate::account::search_and_validate_account;
+
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     // Logging is not initialised at this point, so, using `println!`
     println!("Scraper agent starting up...");
 
-    agent_main::<Scraper>().await;
-
-    let rpc_client = SealevelFallbackRpcClient::new(rpc_url);
-    let domain = HyperlaneDomain::new(domain_id);
-    let contract_addresses = vec![];
-    let conf = ConnectionConf::new(native_token, contract_addresses);
-
-    let provider = SealevelProvider::new(rpc_client, domain, &contract_addresses, &conf);
-
-    let tx_submitter = Box::new(SubmitSealevelRpc::new(provider.clone()));
-
-    let ixer =
-        SealevelMailboxIndexer::new(provider, tx_submitter, locator, conf, advanced_log_meta);
-
-    let res = ixer.get_dispatched_message_with_nonce(nonce).await?;
-
-    println!("res: {:?}", res);
+    // agent_main::<Scraper>().await;
 
     Ok(())
+}
+
+async fn debug() -> Result<()> {
+    let provider = SealevelProvider::new(
+        SealevelFallbackRpcClient::new(rpc_url),
+        HyperlaneDomain::new(domain_id),
+        &contract_addresses,
+        &conf,
+    );
+
+    let nonce_bytes = nonce.to_le_bytes();
+    let unique_dispatched_message_pubkey_offset = 1 + 8 + 4 + 8; // the offset to get the `unique_message_pubkey` field
+    let unique_dispatch_message_pubkey_length = 32; // the length of the `unique_message_pubkey` fiel
+    let discriminator = hyperlane_sealevel_mailbox::accounts::DISPATCHED_MESSAGE_DISCRIMINATOR;
+
+    let res = search_accounts_by_discriminator(
+        &provider,
+        &program_id,
+        &discriminator,
+        &nonce_bytes,
+        unique_dispatched_message_pubkey_offset,
+        unique_dispatch_message_pubkey_length,
+    )
+    .await?;
+
+    let valid_message_storage_pda_pubkey =
+        search_and_validate_account(accounts, |account| self.dispatched_message_account(account))?;
+
+    let mailbox = Mailbox::new(provider, tx_submitter, locator, conf, advanced_log_meta);
+    let account = mailbox
+        .get_provider()
+        .rpc_client()
+        .get_account_with_finalized_commitment(valid_message_storage_pda_pubkey)
+        .await?;
+
+    let dispatched_message_account = DispatchedMessageAccount::fetch(&mut account.data.as_ref())
+        .map_err(ChainCommunicationError::from_other)?
+        .into_inner();
+    let hyperlane_message =
+        HyperlaneMessage::read_from(&mut &dispatched_message_account.encoded_message[..])?;
 }
