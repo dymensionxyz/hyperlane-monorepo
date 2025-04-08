@@ -1074,7 +1074,8 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 }
             }
         }
-        TokenSubCmd::TransferRemote(xfer) => {
+        // ~~~~~~~~~~~~~~~~ DYMENSION ~~~~~~~~~~~~~~~~~~
+        TokenSubCmd::TransferRemote(xfer) | TokenSubCmd::TransferRemoteMemo(xfer) => {
             is_keypair(&xfer.sender).unwrap();
             ctx.commitment = CommitmentConfig::finalized();
             let sender = read_keypair_file(xfer.sender).unwrap();

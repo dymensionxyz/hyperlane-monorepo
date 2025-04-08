@@ -9,12 +9,13 @@ use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
 use hyperlane_sealevel_token_lib::{
-    instruction::{Init, Instruction as TokenIxn, TransferRemote},
+    instruction::{
+        DymInstruction, Init, Instruction as TokenIxn, TransferRemote, TransferRemoteMemo,
+    },
     processor::HyperlaneSealevelToken,
 };
 use solana_program::{account_info::AccountInfo, entrypoint::ProgramResult, msg, pubkey::Pubkey};
 
-use crate::instruction::{Instruction, TransferRemoteMemo};
 use crate::plugin::NativePlugin;
 
 #[cfg(not(feature = "no-entrypoint"))]
@@ -60,9 +61,9 @@ pub fn process_instruction(
         };
     }
 
-    if let Ok(instr) = Instruction::decode(instruction_data) {
+    if let Ok(instr) = DymInstruction::decode(instruction_data) {
         return match instr {
-            Instruction::TransferRemoteMemo(xfer) => {
+            DymInstruction::TransferRemoteMemo(xfer) => {
                 transfer_remote_memo(program_id, accounts, xfer)
             }
         }

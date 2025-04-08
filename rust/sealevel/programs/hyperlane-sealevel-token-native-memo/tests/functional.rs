@@ -30,15 +30,15 @@ use hyperlane_sealevel_message_recipient_interface::{
 use hyperlane_sealevel_token_lib::{
     accounts::{convert_decimals, HyperlaneToken, HyperlaneTokenAccount},
     hyperlane_token_pda_seeds,
-    instruction::{Init, Instruction as HyperlaneTokenInstruction, TransferRemote},
+    instruction::{
+        DymInstruction, Init, Instruction as HyperlaneTokenInstruction, TransferRemote,
+        TransferRemoteMemo,
+    },
 };
 use hyperlane_sealevel_token_native::{
     hyperlane_token_native_collateral_pda_seeds, plugin::NativePlugin,
 };
-use hyperlane_sealevel_token_native_memo::{
-    instruction::{Instruction as NativeMemoInstruction, TransferRemoteMemo},
-    processor::process_instruction,
-};
+use hyperlane_sealevel_token_native_memo::processor::process_instruction;
 use hyperlane_test_utils::{
     assert_lamports, assert_transaction_error, igp_program_id, initialize_igp_accounts,
     initialize_mailbox, mailbox_id, new_funded_keypair, process, transfer_lamports, IgpAccounts,
@@ -427,7 +427,7 @@ async fn test_transfer_remote_memo() {
     let transaction = Transaction::new_signed_with_payer(
         &[Instruction::new_with_bytes(
             program_id,
-            &NativeMemoInstruction::TransferRemoteMemo(TransferRemoteMemo {
+            &DymInstruction::TransferRemoteMemo(TransferRemoteMemo {
                 base: TransferRemote {
                     destination_domain: REMOTE_DOMAIN,
                     recipient: remote_token_recipient,
