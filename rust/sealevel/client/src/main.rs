@@ -46,7 +46,10 @@ use hyperlane_sealevel_token_collateral::{
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneTokenAccount,
     hyperlane_token_pda_seeds,
-    instruction::{Instruction as HtInstruction, TransferRemote as HtTransferRemote},
+    instruction::{
+        DymInstruction as DymHtInstruction, Instruction as HtInstruction,
+        TransferRemote as HtTransferRemote, TransferRemoteMemo as DymHtTransferRemoteMemo,
+    },
 };
 use hyperlane_sealevel_token_native::hyperlane_token_native_collateral_pda_seeds;
 use hyperlane_sealevel_token_native_memo::hyperlane_token_native_collateral_pda_seeds as hyperlane_token_native_memo_collateral_pda_seeds;
@@ -341,6 +344,7 @@ struct TokenTransferRemoteMemo {
     recipient: String,
     #[arg(value_enum)]
     token_type: TokenType,
+    memo: String,
 }
 
 #[derive(Args)]
@@ -1074,8 +1078,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 }
             }
         }
-        // ~~~~~~~~~~~~~~~~ DYMENSION ~~~~~~~~~~~~~~~~~~
-        TokenSubCmd::TransferRemote(xfer) | TokenSubCmd::TransferRemoteMemo(xfer) => {
+        TokenSubCmd::TransferRemote(xfer) => {
             is_keypair(&xfer.sender).unwrap();
             ctx.commitment = CommitmentConfig::finalized();
             let sender = read_keypair_file(xfer.sender).unwrap();
@@ -1119,6 +1122,211 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 destination_domain: xfer.destination_domain,
                 recipient,
                 amount_or_id: xfer.amount.into(),
+            });
+
+            // Transfers tokens to a remote.
+            // Burns the tokens from the sender's associated token account and
+            // then dispatches a message to the remote recipient.
+            //
+            // 0.    [executable] The system program.
+            // 1.    [executable] The spl_noop program.
+            // 2.    [] The token PDA account.
+            // 3.    [executable] The mailbox program.
+            // 4.    [writeable] The mailbox outbox account.
+            // 5.    [] Message dispatch authority.
+            // 6.    [signer] The token sender and mailbox payer.
+            // 7.    [signer] Unique message / gas payment account.
+            // 8.    [writeable] Message storage PDA.
+            //       ---- If using an IGP ----
+            // 9.    [executable] The IGP program.
+            // 10.   [writeable] The IGP program data.
+            // 11.   [writeable] Gas payment PDA.
+            // 12.   [] OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
+            // 13.   [writeable] The IGP account.
+            //       ---- End if ----
+            // 14..N [??..??] Plugin-specific accounts.
+            let mut accounts = vec![
+                AccountMeta::new_readonly(system_program::id(), false),
+                AccountMeta::new_readonly(spl_noop::id(), false),
+                AccountMeta::new_readonly(token_account, false),
+                AccountMeta::new_readonly(token.mailbox, false),
+                AccountMeta::new(mailbox_outbox_account, false),
+                AccountMeta::new_readonly(dispatch_authority_account, false),
+                AccountMeta::new(sender.pubkey(), true),
+                AccountMeta::new_readonly(unique_message_account_keypair.pubkey(), true),
+                AccountMeta::new(dispatched_message_account, false),
+            ];
+
+            if let Some((igp_program_id, igp_account_type)) = token.interchain_gas_paymaster {
+                let (igp_program_data, _bump) =
+                    Pubkey::find_program_address(igp_program_data_pda_seeds!(), &igp_program_id);
+                let (gas_payment_pda, _bump) = Pubkey::find_program_address(
+                    igp_gas_payment_pda_seeds!(&unique_message_account_keypair.pubkey()),
+                    &igp_program_id,
+                );
+
+                accounts.extend([
+                    AccountMeta::new_readonly(igp_program_id, false),
+                    AccountMeta::new(igp_program_data, false),
+                    AccountMeta::new(gas_payment_pda, false),
+                ]);
+
+                match igp_account_type {
+                    InterchainGasPaymasterType::OverheadIgp(overhead_igp_account_id) => {
+                        let overhead_igp_account = ctx
+                            .client
+                            .get_account_with_commitment(&overhead_igp_account_id, ctx.commitment)
+                            .unwrap()
+                            .value
+                            .unwrap();
+                        let overhead_igp_account =
+                            OverheadIgpAccount::fetch(&mut &overhead_igp_account.data[..])
+                                .unwrap()
+                                .into_inner();
+                        accounts.extend([
+                            AccountMeta::new_readonly(overhead_igp_account_id, false),
+                            AccountMeta::new(overhead_igp_account.inner, false),
+                        ]);
+                    }
+                    InterchainGasPaymasterType::Igp(igp_account_id) => {
+                        accounts.push(AccountMeta::new(igp_account_id, false));
+                    }
+                }
+            }
+
+            match xfer.token_type {
+                TokenType::Native => {
+                    // 5. [executable] The system program.
+                    // 6. [writeable] The native token collateral PDA account.
+                    let (native_collateral_account, _native_collateral_bump) =
+                        Pubkey::find_program_address(
+                            hyperlane_token_native_collateral_pda_seeds!(),
+                            &xfer.program_id,
+                        );
+                    accounts.extend([
+                        AccountMeta::new_readonly(system_program::id(), false),
+                        AccountMeta::new(native_collateral_account, false),
+                    ]);
+                }
+                TokenType::NativeMemo => {
+                    // 5. [executable] The system program.
+                    // 6. [writeable] The native token collateral PDA account.
+                    let (native_collateral_account, _native_collateral_bump) =
+                        Pubkey::find_program_address(
+                            hyperlane_token_native_memo_collateral_pda_seeds!(),
+                            &xfer.program_id,
+                        );
+                    accounts.extend([
+                        AccountMeta::new_readonly(system_program::id(), false),
+                        AccountMeta::new(native_collateral_account, false),
+                    ]);
+                }
+                TokenType::Synthetic => {
+                    // 5. [executable] The spl_token_2022 program.
+                    // 6. [writeable] The mint / mint authority PDA account.
+                    // 7. [writeable] The token sender's associated token account, from which tokens will be burned.
+                    let (mint_account, _mint_bump) = Pubkey::find_program_address(
+                        hyperlane_token_mint_pda_seeds!(),
+                        &xfer.program_id,
+                    );
+                    let sender_associated_token_account =
+                        get_associated_token_address_with_program_id(
+                            &sender.pubkey(),
+                            &mint_account,
+                            &spl_token_2022::id(),
+                        );
+                    accounts.extend([
+                        AccountMeta::new_readonly(spl_token_2022::id(), false),
+                        AccountMeta::new(mint_account, false),
+                        AccountMeta::new(sender_associated_token_account, false),
+                    ]);
+                }
+                TokenType::Collateral => {
+                    // 5. [executable] The SPL token program for the mint.
+                    // 6. [writeable] The mint.
+                    // 7. [writeable] The token sender's associated token account, from which tokens will be sent.
+                    // 8. [writeable] The escrow PDA account.
+                    let token = HyperlaneTokenAccount::<CollateralPlugin>::fetch(
+                        &mut &fetched_token_account.data[..],
+                    )
+                    .unwrap()
+                    .into_inner();
+                    let sender_associated_token_account =
+                        get_associated_token_address_with_program_id(
+                            &sender.pubkey(),
+                            &token.plugin_data.mint,
+                            &token.plugin_data.spl_token_program,
+                        );
+                    accounts.extend([
+                        AccountMeta::new_readonly(token.plugin_data.spl_token_program, false),
+                        AccountMeta::new(token.plugin_data.mint, false),
+                        AccountMeta::new(sender_associated_token_account, false),
+                        AccountMeta::new(token.plugin_data.escrow, false),
+                    ]);
+                }
+            }
+
+            eprintln!("accounts={:#?}", accounts); // FIXME remove
+            let xfer_instruction = Instruction {
+                program_id: xfer.program_id,
+                data: ixn.encode().unwrap(),
+                accounts,
+            };
+            let tx_result = ctx.new_txn().add(xfer_instruction).send(&[
+                &*ctx.payer_signer(),
+                &sender,
+                &unique_message_account_keypair,
+            ]);
+            // Print the output so it can be used in e2e tests
+            println!("{:?}", tx_result);
+        }
+        TokenSubCmd::TransferRemoteMemo(xfer) => {
+            is_keypair(&xfer.sender).unwrap();
+            ctx.commitment = CommitmentConfig::finalized();
+            let sender = read_keypair_file(xfer.sender).unwrap();
+
+            let recipient = if xfer.recipient.starts_with("0x") {
+                H256::from_str(&xfer.recipient).unwrap()
+            } else {
+                let pubkey = Pubkey::from_str(&xfer.recipient).unwrap();
+                H256::from_slice(&pubkey.to_bytes()[..])
+            };
+
+            let (token_account, _token_bump) =
+                Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &xfer.program_id);
+            let (dispatch_authority_account, _dispatch_authority_bump) =
+                Pubkey::find_program_address(
+                    mailbox_message_dispatch_authority_pda_seeds!(),
+                    &xfer.program_id,
+                );
+
+            let fetched_token_account = ctx
+                .client
+                .get_account_with_commitment(&token_account, ctx.commitment)
+                .unwrap()
+                .value
+                .unwrap();
+            let token = HyperlaneTokenAccount::<()>::fetch(&mut &fetched_token_account.data[..])
+                .unwrap()
+                .into_inner();
+
+            let unique_message_account_keypair = Keypair::new();
+            let (dispatched_message_account, _dispatched_message_bump) =
+                Pubkey::find_program_address(
+                    mailbox_dispatched_message_pda_seeds!(&unique_message_account_keypair.pubkey()),
+                    &token.mailbox,
+                );
+
+            let (mailbox_outbox_account, _mailbox_outbox_bump) =
+                Pubkey::find_program_address(mailbox_outbox_pda_seeds!(), &token.mailbox);
+
+            let ixn = DymHtInstruction::TransferRemoteMemo(DymHtTransferRemoteMemo {
+                base: HtTransferRemote {
+                    destination_domain: xfer.destination_domain,
+                    recipient,
+                    amount_or_id: xfer.amount.into(),
+                },
+                memo: xfer.memo.as_bytes().to_vec(), // TODO: conversion OK?
             });
 
             // Transfers tokens to a remote.
