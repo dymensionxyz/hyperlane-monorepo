@@ -11,6 +11,7 @@ hyperlane-sealevel-mailbox = { path = "../../../sealevel/programs/mailbox", feat
 
 solana-sdk = { workspace = true }
 solana-client = { workspace = true }
+solana-account-decoder = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 clap = { workspace = true, features = ["derive"] }
 anyhow = { workspace = true }

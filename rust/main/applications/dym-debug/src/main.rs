@@ -6,14 +6,15 @@ use std::{str::FromStr, sync::Arc};
 use tracing::Level;
 use url::Url;
 
-use hyperlane_core::{ChainResult, Decode as _, HyperlaneDomain, HyperlaneMessage, H256};
+use hyperlane_core::{ChainResult, Decode as _, HyperlaneDomain, HyperlaneMessage, H256, NativeToken};
 use hyperlane_sealevel::{
-    ConnectionConf, NativeToken, PriorityFeeOracleConfig, SealevelFallbackRpcClient,
-    SealevelProvider, TransactionSubmitterConfig,
+    ConnectionConf, PriorityFeeOracleConfig, SealevelProvider,
 };
+use hyperlane_sealevel::rpc::fallback::SealevelFallbackRpcClient;
+use hyperlane_sealevel::tx_submitter::config::TransactionSubmitterConfig;
 // Import necessary items directly from the mailbox crate
 use hyperlane_sealevel_mailbox::{
-    accounts::{AccountData, DispatchedMessageAccount, DISPATCHED_MESSAGE_DISCRIMINATOR},
+    accounts::{DispatchedMessageAccount, DISPATCHED_MESSAGE_DISCRIMINATOR},
     mailbox_dispatched_message_pda_seeds,
 };
 
@@ -49,7 +50,6 @@ async fn search_accounts_by_discriminator(
     length: usize,
 ) -> ChainResult<Vec<(Pubkey, Account)>> {
     use hyperlane_core::ChainCommunicationError;
-    use solana_account_decoder::{UiAccountEncoding, UiDataSliceConfig};
     use solana_client::rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig};
     use solana_client::rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType};
     use solana_sdk::commitment_config::CommitmentConfig;
@@ -67,13 +67,14 @@ async fn search_accounts_by_discriminator(
     let config = RpcProgramAccountsConfig {
         filters: Some(vec![memcmp]),
         account_config: RpcAccountInfoConfig {
-            encoding: Some(UiAccountEncoding::Base64),
-            data_slice: Some(UiDataSliceConfig { offset, length }),
+            encoding: Some(solana_account_decoder::UiAccountEncoding::Base64),
+            data_slice: Some(solana_account_decoder::UiDataSliceConfig { offset, length }),
             commitment: Some(CommitmentConfig::finalized()),
             min_context_slot: None,
         },
         with_context: Some(false),
     };
+
     provider
         .rpc_client()
         .get_program_accounts_with_config(*program_id, config)
@@ -131,14 +132,19 @@ async fn main() -> Result<()> {
         operation_batch: Default::default(),
         native_token: NativeToken {
             // Define SOL as native token (decimals important for potential balance checks)
-            name: "Solana".to_string(),
-            symbol: "SOL".to_string(),
+            denom: "SOL".to_string(),
             decimals: 9,
         },
         priority_fee_oracle: PriorityFeeOracleConfig::default(), // Default needed
         transaction_submitter: TransactionSubmitterConfig::default(), // Default needed
     };
-    let domain = HyperlaneDomain::new_test_domain("local_sealevel").with_id(args.domain_id);
+    let domain = HyperlaneDomain::Unknown {
+        domain_id: args.domain_id,
+        domain_name: "local_sealevel".to_string(),
+        domain_type: hyperlane_core::HyperlaneDomainType::LocalTestChain,
+        domain_protocol: hyperlane_core::HyperlaneDomainProtocol::Sealevel,
+        domain_technical_stack: hyperlane_core::HyperlaneDomainTechnicalStack::Other,
+    };
     let rpc_fallback =
         SealevelFallbackRpcClient::from_urls(None, dummy_conf.urls.clone(), Default::default());
     let provider = Arc::new(SealevelProvider::new(
@@ -185,7 +191,7 @@ async fn main() -> Result<()> {
     let dispatched_message_account_extractor = |account: &Account| -> ChainResult<(Pubkey, u8)> {
         // Data slice only contains the unique_message_pubkey here
         if account.data.len() != 32 {
-            return Err(ChainCommunicationError::from_other_str(
+            return Err(hyperlane_core::ChainCommunicationError::from_other_str(
                 "Invalid data slice length received from search",
             ));
         }

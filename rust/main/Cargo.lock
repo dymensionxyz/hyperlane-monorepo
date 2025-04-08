@@ -2678,6 +2678,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-sealevel",
  "hyperlane-sealevel-mailbox",
+ "solana-account-decoder",
  "solana-client",
  "solana-sdk",
  "tokio",
