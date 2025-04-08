@@ -7990,7 +7990,10 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 name = "scraper"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-trait",
+ "base64 0.21.7",
+ "borsh 0.9.3",
  "config",
  "console-subscriber",
  "derive_more 0.99.18",
@@ -7998,10 +8001,12 @@ dependencies = [
  "ethers-prometheus",
  "eyre",
  "futures",
+ "hex 0.4.3",
  "hyperlane-base",
  "hyperlane-core",
  "hyperlane-ethereum",
  "hyperlane-sealevel",
+ "hyperlane-sealevel-mailbox",
  "hyperlane-test",
  "itertools 0.12.1",
  "migration",
@@ -8012,13 +8017,18 @@ dependencies = [
  "sea-orm",
  "serde",
  "serde_json",
+ "solana-account-decoder",
+ "solana-client",
+ "solana-sdk",
  "thiserror",
  "time",
  "tokio",
  "tokio-test",
  "tracing",
  "tracing-futures",
+ "tracing-subscriber",
  "tracing-test",
+ "url",
 ]
 
 [[package]]

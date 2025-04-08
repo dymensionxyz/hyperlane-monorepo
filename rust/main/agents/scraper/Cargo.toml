@@ -28,10 +28,20 @@ time.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 tracing-futures.workspace = true
 tracing.workspace = true
-hyperlane-sealevel = { path = "../../chains/hyperlane-sealevel" }
 hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-core = { path = "../../hyperlane-core", features = ["agent"] }
 migration = { path = "migration" }
+anyhow = { workspace = true }
+base64 = { workspace = true }
+borsh = { workspace = true }
+hex = { workspace = true }
+hyperlane-sealevel = { path = "../../chains/hyperlane-sealevel" } # Add path to this crate
+hyperlane-sealevel-mailbox = { path = "../../../sealevel/programs/mailbox", features = ["no-entrypoint"] } # Add path and feature
+solana-sdk = { workspace = true }
+solana-client = { workspace = true }
+solana-account-decoder = { workspace = true }
+tracing-subscriber = { workspace = true } # For minimal logging init
+url = { workspace = true }
 
 [dev-dependencies]
 reqwest.workspace = true
