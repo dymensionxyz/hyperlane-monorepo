@@ -2,7 +2,7 @@
 members = [
   "agents/relayer",
   "agents/scraper",
-  "agents/validator",
+  "agents/validator", "applications/dym-debug",
   "applications/hyperlane-application",
   "applications/hyperlane-operation-verifier",
   "applications/hyperlane-warp-route",
