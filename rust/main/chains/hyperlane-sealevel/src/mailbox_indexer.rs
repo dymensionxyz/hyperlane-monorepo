@@ -72,7 +72,7 @@ impl SealevelMailboxIndexer {
         })
     }
 
-    async fn get_dispatched_message_with_nonce(
+    pub async fn get_dispatched_message_with_nonce(
         &self,
         nonce: u32,
     ) -> ChainResult<(Indexed<HyperlaneMessage>, LogMeta)> {

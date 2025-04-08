@@ -29,5 +29,23 @@ async fn main() -> Result<()> {
     // Logging is not initialised at this point, so, using `println!`
     println!("Scraper agent starting up...");
 
-    agent_main::<Scraper>().await
+    agent_main::<Scraper>().await;
+
+    let rpc_client = SealevelFallbackRpcClient::new(rpc_url);
+    let domain = HyperlaneDomain::new(domain_id);
+    let contract_addresses = vec![];
+    let conf = ConnectionConf::new(native_token, contract_addresses);
+
+    let provider = SealevelProvider::new(rpc_client, domain, &contract_addresses, &conf);
+
+    let tx_submitter = Box::new(SubmitSealevelRpc::new(provider.clone()));
+
+    let ixer =
+        SealevelMailboxIndexer::new(provider, tx_submitter, locator, conf, advanced_log_meta);
+
+    let res = ixer.get_dispatched_message_with_nonce(nonce).await?;
+
+    println!("res: {:?}", res);
+
+    Ok(())
 }
