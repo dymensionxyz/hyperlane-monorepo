@@ -12,7 +12,7 @@ HypNative = Native
 Solana
 hyperlane-sealevel-token = Synthetic
 hyperlane-sealevel-token-collateral = Collateral
-hyperlane-sealevel-token-native = Native (?)
+hyperlane-sealevel-token-native = Native
 
 Change list
 Ethereum
@@ -23,6 +23,10 @@ Copied test for HypNative and added memo check
 Extended HypERC20Collateral with override to include memo in transferFromSender
 Copied test for HypeERC20Collateral and added memo check
 Solana
+Added hyperlane-sealevel-token-native-memo
 
 Improvements to be made (possibly)
-DRY out repetitive memo code in contracts - DRY out repetitive new tests
+Ethereum
+Just have a method to do both the memo setting and the transfer remote
+Solidity
+Find a way to remove the plugin.rs duplication in the tokens
