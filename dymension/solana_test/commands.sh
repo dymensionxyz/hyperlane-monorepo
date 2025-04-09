@@ -1,3 +1,6 @@
+###########################
+# Prelims
+
 # NOTE: MUST CONFIGURE CORRECTLY TO THIS DIRECTORY
 BASE_PATH="/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/solana_test"
 
