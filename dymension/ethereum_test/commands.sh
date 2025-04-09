@@ -117,5 +117,24 @@ dymd q forward hyperlane-decode message $OUT_MESSAGE # it should show the ibc pa
 ANV0=http://localhost:8545
 ANV1=http://localhost:8546
 
-# Other useful things
 cast balance 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 --rpc-url $ANV0
+
+# Explorer, uses https://github.com/otterscan/otterscan
+# GUI is at http://localhost:5100/
+
+ANVIL_RPC_URL=http://127.0.0.1:8545
+
+docker run \
+  --rm \
+  -p 5100:80 \
+  --name otterscan \
+  -d \
+  --env OTTERSCAN_CONFIG='{
+    "erigonURL": "'$ANVIL_RPC_URL'",
+    "assetsURLPrefix": "http://127.0.0.1:5175",
+    "branding": {
+        "siteName": "My Otterscan",
+        "networkTitle": "Dev Network"
+    },
+}' \
+otterscan/otterscan:latest
