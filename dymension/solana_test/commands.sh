@@ -91,7 +91,7 @@ cargo run -- -k $KEY_PATH --config $SOL_CFG_PATH \
     --chain sealeveltest1 \
     --local-domain "$LOCAL_DOMAIN"
 
-# igp
+# igp, not optional
 cargo run -- -k $KEY_PATH --config $SOL_CFG_PATH \
     igp configure\
     --gas-oracle-config-file $ENV_DIR/$ENVIR/gas-oracle-configs.json \
