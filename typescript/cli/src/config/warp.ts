@@ -55,9 +55,6 @@ const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
   [TokenType.fastCollateral]: '',
   [TokenType.collateralUri]: '',
   [TokenType.nativeScaled]: '',
-  [TokenType.syntheticMemo]: '(DYMENSION) HypERC20Memo contract',
-  [TokenType.collateralMemo]: '(DYMENSION) HypERC20CollateralMemo contract',
-  [TokenType.nativeMemo]: '(DYMENSION) HypNativeMemo contract',
 };
 
 const TYPE_CHOICES = Object.values(TokenType).map((type) => ({
@@ -176,7 +173,6 @@ export async function createWarpRouteDeployConfig({
       type === TokenType.syntheticUri || type === TokenType.collateralUri;
 
     switch (type) {
-      case TokenType.collateralMemo:
       case TokenType.collateral:
       case TokenType.XERC20:
       case TokenType.XERC20Lockbox:

@@ -1,9 +1,7 @@
 import {
   FastHypERC20Collateral__factory,
   FastHypERC20__factory,
-  HypERC20CollateralMemo__factory,
   HypERC20Collateral__factory,
-  HypERC20Memo__factory,
   HypERC20__factory,
   HypERC721Collateral__factory,
   HypERC721URICollateral__factory,
@@ -13,7 +11,6 @@ import {
   HypERC4626OwnerCollateral__factory,
   HypERC4626__factory,
   HypFiatToken__factory,
-  HypNativeMemo__factory,
   HypNative__factory,
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
@@ -35,10 +32,6 @@ export const hypERC20contracts = {
   [TokenType.native]: 'HypNative',
   // uses same contract as native
   [TokenType.nativeScaled]: 'HypNative',
-  // ~~~~~~~~ DYMENSION ~~~~~~~~~
-  [TokenType.syntheticMemo]: 'HypERC20Memo',
-  [TokenType.collateralMemo]: 'HypERC20CollateralMemo',
-  [TokenType.nativeMemo]: 'HypNativeMemo',
 };
 export type HypERC20contracts = typeof hypERC20contracts;
 
@@ -55,11 +48,6 @@ export const hypERC20factories = {
   [TokenType.XERC20Lockbox]: new HypXERC20Lockbox__factory(),
   [TokenType.native]: new HypNative__factory(),
   [TokenType.nativeScaled]: new HypNative__factory(),
-  // ~~~~~~~~ DYMENSION ~~~~~~~~~
-  // TODO: fix
-  [TokenType.syntheticMemo]: new HypERC20Memo__factory(),
-  [TokenType.collateralMemo]: new HypERC20CollateralMemo__factory(),
-  [TokenType.nativeMemo]: new HypNativeMemo__factory(),
 };
 export type HypERC20Factories = typeof hypERC20factories;
 

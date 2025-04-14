@@ -23,10 +23,6 @@ export enum TokenStandard {
   EvmHypXERC20Lockbox = 'EvmHypXERC20Lockbox',
   EvmHypVSXERC20 = 'EvmHypVSXERC20',
   EvmHypVSXERC20Lockbox = 'EvmHypVSXERC20Lockbox',
-  // ~~~~~~~~ DYMENSION ~~~~~~~~~
-  EvmHypSyntheticMemo = 'EvmHypSyntheticMemo',
-  EvmHypCollateralMemo = 'EvmHypCollateralMemo',
-  EvmHypNativeMemo = 'EvmHypNativeMemo',
 
   // Sealevel (Solana)
   SealevelSpl = 'SealevelSpl',
@@ -73,11 +69,6 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   EvmHypXERC20Lockbox: ProtocolType.Ethereum,
   EvmHypVSXERC20: ProtocolType.Ethereum,
   EvmHypVSXERC20Lockbox: ProtocolType.Ethereum,
-
-  // ~~~~~~~~ DYMENSION ~~~~~~~~~
-  EvmHypCollateralMemo: ProtocolType.Ethereum, // erc20 collateral memo
-  EvmHypSyntheticMemo: ProtocolType.Ethereum, // erc20 memo (synthetic)
-  EvmHypNativeMemo: ProtocolType.Ethereum, // native memo
 
   // Sealevel (Solana)
   SealevelSpl: ProtocolType.Sealevel,
@@ -159,12 +150,6 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.EvmHypXERC20Lockbox,
   TokenStandard.EvmHypVSXERC20,
   TokenStandard.EvmHypVSXERC20Lockbox,
-
-  // ~~~~~~~~ DYMENSION ~~~~~~~~~
-  TokenStandard.EvmHypCollateralMemo,
-  TokenStandard.EvmHypSyntheticMemo,
-  TokenStandard.EvmHypNativeMemo,
-
   TokenStandard.SealevelHypNative,
   TokenStandard.SealevelHypCollateral,
   TokenStandard.SealevelHypSynthetic,
@@ -207,11 +192,6 @@ export const TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
   [TokenType.syntheticUri]: TokenStandard.EvmHypSynthetic,
   [TokenType.fastSynthetic]: TokenStandard.EvmHypSynthetic,
   [TokenType.nativeScaled]: TokenStandard.EvmHypNative,
-
-  // ~~~~~~~~ DYMENSION ~~~~~~~~~
-  [TokenType.syntheticMemo]: TokenStandard.EvmHypSyntheticMemo,
-  [TokenType.collateralMemo]: TokenStandard.EvmHypCollateralMemo,
-  [TokenType.nativeMemo]: TokenStandard.EvmHypNativeMemo,
 };
 
 // Starknet supported token types
