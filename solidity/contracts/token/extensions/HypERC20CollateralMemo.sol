@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
-import {console} from "forge-std/console.sol";
 
 contract HypERC20CollateralMemo is HypERC20Collateral {
     event IncludedMemo(bytes memo);
-    mapping(address => mapping(uint256 => bytes)) private _memos;
-    mapping(address => uint256) private _nonces;
+    bytes private _memo;
 
     constructor(
         address erc20,
@@ -16,18 +13,22 @@ contract HypERC20CollateralMemo is HypERC20Collateral {
         address _mailbox
     ) HypERC20Collateral(erc20, _scale, _mailbox) {}
 
-    function setMemoForNextTransfer(bytes calldata memo) external {
-        _memos[msg.sender][_nonces[msg.sender]] = memo;
+    function transferRemoteMemo(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amountOrId,
+        bytes calldata memo
+    ) external payable virtual returns (bytes32 messageId) {
+        _memo = memo;
+        return this.transferRemote(_destination, _recipient, _amountOrId);
     }
 
     function _transferFromSender(
         uint256 _amount
     ) internal virtual override returns (bytes memory) {
         super._transferFromSender(_amount);
-        bytes memory memo = _memos[msg.sender][_nonces[msg.sender]];
-
-        delete _memos[msg.sender][_nonces[msg.sender]];
-        _nonces[msg.sender]++;
+        bytes memory memo = _memo;
+        _memo = "";
         emit IncludedMemo(memo);
         return memo;
     }

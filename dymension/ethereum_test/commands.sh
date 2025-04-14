@@ -44,7 +44,7 @@ yarn version:update; # optionally increase the version number in typescript/cli/
 yarn build;
 npm uninstall -g @hyperlane-xyz/cli; 
 npm install -g .;
-hyperlane --versio
+hyperlane --version
 
 ##################################################
 # STEP:Core contract deployment

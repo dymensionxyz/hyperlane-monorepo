@@ -1,0 +1,190 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity >=0.8.0;
+
+import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
+import {GasRouter} from "../../client/GasRouter.sol";
+import {MailboxClient} from "../../client/MailboxClient.sol";
+import {TypeCasts} from "../../libs/TypeCasts.sol";
+import {TokenMessage} from "./TokenMessage.sol";
+import {TokenRouter} from "./TokenRouter.sol";
+/**
+ * @title Hyperlane Token Router that extends Router with abstract token (ERC20/ERC721) remote transfer functionality.
+ * @author Abacus Works
+ */
+abstract contract TokenRouterMemo is TokenRouter {
+    using TypeCasts for bytes32;
+    using TypeCasts for address;
+    using TokenMessage for bytes;
+
+    function transferRemoteMemo(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amountOrId,
+        bytes calldata memo,
+    ) external payable virtual returns (bytes32 messageId) {
+        return
+            _transferRemote(_destination, _recipient, _amountOrId, msg.value);
+    }
+
+    /**
+     * @notice Transfers `_amountOrId` token to `_recipient` on `_destination` domain with a specified hook
+     * @dev Delegates transfer logic to `_transferFromSender` implementation.
+     * @dev The metadata is the token metadata, and is DIFFERENT than the hook metadata.
+     * @dev Emits `SentTransferRemote` event on the origin chain.
+     * @param _destination The identifier of the destination chain.
+     * @param _recipient The address of the recipient on the destination chain.
+     * @param _amountOrId The amount or identifier of tokens to be sent to the remote recipient.
+     * @param _hookMetadata The metadata passed into the hook
+     * @param _hook The post dispatch hook to be called by the Mailbox
+     * @return messageId The identifier of the dispatched message.
+     */
+    function transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amountOrId,
+        bytes calldata _hookMetadata,
+        address _hook
+    ) external payable virtual returns (bytes32 messageId) {
+        return
+            _transferRemote(
+                _destination,
+                _recipient,
+                _amountOrId,
+                msg.value,
+                _hookMetadata,
+                _hook
+            );
+    }
+
+    function _transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amountOrId,
+        uint256 _value
+    ) internal returns (bytes32 messageId) {
+        return
+            _transferRemote(
+                _destination,
+                _recipient,
+                _amountOrId,
+                _value,
+                _GasRouter_hookMetadata(_destination),
+                address(hook)
+            );
+    }
+
+    function _transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amountOrId,
+        uint256 _value,
+        bytes memory _hookMetadata,
+        address _hook
+    ) internal virtual returns (bytes32 messageId) {
+        bytes memory _tokenMetadata = _transferFromSender(_amountOrId);
+
+        uint256 outboundAmount = _outboundAmount(_amountOrId);
+        bytes memory _tokenMessage = TokenMessage.format(
+            _recipient,
+            outboundAmount,
+            _tokenMetadata
+        );
+
+        messageId = _Router_dispatch(
+            _destination,
+            _value,
+            _tokenMessage,
+            _hookMetadata,
+            _hook
+        );
+
+        emit SentTransferRemote(_destination, _recipient, outboundAmount);
+    }
+
+    /**
+     * @dev Should return the amount of tokens to be encoded in the message amount (eg for scaling `_localAmount`).
+     * @param _localAmount The amount of tokens transferred on this chain in local denomination.
+     * @return _messageAmount The amount of tokens to be encoded in the message body.
+     */
+    function _outboundAmount(
+        uint256 _localAmount
+    ) internal view virtual returns (uint256 _messageAmount) {
+        _messageAmount = _localAmount;
+    }
+
+    /**
+     * @dev Should return the amount of tokens to be decoded from the message amount.
+     * @param _messageAmount The amount of tokens received in the message body.
+     * @return _localAmount The amount of tokens to be transferred on this chain in local denomination.
+     */
+    function _inboundAmount(
+        uint256 _messageAmount
+    ) internal view virtual returns (uint256 _localAmount) {
+        _localAmount = _messageAmount;
+    }
+
+    /**
+     * @dev Should transfer `_amountOrId` of tokens from `msg.sender` to this token router.
+     * @dev Called by `transferRemote` before message dispatch.
+     * @dev Optionally returns `metadata` associated with the transfer to be passed in message.
+     */
+    function _transferFromSender(
+        uint256 _amountOrId
+    ) internal virtual returns (bytes memory metadata);
+
+    /**
+     * @notice Returns the balance of `account` on this token router.
+     * @param account The address to query the balance of.
+     * @return The balance of `account`.
+     */
+    function balanceOf(address account) external virtual returns (uint256);
+
+    /**
+     * @notice Returns the gas payment required to dispatch a message to the given domain's router.
+     * @param _destinationDomain The domain of the router.
+     * @return _gasPayment Payment computed by the registered InterchainGasPaymaster.
+     */
+    function quoteGasPayment(
+        uint32 _destinationDomain
+    ) external view override returns (uint256) {
+        return
+            _GasRouter_quoteDispatch(
+                _destinationDomain,
+                TokenMessage.format(bytes32(0), type(uint256).max, bytes("")),
+                address(hook)
+            );
+    }
+
+    /**
+     * @dev Mints tokens to recipient when router receives transfer message.
+     * @dev Emits `ReceivedTransferRemote` event on the destination chain.
+     * @param _origin The identifier of the origin chain.
+     * @param _message The encoded remote transfer message containing the recipient address and amount.
+     */
+    function _handle(
+        uint32 _origin,
+        bytes32,
+        bytes calldata _message
+    ) internal virtual override {
+        bytes32 recipient = _message.recipient();
+        uint256 amount = _message.amount();
+        bytes calldata metadata = _message.metadata();
+        _transferTo(
+            recipient.bytes32ToAddress(),
+            _inboundAmount(amount),
+            metadata
+        );
+        emit ReceivedTransferRemote(_origin, recipient, amount);
+    }
+
+    /**
+     * @dev Should transfer `_amountOrId` of tokens from this token router to `_recipient`.
+     * @dev Called by `handle` after message decoding.
+     * @dev Optionally handles `metadata` associated with transfer passed in message.
+     */
+    function _transferTo(
+        address _recipient,
+        uint256 _amountOrId,
+        bytes calldata metadata
+    ) internal virtual;
+}
