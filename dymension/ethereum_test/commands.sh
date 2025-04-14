@@ -34,6 +34,7 @@ anvil --port 8546 --chain-id 31338 --block-time 1
 # http://localhost:8546
 # 31338
 
+# only necessary first time
 hyperlane registry init
 
 ##################################################
@@ -55,9 +56,6 @@ nvm use 20
 
 mkdir ~/.hyperlane
 cp -r chains ~/.hyperlane
-
-# OPTIONALLY, can regenerate this config with:
-hyperlane core init
 
 # this will be the first anvil private key (double check)
 export HYP_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
