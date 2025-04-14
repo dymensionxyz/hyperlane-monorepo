@@ -7,7 +7,10 @@ import {
   ChainName,
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
+  IsmCacheConfig,
+  IsmCachePolicy,
   MatchingList,
+  ModuleType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 
@@ -29,7 +32,7 @@ import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 import { getDomainId } from '../../registry.js';
 
-import { environment } from './chains.js';
+import { environment, ethereumChainNames } from './chains.js';
 import { helloWorld } from './helloworld.js';
 import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json';
 import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json';
@@ -71,7 +74,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     artela: true,
     arthera: true,
     astar: true,
-    astarzkevm: false,
     aurora: true,
     avalanche: true,
     b3: true,
@@ -212,7 +214,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     artela: true,
     arthera: true,
     astar: true,
-    astarzkevm: false,
     aurora: true,
     avalanche: true,
     b3: true,
@@ -353,7 +354,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     artela: true,
     arthera: true,
     astar: true,
-    astarzkevm: false,
     aurora: true,
     avalanche: true,
     b3: true,
@@ -735,15 +735,24 @@ const blacklistedMessageIds = [
 
 // Blacklist matching list intended to be used by all contexts.
 const blacklist: MatchingList = [
-  {
-    // Eco, who's sending a lot of messages not intended to be processed by the relayer.
-    // A temporary measure to prevent some wasted effort on our relayer.
-    senderAddress: '0xd890d66a0e2530335D10b3dEb5C8Ec8eA1DaB954',
-  },
   ...blacklistedMessageIds.map((messageId) => ({
     messageId,
   })),
 ];
+
+const defaultIsmCacheConfig: IsmCacheConfig = {
+  // Default ISM Routing ISMs change configs based off message content,
+  // so they are not specified here.
+  moduleTypes: [
+    ModuleType.AGGREGATION,
+    ModuleType.MERKLE_ROOT_MULTISIG,
+    ModuleType.MESSAGE_ID_MULTISIG,
+  ],
+  // SVM is explicitly not cached as the default ISM is a multisig ISM
+  // that routes internally.
+  chains: ethereumChainNames,
+  cachePolicy: IsmCachePolicy.IsmSpecific,
+};
 
 const hyperlane: RootAgentConfig = {
   ...contextBase,
@@ -754,11 +763,13 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '28ca872-20250331-100202',
+      tag: 'cecb0d8-20250411-150743',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
+    defaultIsmCacheConfig,
+    allowContractCallCaching: true,
     resources: relayerResources,
   },
   validators: {
@@ -790,7 +801,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8ab7c80-20250326-191115',
+      tag: 'cecb0d8-20250411-150743',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -798,6 +809,8 @@ const releaseCandidate: RootAgentConfig = {
     // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     metricAppContextsGetter,
+    defaultIsmCacheConfig,
+    allowContractCallCaching: true,
     resources: relayerResources,
   },
   validators: {
@@ -824,11 +837,13 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7c4f0f2-20250326-180331',
+      tag: 'cecb0d8-20250411-150743',
     },
     blacklist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
+    defaultIsmCacheConfig,
+    allowContractCallCaching: true,
     resources: relayerResources,
   },
 };
