@@ -1,7 +1,5 @@
 import { z } from 'zod';
 
-import { Address, WithAddress } from '@hyperlane-xyz/utils';
-
 import { ProtocolAgnositicGasOracleConfigSchema } from '../gas/oracle/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
 import {
@@ -78,8 +76,6 @@ export type AmountRoutingHookConfig = {
 };
 
 export type HookConfig = z.infer<typeof HookConfigSchema>;
-
-export type DerivedHookConfig = WithAddress<Exclude<HookConfig, Address>>;
 
 // Hook types that can be updated in-place
 export const MUTABLE_HOOK_TYPE = [

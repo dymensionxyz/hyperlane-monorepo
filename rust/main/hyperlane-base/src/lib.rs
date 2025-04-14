@@ -12,8 +12,6 @@ pub mod settings;
 mod agent;
 pub use agent::*;
 
-/// The local cache used by agents
-pub mod cache;
 /// The local database used by agents
 pub mod db;
 

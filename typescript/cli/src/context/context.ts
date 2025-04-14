@@ -41,7 +41,6 @@ export async function contextMiddleware(argv: Record<string, any>) {
     disableProxy: argv.disableProxy,
     skipConfirmation: argv.yes,
     strategyPath: argv.strategy,
-    authToken: argv.authToken,
   };
   if (!isDryRun && settings.fromAddress)
     throw new Error(
@@ -102,13 +101,11 @@ export async function getContext({
   skipConfirmation,
   disableProxy = false,
   strategyPath,
-  authToken,
 }: ContextSettings): Promise<CommandContext> {
   const registry = getRegistry({
     registryUris,
     enableProxy: !disableProxy,
     logger: rootLogger,
-    authToken,
   });
 
   //Just for backward compatibility
@@ -144,7 +141,6 @@ export async function getDryRunContext(
     fromAddress,
     skipConfirmation,
     disableProxy = false,
-    authToken,
   }: ContextSettings,
   chain?: ChainName,
 ): Promise<CommandContext> {
@@ -152,7 +148,6 @@ export async function getDryRunContext(
     registryUris,
     enableProxy: !disableProxy,
     logger: rootLogger,
-    authToken,
   });
   const chainMetadata = await registry.getMetadata();
 

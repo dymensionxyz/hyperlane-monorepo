@@ -212,11 +212,7 @@ impl Mailbox for FuelMailbox {
         })
     }
 
-    async fn process_calldata(
-        &self,
-        _message: &HyperlaneMessage,
-        _metadata: &[u8],
-    ) -> ChainResult<Vec<u8>> {
+    fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8> {
         // Seems like this is not needed for Fuel, as it's only used in mocks
         todo!()
     }

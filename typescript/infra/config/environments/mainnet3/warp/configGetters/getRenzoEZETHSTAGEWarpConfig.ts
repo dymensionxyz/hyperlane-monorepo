@@ -58,5 +58,5 @@ export const getRenzoEZETHSTAGEWarpConfig = getRenzoWarpConfigGenerator({
   tokenPrices: renzoTokenPrices,
 });
 
-export const getEZETHSTAGEGnosisSafeBuilderStrategyConfig =
+export const getRenzoGnosisSafeBuilderStagingStrategyConfig =
   getRenzoGnosisSafeBuilderStrategyConfigGenerator(ezEthStagingSafes);

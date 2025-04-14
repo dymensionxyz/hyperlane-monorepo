@@ -15,6 +15,7 @@ const SOME_ADDRESS = ethers.Wallet.createRandom().address;
 const COLLATERAL_TYPES = [
   TokenType.collateral,
   TokenType.collateralUri,
+  TokenType.fastCollateral,
   TokenType.collateralVault,
   TokenType.collateralMemo,
 ];
@@ -22,6 +23,7 @@ const COLLATERAL_TYPES = [
 const NON_COLLATERAL_TYPES = [
   TokenType.synthetic,
   TokenType.syntheticUri,
+  TokenType.fastSynthetic,
   TokenType.syntheticMemo,
 ];
 

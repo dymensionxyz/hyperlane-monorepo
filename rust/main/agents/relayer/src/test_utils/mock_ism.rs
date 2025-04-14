@@ -12,14 +12,14 @@ type ResponseList<T> = Arc<Mutex<VecDeque<T>>>;
 
 #[derive(Debug, Default)]
 pub struct MockInterchainSecurityModuleResponses {
+    pub module_type: ResponseList<ChainResult<ModuleType>>,
     pub dry_run_verify: ResponseList<ChainResult<Option<U256>>>,
+    pub domain: Option<HyperlaneDomain>,
 }
 
 pub struct MockInterchainSecurityModule {
-    pub address: H256,
-    pub domain: HyperlaneDomain,
-    pub module_type: ModuleType,
     pub responses: MockInterchainSecurityModuleResponses,
+    pub address: H256,
 }
 
 impl std::fmt::Debug for MockInterchainSecurityModule {
@@ -33,12 +33,10 @@ impl std::fmt::Debug for MockInterchainSecurityModule {
 }
 
 impl MockInterchainSecurityModule {
-    pub fn new(address: H256, domain: HyperlaneDomain, module_type: ModuleType) -> Self {
+    pub fn new(address: H256) -> Self {
         Self {
-            address,
-            domain,
-            module_type,
             responses: MockInterchainSecurityModuleResponses::default(),
+            address,
         }
     }
 }
@@ -46,7 +44,12 @@ impl MockInterchainSecurityModule {
 #[async_trait::async_trait]
 impl InterchainSecurityModule for MockInterchainSecurityModule {
     async fn module_type(&self) -> ChainResult<ModuleType> {
-        Ok(self.module_type)
+        self.responses
+            .module_type
+            .lock()
+            .unwrap()
+            .pop_front()
+            .expect("No mock module_type response set")
     }
 
     /// Dry runs the `verify()` ISM call and returns `Some(gas_estimate)` if the call
@@ -67,13 +70,16 @@ impl InterchainSecurityModule for MockInterchainSecurityModule {
 
 impl HyperlaneContract for MockInterchainSecurityModule {
     fn address(&self) -> H256 {
-        self.address
+        H256::zero()
     }
 }
 
 impl HyperlaneChain for MockInterchainSecurityModule {
     fn domain(&self) -> &hyperlane_core::HyperlaneDomain {
-        &self.domain
+        self.responses
+            .domain
+            .as_ref()
+            .expect("No mock domain response set")
     }
     fn provider(&self) -> Box<dyn hyperlane_core::HyperlaneProvider> {
         unimplemented!()
@@ -82,8 +88,6 @@ impl HyperlaneChain for MockInterchainSecurityModule {
 
 #[cfg(test)]
 mod tests {
-    use hyperlane_core::KnownHyperlaneDomain;
-
     use crate::test_utils::mock_ism::MockInterchainSecurityModule;
 
     use super::*;
@@ -91,12 +95,24 @@ mod tests {
     /// Just to test mock structs work
     #[tokio::test]
     async fn test_mock_works() {
-        let mock_ism = MockInterchainSecurityModule::new(
-            H256::zero(),
-            HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
-            ModuleType::Routing,
-        );
+        let mock_ism = MockInterchainSecurityModule::new(H256::zero());
+        mock_ism
+            .responses
+            .module_type
+            .lock()
+            .unwrap()
+            .push_back(Ok(ModuleType::Routing));
+        mock_ism
+            .responses
+            .module_type
+            .lock()
+            .unwrap()
+            .push_back(Ok(ModuleType::Aggregation));
+
         let module_type = mock_ism.module_type().await.expect("No response");
         assert_eq!(module_type, ModuleType::Routing);
+
+        let module_type = mock_ism.module_type().await.expect("No response");
+        assert_eq!(module_type, ModuleType::Aggregation);
     }
 }

@@ -7,6 +7,8 @@
 #   synthetic
 #   collateralUri
 #   syntheticUri
+#   fastCollateral
+#   fastSynthetic
 ---
 anvil1:
   type: native

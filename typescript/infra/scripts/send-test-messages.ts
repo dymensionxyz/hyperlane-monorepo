@@ -1,5 +1,5 @@
 import { Provider } from '@ethersproject/providers';
-import { Wallet } from 'ethers';
+import { BigNumber, Wallet } from 'ethers';
 import fs from 'fs';
 import yargs from 'yargs';
 
@@ -9,7 +9,6 @@ import {
   Mailbox,
   StorageGasOracle,
   StorageGasOracle__factory,
-  TestSendReceiver,
   TestSendReceiver__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -128,11 +127,6 @@ function getArgs() {
       default: false,
       describe: 'Mine forever after sending messages',
     })
-    .option('body', {
-      type: 'string',
-      default: '0x1234',
-      describe: 'send custom body',
-    })
     .option('singleOrigin', {
       type: 'string',
       default: undefined,
@@ -167,14 +161,8 @@ function getArgs() {
 
 async function main() {
   const args = await getArgs();
-  const {
-    timeout,
-    defaultHook,
-    requiredHook,
-    mineforever,
-    singleOrigin,
-    body,
-  } = args;
+  const { timeout, defaultHook, requiredHook, mineforever, singleOrigin } =
+    args;
   let messages = args.messages;
 
   // Limit the test chains to a subset of the known chains
@@ -248,15 +236,24 @@ async function main() {
       await setIgpConfig(remoteId, signer, provider, mailbox, addresses, local);
     }
 
+    const message = formatMessage(
+      1,
+      0,
+      multiProvider.getDomainId(local),
+      recipient.address,
+      multiProvider.getDomainId(remote),
+      recipient.address,
+      '0x1234',
+    );
     const quote = await mailbox['quoteDispatch(uint32,bytes32,bytes)'](
       remoteId,
       addressToBytes32(recipient.address),
-      body,
+      message,
     );
     await mailbox['dispatch(uint32,bytes32,bytes)'](
       remoteId,
       addressToBytes32(recipient.address),
-      body,
+      message,
       {
         value: quote,
       },

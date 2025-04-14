@@ -215,6 +215,21 @@ function getWarpTokenConfigForType({
         token: vault,
       };
       break;
+    case TokenType.fastCollateral:
+      tokenConfig = {
+        type: TokenType.fastCollateral,
+        mailbox,
+        owner,
+        token,
+      };
+      break;
+    case TokenType.fastSynthetic:
+      tokenConfig = {
+        type: TokenType.fastSynthetic,
+        mailbox,
+        owner,
+      };
+      break;
     case TokenType.native:
       tokenConfig = {
         type: TokenType.native,

@@ -33,7 +33,6 @@ pub(crate) mod metadata;
 pub(crate) mod op_queue;
 pub(crate) mod op_submitter;
 pub(crate) mod processor;
-mod utils;
 
 pub mod pending_message;
 

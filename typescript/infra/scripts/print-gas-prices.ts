@@ -84,26 +84,11 @@ async function getGasPrice(
       };
     }
     case ProtocolType.Cosmos: {
-      try {
-        const { amount } = await getCosmosChainGasPrice(chain, mpp);
-        return {
-          amount,
-          decimals: 1,
-        };
-      } catch (error) {
-        console.error(
-          `Error getting gas price for cosmos chain ${chain}:`,
-          error,
-        );
-        if (currentGasPrice) {
-          return currentGasPrice;
-        } else {
-          return {
-            amount: 'PLEASE SET A GAS PRICE FOR COSMOS CHAIN',
-            decimals: 1,
-          };
-        }
-      }
+      const { amount } = await getCosmosChainGasPrice(chain, mpp);
+      return {
+        amount,
+        decimals: 1,
+      };
     }
     case ProtocolType.Sealevel:
       // Return the gas price from the config if it exists, otherwise return some  default

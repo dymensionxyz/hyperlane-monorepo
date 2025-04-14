@@ -1,12 +1,11 @@
-pub use self::storage_types::{InterchainGasExpenditureData, InterchainGasPaymentData};
 pub use error::*;
+use hyperlane_core::{
+    GasPaymentKey, HyperlaneDomain, HyperlaneMessage, InterchainGasPayment,
+    InterchainGasPaymentMeta, MerkleTreeInsertion, PendingOperationStatus, H256,
+};
 pub use rocks::*;
 
-use hyperlane_core::{
-    identifiers::UniqueIdentifier, GasPaymentKey, HyperlaneDomain, HyperlaneMessage,
-    InterchainGasPayment, InterchainGasPaymentMeta, MerkleTreeInsertion, PendingOperationStatus,
-    H256,
-};
+pub use self::storage_types::{InterchainGasExpenditureData, InterchainGasPaymentData};
 
 mod error;
 mod rocks;
@@ -160,17 +159,4 @@ pub trait HyperlaneDb: Send + Sync {
 
     /// Retrieve the nonce of the highest processed message we're aware of
     fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
-
-    /// Store payload id by message id
-    fn store_payload_id_by_message_id(
-        &self,
-        message_id: &H256,
-        payload_id: &UniqueIdentifier,
-    ) -> DbResult<()>;
-
-    /// Retrieve payload id by message id
-    fn retrieve_payload_id_by_message_id(
-        &self,
-        message_id: &H256,
-    ) -> DbResult<Option<UniqueIdentifier>>;
 }

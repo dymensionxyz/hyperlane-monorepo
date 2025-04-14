@@ -13,7 +13,6 @@ import { hookCommand } from './src/commands/hook.js';
 import { ismCommand } from './src/commands/ism.js';
 import {
   disableProxyCommandOption,
-  githubAuthTokenOption,
   keyCommandOption,
   logFormatCommandOption,
   logLevelCommandOption,
@@ -45,7 +44,6 @@ try {
     .option('log', logFormatCommandOption)
     .option('verbosity', logLevelCommandOption)
     .option('registry', registryUrisCommandOption)
-    .option('authToken', githubAuthTokenOption)
     .option('overrides', overrideRegistryUriCommandOption)
     .option('key', keyCommandOption)
     .option('disableProxy', disableProxyCommandOption)

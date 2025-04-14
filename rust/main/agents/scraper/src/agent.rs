@@ -41,10 +41,9 @@ struct ChainScraper {
 impl BaseAgent for Scraper {
     const AGENT_NAME: &'static str = "scraper";
     type Settings = ScraperSettings;
-    type Metadata = AgentMetadata;
 
     async fn from_settings(
-        _agent_metadata: Self::Metadata,
+        _agent_metadata: AgentMetadata,
         settings: Self::Settings,
         metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
@@ -372,13 +371,11 @@ impl Scraper {
 #[cfg(test)]
 mod test {
     use std::collections::BTreeMap;
-    use std::time::Duration;
 
     use ethers::utils::hex;
     use ethers_prometheus::middleware::PrometheusMiddlewareConf;
     use prometheus::{opts, IntGaugeVec, Registry};
     use reqwest::Url;
-    use sea_orm::{DatabaseBackend, MockDatabase};
 
     use hyperlane_base::{
         settings::{
@@ -390,6 +387,7 @@ mod test {
         config::OperationBatchConfig, IndexMode, KnownHyperlaneDomain, ReorgPeriod, H256,
     };
     use hyperlane_ethereum as h_eth;
+    use sea_orm::{DatabaseBackend, MockDatabase};
 
     use super::*;
 
@@ -399,8 +397,6 @@ mod test {
             ChainConf {
                 domain: HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
                 signer: None,
-                submitter: Default::default(),
-                estimated_block_time: Duration::from_secs_f64(1.1),
                 reorg_period: ReorgPeriod::None,
                 addresses: CoreContractAddresses {
                     mailbox: H256::from_slice(

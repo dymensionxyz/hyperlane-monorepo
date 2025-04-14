@@ -4,11 +4,10 @@ use crate::config::Config;
 use crate::invariants::{
     provider_metrics_invariant_met, relayer_termination_invariants_met,
     scraper_termination_invariants_met, RelayerTerminationInvariantParams,
-    ScraperTerminationInvariantParams,
 };
 use crate::logging::log;
 use crate::server::{fetch_relayer_gas_payment_event_count, fetch_relayer_message_processed_count};
-use crate::{FAILED_MESSAGE_COUNT, RELAYER_METRICS_PORT, ZERO_MERKLE_INSERTION_KATHY_MESSAGES};
+use crate::{RELAYER_METRICS_PORT, ZERO_MERKLE_INSERTION_KATHY_MESSAGES};
 
 /// Use the metrics to check if the relayer queues are empty and the expected
 /// number of messages have been sent.
@@ -34,9 +33,7 @@ pub fn termination_invariants_met(
         gas_payment_events_count,
         total_messages_expected,
         total_messages_dispatched: total_messages_expected,
-        failed_message_count: FAILED_MESSAGE_COUNT,
-        submitter_queue_length_expected: ZERO_MERKLE_INSERTION_KATHY_MESSAGES
-            + FAILED_MESSAGE_COUNT,
+        submitter_queue_length_expected: ZERO_MERKLE_INSERTION_KATHY_MESSAGES,
         non_matching_igp_message_count: 0,
         double_insertion_message_count: (config.kathy_messages as u32 / 4) * 2,
     };
@@ -44,15 +41,11 @@ pub fn termination_invariants_met(
         return Ok(false);
     }
 
-    let params = ScraperTerminationInvariantParams {
+    if !scraper_termination_invariants_met(
         gas_payment_events_count,
-        total_messages_dispatched: total_messages_expected
-            + ZERO_MERKLE_INSERTION_KATHY_MESSAGES
-            + FAILED_MESSAGE_COUNT,
-        delivered_messages_scraped_expected: total_messages_expected,
-    };
-
-    if !scraper_termination_invariants_met(params)? {
+        total_messages_expected + ZERO_MERKLE_INSERTION_KATHY_MESSAGES,
+        total_messages_expected,
+    )? {
         return Ok(false);
     }
 

@@ -14,7 +14,9 @@ use rusoto_s3::{GetObjectError, GetObjectRequest, PutObjectRequest, S3Client, S3
 use tokio::time::timeout;
 
 use crate::types::utils;
-use crate::{settings::aws_credentials::AwsChainCredentialsProvider, CheckpointSyncer};
+use crate::{
+    settings::aws_credentials::AwsChainCredentialsProvider, AgentMetadata, CheckpointSyncer,
+};
 
 /// The timeout for S3 requests. Rusoto doesn't offer timeout configuration
 /// out of the box, so S3 requests must be wrapped with a timeout.
@@ -196,8 +198,9 @@ impl CheckpointSyncer for S3Storage {
         Ok(())
     }
 
-    async fn write_metadata(&self, serialized_metadata: &str) -> Result<()> {
-        self.write_to_bucket(S3Storage::metadata_key(), serialized_metadata)
+    async fn write_metadata(&self, metadata: &AgentMetadata) -> Result<()> {
+        let serialized_metadata = serde_json::to_string_pretty(metadata)?;
+        self.write_to_bucket(S3Storage::metadata_key(), &serialized_metadata)
             .await?;
         Ok(())
     }

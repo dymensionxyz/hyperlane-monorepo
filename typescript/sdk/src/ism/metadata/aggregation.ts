@@ -7,7 +7,8 @@ import {
   toHexString,
 } from '@hyperlane-xyz/utils';
 
-import { AggregationIsmConfig, DerivedIsmConfig, IsmType } from '../types.js';
+import { DerivedIsmConfig } from '../EvmIsmReader.js';
+import { AggregationIsmConfig, IsmType } from '../types.js';
 
 import type { BaseMetadataBuilder } from './builder.js';
 import { decodeIsmMetadata } from './decode.js';

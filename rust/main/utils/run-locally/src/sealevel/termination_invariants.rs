@@ -7,7 +7,6 @@ use crate::{
     invariants::{
         provider_metrics_invariant_met, relayer_termination_invariants_met,
         scraper_termination_invariants_met, RelayerTerminationInvariantParams,
-        ScraperTerminationInvariantParams,
     },
     logging::log,
     sealevel::{solana::*, SOL_MESSAGES_EXPECTED, SOL_MESSAGES_WITH_NON_MATCHING_IGP},
@@ -24,7 +23,6 @@ pub fn termination_invariants_met(
     solana_cli_tools_path: &Path,
     solana_config_path: &Path,
 ) -> eyre::Result<bool> {
-    log!("Checking sealevel termination invariants");
     let sol_messages_expected = SOL_MESSAGES_EXPECTED;
     let sol_messages_with_non_matching_igp = SOL_MESSAGES_WITH_NON_MATCHING_IGP;
 
@@ -44,13 +42,11 @@ pub fn termination_invariants_met(
         gas_payment_events_count,
         total_messages_expected,
         total_messages_dispatched,
-        failed_message_count: 0,
         submitter_queue_length_expected: sol_messages_with_non_matching_igp,
         non_matching_igp_message_count: 0,
         double_insertion_message_count: sol_messages_with_non_matching_igp,
     };
     if !relayer_termination_invariants_met(params)? {
-        log!("Relayer termination invariants not met");
         return Ok(false);
     }
 
@@ -59,14 +55,11 @@ pub fn termination_invariants_met(
         return Ok(false);
     }
 
-    let params = ScraperTerminationInvariantParams {
+    if !scraper_termination_invariants_met(
         gas_payment_events_count,
         total_messages_dispatched,
-        delivered_messages_scraped_expected: total_messages_expected,
-    };
-
-    if !scraper_termination_invariants_met(params)? {
-        log!("Scraper termination invariants not met");
+        total_messages_expected,
+    )? {
         return Ok(false);
     }
 
@@ -76,7 +69,6 @@ pub fn termination_invariants_met(
         &hashmap! {"chain" => "sealeveltest2", "connection" => "rpc", "status" => "success"},
         &hashmap! {"chain" => "sealeveltest2"},
     )? {
-        log!("Provider metrics invariants not met");
         return Ok(false);
     }
 

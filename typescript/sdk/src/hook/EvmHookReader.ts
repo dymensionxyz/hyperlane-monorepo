@@ -39,7 +39,6 @@ import {
   AmountRoutingHookConfig,
   ArbL2ToL1HookConfig,
   CCIPHookConfig,
-  DerivedHookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
@@ -53,6 +52,8 @@ import {
   ProtocolFeeHookConfig,
   RoutingHookConfig,
 } from './types.js';
+
+export type DerivedHookConfig = WithAddress<Exclude<HookConfig, Address>>;
 
 export interface HookReader {
   deriveHookConfig(address: Address): Promise<WithAddress<HookConfig>>;

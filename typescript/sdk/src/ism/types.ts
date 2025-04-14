@@ -13,12 +13,7 @@ import {
   TestIsm,
   TrustedRelayerIsm,
 } from '@hyperlane-xyz/core';
-import type {
-  Address,
-  Domain,
-  ValueOf,
-  WithAddress,
-} from '@hyperlane-xyz/utils';
+import type { Address, Domain, ValueOf } from '@hyperlane-xyz/utils';
 
 import { ZHash } from '../metadata/customZodTypes.js';
 import {
@@ -174,8 +169,6 @@ export type AggregationIsmConfig = {
 };
 
 export type IsmConfig = z.infer<typeof IsmConfigSchema>;
-
-export type DerivedIsmConfig = WithAddress<Exclude<IsmConfig, Address>>;
 
 export type DeployedIsmType = {
   [IsmType.CUSTOM]: IInterchainSecurityModule;

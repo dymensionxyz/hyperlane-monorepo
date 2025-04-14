@@ -5,15 +5,11 @@ import { z } from 'zod';
 import {
   AgentConfig,
   ChainMap,
-  ChainName,
   GasPaymentEnforcement,
   HyperlaneAddresses,
   HyperlaneAddressesMap,
   HyperlaneFactories,
-  IsmCacheConfig,
-  IsmCachePolicy,
   MatchingList,
-  ModuleType,
   RelayerConfig as RelayerAgentConfig,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -54,8 +50,6 @@ export interface BaseRelayerConfig {
   transactionGasLimit?: BigNumberish;
   skipTransactionGasLimitFor?: string[];
   metricAppContextsGetter?: () => MetricAppContext[];
-  defaultIsmCacheConfig?: IsmCacheConfig;
-  allowContractCallCaching?: boolean;
 }
 
 // Full relayer-specific agent config for a single chain
@@ -64,10 +58,7 @@ export type RelayerConfig = Omit<RelayerAgentConfig, keyof AgentConfig>;
 // and are intended to derisk hitting max env var length limits.
 export type RelayerConfigMapConfig = Pick<
   RelayerConfig,
-  | 'addressBlacklist'
-  | 'gasPaymentEnforcement'
-  | 'metricAppContexts'
-  | 'defaultIsmCacheConfig'
+  'addressBlacklist' | 'gasPaymentEnforcement' | 'metricAppContexts'
 >;
 // The rest of the config is intended to be set as env vars.
 export type RelayerEnvConfig = Omit<
@@ -137,11 +128,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
         baseConfig.metricAppContextsGetter(),
       );
     }
-    if (baseConfig.defaultIsmCacheConfig) {
-      relayerConfig.defaultIsmCacheConfig = baseConfig.defaultIsmCacheConfig;
-    }
-    relayerConfig.allowContractCallCaching =
-      baseConfig.allowContractCallCaching;
+
     return relayerConfig;
   }
 

@@ -22,6 +22,8 @@ import {
 import { TokenType } from './config.js';
 
 export const hypERC20contracts = {
+  [TokenType.fastCollateral]: 'FastHypERC20Collateral',
+  [TokenType.fastSynthetic]: 'FastHypERC20',
   [TokenType.synthetic]: 'HypERC20',
   [TokenType.syntheticRebase]: 'HypERC4626',
   [TokenType.collateral]: 'HypERC20Collateral',
@@ -41,6 +43,8 @@ export const hypERC20contracts = {
 export type HypERC20contracts = typeof hypERC20contracts;
 
 export const hypERC20factories = {
+  [TokenType.fastCollateral]: new FastHypERC20Collateral__factory(),
+  [TokenType.fastSynthetic]: new FastHypERC20__factory(),
   [TokenType.synthetic]: new HypERC20__factory(),
   [TokenType.collateral]: new HypERC20Collateral__factory(),
   [TokenType.collateralVault]: new HypERC4626OwnerCollateral__factory(),

@@ -193,8 +193,6 @@ pub enum KnownHyperlaneDomain {
     SealevelTest2 = 13376,
     CosmosTest99990 = 99990,
     CosmosTest99991 = 99991,
-    CosmosTestNative1 = 75898670,
-    CosmosTestNative2 = 75898671,
 
     // -- Test chains --
     //
@@ -206,7 +204,6 @@ pub enum KnownHyperlaneDomain {
     ConnextSepolia = 6398,
     Holesky = 17000,
     MoonbaseAlpha = 1287,
-    KyveAlpha = 75898669,
     PlumeTestnet = 161221135,
     ScrollSepolia = 534351,
     Sepolia = 11155111,
@@ -279,8 +276,6 @@ pub enum HyperlaneDomainProtocol {
     Sealevel,
     /// A Cosmos-based chain type which uses hyperlane-cosmos.
     Cosmos,
-    /// A Cosmos based chain with uses a module instead of a contract.
-    CosmosNative,
 }
 
 impl HyperlaneDomainProtocol {
@@ -288,7 +283,9 @@ impl HyperlaneDomainProtocol {
         use HyperlaneDomainProtocol::*;
         match self {
             Ethereum => format!("{:?}", H160::from(addr)),
-            _ => format!("{:?}", addr),
+            Fuel => format!("{:?}", addr),
+            Sealevel => format!("{:?}", addr),
+            Cosmos => format!("{:?}", addr),
         }
     }
 }
@@ -337,7 +334,7 @@ impl KnownHyperlaneDomain {
             ],
             LocalTestChain: [
                 Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990,
-                CosmosTest99991, CosmosTestNative1, CosmosTestNative2, KyveAlpha
+                CosmosTest99991
             ],
         })
     }
@@ -359,7 +356,7 @@ impl KnownHyperlaneDomain {
 
                 // Test chains
                 Alfajores, BinanceSmartChainTestnet, Chiado, ConnextSepolia, Holesky, MoonbaseAlpha, PlumeTestnet,
-                ScrollSepolia, Sepolia, SuperpositionTestnet,
+                ScrollSepolia, Sepolia, SuperpositionTestnet
 
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
@@ -370,11 +367,6 @@ impl KnownHyperlaneDomain {
                 // Local chains
                 CosmosTest99990, CosmosTest99991,
             ],
-            HyperlaneDomainProtocol::CosmosNative: [
-                CosmosTestNative1,
-                CosmosTestNative2,
-                KyveAlpha
-            ]
         })
     }
 
@@ -409,11 +401,10 @@ impl KnownHyperlaneDomain {
                 // Local chains
                 CosmosTest99990, CosmosTest99991, FuelTest1, SealevelTest1, SealevelTest2, Test1,
                 Test2, Test3,
-                CosmosTestNative1, CosmosTestNative2,
 
                 // Test chains
                 Alfajores, BinanceSmartChainTestnet, Chiado, Fuji, Holesky, MoonbaseAlpha, ScrollSepolia,
-                Sepolia, KyveAlpha
+                Sepolia
            ],
         })
     }
@@ -601,24 +592,10 @@ impl HyperlaneDomain {
         use HyperlaneDomainProtocol::*;
         let protocol = self.domain_protocol();
         many_to_one!(match protocol {
-            IndexMode::Block: [Ethereum, Cosmos, CosmosNative],
+            IndexMode::Block: [Ethereum, Cosmos],
             IndexMode::Sequence : [Sealevel, Fuel],
         })
     }
-}
-
-/// Hyperlane domain protocol types.
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(
-    feature = "strum",
-    derive(strum::Display, EnumString, IntoStaticStr, EnumIter)
-)]
-pub enum SubmitterType {
-    /// Classic
-    #[default]
-    Classic,
-    /// Lander
-    Lander,
 }
 
 #[cfg(test)]
@@ -626,7 +603,7 @@ pub enum SubmitterType {
 mod tests {
     use std::{num::NonZeroU32, str::FromStr};
 
-    use crate::{KnownHyperlaneDomain, ReorgPeriod, SubmitterType};
+    use crate::{KnownHyperlaneDomain, ReorgPeriod};
 
     #[test]
     fn domain_strings() {
@@ -705,19 +682,6 @@ mod tests {
         assert_eq!(
             serde_json::from_value::<ReorgPeriod>("finalized".into()).unwrap(),
             ReorgPeriod::Tag("finalized".into())
-        );
-    }
-
-    #[test]
-    fn parse_submitter_type() {
-        assert_eq!(
-            serde_json::from_value::<SubmitterType>("Classic".into()).unwrap(),
-            SubmitterType::Classic
-        );
-
-        assert_eq!(
-            serde_json::from_value::<SubmitterType>("Lander".into()).unwrap(),
-            SubmitterType::Lander
         );
     }
 }

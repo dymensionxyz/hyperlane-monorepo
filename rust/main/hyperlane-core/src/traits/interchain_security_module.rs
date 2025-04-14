@@ -15,7 +15,6 @@ use crate::{ChainResult, HyperlaneContract, HyperlaneMessage, U256};
     Debug,
     Default,
     Copy,
-    Hash,
     PartialEq,
     Eq,
     BorshDeserialize,

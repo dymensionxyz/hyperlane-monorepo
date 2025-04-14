@@ -1,3 +1,5 @@
+import { ethers } from 'ethers';
+
 import {
   ChainMap,
   HypTokenConfig,
@@ -10,15 +12,18 @@ import {
   tokens,
 } from '../../../../../src/config/warp.js';
 
+// TODO: Update to use their safes
 const owners = {
-  ethereum: '0x11BEBBf509248735203BAAAe90c1a27EEE70D567',
-  superseed: '0x6652010BaCE855DF870D427daA6141c313994929',
-  base: '0x11BEBBf509248735203BAAAe90c1a27EEE70D567',
-  ink: '0x11BEBBf509248735203BAAAe90c1a27EEE70D567',
-  optimism: '0x11BEBBf509248735203BAAAe90c1a27EEE70D567',
-  arbitrum: '0x11BEBBf509248735203BAAAe90c1a27EEE70D567',
-  solanamainnet: 'JAPPhnuChtzCGmskmFdurvAxENWwcAqXCV5Jn5SSiuWE',
+  ethereum: '0xa7eccdb9be08178f896c26b7bbd8c3d4e844d9ba',
+  superseed: '0xa7eccdb9be08178f896c26b7bbd8c3d4e844d9ba',
+  base: '0xa7eccdb9be08178f896c26b7bbd8c3d4e844d9ba',
+  ink: '0xa7eccdb9be08178f896c26b7bbd8c3d4e844d9ba',
+  optimism: '0xa7eccdb9be08178f896c26b7bbd8c3d4e844d9ba',
+  arbitrum: '0xa7eccdb9be08178f896c26b7bbd8c3d4e844d9ba',
+  solanamainnet: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
 };
+
+const ISM_CONFIG = ethers.constants.AddressZero; // Default ISM
 
 export const getEthereumSuperseedUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,

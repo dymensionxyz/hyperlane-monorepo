@@ -5,20 +5,36 @@ import 'hardhat-gas-reporter';
 import 'hardhat-ignore-warnings';
 import 'solidity-coverage';
 
-import { rootHardhatConfig } from './rootHardhatConfig.cjs';
-
 /**
  * @type import('hardhat/config').HardhatUserConfig
  */
 module.exports = {
-  ...rootHardhatConfig,
+  solidity: {
+    version: '0.8.22',
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 999_999,
+      },
+    },
+  },
   gasReporter: {
     currency: 'USD',
   },
   typechain: {
-    outDir: './core-utils/typechain',
+    outDir: './types',
     target: 'ethers-v5',
     alwaysGenerateOverloads: true,
     node16Modules: true,
+  },
+  mocha: {
+    bail: true,
+    import: 'tsx',
+  },
+  warnings: {
+    // turn off all warnings for libs:
+    'fx-portal/**/*': {
+      default: 'off',
+    },
   },
 };

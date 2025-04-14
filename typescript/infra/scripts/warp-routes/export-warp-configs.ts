@@ -1,6 +1,3 @@
-import { WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
-
 import { getRegistry } from '../../config/registry.js';
 import { getWarpConfig, warpConfigGetterMap } from '../../config/warp.js';
 import { getArgs, withOutputFile } from '../agent-utils.js';
@@ -23,16 +20,8 @@ async function main() {
       warpRouteId,
     );
 
-    const registryConfig: WarpRouteDeployConfig = objMap(
-      warpConfig,
-      (_, config) => {
-        const { mailbox: _mailbox, ...rest } = config;
-        return rest;
-      },
-    );
-
     const configFileName = `${warpRouteId}-deploy.yaml`;
-    registry.addWarpRouteConfig(registryConfig, configFileName);
+    registry.addWarpRouteConfig(warpConfig, configFileName);
 
     // TODO: Use registry.getWarpRoutesPath() to dynamically generate path by removing "protected"
     console.log(
