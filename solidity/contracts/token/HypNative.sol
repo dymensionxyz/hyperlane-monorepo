@@ -89,7 +89,7 @@ contract HypNative is FungibleTokenRouter {
      */
     function _transferFromSender(
         uint256
-    ) internal pure virtual override returns (bytes memory) {
+    ) internal virtual override returns (bytes memory) {
         return bytes(""); // no metadata
     }
 
