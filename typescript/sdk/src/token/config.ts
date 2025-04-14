@@ -1,7 +1,6 @@
 export enum TokenType {
   synthetic = 'synthetic',
   syntheticRebase = 'syntheticRebase',
-  fastSynthetic = 'fastSynthetic',
   syntheticUri = 'syntheticUri',
   collateral = 'collateral',
   collateralVault = 'collateralVault',
@@ -9,7 +8,6 @@ export enum TokenType {
   XERC20 = 'xERC20',
   XERC20Lockbox = 'xERC20Lockbox',
   collateralFiat = 'collateralFiat',
-  fastCollateral = 'fastCollateral',
   collateralUri = 'collateralUri',
   native = 'native',
   // backwards compatible alias to native
@@ -22,7 +20,6 @@ export enum TokenType {
 
 export const gasOverhead = (tokenType: TokenType): number => {
   switch (tokenType) {
-    case TokenType.fastSynthetic:
     case TokenType.synthetic:
     case TokenType.syntheticMemo:
       return 64_000;
