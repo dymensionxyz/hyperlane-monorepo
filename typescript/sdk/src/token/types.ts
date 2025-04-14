@@ -103,7 +103,7 @@ export const SyntheticTokenConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([TokenType.synthetic, TokenType.syntheticUri]),
   initialSupply: z.string().or(z.number()).optional(),
 });
-export type SyntheticTokenConfig = z.infer<typeof SyntheticTokenConfigSchema>;
+export type SyntheticTokenConfig = z.infer<typeof CollateralTokenConfigSchema>;
 export const isSyntheticTokenConfig = isCompliant(SyntheticTokenConfigSchema);
 
 export const SyntheticRebaseTokenConfigSchema =
@@ -112,7 +112,7 @@ export const SyntheticRebaseTokenConfigSchema =
     collateralChainName: z.string(),
   });
 export type SyntheticRebaseTokenConfig = z.infer<
-  typeof SyntheticRebaseTokenConfigSchema
+  typeof CollateralTokenConfigSchema
 >;
 export const isSyntheticRebaseTokenConfig = isCompliant(
   SyntheticRebaseTokenConfigSchema,
