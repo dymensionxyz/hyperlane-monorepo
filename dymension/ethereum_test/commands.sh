@@ -38,17 +38,22 @@ anvil --port 8546 --chain-id 31338 --block-time 1
 hyperlane registry init
 
 ##################################################
-# STEP:Rebuild CLI to get custom changes
-cd typescript/cli
+# STEP: Build CLI with our changes
+# This can be finicky. Make sure that typescript/sdk is successfully building first, and only then build typescript/cli
+# Once each is building, it's possible to do yarn build from typescript/
+# Use yarn clean to make sure nothing weird happens.
+# Note: it's NOT necessary to change the dependency path in typescript/cli/package.json to point to the local path of sdk
 
-yarn version:update; # optionally increase the version number in typescript/cli/package.json and then make sure its reflected
-cd ..; yarn clean; yarn build; cd cli; # VERY IMPORTANT CLEAN AND BUILD FROM typescript/
+# commands:
+yarn build
+yarn clean
+yarn version:update;
 npm uninstall -g @hyperlane-xyz/cli; 
 npm install -g .;
 hyperlane --version
 
 ##################################################
-# STEP:Core contract deployment
+# STEP: Core contract deployment
 # following hyperlane docs https://docs.hyperlane.xyz/docs/guides/deploy-warp-route
 cd dymension/ethereum_test
 

@@ -147,6 +147,7 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.EvmHypOwnerCollateral,
   TokenStandard.EvmHypRebaseCollateral,
   TokenStandard.EvmHypSynthetic,
+  TokenStandard.EvmHypSyntheticMemo,
   TokenStandard.EvmHypSyntheticRebase,
   TokenStandard.EvmHypXERC20,
   TokenStandard.EvmHypXERC20Lockbox,

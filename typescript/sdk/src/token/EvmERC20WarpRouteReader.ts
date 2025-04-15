@@ -2,6 +2,7 @@ import { BigNumber, Contract, constants } from 'ethers';
 
 import {
   HypERC20Collateral__factory,
+  HypERC20Memo__factory,
   HypERC20__factory,
   HypERC4626Collateral__factory,
   HypERC4626OwnerCollateral__factory,
@@ -120,6 +121,10 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       },
       [TokenType.synthetic]: {
         factory: HypERC20__factory,
+        method: 'decimals',
+      },
+      [TokenType.syntheticMemo]: {
+        factory: HypERC20Memo__factory,
         method: 'decimals',
       },
     };

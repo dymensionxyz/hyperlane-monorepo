@@ -31,5 +31,5 @@ Improvements to be made (possibly)
     Solidity
         Find a way to remove the plugin.rs duplication in the tokens
 
-How to work on the CLI:
-    TODO
+How to work on the typescript CLI:
+    The CLI depends on the SDK, so first do yarn build from typescript/sdk, and only then will yarn build from typescript/cli work

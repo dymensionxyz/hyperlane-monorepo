@@ -93,6 +93,7 @@ describe('ERC20WarpRouterReader', async () => {
       TokenType.collateral,
       TokenType.collateralVault,
       TokenType.synthetic,
+      TokenType.syntheticMemo,
       TokenType.native,
     ] as const;
 

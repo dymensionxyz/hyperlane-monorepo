@@ -18,6 +18,7 @@ export enum TokenType {
 export const gasOverhead = (tokenType: TokenType): number => {
   switch (tokenType) {
     case TokenType.synthetic:
+    case TokenType.syntheticMemo:
       return 64_000;
     case TokenType.native:
       return 44_000;

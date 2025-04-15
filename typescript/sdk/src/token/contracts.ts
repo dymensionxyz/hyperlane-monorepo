@@ -1,5 +1,6 @@
 import {
   HypERC20Collateral__factory,
+  HypERC20Memo__factory,
   HypERC20__factory,
   HypERC721Collateral__factory,
   HypERC721URICollateral__factory,
@@ -18,6 +19,7 @@ import { TokenType } from './config.js';
 
 export const hypERC20contracts = {
   [TokenType.synthetic]: 'HypERC20',
+  [TokenType.syntheticMemo]: 'HypERC20Memo',
   [TokenType.syntheticRebase]: 'HypERC4626',
   [TokenType.collateral]: 'HypERC20Collateral',
   [TokenType.collateralFiat]: 'HypFiatToken',
@@ -33,6 +35,7 @@ export type HypERC20contracts = typeof hypERC20contracts;
 
 export const hypERC20factories = {
   [TokenType.synthetic]: new HypERC20__factory(),
+  [TokenType.syntheticMemo]: new HypERC20Memo__factory(),
   [TokenType.collateral]: new HypERC20Collateral__factory(),
   [TokenType.collateralVault]: new HypERC4626OwnerCollateral__factory(),
   [TokenType.collateralVaultRebase]: new HypERC4626Collateral__factory(),
