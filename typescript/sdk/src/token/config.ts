@@ -1,5 +1,6 @@
 export enum TokenType {
   synthetic = 'synthetic',
+  syntheticMemo = 'syntheticMemo',
   syntheticRebase = 'syntheticRebase',
   syntheticUri = 'syntheticUri',
   collateral = 'collateral',
