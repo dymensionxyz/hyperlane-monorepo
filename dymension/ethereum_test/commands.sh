@@ -106,12 +106,17 @@ EXAMPLE_MEMO="0x0a85010a087472616e7366657212096368616e6e656c2d301a0a0a0461726178
 cast send $CONTRACT_ADDR "setMemoForNextTransfer(bytes)" "$EXAMPLE_MEMO" --private-key "$HYP_KEY" --rpc-url http://localhost:8545 --gas-limit 1000000
 
 # relay the transfer, this will show the message and message body in the logs
-hyperlane warp send --relay --symbol ETH
+hyperlane warp send --relay --symbol ETH --amount 1000000
 
 # manually put message here
 OUT_MESSAGE="0x030000000100007a690000000000000000000000004a679253410272dd5232b3ff7\ cf5dbb88f29531900007a6a0000000000000000000000004a679253410272dd5232b3ff7cf5db\ b88f295319000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266000\ 00000000000000000000000000000000000000000000000000000000000010a85010a08747261\ 6e7366657212096368616e6e656c2d301a0a0a046172617812023530222a64796d31713330347\ 6717239677870766c366b766c656b747238637867743532747879636138347333782a2a64796d\ 317965637672677a37797032366b65617861347230303535347575676174786665676b3736687\ a320038f0e5dfb9a5e8b49918122c0a2a64796d317965637672677a37797032366b6561786134\ 7230303535347575676174786665676b3736687a"
 # check that the memo is interpreted correctly by the hub
-dymd q forward hyperlane-decode message $OUT_MESSAGE # it should show the ibc packet
+dymd q forward hl-decode message $OUT_MESSAGE # it should show the ibc packet
+
+##########################
+# WIP: USE CAST
+cast send 0x4A679253410272dd5232B3Ff7cF5dbB88f295319 "transferRemoteMemo(uint32,bytes32,uint256,bytes)" 31337 0x0000000000000000000000004a679253410272dd5232b3ff7cf5dbb88f295319 1 0x68656c6c6f --private-key $HYP_KEY --rpc-url http://localhost:8546 --gas-limit 1000000 --value 1
+cast send 0x4A679253410272dd5232B3Ff7cF5dbB88f295319 "transferRemote(uint32,bytes32,uint256)" 31337 0x0000000000000000000000004a679253410272dd5232b3ff7cf5dbb88f295319 1 --private-key $HYP_KEY --rpc-url http://localhost:8546 --gas-limit 1000000
 
 ##################################################
 # OPTIONAL DEBUG TIPS

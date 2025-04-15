@@ -20,7 +20,8 @@ contract HypERC20Memo is HypERC20 {
         bytes calldata memo
     ) external payable virtual returns (bytes32 messageId) {
         _memo = memo;
-        return this.transferRemote(_destination, _recipient, _amountOrId);
+        return
+            _transferRemote(_destination, _recipient, _amountOrId, msg.value);
     }
 
     function _transferFromSender(
@@ -28,7 +29,7 @@ contract HypERC20Memo is HypERC20 {
     ) internal virtual override returns (bytes memory) {
         super._transferFromSender(_amount);
         bytes memory memo = _memo;
-        _memo = "";
+        delete _memo;
         emit IncludedMemo(memo);
         return memo;
     }
