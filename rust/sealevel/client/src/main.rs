@@ -46,9 +46,13 @@ use hyperlane_sealevel_token_collateral::{
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneTokenAccount,
     hyperlane_token_pda_seeds,
-    instruction::{Instruction as HtInstruction, TransferRemote as HtTransferRemote},
+    instruction::{
+        DymInstruction as DymHtInstruction, Instruction as HtInstruction,
+        TransferRemote as HtTransferRemote, TransferRemoteMemo as DymHtTransferRemoteMemo,
+    },
 };
 use hyperlane_sealevel_token_native::hyperlane_token_native_collateral_pda_seeds;
+use hyperlane_sealevel_token_native_memo::hyperlane_token_native_collateral_pda_seeds as hyperlane_token_native_memo_collateral_pda_seeds;
 use hyperlane_sealevel_validator_announce::{
     accounts::ValidatorStorageLocationsAccount,
     instruction::{
@@ -292,6 +296,7 @@ struct TokenCmd {
 enum TokenSubCmd {
     Query(TokenQuery),
     TransferRemote(TokenTransferRemote),
+    TransferRemoteMemo(TokenTransferRemoteMemo),
     EnrollRemoteRouter(TokenEnrollRemoteRouter),
     TransferOwnership(TransferOwnership),
     SetInterchainSecurityModule(SetInterchainSecurityModule),
@@ -301,6 +306,7 @@ enum TokenSubCmd {
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum TokenType {
     Native,
+    NativeMemo,
     Synthetic,
     Collateral,
 }
@@ -324,6 +330,21 @@ struct TokenTransferRemote {
     recipient: String,
     #[arg(value_enum)]
     token_type: TokenType,
+}
+
+#[derive(Args)]
+// TODO: would have been nice to not duplicate
+struct TokenTransferRemoteMemo {
+    #[arg(long, short, default_value_t = HYPERLANE_TOKEN_PROG_ID)]
+    program_id: Pubkey,
+    // Note this is the keypair for normal account not the derived associated token account or delegate.
+    sender: String,
+    amount: u64,
+    destination_domain: u32,
+    recipient: String,
+    #[arg(value_enum)]
+    token_type: TokenType,
+    memo: String,
 }
 
 #[derive(Args)]
@@ -922,6 +943,14 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                         );
                     accounts_to_query.push(native_collateral_account);
                 }
+                TokenType::NativeMemo => {
+                    let (native_collateral_account, _native_collateral_bump) =
+                        Pubkey::find_program_address(
+                            hyperlane_token_native_memo_collateral_pda_seeds!(),
+                            &query.program_id,
+                        );
+                    accounts_to_query.push(native_collateral_account);
+                }
                 TokenType::Synthetic => {
                     let (mint_account, _mint_bump) = Pubkey::find_program_address(
                         hyperlane_token_mint_pda_seeds!(),
@@ -967,6 +996,23 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     let (native_collateral_account, native_collateral_bump) =
                         Pubkey::find_program_address(
                             hyperlane_token_native_collateral_pda_seeds!(),
+                            &query.program_id,
+                        );
+                    println!(
+                        "Native Token Collateral: {}, bump={}",
+                        native_collateral_account, native_collateral_bump
+                    );
+                    if let Some(info) = &accounts[1] {
+                        println!("{:#?}", info);
+                    } else {
+                        println!("Not yet created?");
+                    }
+                    println!("--------------------------------");
+                }
+                TokenType::NativeMemo => {
+                    let (native_collateral_account, native_collateral_bump) =
+                        Pubkey::find_program_address(
+                            hyperlane_token_native_memo_collateral_pda_seeds!(),
                             &query.program_id,
                         );
                     println!(
@@ -1155,6 +1201,19 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     let (native_collateral_account, _native_collateral_bump) =
                         Pubkey::find_program_address(
                             hyperlane_token_native_collateral_pda_seeds!(),
+                            &xfer.program_id,
+                        );
+                    accounts.extend([
+                        AccountMeta::new_readonly(system_program::id(), false),
+                        AccountMeta::new(native_collateral_account, false),
+                    ]);
+                }
+                TokenType::NativeMemo => {
+                    // 5. [executable] The system program.
+                    // 6. [writeable] The native token collateral PDA account.
+                    let (native_collateral_account, _native_collateral_bump) =
+                        Pubkey::find_program_address(
+                            hyperlane_token_native_memo_collateral_pda_seeds!(),
                             &xfer.program_id,
                         );
                     accounts.extend([
