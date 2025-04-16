@@ -1,8 +1,27 @@
 anvil0:
-  isNft: false
+  interchainSecurityModule: "0x9A676e781A523b5d0C0e43731313A708CB607508"
   owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
   type: syntheticMemo 
-  name: "ADYM"
+  # initialSupply?
+  name: "aDym"
   symbol: "ADYM"
   decimals: 18
+  isNft: false
+  # scale?
+  # remoteRouters:
+    # "31338":
+      # address: "0x726f757465725f61707000000000000000000000000000fe0000000000000000"
+      # TODO: add remote router for eth
+  #gas, destinationgas?
+  #remoteRouters?
+  #proxyAdmin?
+aaadymhub:
+  foreignDeployment: "0x726f757465725f61707000000000000000000000000000fe0000000000000000"
+  interchainSecurityModule: "0x9A676e781A523b5d0C0e43731313A708CB607508" # ignored but needed to pass validations
+  owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" # ignored but needed to pass validations
+  type: syntheticMemo  # ignored but needed to pass validations
+  name: "aDym" # ignored but needed to pass validations
+  symbol: "ADYM" # ignored but needed to pass validations
+  decimals: 18 # ignored but needed to pass validations
+  isNft: false # ignored but needed to pass validations
 

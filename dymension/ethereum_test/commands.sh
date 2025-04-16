@@ -116,21 +116,8 @@ cast balance 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
 cast call 0x4A679253410272dd5232B3Ff7cF5dbB88f295319 "balanceOf(address)(uint256)" 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 --rpc-url http://localhost:8546
 
 # Explorer, uses https://github.com/otterscan/otterscan
-# GUI is at http://localhost:5100/
-
-ANVIL_RPC_URL=http://127.0.0.1:8546
-
-docker run \
-  --rm \
-  -p 5100:80 \
-  --name otterscan \
-  -d \
-  --env OTTERSCAN_CONFIG='{
-    "erigonURL": "'$ANVIL_RPC_URL'",
-    "assetsURLPrefix": "http://127.0.0.1:5175",
-    "branding": {
-        "siteName": "My Otterscan",
-        "networkTitle": "Dev Network"
-    },
-}' \
-otterscan/otterscan:latest
+docker pull otterscan/otterscan:latest
+docker run -p 5100:80 \
+  -e OTTERSCAN_RPC_URL="http://host.docker.internal:8545" \
+   otterscan/otterscan:latest
+# visit http://localhost:5100/
