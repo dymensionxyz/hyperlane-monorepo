@@ -68,3 +68,50 @@ hub tx hyperlane-transfer dym-transfer $TOKEN_ID $ETH_DOMAIN $ETH_RECIPIENT $AMT
 
 curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/bridged_supply
 
+
+#################################
+# RELAYING
+# https://docs.hyperlane.xyz/docs/guides/deploy-hyperlane-local-agents
+
+cast wallet new
+RELAYER_ADDR="0x3B3C4c9e62111E545FFc881df57ca54bC7027c7B"
+RELAYER_KEY="0x29919fc136223a4f1f731d98a00c4b3b5e01f78a6314b6cc8a8b73499f057983"
+cast send $RELAYER_ADDR \
+--private-key $HYP_KEY \
+--value $(cast tw 1)
+
+######### scratch below
+
+# will try to skip the validator, because using testISM
+# https://docs.hyperlane.xyz/docs/guides/deploy-hyperlane-local-agents#4-run-a-relayer
+# see also https://docs.hyperlane.xyz/docs/operate/relayer/run-relayer cosmos section
+
+
+export CONFIG_FILES=/full/path/to/configs/agent-config-{timestamp}.json
+# Pick an informative name specific to the chain you're validating
+export VALIDATOR_SIGNATURES_DIR=/tmp/hyperlane-validator-signatures-<your_chain_name>
+
+# Create the directory
+mkdir -p $VALIDATOR_SIGNATURES_DIR
+# Create a local tmp directory that can be accessed by docker
+mkdir tmp
+
+# Pick an informative name specific to the chain you're validating
+export VALIDATOR_SIGNATURES_DIR=tmp/hyperlane-validator-signatures-<your_chain_name>
+
+# Create the directory
+mkdir -p $VALIDATOR_SIGNATURES_DIR
+
+
+export CONFIG_FILES=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/hub_test/configs/agent-config.json # todo generalise
+
+cargo build --release --bin relayer
+
+./target/release/relayer \
+    --db /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/hub_test/tmp/hyperlane_db_relayer \
+    --relayChains anvil0,aaadymhub \
+    --allowLocalCheckpointSyncers true \
+    --defaultSigner.key $RELAYER_KEY \
+    --metrics-port 9091
+
+For tomorrow: do I have to have the  chain id in the registry be dymension_100-1?
