@@ -98,3 +98,6 @@ const routers = await signer.enrollRemoteRouter({
 });
 
 const remoteRouter = remoteRouters.remote_routers[0];
+
+/////////////////////////////////////////////////////////
+// SCRATCH HERE: ETHEREUM STUFF
