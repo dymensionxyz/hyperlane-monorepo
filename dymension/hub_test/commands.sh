@@ -114,4 +114,8 @@ cargo build --release --bin relayer
     --defaultSigner.key $RELAYER_KEY \
     --metrics-port 9091
 
-For tomorrow: do I have to have the  chain id in the registry be dymension_100-1?
+# For tomorrow: do I have to have the  chain id in the registry be dymension_100-1?
+
+# notes
+# hub rpc = http://localhost:36657
+# hub rest = http://localhost:1318
