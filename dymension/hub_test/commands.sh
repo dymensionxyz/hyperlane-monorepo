@@ -79,20 +79,10 @@ curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/remote_routers # che
 #################################################################################################################### 
 ####################### SCRATCH STUFF BELOW
 
-
-#################################
-# DO A TRANSFER HUB -> ETHEREUM
-
-ETH_RECIPIENT="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" # without padding
-ETH_RECIPIENT="0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266" # this is zero padded regular address
-AMT=777
-hub tx hyperlane-transfer dym-transfer $TOKEN_ID $ETH_DOMAIN $ETH_RECIPIENT $AMT "${HUB_FLAGS[@]}" --gas-limit 0 --max-hyperlane-fee 0adym
-
-curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/bridged_supply
-
 #################################
 # RELAYING
 # https://docs.hyperlane.xyz/docs/guides/deploy-hyperlane-local-agents
+# https://docs.hyperlane.xyz/docs/operate/relayer/run-relayer
 
 cast wallet new
 # manually popoulate
@@ -105,12 +95,18 @@ cast send $RELAYER_ADDR \
 cast balance $RELAYER_ADDR
 
 cd dymension/hub_test
-THIS_BASE=$(pwd)
+THIS_BASE=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/hub_test
 
 
 RELAYER_DB=$THIS_BASE/tmp/hyperlane_db_relayer
 trash $RELAYER_DB
 
+# ONLY NECESSARY FIRST TIME, OTHERWISE USE EXISTING FILE
+# see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/pb/kyvetestnet-agents/rust/main/config/testnet_config.json#L2886 for an 'up to date' example
+hyperlane registry agent-config --chains anvil0,dymension
+export CONFIG_FILES=$THIS_BASE/configs/agent-config.json
+
+cd rust/main
 cargo build --release --bin relayer
 
 ./target/release/relayer \
@@ -120,10 +116,17 @@ cargo build --release --bin relayer
     --defaultSigner.key $RELAYER_KEY \
     --metrics-port 9091
 
-# ONLY NECESSARY FIRST TIME, OTHERWISE USE EXISTING FILE
-# see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/main/config/testnet_config.json for examples
-hyperlane registry agent-config --chains anvil0,dymension
-export CONFIG_FILES=$THIS_BASE/configs/agent-config.json
+# TODO: fixing the validator announce
+
+#################################
+# DO A TRANSFER HUB -> ETHEREUM
+
+ETH_RECIPIENT="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" # without padding
+ETH_RECIPIENT="0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266" # this is zero padded regular address
+AMT=777
+hub tx hyperlane-transfer dym-transfer $TOKEN_ID $ETH_DOMAIN $ETH_RECIPIENT $AMT "${HUB_FLAGS[@]}" --gas-limit 0 --max-hyperlane-fee 0adym
+
+curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/bridged_supply
 
 ##################################################
 # OPTIONAL DEBUG TIPS
