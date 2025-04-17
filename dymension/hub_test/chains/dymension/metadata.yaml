@@ -1,4 +1,3 @@
-
 # yaml-language-server: $schema=../schema.json
 # see https://github.com/hyperlane-xyz/hyperlane-registry/blob/main/chains/kyvetestnet/metadata.yaml
 bech32Prefix: dym

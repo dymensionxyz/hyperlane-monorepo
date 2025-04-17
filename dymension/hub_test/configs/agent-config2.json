@@ -34,11 +34,16 @@
       "validatorAnnounce": "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c",
       "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
       "index": {
-        "from": 1682
+        "from": 641
       }
     },
-    "dymension": {
-      "bech32Prefix": "dym",
+    "aaadymhub": {
+      "chainId": 31338,
+      "displayName": "DymensionHub",
+      "domainId": 31338,
+      "isTestnet": true,
+      "name": "aaadymhub",
+      "protocol": "cosmosnative",
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 6,
@@ -46,55 +51,14 @@
       },
       "canonicalAsset": "adym",
       "chainId": "dymension_100-1",
-      "contractAddressBytes": 32,
-      "deployer": {
-        "name": "DYMENSION",
-        "url": "https://example.com"
-      },
-      "displayName": "Dymension Hub Local",
-      "gasCurrencyCoinGeckoId": "dymension",
-      "domainId": 1260813472,
-      "gasPrice": {
-        "amount": "2.0",
-        "denom": "adym"
-      },
-      "grpcUrls": [
-        {
-          "http": "http://0.0.0.0:8090"
-        }
-      ],
-      "index": {
-        "from": 10
-      },
-      "isTestnet": true,
-      "name": "dymension",
-      "nativeToken": {
-        "decimals": 18,
-        "denom": "adym",
-        "name": "ADYM",
-        "symbol": "ADYM"
-      },
-      "protocol": "cosmosnative",
-      "restUrls": [
-        {
-          "http": "http://localhost:1318"
-        }
-      ],
+
       "rpcUrls": [
         {
           "http": "http://localhost:36657"
         }
       ],
-      "slip44": 118,
-      "technicalStack": "other",
-      "transactionOverrides": {
-        "gasPrice": "2.0"
-      },
-      "interchainSecurityModule": "0x726f757465725f69736d00000000000000000000000000000000000000000000",
-      "mailbox": "0x68797065726c616e650000000000000000000000000000000000000000000000",
-      "merkleTreeHook": "0x726f757465725f706f73745f6469737061746368000000030000000000000001",
-      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000"
-    }
+      "technicalStack": "other"
+
   },
   "defaultRpcConsensusType": "fallback"
 }

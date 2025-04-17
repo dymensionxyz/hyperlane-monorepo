@@ -95,52 +95,35 @@ curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/bridged_supply
 # https://docs.hyperlane.xyz/docs/guides/deploy-hyperlane-local-agents
 
 cast wallet new
-RELAYER_ADDR="0x3B3C4c9e62111E545FFc881df57ca54bC7027c7B"
-RELAYER_KEY="0x29919fc136223a4f1f731d98a00c4b3b5e01f78a6314b6cc8a8b73499f057983"
+# manually popoulate
+RELAYER_ADDR="0x95CCC68E834021347E65b404014c63c0D49ED351"
+RELAYER_KEY="0x9d329776c1f8c715fef3ebf610e3f47290cb98c2bcad195e2d7429caa8cd57f1"
 cast send $RELAYER_ADDR \
 --private-key $HYP_KEY \
 --value $(cast tw 1)
 
-######### scratch below
+cast balance $RELAYER_ADDR
 
-# will try to skip the validator, because using testISM
-# https://docs.hyperlane.xyz/docs/guides/deploy-hyperlane-local-agents#4-run-a-relayer
-# see also https://docs.hyperlane.xyz/docs/operate/relayer/run-relayer cosmos section
-
-
-export CONFIG_FILES=/full/path/to/configs/agent-config-{timestamp}.json
-# Pick an informative name specific to the chain you're validating
-export VALIDATOR_SIGNATURES_DIR=/tmp/hyperlane-validator-signatures-<your_chain_name>
-
-# Create the directory
-mkdir -p $VALIDATOR_SIGNATURES_DIR
-# Create a local tmp directory that can be accessed by docker
-mkdir tmp
-
-# Pick an informative name specific to the chain you're validating
-export VALIDATOR_SIGNATURES_DIR=tmp/hyperlane-validator-signatures-<your_chain_name>
-
-# Create the directory
-mkdir -p $VALIDATOR_SIGNATURES_DIR
+cd dymension/hub_test
+THIS_BASE=$(pwd)
 
 
-export CONFIG_FILES=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/hub_test/configs/agent-config.json # todo generalise
+RELAYER_DB=$THIS_BASE/tmp/hyperlane_db_relayer
+trash $RELAYER_DB
 
 cargo build --release --bin relayer
 
 ./target/release/relayer \
-    --db /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/hub_test/tmp/hyperlane_db_relayer \
-    --relayChains anvil0,aaadymhub \
+    --db $RELAYER_DB \
+    --relayChains anvil0,dymension \
     --allowLocalCheckpointSyncers true \
     --defaultSigner.key $RELAYER_KEY \
     --metrics-port 9091
 
-# For tomorrow: do I have to have the  chain id in the registry be dymension_100-1?
-
-# notes
-# hub rpc = http://localhost:36657
-# hub rest = http://localhost:1318
-
+# ONLY NECESSARY FIRST TIME, OTHERWISE USE EXISTING FILE
+# see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/main/config/testnet_config.json for examples
+hyperlane registry agent-config --chains anvil0,dymension
+export CONFIG_FILES=$THIS_BASE/configs/agent-config.json
 
 ##################################################
 # OPTIONAL DEBUG TIPS
