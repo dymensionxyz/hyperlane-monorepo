@@ -20,7 +20,7 @@ gasPrice:
   amount: "2.0"
   denom: adym
 grpcUrls:
-  - http: http://0.0.0.0:8090
+  - http: http://127.0.0.1:8090
 index: # TODO ??
   from: 10 # low block start 
 isTestnet: true

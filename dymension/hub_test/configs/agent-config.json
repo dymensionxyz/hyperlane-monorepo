@@ -60,11 +60,11 @@
       },
       "grpcUrls": [
         {
-          "http": "http://0.0.0.0:8090"
+          "http": "http://127.0.0.1:8090"
         }
       ],
       "index": {
-        "from": 10
+        "from": 1780
       },
       "isTestnet": true,
       "name": "dymension",

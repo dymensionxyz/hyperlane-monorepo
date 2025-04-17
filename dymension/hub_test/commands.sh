@@ -68,7 +68,8 @@ hyperlane warp deploy
 ################
 # FINISH HUB SETUP: 
 
-ETH_TOKEN_CONTRACT=$(dasel -f ~/.hyperlane/deployments/warp_routes/ADYM/anvil0-config.yaml -r yaml 'tokens.index(0).addressOrDenom')
+ETH_TOKEN_CONTRACT_RAW=$(dasel -f ~/.hyperlane/deployments/warp_routes/ADYM/anvil0-config.yaml -r yaml 'tokens.index(0).addressOrDenom')
+ETH_TOKEN_CONTRACT="0x0000000000000000000000004A679253410272dd5232B3Ff7cF5dbB88f295319" # Need to zero pad it! (with 0x000000000000000000000000)
 
 hub tx hyperlane-transfer enroll-remote-router $TOKEN_ID $ETH_DOMAIN $ETH_TOKEN_CONTRACT 0 "${HUB_FLAGS[@]}" # gas = 0
 curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/remote_routers # check
@@ -104,7 +105,9 @@ trash $RELAYER_DB
 # ONLY NECESSARY FIRST TIME, OTHERWISE USE EXISTING FILE
 # see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/pb/kyvetestnet-agents/rust/main/config/testnet_config.json#L2886 for an 'up to date' example
 hyperlane registry agent-config --chains anvil0,dymension
+
 export CONFIG_FILES=$THIS_BASE/configs/agent-config.json
+# see reference https://docs.hyperlane.xyz/docs/operate/config-reference#config_files
 
 cd rust/main
 cargo build --release --bin relayer
@@ -114,9 +117,8 @@ cargo build --release --bin relayer
     --relayChains anvil0,dymension \
     --allowLocalCheckpointSyncers true \
     --defaultSigner.key $RELAYER_KEY \
-    --metrics-port 9091
-
-# TODO: fixing the validator announce
+    --metrics-port 9091 \
+    --log.level debug  
 
 #################################
 # DO A TRANSFER HUB -> ETHEREUM
@@ -124,7 +126,7 @@ cargo build --release --bin relayer
 ETH_RECIPIENT="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" # without padding
 ETH_RECIPIENT="0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266" # this is zero padded regular address
 AMT=777
-hub tx hyperlane-transfer dym-transfer $TOKEN_ID $ETH_DOMAIN $ETH_RECIPIENT $AMT "${HUB_FLAGS[@]}" --gas-limit 0 --max-hyperlane-fee 0adym
+hub tx hyperlane-transfer dym-transfer $TOKEN_ID $ETH_DOMAIN $ETH_RECIPIENT $AMT "${HUB_FLAGS[@]}" --max-hyperlane-fee 0adym
 
 curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/bridged_supply
 
