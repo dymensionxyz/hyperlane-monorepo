@@ -16,12 +16,9 @@ anvil0:
   #remoteRouters?
   #proxyAdmin?
 dymension:
-  foreignDeployment: "0x726f757465725f61707000000000000000000000000000fe0000000000000000"
-  interchainSecurityModule: "0x726f757465725f69736d00000000000000000000000000000000000000000000" # ignored but needed to pass validations
-  owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" # ignored but needed to pass validations
-  type: collateral  # ignored but needed to pass validations
-  name: "aDym" # ignored but needed to pass validations
-  symbol: "ADYM" # ignored but needed to pass validations
-  decimals: 18 # ignored but needed to pass validations
-  isNft: false # ignored but needed to pass validations
+  foreignDeployment: "0x726f757465725f61707000000000000000000000000000fe0000000000000000" # think it's token addr
+  mailbox: "0x68797065726c616e650000000000000000000000000000000000000000000000"
+  owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" # dym139mq752delxv78jvtmwxhasyrycufsvrw4aka9
+  type: collateral
+  token: "0x726f757465725f61707000000000000000000000000000fe0000000000000000"
 

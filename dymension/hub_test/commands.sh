@@ -37,7 +37,7 @@ hub tx hyperlane hooks merkle create $MAILBOX "${HUB_FLAGS[@]}"
 MERKLE_HOOK=$(curl -s http://localhost:1318/hyperlane/v1/merkle_tree_hooks | jq '.merkle_tree_hooks.[0].id' -r); echo $MERKLE_HOOK;
 # TODO: set addresses.yaml
 
-# TODO: IGP needed? Gas config?!! (don't think so, for this test)
+# TODO: I DONT THINK IGP OR GAS CONFIG IS REQUIRED FOR THIS TEST ON THE COSMOS SIDE
 
 # update mailbox
 # mailbox, default hook (e.g. IGP), required hook (e.g. merkle tree)
@@ -46,7 +46,8 @@ hub tx hyperlane mailbox set $MAILBOX --default-hook $NOOP_HOOK --required-hook 
 DENOM="adym"
 hub tx hyperlane-transfer dym-create-collateral-token $MAILBOX $DENOM "${HUB_FLAGS[@]}"
 TOKEN_ID=$(curl -s http://localhost:1318/hyperlane/v1/tokens | jq '.tokens.[0].id' -r); echo $TOKEN_ID
-# TODO: set foreignDeployment in warp config
+
+# TODO: update the warp config with appropriate cosmos addresses
 
 ################
 # ANVIL: 
@@ -61,23 +62,29 @@ export HYP_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff
 hyperlane core deploy
 
 # now use hyperlane CLI to deploy only the contracts needed on anvil, making use of a foreign deployment config for dymension side
+# it will say to deploy to dymension too, but it won't
+hyperlane warp deploy
 
 ################
 # FINISH HUB SETUP: 
 
-ETH_TOKEN_CONTRACT="0x67d269191c92Caf3cD7723F116c85e6E9bf55933"
-# TODO: get eth token contract from the deployment yaml
+ETH_TOKEN_CONTRACT=$(dasel -f ~/.hyperlane/deployments/warp_routes/ADYM/anvil0-config.yaml -r yaml 'tokens.index(0).addressOrDenom')
 
-# setup the router
-# TODO: require eth token contract ``
-hub tx hyperlane-transfer enroll-remote-router $TOKEN_ID $ETH_DOMAIN $ETH_TOKEN_CONTRACT 0 "${HUB_FLAGS[@]}"
+hub tx hyperlane-transfer enroll-remote-router $TOKEN_ID $ETH_DOMAIN $ETH_TOKEN_CONTRACT 0 "${HUB_FLAGS[@]}" # gas = 0
 curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/remote_routers # check
+
+#################################################################################################################### 
+#################################################################################################################### 
+#################################################################################################################### 
+#################################################################################################################### 
+####################### SCRATCH STUFF BELOW
+
 
 #################################
 # DO A TRANSFER HUB -> ETHEREUM
 
-ETH_RECIPIENT="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-ETH_RECIPIENT="0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+ETH_RECIPIENT="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" # without padding
+ETH_RECIPIENT="0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266" # this is zero padded regular address
 AMT=777
 hub tx hyperlane-transfer dym-transfer $TOKEN_ID $ETH_DOMAIN $ETH_RECIPIENT $AMT "${HUB_FLAGS[@]}" --gas-limit 0 --max-hyperlane-fee 0adym
 
