@@ -21,11 +21,11 @@ gasPrice:
   amount: "2.0"
   denom: adym
 grpcUrls:
-  - http: 0.0.0.0:8090
+  - http: http://0.0.0.0:8090
 index: # TODO ??
   from: 10 # low block start 
 isTestnet: true
-name: dymhublocal 
+name: dymension 
 nativeToken:
   decimals: 18
   denom: adym 

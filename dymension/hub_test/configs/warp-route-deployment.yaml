@@ -15,7 +15,7 @@ anvil0:
   #gas, destinationgas?
   #remoteRouters?
   #proxyAdmin?
-aaadymhub:
+dymension:
   foreignDeployment: "0x726f757465725f61707000000000000000000000000000fe0000000000000000"
   interchainSecurityModule: "0x726f757465725f69736d00000000000000000000000000000000000000000000" # ignored but needed to pass validations
   owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" # ignored but needed to pass validations

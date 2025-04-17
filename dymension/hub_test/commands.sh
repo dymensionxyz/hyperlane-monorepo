@@ -57,7 +57,16 @@ trash ~/.hyperlane; mkdir ~/.hyperlane; cp -r chains ~/.hyperlane/chains;
 
 export HYP_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 
+# only deploy anvil0
+hyperlane core deploy
+
+# now use hyperlane CLI to deploy only the contracts needed on anvil, making use of a foreign deployment config for dymension side
+
+################
+# FINISH HUB SETUP: 
+
 ETH_TOKEN_CONTRACT="0x67d269191c92Caf3cD7723F116c85e6E9bf55933"
+# TODO: get eth token contract from the deployment yaml
 
 # setup the router
 # TODO: require eth token contract ``
@@ -73,7 +82,6 @@ AMT=777
 hub tx hyperlane-transfer dym-transfer $TOKEN_ID $ETH_DOMAIN $ETH_RECIPIENT $AMT "${HUB_FLAGS[@]}" --gas-limit 0 --max-hyperlane-fee 0adym
 
 curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/bridged_supply
-
 
 #################################
 # RELAYING
