@@ -95,8 +95,7 @@ cast send $RELAYER_ADDR \
 
 cast balance $RELAYER_ADDR
 
-cd dymension/hub_test
-THIS_BASE=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/hub_test
+THIS_BASE=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/dymension_test
 
 
 RELAYER_DB=$THIS_BASE/tmp/hyperlane_db_relayer
