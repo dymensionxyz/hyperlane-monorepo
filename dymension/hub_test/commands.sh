@@ -1,10 +1,9 @@
-
-# scratch
-
-https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/main/typescript/cosmos-sdk
+# Q: What is this?
+# A: Some commands to run Dymension Hub + Anvil instance and connect them and relay between them
+# Scenario: Dymension Hub will have collateral ADYM and Anvil will have synthetic memo
 
 ##############################################################################################3
-# STEP: Chain start and setup
+# STEP: Start chains and deploy contracts
 
 ################
 # HUB: 
@@ -16,7 +15,7 @@ cd dymension/
 bash scripts/setup_local.sh
 dymd start --log_level=debug
 
-HUB_DOMAIN=31338
+HUB_DOMAIN=1260813472 
 ETH_DOMAIN=31337
 
 # create noop ism
@@ -27,27 +26,34 @@ ISM=$(curl -s http://localhost:1318/hyperlane/v1/isms | jq '.isms.[0].id' -r); e
 # ism, local domain
 hub tx hyperlane mailbox create  $ISM $HUB_DOMAIN "${HUB_FLAGS[@]}"
 MAILBOX=$(curl -s http://localhost:1318/hyperlane/v1/mailboxes   | jq '.mailboxes.[0].id' -r); echo $MAILBOX;
+# TODO: set addresses.yaml
 
 # create noop hook
 hub tx hyperlane hooks noop create "${HUB_FLAGS[@]}"
 NOOP_HOOK=$(curl -s http://localhost:1318/hyperlane/v1/noop_hooks | jq '.noop_hooks.[0].id' -r); echo $NOOP_HOOK;
 
+# create merkle hook
+hub tx hyperlane hooks merkle create $MAILBOX "${HUB_FLAGS[@]}"
+MERKLE_HOOK=$(curl -s http://localhost:1318/hyperlane/v1/merkle_tree_hooks | jq '.merkle_tree_hooks.[0].id' -r); echo $MERKLE_HOOK;
+# TODO: set addresses.yaml
+
 # TODO: IGP needed? Gas config?!! (don't think so, for this test)
 
 # update mailbox
 # mailbox, default hook (e.g. IGP), required hook (e.g. merkle tree)
-hub tx hyperlane mailbox set $MAILBOX --default-hook $NOOP_HOOK --required-hook $NOOP_HOOK "${HUB_FLAGS[@]}"
+hub tx hyperlane mailbox set $MAILBOX --default-hook $NOOP_HOOK --required-hook $MERKLE_HOOK "${HUB_FLAGS[@]}"
 
 DENOM="adym"
 hub tx hyperlane-transfer dym-create-collateral-token $MAILBOX $DENOM "${HUB_FLAGS[@]}"
 TOKEN_ID=$(curl -s http://localhost:1318/hyperlane/v1/tokens | jq '.tokens.[0].id' -r); echo $TOKEN_ID
+# TODO: set foreignDeployment in warp config
 
-# AT THIS POINT, PUT THE TOKEN ID AS FOREIGN DEPLOYMENT IN CONFIG AND DEPLOY TO ETHEREUM 
-# TODO: write ETH steps
+################
+# ANVIL: 
 
 anvil --port 8545 --chain-id 31337 --block-time 1 # make sure rollapp-evm not listening on same port
 
-mkdir ~/.hyperlane; cp -r chains ~/.hyperlane/chains;
+trash ~/.hyperlane; mkdir ~/.hyperlane; cp -r chains ~/.hyperlane/chains;
 
 export HYP_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 
@@ -119,3 +125,14 @@ cargo build --release --bin relayer
 # notes
 # hub rpc = http://localhost:36657
 # hub rest = http://localhost:1318
+
+
+##################################################
+# OPTIONAL DEBUG TIPS
+
+# Explorer, uses https://github.com/otterscan/otterscan
+docker pull otterscan/otterscan:latest
+docker run -p 5100:80 \
+  -e OTTERSCAN_RPC_URL="http://host.docker.internal:8545" \
+   otterscan/otterscan:latest
+# visit http://localhost:5100/
