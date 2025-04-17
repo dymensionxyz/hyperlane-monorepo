@@ -6,6 +6,25 @@
 # STEP: Start chains and deploy contracts
 
 ################
+# START ANVIL: 
+
+anvil --port 8545 --chain-id 31337 --block-time 1 # make sure rollapp-evm not listening on same port
+
+
+################
+# AGENT(s): 
+
+cast wallet new
+# manually popoulate
+AGENT_ADDR="0x29470E95486013B5819B92D4fA064381b42B59F2"
+AGENT_KEY="0x8cb97362ab8e1d86d9090add6fd789b1d323bcee9660a0ba50f6b6e4207fd97a"
+cast send $AGENT_ADDR \
+--private-key $HYP_KEY \
+--value $(cast tw 1)
+
+cast balance $AGENT_ADDR
+
+################
 # HUB: 
 
 BASE_PATH="/Users/danwt/Documents/dym/d-dymension/scripts/hyperlane_test"
@@ -18,43 +37,50 @@ dymd start --log_level=debug
 HUB_DOMAIN=1260813472 
 ETH_DOMAIN=31337
 
-# create noop ism
-hub tx hyperlane ism create-noop "${HUB_FLAGS[@]}"
+DENOM="adym"
+hub tx hyperlane hooks igp create $DENOM "${HUB_FLAGS[@]}"
+IGP=$(curl -s http://localhost:1318/hyperlane/v1/igps | jq '.igps.[0].id' -r); echo $IGP;
+
+EXCHANGE_RATE=1 # ??
+GAS_PRICE=1 # ??
+GAS_OVERHEAD=200000 # ??
+hub tx hyperlane hooks igp set-destination-gas-config $IGP $ETH_DOMAIN $EXCHANGE_RATE $GAS_PRICE $GAS_OVERHEAD "${HUB_FLAGS[@]}"
+
+VALIDATOR=$AGENT_ADDR # TODO: is that right?
+THRESHOLD=1
+hub tx hyperlane ism create-merkle-root-multisig $VALIDATOR $THRESHOLD "${HUB_FLAGS[@]}"
 ISM=$(curl -s http://localhost:1318/hyperlane/v1/isms | jq '.isms.[0].id' -r); echo $ISM;
 
-# create mailbox
-# ism, local domain
-hub tx hyperlane mailbox create  $ISM $HUB_DOMAIN "${HUB_FLAGS[@]}"
+hub tx hyperlane mailbox create $ISM $HUB_DOMAIN "${HUB_FLAGS[@]}"
 MAILBOX=$(curl -s http://localhost:1318/hyperlane/v1/mailboxes   | jq '.mailboxes.[0].id' -r); echo $MAILBOX;
-# TODO: set addresses.yaml
 
-# create noop hook
-hub tx hyperlane hooks noop create "${HUB_FLAGS[@]}"
-NOOP_HOOK=$(curl -s http://localhost:1318/hyperlane/v1/noop_hooks | jq '.noop_hooks.[0].id' -r); echo $NOOP_HOOK;
-
-# create merkle hook
 hub tx hyperlane hooks merkle create $MAILBOX "${HUB_FLAGS[@]}"
 MERKLE_HOOK=$(curl -s http://localhost:1318/hyperlane/v1/merkle_tree_hooks | jq '.merkle_tree_hooks.[0].id' -r); echo $MERKLE_HOOK;
 # TODO: set addresses.yaml
 
-# TODO: I DONT THINK IGP OR GAS CONFIG IS REQUIRED FOR THIS TEST ON THE COSMOS SIDE
+# update mailbox again. default hook (e.g. IGP), required hook (e.g. merkle tree)
+hub tx hyperlane mailbox set $MAILBOX --default-hook $IGP --required-hook $MERKLE_HOOK "${HUB_FLAGS[@]}"
 
-# update mailbox
-# mailbox, default hook (e.g. IGP), required hook (e.g. merkle tree)
-hub tx hyperlane mailbox set $MAILBOX --default-hook $NOOP_HOOK --required-hook $MERKLE_HOOK "${HUB_FLAGS[@]}"
-
-DENOM="adym"
 hub tx hyperlane-transfer dym-create-collateral-token $MAILBOX $DENOM "${HUB_FLAGS[@]}"
 TOKEN_ID=$(curl -s http://localhost:1318/hyperlane/v1/tokens | jq '.tokens.[0].id' -r); echo $TOKEN_ID
 
-# TODO: update the warp config with appropriate cosmos addresses
 
 ################
 # ANVIL: 
 
-anvil --port 8545 --chain-id 31337 --block-time 1 # make sure rollapp-evm not listening on same port
-
 trash ~/.hyperlane; mkdir ~/.hyperlane; cp -r chains ~/.hyperlane/chains;
+
+# populate addresses https://github.com/hyperlane-xyz/hyperlane-registry/blob/main/chains/kyvetestnet/addresses.yaml
+touch ~/.hyperlane/chains/dymension/addresses.yaml
+dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'interchainGasPaymaster' -v $IGP
+dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'interchainSecurityModule' -v $ISM
+dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'mailbox' -v $MAILBOX
+dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'merkleTreeHook' -v $MERKLE_HOOK
+dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'validatorAnnounce' -v $MAILBOX
+
+
+# TODO: update the warp config, and addresses.yaml with appropriate cosmos addresses
+
 
 export HYP_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 
@@ -85,15 +111,7 @@ curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/remote_routers # che
 # https://docs.hyperlane.xyz/docs/guides/deploy-hyperlane-local-agents
 # https://docs.hyperlane.xyz/docs/operate/relayer/run-relayer
 
-cast wallet new
-# manually popoulate
-RELAYER_ADDR="0x95CCC68E834021347E65b404014c63c0D49ED351"
-RELAYER_KEY="0x9d329776c1f8c715fef3ebf610e3f47290cb98c2bcad195e2d7429caa8cd57f1"
-cast send $RELAYER_ADDR \
---private-key $HYP_KEY \
---value $(cast tw 1)
 
-cast balance $RELAYER_ADDR
 
 THIS_BASE=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/dymension_test
 
@@ -116,12 +134,12 @@ trash $RELAYER_DB
     --db $RELAYER_DB \
     --relayChains anvil0,dymension \
     --allowLocalCheckpointSyncers true \
-    --defaultSigner.key $RELAYER_KEY \
+    --defaultSigner.key $AGENT_KEY \
     --metrics-port 9091 \
     --log.level debug \
     --chains.dymension.signer.type cosmosKey \
     --chains.dymension.signer.prefix dym \
-    --chains.dymension.signer.key $RELAYER_KEY 
+    --chains.dymension.signer.key $AGENT_KEY 
 
 #################################
 # DO A TRANSFER HUB -> ETHEREUM
