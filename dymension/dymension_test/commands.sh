@@ -46,6 +46,7 @@ GAS_PRICE=1 # ??
 GAS_OVERHEAD=200000 # ??
 hub tx hyperlane hooks igp set-destination-gas-config $IGP $ETH_DOMAIN $EXCHANGE_RATE $GAS_PRICE $GAS_OVERHEAD "${HUB_FLAGS[@]}"
 
+# '20 byte long ethereum style addresses' apparently
 VALIDATOR=$AGENT_ADDR # TODO: is that right?
 THRESHOLD=1
 hub tx hyperlane ism create-merkle-root-multisig $VALIDATOR $THRESHOLD "${HUB_FLAGS[@]}"
@@ -56,14 +57,12 @@ MAILBOX=$(curl -s http://localhost:1318/hyperlane/v1/mailboxes   | jq '.mailboxe
 
 hub tx hyperlane hooks merkle create $MAILBOX "${HUB_FLAGS[@]}"
 MERKLE_HOOK=$(curl -s http://localhost:1318/hyperlane/v1/merkle_tree_hooks | jq '.merkle_tree_hooks.[0].id' -r); echo $MERKLE_HOOK;
-# TODO: set addresses.yaml
 
 # update mailbox again. default hook (e.g. IGP), required hook (e.g. merkle tree)
 hub tx hyperlane mailbox set $MAILBOX --default-hook $IGP --required-hook $MERKLE_HOOK "${HUB_FLAGS[@]}"
 
-hub tx hyperlane-transfer dym-create-collateral-token $MAILBOX $DENOM "${HUB_FLAGS[@]}"
+hub tx hyperlane-transfer create-collateral-token $MAILBOX $DENOM "${HUB_FLAGS[@]}" # TODO: use dym
 TOKEN_ID=$(curl -s http://localhost:1318/hyperlane/v1/tokens | jq '.tokens.[0].id' -r); echo $TOKEN_ID
-
 
 ################
 # ANVIL: 
@@ -77,12 +76,13 @@ dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'interchainSecurityMod
 dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'mailbox' -v $MAILBOX
 dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'merkleTreeHook' -v $MERKLE_HOOK
 dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'validatorAnnounce' -v $MAILBOX
-
+# TODO: need to add quotes?
 
 # TODO: update the warp config, and addresses.yaml with appropriate cosmos addresses
 
-
 export HYP_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+
+########### !!!!!!!!!!!!DAN!!!!!!!!!!!!! #################### THIS IS WHERE I AM ###################
 
 # only deploy anvil0
 hyperlane core deploy
