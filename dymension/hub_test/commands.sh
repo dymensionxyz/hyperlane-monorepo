@@ -112,13 +112,17 @@ export CONFIG_FILES=$THIS_BASE/configs/agent-config.json
 cd rust/main
 cargo build --release --bin relayer
 
+trash $RELAYER_DB
 ./target/release/relayer \
     --db $RELAYER_DB \
     --relayChains anvil0,dymension \
     --allowLocalCheckpointSyncers true \
     --defaultSigner.key $RELAYER_KEY \
     --metrics-port 9091 \
-    --log.level debug  
+    --log.level debug \
+    --chains.dymension.signer.type cosmosKey \
+    --chains.dymension.signer.prefix dym \
+    --chains.dymension.signer.key $RELAYER_KEY 
 
 #################################
 # DO A TRANSFER HUB -> ETHEREUM
@@ -129,6 +133,9 @@ AMT=777
 hub tx hyperlane-transfer dym-transfer $TOKEN_ID $ETH_DOMAIN $ETH_RECIPIENT $AMT "${HUB_FLAGS[@]}" --max-hyperlane-fee 0adym
 
 curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/bridged_supply
+
+# If relaying worked, should have some tokens here
+cast call 0x4A679253410272dd5232B3Ff7cF5dbB88f295319 "balanceOf(address)(uint256)" 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 --rpc-url http://localhost:8545
 
 ##################################################
 # OPTIONAL DEBUG TIPS
