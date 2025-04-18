@@ -83,6 +83,7 @@ dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'validatorAnnounce' -v
 export HYP_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 
 ########### !!!!!!!!!!!!DAN!!!!!!!!!!!!! #################### THIS IS WHERE I AM ###################
+# need to make sure the core config is correct
 
 # only deploy anvil0
 hyperlane core deploy
