@@ -86,17 +86,12 @@ dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'validatorAnnounce' -v
 
 ########### !!!!!!!!!!!!DAN!!!!!!!!!!!!! #################### THIS IS WHERE I AM ###################
 dasel put -f configs/warp-route-deployment.yaml 'dymension.token' -v $TOKEN_ID
+dasel put -f configs/warp-route-deployment.yaml 'dymension.foreignDeployment' -v $TOKEN_ID
 dasel put -f configs/warp-route-deployment.yaml 'dymension.mailbox' -v $MAILBOX
 # then manually add quotes to the addresses (!!)
 
-
-
 # now use hyperlane CLI to deploy only the contracts needed on anvil, making use of a foreign deployment config for dymension side
 # it will say to deploy to dymension too, but it won't
-# TODO: set right addresses
-
-dasel put -f configs/warp-route-deployment.yaml 'dymension.foreignDeployment' -v $TOKEN_ID # TODO: check
-
 hyperlane warp deploy
 
 ################
