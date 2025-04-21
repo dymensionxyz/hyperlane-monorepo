@@ -5,7 +5,7 @@ defaultIsm:
   type: merkleRootMultisigIsm
   threshold: 1
   validators:
-    - "0x543298B2CfB5dBc7C811133cF2EB25adb5e8ACC0"
+    - "0xa51e4054dd6fc5ac01e6bbf2434da8872377c7e6"
 owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
 proxyAdmin:
   owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
@@ -14,6 +14,7 @@ requiredHook:
   oracleConfig:
     dymension:
       gasPrice: "1"
+      # TODO: check rate
       tokenExchangeRate: "1"
   oracleKey: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
   overhead:

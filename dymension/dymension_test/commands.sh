@@ -8,18 +8,24 @@
 ################
 # START ANVIL: 
 
+export HYP_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+
+trash ~/.hyperlane; mkdir ~/.hyperlane; cp -r chains ~/.hyperlane/chains;
+
 anvil --port 8545 --chain-id 31337 --block-time 1 # make sure rollapp-evm not listening on same port
 
+# only deploy anvil0, without block explorer
+hyperlane core deploy
 
 ################
 # AGENT(s): 
 
-cast wallet new
-
 # manually popoulate
-AGENT_ADDR="0x543298B2CfB5dBc7C811133cF2EB25adb5e8ACC0"
-AGENT_KEY="0xde5855ae3f5782cfc8fba11cd68e85e783422bcb40d486e497e41c77edbab477"
-export HYP_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+AGENT_MNE="chapter census village rose increase journey world sure under truck reflect inmate"
+AGENT_KEY="0xa08470178c03229d98133f87bc2bf1da4c6fcf2f9a64d7d154ebe6b3cf8ac14b"
+AGENT_ADDR="0xa51e4054dd6fc5ac01e6bbf2434da8872377c7e6"
+cast wallet import --mnemonic $AGENT_MNE agent
+
 cast send $AGENT_ADDR \
 --private-key $HYP_KEY \
 --value $(cast tw 1)
@@ -29,10 +35,10 @@ cast balance $AGENT_ADDR
 ################
 # HUB: 
 
+cd dymension/
 BASE_PATH="/Users/danwt/Documents/dym/d-dymension/scripts/hyperlane_test"
 source $BASE_PATH/env.sh
 
-cd dymension/
 bash scripts/setup_local.sh
 dymd start --log_level=debug
 
@@ -48,10 +54,8 @@ GAS_PRICE=1 # ??
 GAS_OVERHEAD=200000 # ??
 hub tx hyperlane hooks igp set-destination-gas-config $IGP $ETH_DOMAIN $EXCHANGE_RATE $GAS_PRICE $GAS_OVERHEAD "${HUB_FLAGS[@]}"
 
-# '20 byte long ethereum style addresses' apparently
-VALIDATOR=$AGENT_ADDR # TODO: is that right?
 THRESHOLD=1
-hub tx hyperlane ism create-merkle-root-multisig $VALIDATOR $THRESHOLD "${HUB_FLAGS[@]}"
+hub tx hyperlane ism create-merkle-root-multisig $AGENT_ADDR $THRESHOLD "${HUB_FLAGS[@]}"
 ISM=$(curl -s http://localhost:1318/hyperlane/v1/isms | jq '.isms.[0].id' -r); echo $ISM;
 
 hub tx hyperlane mailbox create $ISM $HUB_DOMAIN "${HUB_FLAGS[@]}"
@@ -63,14 +67,13 @@ MERKLE_HOOK=$(curl -s http://localhost:1318/hyperlane/v1/merkle_tree_hooks | jq 
 # update mailbox again. default hook (e.g. IGP), required hook (e.g. merkle tree)
 hub tx hyperlane mailbox set $MAILBOX --default-hook $IGP --required-hook $MERKLE_HOOK "${HUB_FLAGS[@]}"
 
-hub tx hyperlane-transfer create-collateral-token $MAILBOX $DENOM "${HUB_FLAGS[@]}" # TODO: use dym
+hub tx hyperlane-transfer create-collateral-token $MAILBOX $DENOM "${HUB_FLAGS[@]}" # TODO: use memo
 TOKEN_ID=$(curl -s http://localhost:1318/hyperlane/v1/tokens | jq '.tokens.[0].id' -r); echo $TOKEN_ID
 
 ################
 # ANVIL: 
 
 # cd hyperlane-monorepo/dymension/dymension_test
-trash ~/.hyperlane; mkdir ~/.hyperlane; cp -r chains ~/.hyperlane/chains;
 
 # populate addresses https://github.com/hyperlane-xyz/hyperlane-registry/blob/main/chains/kyvetestnet/addresses.yaml
 touch ~/.hyperlane/chains/dymension/addresses.yaml
@@ -79,24 +82,19 @@ dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'interchainSecurityMod
 dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'mailbox' -v $MAILBOX
 dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'merkleTreeHook' -v $MERKLE_HOOK
 dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'validatorAnnounce' -v $MAILBOX
-dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'foo' -v $MAILBOX:q
-# then manually add quotes to the addresses
-
-# TODO: update the warp config, with appropriate cosmos addresses
+# then manually add quotes to the addresses (!!)
 
 ########### !!!!!!!!!!!!DAN!!!!!!!!!!!!! #################### THIS IS WHERE I AM ###################
+dasel put -f configs/warp-route-deployment.yaml 'dymension.token' -v $TOKEN_ID
+dasel put -f configs/warp-route-deployment.yaml 'dymension.mailbox' -v $MAILBOX
+# then manually add quotes to the addresses (!!)
 
-# TODO: check token exchange rate
-dasel put -f configs/core-config.yaml 'defaultIsm.validators.index(0)' -v $VALIDATOR
 
-# only deploy anvil0
-hyperlane core deploy
 
 # now use hyperlane CLI to deploy only the contracts needed on anvil, making use of a foreign deployment config for dymension side
 # it will say to deploy to dymension too, but it won't
 # TODO: set right addresses
 
-dasel put -f configs/warp-route-deployment.yaml 'dymension.foreignDeployment' -v $TOKEN_ID # TODO: check
 dasel put -f configs/warp-route-deployment.yaml 'dymension.foreignDeployment' -v $TOKEN_ID # TODO: check
 
 hyperlane warp deploy
@@ -122,9 +120,7 @@ curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/remote_routers # che
 # https://docs.hyperlane.xyz/docs/operate/relayer/run-relayer
 
 
-
 THIS_BASE=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/dymension_test
-
 
 RELAYER_DB=$THIS_BASE/tmp/hyperlane_db_relayer
 trash $RELAYER_DB

@@ -1,42 +1,17 @@
 anvil0:
   interchainSecurityModule: "0x9A676e781A523b5d0C0e43731313A708CB607508"
   owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-  type: syntheticMemo 
-  # initialSupply?
-  name: "aDym"
-  symbol: "ADYM"
+  # TODO: use memo
+  type: synthetic
+  name: aDym
+  symbol: ADYM
   decimals: 18
   isNft: false
-  # scale?
-  # remoteRouters:
-    # "31338":
-      # address: "0x726f757465725f61707000000000000000000000000000fe0000000000000000"
-      # TODO: add remote router for eth
-  #gas, destinationgas?
-  #remoteRouters?
-  #proxyAdmin?
+  gas: 1
 dymension:
-  foreignDeployment: "0x726f757465725f61707000000000000000000000000000fe0000000000000000" # TODO: think it's token addr
+  foreignDeployment: "0x726f757465725f61707000000000000000000000000000fe0000000000000000"
   mailbox: "0x68797065726c616e650000000000000000000000000000000000000000000000"
-  owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" # dym139mq752delxv78jvtmwxhasyrycufsvrw4aka9
+  owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
   type: collateral
-  token: "0x726f757465725f61707000000000000000000000000000fe0000000000000000"
-
-
-# from Jamin:
-# anvil0:
-  # interchainSecurityModule: "0x9A676e781A523b5d0C0e43731313A708CB607508"
-  # owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-  # type: syntheticMemo
-  # totalSupply: 0
-  # name: "aDym"
-  # symbol: "ADYM"
-  # decimals: 18
-  # isNft: false
-  # gas: 1
-# dymension:
-  # foreignDeployment: "0x726f757465725f61707000000000000000000000000000fe0000000000000000"
-  # mailbox: "0x68797065726c616e650000000000000000000000000000000000000000000000"
-  # owner: dym139mq752delxv78jvtmwxhasyrycufsvrw4aka9
-  # type: collateral
-  # gas: 1
+  token: "0x726f757465725f61707000000000000000000000000000010000000000000000"
+  gas: 1
