@@ -37,6 +37,7 @@ cast balance $AGENT_ADDR
 # HUB: 
 
 cd dymension/
+
 BASE_PATH="/Users/danwt/Documents/dym/d-dymension/scripts/hyperlane_test"
 source $BASE_PATH/env.sh
 
@@ -50,13 +51,23 @@ DENOM="adym"
 hub tx hyperlane hooks igp create $DENOM "${HUB_FLAGS[@]}"
 IGP=$(curl -s http://localhost:1318/hyperlane/v1/igps | jq '.igps.[0].id' -r); echo $IGP;
 
-EXCHANGE_RATE=1 # ??
-GAS_PRICE=1 # ??
-GAS_OVERHEAD=200000 # ??
+# Gas payment logic
+# The on-chain config has price and exchange rate, and overhead, there is a 1e10 scale factor hardcoded
+# For sending Dymension -> Anvil, user can supply gas-limit and max-hyperlane-fee flags
+  # gas limit is optional and overrides what is set on the remote router
+  # max fee is the total cost the user will allow
+  # on dispatch, calculation is:
+  # quote := (((limit + overhead) * price) * rate) / 1e10
+GAS_PRICE=1
+EXCHANGE_RATE=1
+GAS_OVERHEAD=0
 hub tx hyperlane hooks igp set-destination-gas-config $IGP $ETH_DOMAIN $EXCHANGE_RATE $GAS_PRICE $GAS_OVERHEAD "${HUB_FLAGS[@]}"
 
-THRESHOLD=1
-hub tx hyperlane ism create-merkle-root-multisig $AGENT_ADDR $THRESHOLD "${HUB_FLAGS[@]}"
+
+# Use merkle or noop ISM as wished (TODO: finish merkle option by configuring the hub validator)
+hub tx hyperlane ism create-merkle-root-multisig $AGENT_ADDR 1 "${HUB_FLAGS[@]}"
+ISM=$(curl -s http://localhost:1318/hyperlane/v1/isms | jq '.isms.[0].id' -r); echo $ISM;
+hub tx hyperlane ism create-noop "${HUB_FLAGS[@]}"
 ISM=$(curl -s http://localhost:1318/hyperlane/v1/isms | jq '.isms.[0].id' -r); echo $ISM;
 
 hub tx hyperlane mailbox create $ISM $HUB_DOMAIN "${HUB_FLAGS[@]}"
@@ -67,6 +78,8 @@ MERKLE_HOOK=$(curl -s http://localhost:1318/hyperlane/v1/merkle_tree_hooks | jq 
 
 # update mailbox again. default hook (e.g. IGP), required hook (e.g. merkle tree)
 hub tx hyperlane mailbox set $MAILBOX --default-hook $IGP --required-hook $MERKLE_HOOK "${HUB_FLAGS[@]}"
+
+hub tx hyperlane mailbox set $MAILBOX --default-ism $ISM "${HUB_FLAGS[@]}"
 
 hub tx hyperlane-transfer create-collateral-token $MAILBOX $DENOM "${HUB_FLAGS[@]}" # TODO: use memo
 TOKEN_ID=$(curl -s http://localhost:1318/hyperlane/v1/tokens | jq '.tokens.[0].id' -r); echo $TOKEN_ID
@@ -107,6 +120,11 @@ curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/remote_routers # che
 ##############################################################################################
 ##############################################################################################
 # PART 1: SETUP RELAYERS AND VALIDATORS
+# https://docs.hyperlane.xyz/docs/guides/deploy-hyperlane-local-agents
+
+cd rust/main
+cargo build --release --bin relayer
+cargo build --release --bin validator 
 
 THIS_BASE=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/dymension_test
 RELAYER_DB=$THIS_BASE/tmp/hyperlane_db_relayer
@@ -116,26 +134,27 @@ trash $RELAYER_DB
 trash $VALIDATOR_DB
 trash $VALIDATOR_SIGNATURES_DIR
 
-cd rust/main
-cargo build --release --bin relayer
-cargo build --release --bin validator 
+
+#################################
+# VALIDATOR 
+# TODO: this section is incomplete
+# https://docs.hyperlane.xyz/docs/operate/validators/run-validators
 
 ./target/release/validator \
     --db $VALIDATOR_DB \
     --originChainName anvil0 \
     --checkpointSyncer.type localStorage \
     --checkpointSyncer.path $VALIDATOR_SIGNATURES_DIR \
-    --validator.key $AGENT_KEY
+    --validator.key $AGENT_KEY \
+    --log.level debug
 
 #################################
 # RELAYING
-# https://docs.hyperlane.xyz/docs/guides/deploy-hyperlane-local-agents
 # https://docs.hyperlane.xyz/docs/operate/relayer/run-relayer
-
-
 
 # ONLY NECESSARY FIRST TIME, OTHERWISE USE EXISTING FILE
 # see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/pb/kyvetestnet-agents/rust/main/config/testnet_config.json#L2886 for an 'up to date' example
+cd hyperlane-monorepo/dymension/dymension_test
 hyperlane registry agent-config --chains anvil0,dymension
 
 export CONFIG_FILES=$THIS_BASE/configs/agent-config.json
@@ -144,7 +163,6 @@ export CONFIG_FILES=$THIS_BASE/configs/agent-config.json
 cd rust/main
 cargo build --release --bin relayer
 
-trash $RELAYER_DB
 ./target/release/relayer \
     --db $RELAYER_DB \
     --relayChains anvil0,dymension \
@@ -162,15 +180,24 @@ trash $RELAYER_DB
 ETH_RECIPIENT="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" # without padding
 ETH_RECIPIENT="0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266" # this is zero padded regular address
 AMT=777
-hub tx hyperlane-transfer dym-transfer $TOKEN_ID $ETH_DOMAIN $ETH_RECIPIENT $AMT "${HUB_FLAGS[@]}" --max-hyperlane-fee 0adym
+# TODO: use dym transfer
+# hub tx hyperlane-transfer dym-transfer $TOKEN_ID $ETH_DOMAIN $ETH_RECIPIENT $AMT "${HUB_FLAGS[@]}" --max-hyperlane-fee 1000adym
+hub tx hyperlane-transfer transfer $TOKEN_ID $ETH_DOMAIN $ETH_RECIPIENT $AMT "${HUB_FLAGS[@]}" --max-hyperlane-fee 1000adym --gas-limit 10000000000
 
 curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/bridged_supply
 
 # If relaying worked, should have some tokens here
-cast call 0x4A679253410272dd5232B3Ff7cF5dbB88f295319 "balanceOf(address)(uint256)" 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 --rpc-url http://localhost:8545
 
-##################################################
-# OPTIONAL DEBUG TIPS
+cast call $ETH_TOKEN_CONTRACT_RAW "balanceOf(address)(uint256)" 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 --rpc-url http://localhost:8545
+
+# TODO: where am I at? I'm giving up for the day. 
+# I tried with a real IGP, but with a noop validators set on the hub, and with the whitelisted relayer ISM on anvil, but it hasn't worked
+# should ask about the gas ratios, also the transaction overrides (gas price) on the relayer config
+# mention Other(TendermintRpcError(response error Internal error: height must be greater than 0, but got 0 (code: -32603))
+
+##############################################################################################
+##############################################################################################
+# APPENDIX: DEBUGGING
 
 # Explorer, uses https://github.com/otterscan/otterscan
 docker pull otterscan/otterscan:latest
@@ -178,3 +205,4 @@ docker run -p 5100:80 \
   -e OTTERSCAN_RPC_URL="http://host.docker.internal:8545" \
    otterscan/otterscan:latest
 # visit http://localhost:5100/
+
