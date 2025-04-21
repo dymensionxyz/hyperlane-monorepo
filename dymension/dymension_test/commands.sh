@@ -84,7 +84,6 @@ dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'merkleTreeHook' -v $M
 dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'validatorAnnounce' -v $MAILBOX
 # then manually add quotes to the addresses (!!)
 
-########### !!!!!!!!!!!!DAN!!!!!!!!!!!!! #################### THIS IS WHERE I AM ###################
 dasel put -f configs/warp-route-deployment.yaml 'dymension.token' -v $TOKEN_ID
 dasel put -f configs/warp-route-deployment.yaml 'dymension.foreignDeployment' -v $TOKEN_ID
 dasel put -f configs/warp-route-deployment.yaml 'dymension.mailbox' -v $MAILBOX
@@ -98,7 +97,8 @@ hyperlane warp deploy
 # FINISH HUB SETUP: 
 
 ETH_TOKEN_CONTRACT_RAW=$(dasel -f ~/.hyperlane/deployments/warp_routes/ADYM/anvil0-config.yaml -r yaml 'tokens.index(0).addressOrDenom')
-ETH_TOKEN_CONTRACT="0x0000000000000000000000004A679253410272dd5232B3Ff7cF5dbB88f295319" # Need to zero pad it! (with 0x000000000000000000000000)
+# manual step TODO: automate
+ETH_TOKEN_CONTRACT="0x0000000000000000000000000xc3e53F4d16Ae77Db1c982e75a937B9f60FE63690" # Need to zero pad it! (with 0x000000000000000000000000)
 
 hub tx hyperlane-transfer enroll-remote-router $TOKEN_ID $ETH_DOMAIN $ETH_TOKEN_CONTRACT 0 "${HUB_FLAGS[@]}" # gas = 0
 curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/remote_routers # check
@@ -113,7 +113,6 @@ curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/remote_routers # che
 # RELAYING
 # https://docs.hyperlane.xyz/docs/guides/deploy-hyperlane-local-agents
 # https://docs.hyperlane.xyz/docs/operate/relayer/run-relayer
-
 
 THIS_BASE=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/dymension_test
 
