@@ -16,7 +16,7 @@ anvil0:
   #remoteRouters?
   #proxyAdmin?
 dymension:
-  foreignDeployment: "0x726f757465725f61707000000000000000000000000000fe0000000000000000" # think it's token addr
+  foreignDeployment: "0x726f757465725f61707000000000000000000000000000fe0000000000000000" # TODO: think it's token addr
   mailbox: "0x68797065726c616e650000000000000000000000000000000000000000000000"
   owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" # dym139mq752delxv78jvtmwxhasyrycufsvrw4aka9
   type: collateral

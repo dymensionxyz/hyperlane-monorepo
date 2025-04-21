@@ -15,9 +15,11 @@ anvil --port 8545 --chain-id 31337 --block-time 1 # make sure rollapp-evm not li
 # AGENT(s): 
 
 cast wallet new
+
 # manually popoulate
-AGENT_ADDR="0x29470E95486013B5819B92D4fA064381b42B59F2"
-AGENT_KEY="0x8cb97362ab8e1d86d9090add6fd789b1d323bcee9660a0ba50f6b6e4207fd97a"
+AGENT_ADDR="0x543298B2CfB5dBc7C811133cF2EB25adb5e8ACC0"
+AGENT_KEY="0xde5855ae3f5782cfc8fba11cd68e85e783422bcb40d486e497e41c77edbab477"
+export HYP_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 cast send $AGENT_ADDR \
 --private-key $HYP_KEY \
 --value $(cast tw 1)
@@ -67,6 +69,7 @@ TOKEN_ID=$(curl -s http://localhost:1318/hyperlane/v1/tokens | jq '.tokens.[0].i
 ################
 # ANVIL: 
 
+# cd hyperlane-monorepo/dymension/dymension_test
 trash ~/.hyperlane; mkdir ~/.hyperlane; cp -r chains ~/.hyperlane/chains;
 
 # populate addresses https://github.com/hyperlane-xyz/hyperlane-registry/blob/main/chains/kyvetestnet/addresses.yaml
@@ -76,20 +79,26 @@ dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'interchainSecurityMod
 dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'mailbox' -v $MAILBOX
 dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'merkleTreeHook' -v $MERKLE_HOOK
 dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'validatorAnnounce' -v $MAILBOX
-# TODO: need to add quotes?
+dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'foo' -v $MAILBOX:q
+# then manually add quotes to the addresses
 
-# TODO: update the warp config, and addresses.yaml with appropriate cosmos addresses
-
-export HYP_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+# TODO: update the warp config, with appropriate cosmos addresses
 
 ########### !!!!!!!!!!!!DAN!!!!!!!!!!!!! #################### THIS IS WHERE I AM ###################
-# need to make sure the core config is correct
+
+# TODO: check token exchange rate
+dasel put -f configs/core-config.yaml 'defaultIsm.validators.index(0)' -v $VALIDATOR
 
 # only deploy anvil0
 hyperlane core deploy
 
 # now use hyperlane CLI to deploy only the contracts needed on anvil, making use of a foreign deployment config for dymension side
 # it will say to deploy to dymension too, but it won't
+# TODO: set right addresses
+
+dasel put -f configs/warp-route-deployment.yaml 'dymension.foreignDeployment' -v $TOKEN_ID # TODO: check
+dasel put -f configs/warp-route-deployment.yaml 'dymension.foreignDeployment' -v $TOKEN_ID # TODO: check
+
 hyperlane warp deploy
 
 ################
