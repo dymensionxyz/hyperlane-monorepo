@@ -2,8 +2,9 @@
 # A: Some commands to run Dymension Hub + Anvil instance and connect them and relay between them
 # Scenario: Dymension Hub will have collateral ADYM and Anvil will have synthetic memo
 
-##############################################################################################3
-# STEP: Start chains and deploy contracts
+##############################################################################################
+##############################################################################################
+# PART 1: Start chains and deploy contracts
 
 ################
 # START ANVIL: 
@@ -103,21 +104,35 @@ ETH_TOKEN_CONTRACT="0x0000000000000000000000000xc3e53F4d16Ae77Db1c982e75a937B9f6
 hub tx hyperlane-transfer enroll-remote-router $TOKEN_ID $ETH_DOMAIN $ETH_TOKEN_CONTRACT 0 "${HUB_FLAGS[@]}" # gas = 0
 curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/remote_routers # check
 
-#################################################################################################################### 
-#################################################################################################################### 
-#################################################################################################################### 
-#################################################################################################################### 
-####################### SCRATCH STUFF BELOW
+##############################################################################################
+##############################################################################################
+# PART 1: SETUP RELAYERS AND VALIDATORS
+
+THIS_BASE=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/dymension_test
+RELAYER_DB=$THIS_BASE/tmp/hyperlane_db_relayer
+VALIDATOR_DB=$THIS_BASE/tmp/hyperlane_db_validator
+VALIDATOR_SIGNATURES_DIR=$THIS_BASE/tmp/hyperlane_db_validator_signatures
+trash $RELAYER_DB
+trash $VALIDATOR_DB
+trash $VALIDATOR_SIGNATURES_DIR
+
+cd rust/main
+cargo build --release --bin relayer
+cargo build --release --bin validator 
+
+./target/release/validator \
+    --db $VALIDATOR_DB \
+    --originChainName anvil0 \
+    --checkpointSyncer.type localStorage \
+    --checkpointSyncer.path $VALIDATOR_SIGNATURES_DIR \
+    --validator.key $AGENT_KEY
 
 #################################
 # RELAYING
 # https://docs.hyperlane.xyz/docs/guides/deploy-hyperlane-local-agents
 # https://docs.hyperlane.xyz/docs/operate/relayer/run-relayer
 
-THIS_BASE=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/dymension_test
 
-RELAYER_DB=$THIS_BASE/tmp/hyperlane_db_relayer
-trash $RELAYER_DB
 
 # ONLY NECESSARY FIRST TIME, OTHERWISE USE EXISTING FILE
 # see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/pb/kyvetestnet-agents/rust/main/config/testnet_config.json#L2886 for an 'up to date' example

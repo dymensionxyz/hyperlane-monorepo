@@ -2,10 +2,12 @@
 defaultHook:
   type: merkleTreeHook
 defaultIsm:
-  type: merkleRootMultisigIsm
-  threshold: 1
-  validators:
-    - "0xa51e4054dd6fc5ac01e6bbf2434da8872377c7e6"
+  relayer: "0xa51e4054dd6fc5ac01e6bbf2434da8872377c7e6"
+  type: trustedRelayerIsm
+  # type: merkleRootMultisigIsm
+  # threshold: 1
+  # validators:
+    # - "0xa51e4054dd6fc5ac01e6bbf2434da8872377c7e6"
 owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
 proxyAdmin:
   owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
