@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
-import {HypERC20} from "../HypERC20.sol";
+import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 
-// synthetic
-contract HypERC20Memo is HypERC20 {
+// collateral
+contract HypERC20Memo is HypERC20Collateral {
     event IncludedMemo(bytes memo);
     bytes private _memo;
 
     constructor(
-        uint8 __decimals,
+        address erc20,
         uint256 _scale,
         address _mailbox
-    ) HypERC20(__decimals, _scale, _mailbox) {}
+    ) HypERC20Collateral(erc20, _scale, _mailbox) {}
 
     function transferRemoteMemo(
         uint32 _destination,
