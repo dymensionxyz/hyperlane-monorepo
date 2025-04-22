@@ -121,10 +121,10 @@ cargo build --release --bin relayer
     --allowLocalCheckpointSyncers true \
     --defaultSigner.key $HYP_KEY \
     --metrics-port 9091 \
-    --log.level debug \
     --chains.dymension.signer.type cosmosKey \
     --chains.dymension.signer.prefix dym \
     --chains.dymension.signer.key $HYP_KEY 
+    --log.level debug \
 
 #################################
 # DO A TRANSFER HUB -> ETHEREUM
