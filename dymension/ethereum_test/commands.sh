@@ -44,13 +44,11 @@ hyperlane registry init
 # Use yarn clean to make sure nothing weird happens.
 # Note: it's NOT necessary to change the dependency path in typescript/cli/package.json to point to the local path of sdk
 
-# commands:
-yarn build
-yarn clean
-yarn version:update;
-npm uninstall -g @hyperlane-xyz/cli; 
-npm install -g .;
-hyperlane --version
+
+# in hyperlane-monorepo
+yarn clean; yarn build; # CLEAN IS VERY IMPORTANT!
+# in typescript/cli
+npm uninstall -g @hyperlane-xyz/cli; yarn build; npm install -g .; hyperlane --version
 
 ##################################################
 # STEP: Core contract deployment
@@ -81,27 +79,24 @@ hyperlane core deploy # if it asks for keys, double check HYP_KEY is set
 # it will create a deployment config 
 # do NOT use proxy contract or trusted ISM
 hyperlane warp init
-#    anvil0:
-#      isNft: false
-#      type: nativeMemo
-#      owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-#    anvil1:
-#      isNft: false
-#      type: synthetic
-#      owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
 
+# NOTE: MODIFY WARP ROUTE CONFIG ACCORDINGLY
 hyperlane warp deploy
 
 ##################################################
 # STEP: SEND TRANSFER WITH MEMO
 
+############
+# VARIANT: Native -> Synthetic memo
 # first transfer from anvil 0 to anvil 1 some tokens, to mint some synthetic erc20 on anvil 1
 hyperlane warp send --relay --symbol ETH --amount 1000000
-
 # then transfer from anvil 1 to anvil 0 using some erc20 tokens, but with a memo
 cast send 0x4A679253410272dd5232B3Ff7cF5dbB88f295319 "transferRemoteMemo(uint32,bytes32,uint256,bytes)" 31337 0x0000000000000000000000004a679253410272dd5232b3ff7cf5dbb88f295319 1 0x68656c6c6f --private-key $HYP_KEY --rpc-url http://localhost:8546 --gas-limit 1000000
-
 cast call 0x4A679253410272dd5232B3Ff7cF5dbB88f295319 "balanceOf(address)(uint256)" 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 --rpc-url http://localhost:8546
+############
+# VARIANT: NativeMemo -> Synthetic
+cast send 0x4A679253410272dd5232B3Ff7cF5dbB88f295319 "transferRemoteMemo(uint32,bytes32,uint256,bytes)" 31338 0x0000000000000000000000004a679253410272dd5232b3ff7cf5dbb88f295319 1 0x68656c6c6f --private-key $HYP_KEY --rpc-url http://localhost:8545 --gas-limit 1000000 --value 1
+
 
 ##################################################
 # OPTIONAL DEBUG TIPS
