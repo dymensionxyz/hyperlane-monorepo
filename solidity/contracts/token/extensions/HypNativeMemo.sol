@@ -21,9 +21,10 @@ contract HypNativeMemo is HypNative {
     }
 
     function _transferFromSender(
-        uint256
+        uint256 _amount
     ) internal override returns (bytes memory) {
         // no super call, parent
+        super._transferFromSender(_amount);
         bytes memory memo = _memo;
         delete _memo;
         emit IncludedMemo(memo);
