@@ -10,6 +10,7 @@
 # START ANVIL: 
 
 export HYP_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+export HYP_ADDR="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
 
 trash ~/.hyperlane; mkdir ~/.hyperlane; cp -r chains ~/.hyperlane/chains;
 
@@ -19,69 +20,38 @@ anvil --port 8545 --chain-id 31337 --block-time 1 # make sure rollapp-evm not li
 hyperlane core deploy
 
 ################
-# AGENT(s): 
-
-# manually popoulate
-AGENT_MNE="chapter census village rose increase journey world sure under truck reflect inmate"
-AGENT_KEY="0xa08470178c03229d98133f87bc2bf1da4c6fcf2f9a64d7d154ebe6b3cf8ac14b"
-AGENT_ADDR="0xa51e4054dd6fc5ac01e6bbf2434da8872377c7e6"
-cast wallet import --mnemonic $AGENT_MNE agent
-
-cast send $AGENT_ADDR \
---private-key $HYP_KEY \
---value $(cast tw 1)
-
-cast balance $AGENT_ADDR
-
-################
 # HUB: 
 
 cd dymension/
 
 BASE_PATH="/Users/danwt/Documents/dym/d-dymension/scripts/hyperlane_test"
 source $BASE_PATH/env.sh
+source /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/dymension_test/env.sh # TODO: generic
 
 bash scripts/setup_local.sh
 dymd start --log_level=debug
 
-HUB_DOMAIN=1260813472 
-ETH_DOMAIN=31337
-
-DENOM="adym"
-hub tx hyperlane hooks igp create $DENOM "${HUB_FLAGS[@]}"
-IGP=$(curl -s http://localhost:1318/hyperlane/v1/igps | jq '.igps.[0].id' -r); echo $IGP;
-
-# Gas payment logic
-# The on-chain config has price and exchange rate, and overhead, there is a 1e10 scale factor hardcoded
-# For sending Dymension -> Anvil, user can supply gas-limit and max-hyperlane-fee flags
-  # gas limit is optional and overrides what is set on the remote router
-  # max fee is the total cost the user will allow
-  # on dispatch, calculation is:
-  # quote := (((limit + overhead) * price) * rate) / 1e10
-GAS_PRICE=1
-EXCHANGE_RATE=1
-GAS_OVERHEAD=0
-hub tx hyperlane hooks igp set-destination-gas-config $IGP $ETH_DOMAIN $EXCHANGE_RATE $GAS_PRICE $GAS_OVERHEAD "${HUB_FLAGS[@]}"
-
-
-# Use merkle or noop ISM as wished (TODO: finish merkle option by configuring the hub validator)
-hub tx hyperlane ism create-merkle-root-multisig $AGENT_ADDR 1 "${HUB_FLAGS[@]}"
-ISM=$(curl -s http://localhost:1318/hyperlane/v1/isms | jq '.isms.[0].id' -r); echo $ISM;
 hub tx hyperlane ism create-noop "${HUB_FLAGS[@]}"
+sleep 5;
 ISM=$(curl -s http://localhost:1318/hyperlane/v1/isms | jq '.isms.[0].id' -r); echo $ISM;
+
+hub tx hyperlane hooks noop create "${HUB_FLAGS[@]}"
+sleep 5;
+NOOP_HOOK=$(curl -s http://localhost:1318/hyperlane/v1/noop_hooks | jq '.noop_hooks.[0].id' -r); echo $NOOP_HOOK;
 
 hub tx hyperlane mailbox create $ISM $HUB_DOMAIN "${HUB_FLAGS[@]}"
+sleep 5;
 MAILBOX=$(curl -s http://localhost:1318/hyperlane/v1/mailboxes   | jq '.mailboxes.[0].id' -r); echo $MAILBOX;
 
 hub tx hyperlane hooks merkle create $MAILBOX "${HUB_FLAGS[@]}"
+sleep 5;
 MERKLE_HOOK=$(curl -s http://localhost:1318/hyperlane/v1/merkle_tree_hooks | jq '.merkle_tree_hooks.[0].id' -r); echo $MERKLE_HOOK;
 
 # update mailbox again. default hook (e.g. IGP), required hook (e.g. merkle tree)
-hub tx hyperlane mailbox set $MAILBOX --default-hook $IGP --required-hook $MERKLE_HOOK "${HUB_FLAGS[@]}"
-
-hub tx hyperlane mailbox set $MAILBOX --default-ism $ISM "${HUB_FLAGS[@]}"
+hub tx hyperlane mailbox set $MAILBOX --default-hook $NOOP_HOOK --required-hook $MERKLE_HOOK "${HUB_FLAGS[@]}"
 
 hub tx hyperlane-transfer create-collateral-token $MAILBOX $DENOM "${HUB_FLAGS[@]}" # TODO: use memo
+sleep 5;
 TOKEN_ID=$(curl -s http://localhost:1318/hyperlane/v1/tokens | jq '.tokens.[0].id' -r); echo $TOKEN_ID
 
 ################
@@ -91,7 +61,7 @@ TOKEN_ID=$(curl -s http://localhost:1318/hyperlane/v1/tokens | jq '.tokens.[0].i
 
 # populate addresses https://github.com/hyperlane-xyz/hyperlane-registry/blob/main/chains/kyvetestnet/addresses.yaml
 touch ~/.hyperlane/chains/dymension/addresses.yaml
-dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'interchainGasPaymaster' -v $IGP
+dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'interchainGasPaymaster' -v $NOOP_HOOK # TODO: ok?
 dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'interchainSecurityModule' -v $ISM
 dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'mailbox' -v $MAILBOX
 dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'merkleTreeHook' -v $MERKLE_HOOK
@@ -110,11 +80,12 @@ hyperlane warp deploy
 ################
 # FINISH HUB SETUP: 
 
-ETH_TOKEN_CONTRACT_RAW=$(dasel -f ~/.hyperlane/deployments/warp_routes/ADYM/anvil0-config.yaml -r yaml 'tokens.index(0).addressOrDenom')
+ETH_TOKEN_CONTRACT_RAW=$(dasel -f ~/.hyperlane/deployments/warp_routes/ADYM/anvil0-config.yaml -r yaml 'tokens.index(0).addressOrDenom'); echo $ETH_TOKEN_CONTRACT_RAW;
 # manual step TODO: automate
-ETH_TOKEN_CONTRACT="0x0000000000000000000000000xc3e53F4d16Ae77Db1c982e75a937B9f60FE63690" # Need to zero pad it! (with 0x000000000000000000000000)
+ETH_TOKEN_CONTRACT="0x0000000000000000000000004A679253410272dd5232B3Ff7cF5dbB88f295319" # Need to zero pad it! (with 0x000000000000000000000000)
 
 hub tx hyperlane-transfer enroll-remote-router $TOKEN_ID $ETH_DOMAIN $ETH_TOKEN_CONTRACT 0 "${HUB_FLAGS[@]}" # gas = 0
+sleep 5;
 curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/remote_routers # check
 
 ##############################################################################################
@@ -126,38 +97,19 @@ cd rust/main
 cargo build --release --bin relayer
 cargo build --release --bin validator 
 
-THIS_BASE=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/dymension_test
-RELAYER_DB=$THIS_BASE/tmp/hyperlane_db_relayer
-VALIDATOR_DB=$THIS_BASE/tmp/hyperlane_db_validator
-VALIDATOR_SIGNATURES_DIR=$THIS_BASE/tmp/hyperlane_db_validator_signatures
-trash $RELAYER_DB
-trash $VALIDATOR_DB
-trash $VALIDATOR_SIGNATURES_DIR
-
-
-#################################
-# VALIDATOR 
-# TODO: this section is incomplete
-# https://docs.hyperlane.xyz/docs/operate/validators/run-validators
-
-./target/release/validator \
-    --db $VALIDATOR_DB \
-    --originChainName anvil0 \
-    --checkpointSyncer.type localStorage \
-    --checkpointSyncer.path $VALIDATOR_SIGNATURES_DIR \
-    --validator.key $AGENT_KEY \
-    --log.level debug
+MONO_WORKING_DIR=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/dymension_test
+RELAYER_DB=$MONO_WORKING_DIR/tmp/hyperlane_db_relayer
+trash $MONO_WORKING_DIR/tmp/
+mkdir $MONO_WORKING_DIR/tmp/
 
 #################################
 # RELAYING
 # https://docs.hyperlane.xyz/docs/operate/relayer/run-relayer
 
-# ONLY NECESSARY FIRST TIME, OTHERWISE USE EXISTING FILE
-# see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/pb/kyvetestnet-agents/rust/main/config/testnet_config.json#L2886 for an 'up to date' example
 cd hyperlane-monorepo/dymension/dymension_test
 hyperlane registry agent-config --chains anvil0,dymension
 
-export CONFIG_FILES=$THIS_BASE/configs/agent-config.json
+export CONFIG_FILES=$MONO_WORKING_DIR/configs/agent-config.json
 # see reference https://docs.hyperlane.xyz/docs/operate/config-reference#config_files
 
 cd rust/main
@@ -167,23 +119,22 @@ cargo build --release --bin relayer
     --db $RELAYER_DB \
     --relayChains anvil0,dymension \
     --allowLocalCheckpointSyncers true \
-    --defaultSigner.key $AGENT_KEY \
+    --defaultSigner.key $HYP_KEY \
     --metrics-port 9091 \
     --log.level debug \
     --chains.dymension.signer.type cosmosKey \
     --chains.dymension.signer.prefix dym \
-    --chains.dymension.signer.key $AGENT_KEY 
+    --chains.dymension.signer.key $HYP_KEY 
 
 #################################
 # DO A TRANSFER HUB -> ETHEREUM
 
-ETH_RECIPIENT="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" # without padding
 ETH_RECIPIENT="0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266" # this is zero padded regular address
 AMT=777
 # TODO: use dym transfer
 # hub tx hyperlane-transfer dym-transfer $TOKEN_ID $ETH_DOMAIN $ETH_RECIPIENT $AMT "${HUB_FLAGS[@]}" --max-hyperlane-fee 1000adym
 hub tx hyperlane-transfer transfer $TOKEN_ID $ETH_DOMAIN $ETH_RECIPIENT $AMT "${HUB_FLAGS[@]}" --max-hyperlane-fee 1000adym --gas-limit 10000000000
-
+sleep 5;
 curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/bridged_supply
 
 # If relaying worked, should have some tokens here
