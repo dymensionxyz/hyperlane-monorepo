@@ -86,6 +86,9 @@ hyperlane warp deploy
 ##################################################
 # STEP: SEND TRANSFER WITH MEMO
 
+# First start relayer to check what happens
+hyperlane relayer --chains anvil0,anvil
+
 ############
 # VARIANT: Native -> Synthetic memo
 # first transfer from anvil 0 to anvil 1 some tokens, to mint some synthetic erc20 on anvil 1
