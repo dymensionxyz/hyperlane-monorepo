@@ -39,6 +39,14 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'INJ',
     name: 'Injective Coin',
   },
+  [TokenStandard.EvmHypNativeMemo]: {
+    chainName: TestChainName.test2,
+    standard: TokenStandard.EvmHypNativeMemo,
+    addressOrDenom: '0x26f32245fCF5Ad53159E875d5Cae62aEcf19c2d4', // TODO: check
+    decimals: 18,
+    symbol: 'INJ',
+    name: 'Injective Coin',
+  },
   [TokenStandard.EvmHypCollateral]: {
     chainName: TestChainName.test3,
     standard: TokenStandard.EvmHypCollateral,

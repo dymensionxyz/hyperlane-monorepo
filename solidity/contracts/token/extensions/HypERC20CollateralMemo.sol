@@ -4,7 +4,7 @@ pragma solidity >=0.8.0;
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 
 // collateral
-contract HypERC20Memo is HypERC20Collateral {
+contract HypERC20CollateralMemo is HypERC20Collateral {
     event IncludedMemo(bytes memo);
     bytes private _memo;
 

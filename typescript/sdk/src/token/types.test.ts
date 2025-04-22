@@ -14,6 +14,7 @@ import {
 const SOME_ADDRESS = ethers.Wallet.createRandom().address;
 const COLLATERAL_TYPES = [
   TokenType.collateral,
+  TokenType.collateralMemo,
   TokenType.collateralUri,
   TokenType.collateralVault,
 ];

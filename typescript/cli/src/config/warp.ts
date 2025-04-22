@@ -178,6 +178,7 @@ export async function createWarpRouteDeployConfig({
 
     switch (type) {
       case TokenType.collateral:
+      case TokenType.collateralMemo:
       case TokenType.XERC20:
       case TokenType.XERC20Lockbox:
       case TokenType.collateralFiat:

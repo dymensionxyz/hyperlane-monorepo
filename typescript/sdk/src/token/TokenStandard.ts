@@ -190,7 +190,9 @@ export const TOKEN_COSMWASM_STANDARDS = [
 
 export const TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
   [TokenType.native]: TokenStandard.EvmHypNative,
+  [TokenType.nativeMemo]: TokenStandard.EvmHypNativeMemo,
   [TokenType.collateral]: TokenStandard.EvmHypCollateral,
+  [TokenType.collateralMemo]: TokenStandard.EvmHypCollateralMemo,
   [TokenType.collateralFiat]: TokenStandard.EvmHypCollateralFiat,
   [TokenType.XERC20]: TokenStandard.EvmHypXERC20,
   [TokenType.XERC20Lockbox]: TokenStandard.EvmHypXERC20Lockbox,
