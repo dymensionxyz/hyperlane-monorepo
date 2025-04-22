@@ -4,6 +4,7 @@ export enum TokenType {
   syntheticRebase = 'syntheticRebase',
   syntheticUri = 'syntheticUri',
   collateral = 'collateral',
+  collateralMemo = 'collateralMemo',
   collateralVault = 'collateralVault',
   collateralVaultRebase = 'collateralVaultRebase',
   XERC20 = 'xERC20',
@@ -11,6 +12,7 @@ export enum TokenType {
   collateralFiat = 'collateralFiat',
   collateralUri = 'collateralUri',
   native = 'native',
+  nativeMemo = 'nativeMemo',
   // backwards compatible alias to native
   nativeScaled = 'nativeScaled',
 }
@@ -21,6 +23,7 @@ export const gasOverhead = (tokenType: TokenType): number => {
     case TokenType.syntheticMemo:
       return 64_000;
     case TokenType.native:
+    case TokenType.nativeMemo:
       return 44_000;
     default:
       return 68_000;

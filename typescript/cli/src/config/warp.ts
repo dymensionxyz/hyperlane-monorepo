@@ -39,8 +39,12 @@ const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
   [TokenType.syntheticRebase]: `A rebasing ERC20 with remote transfer functionality. Must be paired with ${TokenType.collateralVaultRebase}`,
   [TokenType.collateral]:
     'Extends an existing ERC20 with remote transfer functionality',
+  [TokenType.collateralMemo]:
+    'Extends an existing ERC20 with remote transfer functionality, with outbound memo support',
   [TokenType.native]:
     'Extends the native token with remote transfer functionality',
+  [TokenType.nativeMemo]:
+    'Extends the native token with remote transfer functionality, with outbound memo support',
   [TokenType.collateralVault]:
     'Extends an existing ERC4626 with remote transfer functionality. Yields are manually claimed by owner.',
   [TokenType.collateralVaultRebase]:

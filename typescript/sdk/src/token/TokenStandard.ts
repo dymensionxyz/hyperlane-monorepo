@@ -13,7 +13,9 @@ export enum TokenStandard {
   ERC721 = 'ERC721',
   EvmNative = 'EvmNative',
   EvmHypNative = 'EvmHypNative',
+  EvmHypNativeMemo = 'EvmHypNativeMemo',
   EvmHypCollateral = 'EvmHypCollateral',
+  EvmHypCollateralMemo = 'EvmHypCollateralMemo',
   EvmHypOwnerCollateral = 'EvmHypOwnerCollateral',
   EvmHypRebaseCollateral = 'EvmHypRebaseCollateral',
   EvmHypCollateralFiat = 'EvmHypCollateralFiat',
@@ -60,7 +62,9 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   ERC721: ProtocolType.Ethereum,
   EvmNative: ProtocolType.Ethereum,
   EvmHypNative: ProtocolType.Ethereum,
+  EvmHypNativeMemo: ProtocolType.Ethereum,
   EvmHypCollateral: ProtocolType.Ethereum,
+  EvmHypCollateralMemo: ProtocolType.Ethereum,
   EvmHypOwnerCollateral: ProtocolType.Ethereum,
   EvmHypRebaseCollateral: ProtocolType.Ethereum,
   EvmHypCollateralFiat: ProtocolType.Ethereum,
@@ -117,7 +121,9 @@ export const TOKEN_NFT_STANDARDS = [
 
 export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.EvmHypCollateral,
+  TokenStandard.EvmHypCollateralMemo,
   TokenStandard.EvmHypNative,
+  TokenStandard.EvmHypNativeMemo,
   TokenStandard.SealevelHypCollateral,
   TokenStandard.SealevelHypNative,
   TokenStandard.CwHypCollateral,
@@ -142,7 +148,9 @@ export const MINT_LIMITED_STANDARDS = [
 
 export const TOKEN_HYP_STANDARDS = [
   TokenStandard.EvmHypNative,
+  TokenStandard.EvmHypNativeMemo,
   TokenStandard.EvmHypCollateral,
+  TokenStandard.EvmHypCollateralMemo,
   TokenStandard.EvmHypCollateralFiat,
   TokenStandard.EvmHypOwnerCollateral,
   TokenStandard.EvmHypRebaseCollateral,
