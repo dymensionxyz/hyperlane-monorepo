@@ -217,7 +217,12 @@ export {
   WeightedMultisigIsmConfig,
   WeightedMultisigIsmConfigSchema,
 } from './ism/types.js';
-export { collectValidators, moduleCanCertainlyVerify } from './ism/utils.js';
+export {
+  collectValidators,
+  moduleCanCertainlyVerify,
+  isStaticDeploymentSupported,
+  isIsmCompatible,
+} from './ism/utils.js';
 export {
   AgentChainMetadata,
   AgentChainMetadataSchema,
@@ -242,6 +247,7 @@ export {
   GasPaymentEnforcementPolicyType,
   IsmCacheConfig,
   IsmCachePolicy,
+  IsmCacheSelectorType,
   RelayerConfig,
   RpcConsensusType,
   ScraperConfig,
@@ -604,6 +610,8 @@ export {
   HypTokenConfigSchema,
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
+  HypTokenRouterConfigMailboxOptional,
+  HypTokenRouterConfigMailboxOptionalSchema,
   isCollateralRebaseTokenConfig,
   isCollateralTokenConfig,
   isXERC20TokenConfig,
