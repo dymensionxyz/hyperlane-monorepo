@@ -121,7 +121,10 @@ cd rust/main
     --chains.dymension.signer.type cosmosKey \
     --chains.dymension.signer.prefix dym \
     --chains.dymension.signer.key $HYP_KEY \
-    --log.level debug \
+    --log.level debug
+
+# need to fund relayer
+
 
 #################################
 # DO A TRANSFER HUB -> ETHEREUM
@@ -135,7 +138,23 @@ sleep 5;
 curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/bridged_supply
 
 # If relaying worked, should have amt tokens here
-cast call $ETH_TOKEN_CONTRACT_RAW "balanceOf(address)(uint256)" 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 --rpc-url http://localhost:8545
+cast call $ETH_TOKEN_CONTRACT_RAW "balanceOf(address)(uint256)" $HYP_ADDR --rpc-url http://localhost:8545
+
+# fund relayer (TODO: get relayer addr in smart way)
+RELAYER_ADDR=dym15428vq2uzwhm3taey9sr9x5vm6tk78ewtfeeth
+dymd tx bank send hub-user $RELAYER_ADDR 1000000000000000000000adym "${HUB_FLAGS[@]}"
+# d6ac41030acbf2edbb6cab25a384400d3cb42e14
+# resemble        "0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266" 
+HUB_USER_ETH_ADDR="0x000000000000000000000000d6ac41030acbf2edbb6cab25a384400d3cb42e14" # corresponds to dym166kyzqc2e0ewmwmv4vj68pzqp57tgts5lyawlc
+# args are destination, recipient, amount
+AMT=5
+cast send $ETH_TOKEN_CONTRACT_RAW "transferRemote(uint32,bytes32,uint256)" $HUB_DOMAIN $HUB_USER_ETH_ADDR $AMT --private-key $HYP_KEY --rpc-url http://localhost:8545
+cast send 0x4A679253410272dd5232B3Ff7cF5dbB88f295319 "transferRemote(uint32,bytes32,uint256)" 1260813472 0x000000000000000000000000d6ac41030acbf2edbb6cab25a384400d3cb42e14 5 --private-key $HYP_KEY --rpc-url http://localhost:8545
+
+bodies
+# id 0x3d314d91151a6522b99d0b13ef5be17ad0995f8685d540609331d1bd744468a3
+0x000000000000000000000000d6ac41030acbf2edbb6cab25a384400d3cb42e140000000000000000000000000000000000000000000000000000000000000005
+
 
 ##############################################################################################
 ##############################################################################################
