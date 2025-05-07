@@ -15,7 +15,11 @@ BASE_PATH="/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/solana_test
 cd rust/sealevel/programs
 
 # MUST use solana v1.14
-sh -c "$(curl -sSfL https://release.solana.com/v1.14.20/install)"
+# (if fails, see https://solana.com/docs/intro/installation
+curl --proto '=https' --tlsv1.2 -sSfL https://solana-install.solana.workers.dev | bash
+solana-install init v1.14.20
+solana -V
+
 # (Make sure memo tokens are included in TOKEN_PROGRAM_PATHS in build-programs.sh)
 # Build the token programs (.so files)
 ./build-programs.sh token
