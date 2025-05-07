@@ -10,13 +10,30 @@ trash ~/.hyperlane; trash ~/.dymension
 # PART 1: Start chains and deploy contracts
 
 ################
-# START ANVIL: 
-
-anvil --port 8545 --chain-id 31337 --block-time 1 # make sure rollapp-evm not listening on same port
-# see otterscan below for explorer
+# ENV: 
 
 export HYP_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 export HYP_ADDR="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+export HYP_ADDR_ZEROS="0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266" # this is zero padded regular address
+export RELAYER_ADDR="dym15428vq2uzwhm3taey9sr9x5vm6tk78ewtfeeth" # relayer derives from HYP_KEY
+BASE_PATH="/Users/danwt/Documents/dym/d-dymension/scripts/hyperlane_test"
+source $BASE_PATH/env.sh
+source /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/dymension_test/env.sh #
+
+################
+# START NODES: 
+
+anvil --port 8545 --chain-id 31337 --block-time 1 # make sure rollapp-evm not listening on same port
+# see otterscan below for explorer
+cd dymension/ # hub repo
+
+bash scripts/setup_local.sh
+dymd start --log_level=debug
+# see ping pub below for explorer
+
+#################
+# DEPLOY HYPERLANE CORE TO ETH:
+cd hyperlane-monorepo/dymension/dymension_test
 
 trash ~/.hyperlane; mkdir ~/.hyperlane; cp -r chains ~/.hyperlane/chains;
 
@@ -25,16 +42,6 @@ hyperlane core deploy
 
 ################
 # HUB: 
-
-cd dymension/ # hub repo
-
-BASE_PATH="/Users/danwt/Documents/dym/d-dymension/scripts/hyperlane_test"
-source $BASE_PATH/env.sh
-source /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/dymension_test/env.sh # TODO: make generic
-
-bash scripts/setup_local.sh
-dymd start --log_level=debug
-# see ping pub below for explorer
 
 hub tx hyperlane ism create-noop "${HUB_FLAGS[@]}"
 sleep 7;
@@ -94,8 +101,6 @@ hub tx hyperlane-transfer enroll-remote-router $TOKEN_ID $ETH_DOMAIN $ETH_TOKEN_
 sleep 7;
 curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/remote_routers # check
 
-# # Now
-
 ##############################################################################################
 ##############################################################################################
 # PART 1: SETUP RELAYERS AND VALIDATORS
@@ -111,13 +116,17 @@ mkdir $MONO_WORKING_DIR/tmp/
 # RELAYING
 # https://docs.hyperlane.xyz/docs/operate/relayer/run-relayer
 
+# regen config
 cd hyperlane-monorepo/dymension/dymension_test
-hyperlane registry agent-config --chains anvil0,dymension
+hyperlane registry agent-config --chains anvil0,dymension # DO NOT USE, DOES NOT PROPERLY INCLUDE GRPC URLS, USE PRECONFIGURED
 
 export CONFIG_FILES=$MONO_WORKING_DIR/configs/agent-config.json
 # see reference https://docs.hyperlane.xyz/docs/operate/config-reference#config_files
 
 cd rust/main
+
+# need to fund relayer
+dymd tx bank send hub-user $RELAYER_ADDR 1000000000000000000000adym "${HUB_FLAGS[@]}"
 
 ./target/release/relayer \
     --db $RELAYER_DB \
@@ -130,17 +139,13 @@ cd rust/main
     --chains.dymension.signer.key $HYP_KEY \
     --log.level debug
 
-# need to fund relayer
-
-
 #################################
 # DO A TRANSFER HUB -> ETHEREUM
 
-ETH_RECIPIENT="0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266" # this is zero padded regular address
-AMT=777
+AMT=1000
 # TODO: use dym transfer
 # hub tx hyperlane-transfer dym-transfer $TOKEN_ID $ETH_DOMAIN $ETH_RECIPIENT $AMT "${HUB_FLAGS[@]}" --max-hyperlane-fee 1000adym
-hub tx hyperlane-transfer transfer $TOKEN_ID $ETH_DOMAIN $ETH_RECIPIENT $AMT "${HUB_FLAGS[@]}" --max-hyperlane-fee 1000adym --gas-limit 10000000000
+hub tx hyperlane-transfer dym-transfer $TOKEN_ID $ETH_DOMAIN $HYP_ADDR_ZEROS $AMT "${HUB_FLAGS[@]}" --max-hyperlane-fee 1000adym --gas-limit 10000000000
 sleep 5;
 curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/bridged_supply
 

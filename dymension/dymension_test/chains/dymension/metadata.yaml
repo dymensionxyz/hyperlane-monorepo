@@ -17,7 +17,7 @@ gasCurrencyCoinGeckoId: dymension
 # Generated from: console.log(parseInt('0x'+Buffer.from('DYMENSION').toString('hex')))
 domainId: 1260813472 
 gasPrice:
-  amount: "2.0"
+  amount: "100000000000.0"
   denom: adym
 grpcUrls:
   - http: http://127.0.0.1:8090
