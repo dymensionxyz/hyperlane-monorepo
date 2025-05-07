@@ -2,6 +2,9 @@
 # A: Some commands to run Dymension Hub + Anvil instance and connect them and relay between them
 # Scenario: Dymension Hub will have collateral ADYM and Anvil will have synthetic memo
 
+# clean slate
+trash ~/.hyperlane; trash ~/.dymension
+
 ##############################################################################################
 ##############################################################################################
 # PART 1: Start chains and deploy contracts
@@ -9,12 +12,13 @@
 ################
 # START ANVIL: 
 
+anvil --port 8545 --chain-id 31337 --block-time 1 # make sure rollapp-evm not listening on same port
+# see otterscan below for explorer
+
 export HYP_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 export HYP_ADDR="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
 
 trash ~/.hyperlane; mkdir ~/.hyperlane; cp -r chains ~/.hyperlane/chains;
-
-anvil --port 8545 --chain-id 31337 --block-time 1 # make sure rollapp-evm not listening on same port
 
 # only deploy anvil0, without block explorer
 hyperlane core deploy
@@ -30,6 +34,7 @@ source /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/dymension_test/
 
 bash scripts/setup_local.sh
 dymd start --log_level=debug
+# see ping pub below for explorer
 
 hub tx hyperlane ism create-noop "${HUB_FLAGS[@]}"
 sleep 7;
@@ -50,7 +55,7 @@ MERKLE_HOOK=$(curl -s http://localhost:1318/hyperlane/v1/merkle_tree_hooks | jq 
 # update mailbox again. default hook (e.g. IGP), required hook (e.g. merkle tree)
 hub tx hyperlane mailbox set $MAILBOX --default-hook $NOOP_HOOK --required-hook $MERKLE_HOOK "${HUB_FLAGS[@]}"
 
-hub tx hyperlane-transfer create-collateral-token $MAILBOX $DENOM "${HUB_FLAGS[@]}" # TODO: use memo
+hub tx hyperlane-transfer dym-create-collateral-token $MAILBOX $DENOM "${HUB_FLAGS[@]}" # TODO: use memo
 sleep 7;
 TOKEN_ID=$(curl -s http://localhost:1318/hyperlane/v1/tokens | jq '.tokens.[0].id' -r); echo $TOKEN_ID
 
@@ -68,7 +73,7 @@ dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'merkleTreeHook' -v $M
 dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'validatorAnnounce' -v $MAILBOX
 # then manually add quotes to the addresses (!!)
 
-# note: can skip step I think since determinstic (use what is already in the yaml)
+# also, check configs/warp-route-deployment.yaml matches
 dasel put -f configs/warp-route-deployment.yaml 'dymension.token' -v $TOKEN_ID
 dasel put -f configs/warp-route-deployment.yaml 'dymension.foreignDeployment' -v $TOKEN_ID
 dasel put -f configs/warp-route-deployment.yaml 'dymension.mailbox' -v $MAILBOX
@@ -88,6 +93,8 @@ ETH_TOKEN_CONTRACT="0x0000000000000000000000004A679253410272dd5232B3Ff7cF5dbB88f
 hub tx hyperlane-transfer enroll-remote-router $TOKEN_ID $ETH_DOMAIN $ETH_TOKEN_CONTRACT 0 "${HUB_FLAGS[@]}" # gas = 0
 sleep 7;
 curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/remote_routers # check
+
+# # Now
 
 ##############################################################################################
 ##############################################################################################
@@ -167,3 +174,7 @@ docker run -p 5100:80 \
    otterscan/otterscan:latest
 # visit http://localhost:5100/
 
+
+# Hub: https://github.com/ping-pub/explorer
+yarn --ignore-engines && yarn serve
+# visit http://localhost:5173/
