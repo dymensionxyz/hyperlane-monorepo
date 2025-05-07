@@ -157,11 +157,14 @@ RELAYER_ADDR=dym15428vq2uzwhm3taey9sr9x5vm6tk78ewtfeeth
 dymd tx bank send hub-user $RELAYER_ADDR 1000000000000000000000adym "${HUB_FLAGS[@]}"
 # d6ac41030acbf2edbb6cab25a384400d3cb42e14
 # resemble        "0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266" 
-HUB_USER_ETH_ADDR="0x000000000000000000000000d6ac41030acbf2edbb6cab25a384400d3cb42e14" # corresponds to dym166kyzqc2e0ewmwmv4vj68pzqp57tgts5lyawlc
+
+HUB_RECEIVER_ADDR_NATIVE="dym1yvq7swunxwduq5kkmuftqccxgqk3f6nsaf3sqz"
+HUB_RECEIVER_ADDR=$(dymd q forward hl-eth-recipient $HUB_RECEIVER_ADDR_NATIVE)
 # args are destination, recipient, amount
 AMT=5
-cast send $ETH_TOKEN_CONTRACT_RAW "transferRemote(uint32,bytes32,uint256)" $HUB_DOMAIN $HUB_USER_ETH_ADDR $AMT --private-key $HYP_KEY --rpc-url http://localhost:8545
-cast send 0x4A679253410272dd5232B3Ff7cF5dbB88f295319 "transferRemote(uint32,bytes32,uint256)" 1260813472 0x000000000000000000000000d6ac41030acbf2edbb6cab25a384400d3cb42e14 5 --private-key $HYP_KEY --rpc-url http://localhost:8545
+DEMO_MEMO="0x68656c6c6f"
+cast send $ETH_TOKEN_CONTRACT_RAW "transferRemote(uint32,bytes32,uint256)" $HUB_DOMAIN $HUB_RECEIVER_ADDR $AMT --private-key $HYP_KEY --rpc-url http://localhost:8545 --gas-limit 1000000 --value 1
+cast send $ETH_TOKEN_CONTRACT_RAW "transferRemoteMemo(uint32,bytes32,uint256,bytes)" $HUB_DOMAIN $HUB_RECEIVER_ADDR $AMT $DEMO_MEMO --private-key $HYP_KEY --rpc-url http://localhost:8545 --gas-limit 1000000 --value 1
 
 bodies
 # id 0x3d314d91151a6522b99d0b13ef5be17ad0995f8685d540609331d1bd744468a3
@@ -171,6 +174,8 @@ bodies
 ##############################################################################################
 ##############################################################################################
 # APPENDIX: DEBUGGING
+
+# eth balance: cast balance 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
 
 # Explorer, uses https://github.com/otterscan/otterscan
 docker pull otterscan/otterscan:latest
