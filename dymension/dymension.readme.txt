@@ -43,3 +43,8 @@ How to work on the typescript CLI:
         yarn bundle
         npm install -g
 
+How to build rust agents:
+    cd rust/main
+    cargo build --release --bin relayer
+    cargo build --release --bin validator 
+
