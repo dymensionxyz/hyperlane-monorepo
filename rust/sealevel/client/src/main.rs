@@ -43,6 +43,7 @@ use hyperlane_sealevel_token::{
 use hyperlane_sealevel_token_collateral::{
     hyperlane_token_escrow_pda_seeds, plugin::CollateralPlugin,
 };
+use hyperlane_sealevel_token_collateral_memo::hyperlane_token_escrow_pda_seeds as hyperlane_token_escrow_pda_seeds_memo;
 use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneTokenAccount,
     hyperlane_token_pda_seeds,
@@ -312,6 +313,7 @@ pub enum TokenType {
     NativeMemo,
     Synthetic,
     Collateral,
+    CollateralMemo,
 }
 
 #[derive(Args)]
@@ -974,6 +976,12 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     );
                     accounts_to_query.push(escrow_account);
                 }
+                TokenType::CollateralMemo => {
+                    let (escrow_account, _escrow_bump) = Pubkey::find_program_address(
+                        hyperlane_token_escrow_pda_seeds_memo!(),
+                        &query.program_id,
+                    );
+                }
             }
 
             let accounts = ctx
@@ -1062,6 +1070,27 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 TokenType::Collateral => {
                     let (escrow_account, escrow_bump) = Pubkey::find_program_address(
                         hyperlane_token_escrow_pda_seeds!(),
+                        &query.program_id,
+                    );
+
+                    println!(
+                        "escrow_account (key, bump)=({}, {})",
+                        escrow_account, escrow_bump,
+                    );
+
+                    let (ata_payer_account, ata_payer_bump) = Pubkey::find_program_address(
+                        hyperlane_token_ata_payer_pda_seeds!(),
+                        &query.program_id,
+                    );
+
+                    println!(
+                        "ATA payer account: {}, bump={}",
+                        ata_payer_account, ata_payer_bump,
+                    );
+                }
+                TokenType::CollateralMemo => {
+                    let (escrow_account, escrow_bump) = Pubkey::find_program_address(
+                        hyperlane_token_escrow_pda_seeds_memo!(),
                         &query.program_id,
                     );
 
@@ -1245,7 +1274,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                         AccountMeta::new(sender_associated_token_account, false),
                     ]);
                 }
-                TokenType::Collateral => {
+                TokenType::Collateral | TokenType::CollateralMemo => {
                     // 5. [executable] The SPL token program for the mint.
                     // 6. [writeable] The mint.
                     // 7. [writeable] The token sender's associated token account, from which tokens will be sent.
@@ -1450,7 +1479,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                         AccountMeta::new(sender_associated_token_account, false),
                     ]);
                 }
-                TokenType::Collateral => {
+                TokenType::Collateral | TokenType::CollateralMemo => {
                     // 5. [executable] The SPL token program for the mint.
                     // 6. [writeable] The mint.
                     // 7. [writeable] The token sender's associated token account, from which tokens will be sent.
