@@ -111,7 +111,6 @@ export CONFIG_FILES=$MONO_WORKING_DIR/configs/agent-config.json
 # see reference https://docs.hyperlane.xyz/docs/operate/config-reference#config_files
 
 cd rust/main
-cargo build --release --bin relayer
 
 ./target/release/relayer \
     --db $RELAYER_DB \
@@ -121,7 +120,7 @@ cargo build --release --bin relayer
     --metrics-port 9091 \
     --chains.dymension.signer.type cosmosKey \
     --chains.dymension.signer.prefix dym \
-    --chains.dymension.signer.key $HYP_KEY 
+    --chains.dymension.signer.key $HYP_KEY \
     --log.level debug \
 
 #################################
@@ -135,14 +134,8 @@ hub tx hyperlane-transfer transfer $TOKEN_ID $ETH_DOMAIN $ETH_RECIPIENT $AMT "${
 sleep 5;
 curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/bridged_supply
 
-# If relaying worked, should have some tokens here
-
+# If relaying worked, should have amt tokens here
 cast call $ETH_TOKEN_CONTRACT_RAW "balanceOf(address)(uint256)" 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 --rpc-url http://localhost:8545
-
-# TODO: where am I at? I'm giving up for the day. 
-# I tried with a real IGP, but with a noop validators set on the hub, and with the whitelisted relayer ISM on anvil, but it hasn't worked
-# should ask about the gas ratios, also the transaction overrides (gas price) on the relayer config
-# mention Other(TendermintRpcError(response error Internal error: height must be greater than 0, but got 0 (code: -32603))
 
 ##############################################################################################
 ##############################################################################################
