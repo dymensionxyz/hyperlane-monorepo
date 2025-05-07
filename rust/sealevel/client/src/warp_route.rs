@@ -103,6 +103,7 @@ enum TokenType {
     NativeMemo,
     Synthetic(TokenMetadata),
     Collateral(CollateralInfo),
+    CollateralMemo(CollateralInfo),
 }
 
 impl TokenType {
@@ -116,6 +117,7 @@ impl TokenType {
             TokenType::Native => 44_000,
             TokenType::NativeMemo => 44_000,
             TokenType::Collateral(_) => 68_000,
+            TokenType::CollateralMemo(_) => 68_000,
         }
     }
 }
@@ -193,6 +195,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             TokenType::NativeMemo => "hyperlane_sealevel_token_native_memo",
             TokenType::Synthetic(_) => "hyperlane_sealevel_token",
             TokenType::Collateral(_) => "hyperlane_sealevel_token_collateral",
+            TokenType::CollateralMemo(_) => "hyperlane_sealevel_token_collateral_memo",
         }
     }
 
@@ -366,6 +369,24 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
 
                 ctx.new_txn().add(
                     hyperlane_sealevel_token_collateral::instruction::init_instruction(
+                        program_id,
+                        ctx.payer_pubkey,
+                        init,
+                        collateral_spl_token_program,
+                        collateral_mint,
+                    )
+                    .unwrap(),
+                )
+            }
+            TokenType::CollateralMemo(collateral_info) => {
+                let collateral_mint = collateral_info.mint.parse().expect("Invalid mint address");
+                let collateral_mint_account = client.get_account(&collateral_mint).unwrap();
+                // The owner of the mint account is the SPL Token program responsible for it
+                // (either spl-token or spl-token-2022).
+                let collateral_spl_token_program = collateral_mint_account.owner;
+
+                ctx.new_txn().add(
+                    hyperlane_sealevel_token_collateral_memo::instruction::init_instruction(
                         program_id,
                         ctx.payer_pubkey,
                         init,
@@ -731,7 +752,7 @@ pub fn parse_token_account_data(token_type: FlatTokenType, data: &mut &[u8]) {
             let res = HyperlaneTokenAccount::<SyntheticPlugin>::fetch(data);
             print_data_or_err(res);
         }
-        FlatTokenType::Collateral => {
+        FlatTokenType::Collateral | FlatTokenType::CollateralMemo => {
             let res = HyperlaneTokenAccount::<CollateralPlugin>::fetch(data);
             print_data_or_err(res);
         }
