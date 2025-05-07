@@ -26,7 +26,7 @@ cd dymension/
 
 BASE_PATH="/Users/danwt/Documents/dym/d-dymension/scripts/hyperlane_test"
 source $BASE_PATH/env.sh
-source /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/dymension_test/env.sh # TODO: generic
+source /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/dymension_test/env.sh # TODO: make generic
 
 bash scripts/setup_local.sh
 dymd start --log_level=debug
@@ -68,6 +68,7 @@ dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'merkleTreeHook' -v $M
 dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'validatorAnnounce' -v $MAILBOX
 # then manually add quotes to the addresses (!!)
 
+# note: can skip step I think since determinstic (use what is already in the yaml)
 dasel put -f configs/warp-route-deployment.yaml 'dymension.token' -v $TOKEN_ID
 dasel put -f configs/warp-route-deployment.yaml 'dymension.foreignDeployment' -v $TOKEN_ID
 dasel put -f configs/warp-route-deployment.yaml 'dymension.mailbox' -v $MAILBOX
