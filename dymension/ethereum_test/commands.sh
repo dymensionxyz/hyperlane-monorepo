@@ -37,18 +37,6 @@ anvil --port 8546 --chain-id 31338 --block-time 1
 # only necessary first time
 hyperlane registry init
 
-##################################################
-# STEP: Build CLI with our changes
-# This can be finicky. Make sure that typescript/sdk is successfully building first, and only then build typescript/cli
-# Once each is building, it's possible to do yarn build from typescript/
-# Use yarn clean to make sure nothing weird happens.
-# Note: it's NOT necessary to change the dependency path in typescript/cli/package.json to point to the local path of sdk
-
-
-# in hyperlane-monorepo
-yarn clean; yarn build; # CLEAN IS VERY IMPORTANT!
-# in typescript/cli
-npm uninstall -g @hyperlane-xyz/cli; yarn build; npm install -g .; hyperlane --version
 
 ##################################################
 # STEP: Core contract deployment

@@ -33,3 +33,13 @@ Improvements to be made (possibly)
 
 How to work on the typescript CLI:
     The CLI depends on the SDK, so first do yarn build from typescript/sdk, and only then will yarn build from typescript/cli work
+    How to rebuild and reinstall?
+        # in top level (hyperlane-monorepo)
+        yarn clean; yarn build; # CLEAN IS VERY IMPORTANT!
+        #in typescript/cli
+        npm uninstall -g @hyperlane-xyz/cli; 
+        yarn install
+        yarn build
+        yarn bundle
+        npm install -g
+
