@@ -163,12 +163,14 @@ HUB_RECEIVER_ADDR=$(dymd q forward hl-eth-recipient $HUB_RECEIVER_ADDR_NATIVE)
 # args are destination, recipient, amount
 AMT=5
 DEMO_MEMO="0x68656c6c6f"
-cast send $ETH_TOKEN_CONTRACT_RAW "transferRemote(uint32,bytes32,uint256)" $HUB_DOMAIN $HUB_RECEIVER_ADDR $AMT --private-key $HYP_KEY --rpc-url http://localhost:8545 --gas-limit 1000000 --value 1
-cast send $ETH_TOKEN_CONTRACT_RAW "transferRemoteMemo(uint32,bytes32,uint256,bytes)" $HUB_DOMAIN $HUB_RECEIVER_ADDR $AMT $DEMO_MEMO --private-key $HYP_KEY --rpc-url http://localhost:8545 --gas-limit 1000000 --value 1
+cast send $ETH_TOKEN_CONTRACT_RAW "transferRemoteMemo(uint32,bytes32,uint256,bytes)" $HUB_DOMAIN $HUB_RECEIVER_ADDR $AMT $DEMO_MEMO --private-key $HYP_KEY --rpc-url http://localhost:8545
 
-bodies
-# id 0x3d314d91151a6522b99d0b13ef5be17ad0995f8685d540609331d1bd744468a3
-0x000000000000000000000000d6ac41030acbf2edbb6cab25a384400d3cb42e140000000000000000000000000000000000000000000000000000000000000005
+# confirm tx has memo event on hub
+
+# confirm tx has memo event on anvil
+cast call $ETH_TOKEN_CONTRACT_RAW "memoOf(bytes32)(bytes)" $HUB_RECEIVER_ADDR --rpc-url http://localhost:8545
+
+dymd q bank balances HUB_RECEIVER_ADDR_NATIVE
 
 
 ##############################################################################################
