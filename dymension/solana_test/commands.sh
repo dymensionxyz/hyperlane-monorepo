@@ -10,7 +10,7 @@ export BASE_PATH="/Users/danwt/Documents/dym/d-hyperlane-monorepo"
 # STEP: BUILD THE PROGRAMS/CONTRACTS
 cd rust/sealevel/programs
 
-# MUST USE SOALANA v1.14
+# MUST USE SOLANA v1.14.20
 # (Make sure memo tokens are included in TOKEN_PROGRAM_PATHS in build-programs.sh)
 # Build the token programs (.so files)
 ./build-programs.sh token
@@ -21,13 +21,15 @@ cd rust/sealevel/programs
 # first set up some environment variables (needed in every terminal)
 
 export SOL_ENV_DIR="$BASE_PATH/dymension/solana_test/environments"
-export SOL_PROG_DIR="$BASE_PATH/dymension/solana_test/target/deploy"
+export SOL_PROG_DIR="$BASE_PATH/rust/sealevel/target/deploy"
 export SOL_KEY_PATH="$BASE_PATH/dymension/solana_test/key.json"
 export SOL_CFG_PATH="$HOME/.config/solana/cli/config.yml"
 export SOL_ENVIR="local-e2e"
 export IGP_PROG_ID="GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U"
 export PUB_KEY="2SzyV1kdJNcDYfAqrs5sDFKfHSB6CPrzKhhRb2PyaWre"
 export DEPLOYER_PUB_KEY="E9VrvAdGRvCguN2XgXsgu9PNmMM3vZsU8LSUrM68j8ty"
+export HUB_DOMAIN=1260813472 
+export ETH_DOMAIN=31337
 
 # MUST USE SOLANA v2
 solana-test-validator --reset # launch
@@ -71,10 +73,7 @@ cd rust/sealevel/client
 # e.g. protoc --version
 # libprotoc 29.3
 
-# MUST use solana v1.18.18
-curl --proto '=https' --tlsv1.2 -sSfL https://solana-install.solana.workers.dev | bash
-agave-install init v1.18.18
-solana -V
+# MUST USE SOLANA v1.18.18
 
 # core
 cargo run -- -k $SOL_KEY_PATH --config $SOL_CFG_PATH \

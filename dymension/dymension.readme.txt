@@ -54,5 +54,5 @@ How to change manage solana versions:
     # then agave-install or solana-install
     solana-install init v1.18.18
     solana-install init v1.14.20
-    solana-install init v2
+    sh -c "$(curl -sSfL https://release.anza.xyz/v2.2.13/install)"
 
