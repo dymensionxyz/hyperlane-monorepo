@@ -73,7 +73,7 @@ MERKLE_HOOK=$(curl -s http://localhost:1318/hyperlane/v1/merkle_tree_hooks | jq 
 # update mailbox again. default hook (e.g. IGP), required hook (e.g. merkle tree)
 hub tx hyperlane mailbox set $MAILBOX --default-hook $NOOP_HOOK --required-hook $MERKLE_HOOK "${HUB_FLAGS[@]}"
 
-hub tx hyperlane-transfer dym-create-collateral-token $MAILBOX $DENOM "${HUB_FLAGS[@]}" # TODO: use memo
+hub tx hyperlane-transfer dym-create-collateral-token $MAILBOX $DENOM "${HUB_FLAGS[@]}"
 sleep 7;
 TOKEN_ID=$(curl -s http://localhost:1318/hyperlane/v1/tokens | jq '.tokens.[0].id' -r); echo $TOKEN_ID
 
@@ -84,7 +84,7 @@ TOKEN_ID=$(curl -s http://localhost:1318/hyperlane/v1/tokens | jq '.tokens.[0].i
 
 # populate addresses https://github.com/hyperlane-xyz/hyperlane-registry/blob/main/chains/kyvetestnet/addresses.yaml
 touch ~/.hyperlane/chains/dymension/addresses.yaml
-dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'interchainGasPaymaster' -v $NOOP_HOOK # TODO: ok?
+dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'interchainGasPaymaster' -v $NOOP_HOOK
 dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'interchainSecurityModule' -v $ISM
 dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'mailbox' -v $MAILBOX
 dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'merkleTreeHook' -v $MERKLE_HOOK
@@ -154,8 +154,6 @@ dymd tx bank send hub-user $RELAYER_ADDR 1000000000000000000000adym "${HUB_FLAGS
 # DO A TRANSFER HUB -> ETHEREUM
 
 AMT=1000
-# TODO: use dym transfer
-# hub tx hyperlane-transfer dym-transfer $TOKEN_ID $ETH_DOMAIN $ETH_RECIPIENT $AMT "${HUB_FLAGS[@]}" --max-hyperlane-fee 1000adym
 hub tx hyperlane-transfer dym-transfer $TOKEN_ID $ETH_DOMAIN $HYP_ADDR_ZEROS $AMT "${HUB_FLAGS[@]}" --max-hyperlane-fee 1000adym --gas-limit 10000000000
 sleep 5;
 curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/bridged_supply
@@ -163,32 +161,30 @@ curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/bridged_supply
 # If relaying worked, should have amt tokens here
 cast call $ETH_TOKEN_CONTRACT_RAW "balanceOf(address)(uint256)" $HYP_ADDR --rpc-url http://localhost:8545
 
-# fund relayer (TODO: get relayer addr in smart way)
-RELAYER_ADDR=dym15428vq2uzwhm3taey9sr9x5vm6tk78ewtfeeth
+# fund relayer
 dymd tx bank send hub-user $RELAYER_ADDR 1000000000000000000000adym "${HUB_FLAGS[@]}"
-# d6ac41030acbf2edbb6cab25a384400d3cb42e14
-# resemble        "0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266" 
 
 HUB_RECEIVER_ADDR_NATIVE="dym1yvq7swunxwduq5kkmuftqccxgqk3f6nsaf3sqz"
 HUB_RECEIVER_ADDR=$(dymd q forward hl-eth-recipient $HUB_RECEIVER_ADDR_NATIVE)
 # args are destination, recipient, amount
 AMT=5
-DEMO_MEMO="0x68656c6c6f"
+DEMO_MEMO="0x68656c6c6f" # 'hello'
 cast send $ETH_TOKEN_CONTRACT_RAW "transferRemoteMemo(uint32,bytes32,uint256,bytes)" $HUB_DOMAIN $HUB_RECEIVER_ADDR $AMT $DEMO_MEMO --private-key $HYP_KEY --rpc-url http://localhost:8545
+# note: if using a native token type on ethereum, need to also send some eth ('--value 1')
 
 # confirm tx has memo event on hub
-
 # confirm tx has memo event on anvil
 cast call $ETH_TOKEN_CONTRACT_RAW "memoOf(bytes32)(bytes)" $HUB_RECEIVER_ADDR --rpc-url http://localhost:8545
 
-dymd q bank balances HUB_RECEIVER_ADDR_NATIVE
+dymd q bank balances $HUB_RECEIVER_ADDR_NATIVE
 
 
 ##############################################################################################
 ##############################################################################################
 # APPENDIX: DEBUGGING
 
-# eth balance: cast balance 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+# eth balance:
+cast balance $HYP_ADDR --rpc-url http://localhost:8545
 
 # Explorer, uses https://github.com/otterscan/otterscan
 docker pull otterscan/otterscan:latest
