@@ -21,12 +21,11 @@ dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'mailbox' -v $MAILBOX
 dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'merkleTreeHook' -v $MERKLE_HOOK
 dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'validatorAnnounce' -v $MAILBOX
 
-cp /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/ethereum_test/configs/warp-route-deployment.yaml configs
-
 dasel put -f configs/warp-route-deployment.yaml 'dymension.token' -v $TOKEN_ID
 dasel put -f configs/warp-route-deployment.yaml 'dymension.foreignDeployment' -v $TOKEN_ID
 dasel put -f configs/warp-route-deployment.yaml 'dymension.mailbox' -v $MAILBOX
 
+hyperlane warp deploy
 
 
 
