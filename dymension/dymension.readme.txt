@@ -24,6 +24,7 @@ Change list
         Copied test for HypeERC20Collateral and added memo check
     Solana
         Added hyperlane-sealevel-token-native-memo
+        Added hyperlane-sealevel-token-native-memo
 
 Improvements to be made (possibly)
     Ethereum
@@ -42,6 +43,7 @@ How to work on the typescript CLI:
         yarn build
         yarn bundle
         npm install -g
+        hyperlane --version
 
 How to build rust agents:
     cd rust/main

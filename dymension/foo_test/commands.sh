@@ -1,4 +1,5 @@
 trash ~/.hyperlane; trash ~/.dymension
+anvil --port 8545 --chain-id 31337 --block-time 1
 
 mkdir ~/.hyperlane; cp -r /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/ethereum_test/chains ~/.hyperlane/chains
 
@@ -13,6 +14,7 @@ hyperlane core deploy
 hub tx hyperlane-transfer dym-create-synthetic-token $MAILBOX "${HUB_FLAGS[@]}"
 sleep 7;
 TOKEN_ID=$(curl -s http://localhost:1318/hyperlane/v1/tokens | jq '.tokens.[0].id' -r); echo $TOKEN_ID
+
 
 touch ~/.hyperlane/chains/dymension/addresses.yaml
 dasel put -f ~/.hyperlane/chains/dymension/addresses.yaml 'interchainGasPaymaster' -v $NOOP_HOOK
@@ -63,7 +65,6 @@ cast send $COLLAT_TOKEN_CONTRACT_RAW "transferRemote(uint32,bytes32,uint256)" $H
 cast send $COLLAT_TOKEN_CONTRACT_RAW "transferRemoteMemo(uint32,bytes32,uint256,bytes)" $HUB_DOMAIN $HUB_RECEIVER_ADDR $AMT $DEMO_MEMO --private-key $HYP_KEY --rpc-url http://localhost:8545
 
 hyperlane warp send --symbol FOO --amount $AMT --recipient $HUB_RECEIVER_ADDR --private-key $HYP_KEY
-
 
 cast call "0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1" "balanceOf(address)(uint256)" $HYP_ADDR --rpc-url http://localhost:8545
 
