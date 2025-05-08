@@ -2,9 +2,10 @@ anvil0:
   interchainSecurityModule: "0x0000000000000000000000000000000000000000"
   owner: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
   type: collateralMemo
-  address: "0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1"
-  name: "Foo"
-  symbol: "FOO"
+  token: "0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1"
+  decimals: 18
+  name: Foo
+  symbol: FOO
   isNft: false
   gas: 1
 dymension:
