@@ -48,3 +48,11 @@ How to build rust agents:
     cargo build --release --bin relayer
     cargo build --release --bin validator 
 
+How to change manage solana versions:
+    # initial install
+    curl --proto '=https' --tlsv1.2 -sSfL https://solana-install.solana.workers.dev | bash
+    # then agave-install or solana-install
+    solana-install init v1.18.18
+    solana-install init v1.14.20
+    solana-install init v2
+
