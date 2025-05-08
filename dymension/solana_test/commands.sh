@@ -1,8 +1,4 @@
-###########################
-# Prelims
-
-# NOTE: MUST CONFIGURE CORRECTLY TO THIS DIRECTORY
-BASE_PATH="/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/solana_test"
+export BASE_PATH="/Users/danwt/Documents/dym/d-hyperlane-monorepo"
 
 #########################################################################################
 #########################################################################################
@@ -14,8 +10,7 @@ BASE_PATH="/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/solana_test
 # STEP: BUILD THE PROGRAMS/CONTRACTS
 cd rust/sealevel/programs
 
-# MUST use solana v1.14
-sh -c "$(curl -sSfL https://release.solana.com/v1.14.20/install)"
+# MUST USE SOLANA v1.14.20
 # (Make sure memo tokens are included in TOKEN_PROGRAM_PATHS in build-programs.sh)
 # Build the token programs (.so files)
 ./build-programs.sh token
@@ -24,22 +19,22 @@ sh -c "$(curl -sSfL https://release.solana.com/v1.14.20/install)"
 # STEP: START LOCAL SOLANA INSTANCE 
 
 # first set up some environment variables (needed in every terminal)
-KEY_PATH="$BASE_PATH/key.json"
-PUB_KEY="2SzyV1kdJNcDYfAqrs5sDFKfHSB6CPrzKhhRb2PyaWre"
-DEPLOYER_PUB_KEY="E9VrvAdGRvCguN2XgXsgu9PNmMM3vZsU8LSUrM68j8ty"
-SOL_CFG_PATH="/Users/danwt/.config/solana/cli/config.yml"
-ENVIR="local-e2e"
-ENV_DIR="$BASE_PATH/environments"
-SO_DIR="/Users/danwt/Documents/dym/d-hyperlane-monorepo/rust/sealevel/target/deploy"
-LOCAL_DOMAIN="13375" 
-REMOTE_DOMAIN="13376"  # Doesn't matter, just needs a destination
-IGP_PROG_ID="GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U"
 
-# MUST use solana v2
-sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
-solana-test-validator --reset
-solana config set --url localhost
-solana config set --keypair $KEY_PATH
+export SOL_ENV_DIR="$BASE_PATH/dymension/solana_test/environments"
+export SOL_PROG_DIR="$BASE_PATH/rust/sealevel/target/deploy"
+export SOL_KEY_PATH="$BASE_PATH/dymension/solana_test/key.json"
+export SOL_CFG_PATH="$HOME/.config/solana/cli/config.yml"
+export SOL_ENVIR="local-e2e"
+export IGP_PROG_ID="GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U"
+export PUB_KEY="2SzyV1kdJNcDYfAqrs5sDFKfHSB6CPrzKhhRb2PyaWre"
+export DEPLOYER_PUB_KEY="E9VrvAdGRvCguN2XgXsgu9PNmMM3vZsU8LSUrM68j8ty"
+export HUB_DOMAIN=1260813472 
+export ETH_DOMAIN=31337
+
+# MUST USE SOLANA v2
+solana-test-validator --reset # launch
+solana config set --url localhost # adjust client
+solana config set --keypair $SOL_KEY_PATH # adjust client
 
 ###########################
 # STEP: SETUP INDEXER TO BE ABLE TO OBSERVE MESSAGES
@@ -78,39 +73,37 @@ cd rust/sealevel/client
 # e.g. protoc --version
 # libprotoc 29.3
 
-# MUST use solana v1.18
-sh -c "$(curl -sSfL https://release.solana.com/v1.18.18/install)"
-solana -V
+# MUST USE SOLANA v1.18.18
 
 # core
-cargo run -- -k $KEY_PATH --config $SOL_CFG_PATH \
+cargo run -- -k $SOL_KEY_PATH --config $SOL_CFG_PATH \
     core deploy \
-    --environment $ENVIR \
-    --environments-dir $ENV_DIR \
-    --built-so-dir $SO_DIR \
+    --environment $SOL_ENVIR \
+    --environments-dir $SOL_ENV_DIR \
+    --built-so-dir $SOL_PROG_DIR \
     --chain sealeveltest1 \
-    --local-domain "$LOCAL_DOMAIN"
+    --local-domain "$ETH_DOMAIN" # todo, solana domain
 
 # igp, not optional
-cargo run -- -k $KEY_PATH --config $SOL_CFG_PATH \
+cargo run -- -k $SOL_KEY_PATH --config $SOL_CFG_PATH \
     igp configure\
-    --gas-oracle-config-file $ENV_DIR/$ENVIR/gas-oracle-configs.json \
-    --chain-config-file $ENV_DIR/$ENVIR/chain-config.json \
+    --gas-oracle-config-file $SOL_ENV_DIR/$SOL_ENVIR/gas-oracle-configs.json \
+    --chain-config-file $SOL_ENV_DIR/$SOL_ENVIR/chain-config.json \
     --program-id $IGP_PROG_ID \
     --chain sealeveltest1
 
 # warp route. This is configured for our token nativeMemo (different than upstream!)
-cargo run -- -k $KEY_PATH --config $SOL_CFG_PATH \
+cargo run -- -k $SOL_KEY_PATH --config $SOL_CFG_PATH \
     warp-route deploy \
-    --environment $ENVIR \
-    --environments-dir $ENV_DIR \
-    --built-so-dir $SO_DIR \
+    --environment $SOL_ENVIR \
+    --environments-dir $SOL_ENV_DIR \
+    --token-config-file $SOL_ENV_DIR/$SOL_ENVIR/warp-routes/testwarproute/token-config.json \
+    --built-so-dir $SOL_PROG_DIR \
     --warp-route-name testwarproute \
-    --token-config-file $ENV_DIR/$ENVIR/warp-routes/testwarproute/token-config.json \
-    --chain-config-file $ENV_DIR/$ENVIR/chain-config.json \
+    --chain-config-file $SOL_ENV_DIR/$SOL_ENVIR/chain-config.json \
     --ata-payer-funding-amount 1000000000
 
-PROGRAM_ID=$(jq -r '.sealeveltest1.base58' $ENV_DIR/$ENVIR/warp-routes/testwarproute/program-ids.json)
+PROGRAM_ID=$(jq -r '.sealeveltest1.base58' $SOL_ENV_DIR/$SOL_ENVIR/warp-routes/testwarproute/program-ids.json)
 
 ###########################
 # STEP: TRANSFER 
@@ -121,10 +114,10 @@ EXAMPLE_MEMO="0x0ac7010a087472616e7366657212096368616e6e656c2d301a4b0a446962632f
 # `dymd q forward memo-hl-to-ibc "channel-0" ethm1a30y0h95a7p38plnv5s02lzrgcy0m0xumq0ymn 100ibc/9A1EACD53A6A197ADC81DF9A49F0C4A26F7FF685ACF415EE726D7D59796E71A7 5m dym12v7503afd5nwc9p0cd8vf264dayedfqvzkezl4`
 
 # initate the transfer, it should result in the message being included with a memo in the outbound messages box
-cargo run -- -k $KEY_PATH --config $SOL_CFG_PATH \
+cargo run -- -k $SOL_KEY_PATH --config $SOL_CFG_PATH \
     token transfer-remote-memo \
     --program-id $PROGRAM_ID \
-    $KEY_PATH 100 $REMOTE_DOMAIN $DUMMY_RECIPIENT native $EXAMPLE_MEMO
+    $SOL_KEY_PATH 100 $HUB_DOMAIN $DUMMY_RECIPIENT native $EXAMPLE_MEMO
 
 ###########################
 # STEP: USE INDEXER TO CHECK THE RESULT
@@ -134,4 +127,4 @@ select msg_body from message;
 # it should have a long body with a 000...00064 part (amt=100) and then a long memo part afterwards
 
 # sanity check other cli cmds
-cargo run -- -k $KEY_PATH --config $SOL_CFG_PATH token query native-memo
+cargo run -- -k $SOL_KEY_PATH --config $SOL_CFG_PATH token query native-memo

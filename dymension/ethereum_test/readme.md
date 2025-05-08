@@ -1,7 +1,1 @@
-What is this?
-
-It's a test to check from the user perspective that:
-
-1. Deploying the memo contract works
-2. Transferring and including a memo works
-3. Memo is correctly included in the outbound message
+This yarn project is NOT intended to be a subproject of the monorepo yarn project. It's a one-off.
