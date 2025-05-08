@@ -25,7 +25,12 @@ dasel put -f configs/warp-route-deployment.yaml 'dymension.token' -v $TOKEN_ID
 dasel put -f configs/warp-route-deployment.yaml 'dymension.foreignDeployment' -v $TOKEN_ID
 dasel put -f configs/warp-route-deployment.yaml 'dymension.mailbox' -v $MAILBOX
 
+cd foundry/
+forge script script/Foo.s.sol:DeployFoo --rpc-url http://localhost:8545 --private-key $HYP_KEY --broadcast
+# put address in warp-route-deployment.config anvil0.address
+
 hyperlane warp deploy
+
 
 
 

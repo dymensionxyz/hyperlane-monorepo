@@ -7,3 +7,6 @@
 [submodule "dymension/foo_test/foundry/lib/forge-std"]
 	path = dymension/foo_test/foundry/lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
+[submodule "dymension/foo_test/foundry/lib/openzeppelin-contracts"]
+	path = dymension/foo_test/foundry/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
