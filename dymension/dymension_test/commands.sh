@@ -1,6 +1,12 @@
+export BASE_PATH="/Users/danwt/Documents/dym/d-hyperlane-monorepo"
+export HUB_BASE_PATH="/Users/danwt/Documents/dym/d-dymension/scripts/hyperlane_test"
+
+#########################################################################################
+#########################################################################################
 # Q: What is this?
 # A: Some commands to run Dymension Hub + Anvil instance and connect them and relay between them
 # Scenario: Dymension Hub will have collateral ADYM and Anvil will have synthetic memo
+#########################################################################################
 
 # clean slate
 trash ~/.hyperlane; trash ~/.dymension
@@ -12,24 +18,22 @@ trash ~/.hyperlane; trash ~/.dymension
 ################
 # ENV: 
 
-export HYP_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-export HYP_ADDR="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-export HYP_ADDR_ZEROS="0x000000000000000000000000f39Fd6e51aad88F6F4ce6aB8827279cffFb92266" # this is zero padded regular address
-export RELAYER_ADDR="dym15428vq2uzwhm3taey9sr9x5vm6tk78ewtfeeth" # relayer derives from HYP_KEY
-BASE_PATH="/Users/danwt/Documents/dym/d-dymension/scripts/hyperlane_test"
-source $BASE_PATH/env.sh
-source /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/dymension_test/env.sh #
+source $HUB_BASE_PATH/env.sh
+source $BASE_PATH/dymension/dymension_test/env.sh
 
 ################
 # START NODES: 
 
-anvil --port 8545 --chain-id 31337 --block-time 1 # make sure rollapp-evm not listening on same port
-# see otterscan below for explorer
+# HUB
 cd dymension/ # hub repo
-
 bash scripts/setup_local.sh
 dymd start --log_level=debug
 # see ping pub below for explorer
+
+# ETHEREUM
+anvil --port 8545 --chain-id 31337 --block-time 1 # make sure rollapp-evm not listening on same port
+# see otterscan below for explorer
+
 
 #################
 # DEPLOY HYPERLANE CORE TO ETH:

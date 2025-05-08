@@ -1,8 +1,4 @@
-###########################
-# Prelims
-
-# NOTE: MUST CONFIGURE CORRECTLY TO THIS DIRECTORY
-BASE_PATH="/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/solana_test"
+export BASE_PATH="/Users/danwt/Documents/dym/d-hyperlane-monorepo"
 
 #########################################################################################
 #########################################################################################
@@ -28,13 +24,14 @@ solana -V
 # STEP: START LOCAL SOLANA INSTANCE 
 
 # first set up some environment variables (needed in every terminal)
-KEY_PATH="$BASE_PATH/key.json"
+ENV_DIR="$BASE_PATH/dymension/solana_test/environments"
+SO_DIR="$BASE_PATH/dymension/solana_test/target/deploy"
+KEY_PATH="$BASE_PATH/dymension/solana_test/key.json"
+
 PUB_KEY="2SzyV1kdJNcDYfAqrs5sDFKfHSB6CPrzKhhRb2PyaWre"
 DEPLOYER_PUB_KEY="E9VrvAdGRvCguN2XgXsgu9PNmMM3vZsU8LSUrM68j8ty"
-SOL_CFG_PATH="/Users/danwt/.config/solana/cli/config.yml"
+SOL_CFG_PATH="$HOME/.config/solana/cli/config.yml"
 ENVIR="local-e2e"
-ENV_DIR="$BASE_PATH/environments"
-SO_DIR="/Users/danwt/Documents/dym/d-hyperlane-monorepo/rust/sealevel/target/deploy"
 LOCAL_DOMAIN="13375" 
 REMOTE_DOMAIN="13376"  # Doesn't matter, just needs a destination
 IGP_PROG_ID="GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U"
