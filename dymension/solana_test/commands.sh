@@ -24,21 +24,21 @@ solana -V
 # STEP: START LOCAL SOLANA INSTANCE 
 
 # first set up some environment variables (needed in every terminal)
-ENV_DIR="$BASE_PATH/dymension/solana_test/environments"
-SO_DIR="$BASE_PATH/dymension/solana_test/target/deploy"
-KEY_PATH="$BASE_PATH/dymension/solana_test/key.json"
 
-PUB_KEY="2SzyV1kdJNcDYfAqrs5sDFKfHSB6CPrzKhhRb2PyaWre"
-DEPLOYER_PUB_KEY="E9VrvAdGRvCguN2XgXsgu9PNmMM3vZsU8LSUrM68j8ty"
-SOL_CFG_PATH="$HOME/.config/solana/cli/config.yml"
-ENVIR="local-e2e"
-LOCAL_DOMAIN="13375" 
-REMOTE_DOMAIN="13376"  # Doesn't matter, just needs a destination
-IGP_PROG_ID="GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U"
+export ENV_DIR="$BASE_PATH/dymension/solana_test/environments"
+export SO_DIR="$BASE_PATH/dymension/solana_test/target/deploy"
+export KEY_PATH="$BASE_PATH/dymension/solana_test/key.json"
+export PUB_KEY="2SzyV1kdJNcDYfAqrs5sDFKfHSB6CPrzKhhRb2PyaWre"
+export DEPLOYER_PUB_KEY="E9VrvAdGRvCguN2XgXsgu9PNmMM3vZsU8LSUrM68j8ty"
+export SOL_CFG_PATH="$HOME/.config/solana/cli/config.yml"
+export ENVIR="local-e2e"
+export IGP_PROG_ID="GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U"
+source $BASE_PATH/dymension/solana_test/env.sh
 
 # MUST use solana v2
 sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
-solana-test-validator --reset
+solana -V
+solana-test-validator --reset # launch
 solana config set --url localhost
 solana config set --keypair $KEY_PATH
 
@@ -80,7 +80,8 @@ cd rust/sealevel/client
 # libprotoc 29.3
 
 # MUST use solana v1.18
-sh -c "$(curl -sSfL https://release.solana.com/v1.18.18/install)"
+curl --proto '=https' --tlsv1.2 -sSfL https://solana-install.solana.workers.dev | bash
+agave-install init v1.18.18
 solana -V
 
 # core
@@ -90,7 +91,7 @@ cargo run -- -k $KEY_PATH --config $SOL_CFG_PATH \
     --environments-dir $ENV_DIR \
     --built-so-dir $SO_DIR \
     --chain sealeveltest1 \
-    --local-domain "$LOCAL_DOMAIN"
+    --local-domain "$ETH_DOMAIN" # todo, solana domain
 
 # igp, not optional
 cargo run -- -k $KEY_PATH --config $SOL_CFG_PATH \
@@ -125,7 +126,7 @@ EXAMPLE_MEMO="0x0ac7010a087472616e7366657212096368616e6e656c2d301a4b0a446962632f
 cargo run -- -k $KEY_PATH --config $SOL_CFG_PATH \
     token transfer-remote-memo \
     --program-id $PROGRAM_ID \
-    $KEY_PATH 100 $REMOTE_DOMAIN $DUMMY_RECIPIENT native $EXAMPLE_MEMO
+    $KEY_PATH 100 $HUB_DOMAIN $DUMMY_RECIPIENT native $EXAMPLE_MEMO
 
 ###########################
 # STEP: USE INDEXER TO CHECK THE RESULT
