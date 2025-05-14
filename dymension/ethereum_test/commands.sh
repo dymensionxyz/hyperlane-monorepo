@@ -72,7 +72,7 @@ MERKLE_HOOK=$(curl -s http://localhost:1318/hyperlane/v1/merkle_tree_hooks | jq 
 # update mailbox again. default hook (e.g. IGP), required hook (e.g. merkle tree)
 hub tx hyperlane mailbox set $MAILBOX --default-hook $NOOP_HOOK --required-hook $MERKLE_HOOK "${HUB_FLAGS[@]}"
 
-hub tx hyperlane-transfer dym-create-collateral-token $MAILBOX $DENOM "${HUB_FLAGS[@]}"
+hub tx hyperlane-transfer create-collateral-token $MAILBOX $DENOM "${HUB_FLAGS[@]}"
 sleep 7;
 TOKEN_ID=$(curl -s http://localhost:1318/hyperlane/v1/tokens | jq '.tokens.[0].id' -r); echo $TOKEN_ID
 
@@ -153,7 +153,7 @@ dymd tx bank send hub-user $RELAYER_ADDR 1000000000000000000000adym "${HUB_FLAGS
 # DO A TRANSFER HUB -> ETHEREUM
 
 AMT=1000
-hub tx hyperlane-transfer dym-transfer $TOKEN_ID $ETH_DOMAIN $HYP_ADDR_ZEROS $AMT "${HUB_FLAGS[@]}" --max-hyperlane-fee 1000adym --gas-limit 10000000000
+hub tx hyperlane-transfer transfer $TOKEN_ID $ETH_DOMAIN $HYP_ADDR_ZEROS $AMT "${HUB_FLAGS[@]}" --max-hyperlane-fee 1000adym --gas-limit 10000000000
 sleep 5;
 curl -s http://localhost:1318/hyperlane/v1/tokens/$TOKEN_ID/bridged_supply
 

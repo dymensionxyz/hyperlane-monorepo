@@ -11,7 +11,7 @@ hyperlane core deploy
 
 # run steps from ethereum_test/commands.sh, up to but not including token
 
-hub tx hyperlane-transfer dym-create-synthetic-token $MAILBOX "${HUB_FLAGS[@]}"
+hub tx hyperlane-transfer create-synthetic-token $MAILBOX "${HUB_FLAGS[@]}"
 sleep 7;
 TOKEN_ID=$(curl -s http://localhost:1318/hyperlane/v1/tokens | jq '.tokens.[0].id' -r); echo $TOKEN_ID
 
