@@ -29,7 +29,7 @@ Change list
 Improvements to be made (possibly)
     Ethereum
         Just have a method to do both the memo setting and the transfer remote
-    Solidity
+    Solana
         Find a way to remove the plugin.rs duplication in the tokens
 
 How to work on the typescript CLI:
