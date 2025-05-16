@@ -5335,6 +5335,59 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@daniel.dymension.xyz/hyperlane-cli@npm:^12.5.0, @daniel.dymension.xyz/hyperlane-cli@workspace:typescript/cli":
+  version: 0.0.0-use.local
+  resolution: "@daniel.dymension.xyz/hyperlane-cli@workspace:typescript/cli"
+  dependencies:
+    "@aws-sdk/client-kms": "npm:^3.577.0"
+    "@aws-sdk/client-s3": "npm:^3.577.0"
+    "@daniel.dymension.xyz/hyperlane-cli": "npm:^12.5.0"
+    "@eslint/js": "npm:^9.15.0"
+    "@ethersproject/abi": "npm:*"
+    "@ethersproject/providers": "npm:*"
+    "@hyperlane-xyz/registry": "npm:11.1.0"
+    "@hyperlane-xyz/sdk": "npm:12.5.0"
+    "@hyperlane-xyz/utils": "npm:12.5.0"
+    "@inquirer/core": "npm:9.0.10"
+    "@inquirer/figures": "npm:1.0.5"
+    "@inquirer/prompts": "npm:3.3.2"
+    "@inquirer/search": "npm:^3.0.1"
+    "@types/chai-as-promised": "npm:^8"
+    "@types/mocha": "npm:^10.0.1"
+    "@types/node": "npm:^18.14.5"
+    "@types/yargs": "npm:^17.0.24"
+    "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
+    "@typescript-eslint/parser": "npm:^8.1.6"
+    "@vercel/ncc": "npm:^0.38.3"
+    ansi-escapes: "npm:^7.0.0"
+    asn1.js: "npm:^5.4.1"
+    bignumber.js: "npm:^9.1.1"
+    chai: "npm:^4.5.0"
+    chai-as-promised: "npm:^8.0.0"
+    chalk: "npm:^5.3.0"
+    eslint: "npm:^9.15.0"
+    eslint-config-prettier: "npm:^9.1.0"
+    eslint-import-resolver-typescript: "npm:^3.6.3"
+    eslint-plugin-import: "npm:^2.31.0"
+    ethers: "npm:^5.7.2"
+    global: "npm:^4.4.0"
+    latest-version: "npm:^8.0.0"
+    mocha: "npm:^10.2.0"
+    prettier: "npm:^3.5.3"
+    terminal-link: "npm:^3.0.0"
+    tsx: "npm:^4.19.1"
+    typescript: "npm:5.3.3"
+    yaml: "npm:2.4.5"
+    yargs: "npm:^17.7.2"
+    zksync-ethers: "npm:^5.10.0"
+    zod: "npm:^3.21.2"
+    zod-validation-error: "npm:^3.3.0"
+    zx: "npm:^8.1.4"
+  bin:
+    hyperlane: ./cli-bundle/index.js
+  languageName: unknown
+  linkType: soft
+
 "@dao-dao/cosmiframe@npm:^1.0.0-rc.1":
   version: 1.0.0-rc.1
   resolution: "@dao-dao/cosmiframe@npm:1.0.0-rc.1"
@@ -7632,57 +7685,6 @@ __metadata:
     ts-node: "npm:^10.8.0"
     tsx: "npm:^4.19.1"
     typescript: "npm:5.3.3"
-  languageName: unknown
-  linkType: soft
-
-"@hyperlane-xyz/cli@workspace:typescript/cli":
-  version: 0.0.0-use.local
-  resolution: "@hyperlane-xyz/cli@workspace:typescript/cli"
-  dependencies:
-    "@aws-sdk/client-kms": "npm:^3.577.0"
-    "@aws-sdk/client-s3": "npm:^3.577.0"
-    "@eslint/js": "npm:^9.15.0"
-    "@ethersproject/abi": "npm:*"
-    "@ethersproject/providers": "npm:*"
-    "@hyperlane-xyz/registry": "npm:11.1.0"
-    "@hyperlane-xyz/sdk": "npm:12.5.0"
-    "@hyperlane-xyz/utils": "npm:12.5.0"
-    "@inquirer/core": "npm:9.0.10"
-    "@inquirer/figures": "npm:1.0.5"
-    "@inquirer/prompts": "npm:3.3.2"
-    "@inquirer/search": "npm:^3.0.1"
-    "@types/chai-as-promised": "npm:^8"
-    "@types/mocha": "npm:^10.0.1"
-    "@types/node": "npm:^18.14.5"
-    "@types/yargs": "npm:^17.0.24"
-    "@typescript-eslint/eslint-plugin": "npm:^8.1.6"
-    "@typescript-eslint/parser": "npm:^8.1.6"
-    "@vercel/ncc": "npm:^0.38.3"
-    ansi-escapes: "npm:^7.0.0"
-    asn1.js: "npm:^5.4.1"
-    bignumber.js: "npm:^9.1.1"
-    chai: "npm:^4.5.0"
-    chai-as-promised: "npm:^8.0.0"
-    chalk: "npm:^5.3.0"
-    eslint: "npm:^9.15.0"
-    eslint-config-prettier: "npm:^9.1.0"
-    eslint-import-resolver-typescript: "npm:^3.6.3"
-    eslint-plugin-import: "npm:^2.31.0"
-    ethers: "npm:^5.7.2"
-    latest-version: "npm:^8.0.0"
-    mocha: "npm:^10.2.0"
-    prettier: "npm:^3.5.3"
-    terminal-link: "npm:^3.0.0"
-    tsx: "npm:^4.19.1"
-    typescript: "npm:5.3.3"
-    yaml: "npm:2.4.5"
-    yargs: "npm:^17.7.2"
-    zksync-ethers: "npm:^5.10.0"
-    zod: "npm:^3.21.2"
-    zod-validation-error: "npm:^3.3.0"
-    zx: "npm:^8.1.4"
-  bin:
-    hyperlane: ./cli-bundle/index.js
   languageName: unknown
   linkType: soft
 
@@ -25519,7 +25521,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"global@npm:~4.4.0":
+"global@npm:^4.4.0, global@npm:~4.4.0":
   version: 4.4.0
   resolution: "global@npm:4.4.0"
   dependencies:

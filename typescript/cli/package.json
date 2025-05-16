@@ -1,5 +1,5 @@
 {
-  "name": "@hyperlane-xyz/cli",
+  "name": "@daniel.dymension.xyz/hyperlane-cli",
   "version": "12.5.0",
   "description": "A command-line utility for common Hyperlane operations",
   "devDependencies": {
@@ -85,5 +85,9 @@
     "Permissionless",
     "Deployment",
     "Typescript"
-  ]
+  ],
+  "dependencies": {
+    "@daniel.dymension.xyz/hyperlane-cli": "^12.5.0",
+    "global": "^4.4.0"
+  }
 }
