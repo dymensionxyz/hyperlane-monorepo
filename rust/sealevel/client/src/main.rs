@@ -981,6 +981,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                         hyperlane_token_escrow_pda_seeds_memo!(),
                         &query.program_id,
                     );
+                    accounts_to_query.push(escrow_account);
                 }
             }
 
