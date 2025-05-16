@@ -24,7 +24,7 @@ Change list
         Copied test for HypeERC20Collateral and added memo check
     Solana
         Added hyperlane-sealevel-token-native-memo
-        Added hyperlane-sealevel-token-native-memo
+        Added hyperlane-sealevel-token-collateral-memo
 
 Improvements to be made (possibly)
     Ethereum
