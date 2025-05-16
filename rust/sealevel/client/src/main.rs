@@ -1028,7 +1028,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                             &query.program_id,
                         );
                     println!(
-                        "Native Token Collateral: {}, bump={}",
+                        "Native Token Memo Collateral: {}, bump={}",
                         native_collateral_account, native_collateral_bump
                     );
                     if let Some(info) = &accounts[1] {
