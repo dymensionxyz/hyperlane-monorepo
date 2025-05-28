@@ -102,6 +102,7 @@ enum TokenType {
     Native,
     NativeMemo,
     Synthetic(TokenMetadata),
+    SyntheticMemo(TokenMetadata),
     Collateral(CollateralInfo),
     CollateralMemo(CollateralInfo),
 }
@@ -114,6 +115,7 @@ impl TokenType {
         // enforce gas amounts to Sealevel chains.
         match &self {
             TokenType::Synthetic(_) => 64_000,
+            TokenType::SyntheticMemo(_) => 64_000,
             TokenType::Native => 44_000,
             TokenType::NativeMemo => 44_000,
             TokenType::Collateral(_) => 68_000,
@@ -194,6 +196,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             TokenType::Native => "hyperlane_sealevel_token_native",
             TokenType::NativeMemo => "hyperlane_sealevel_token_native_memo",
             TokenType::Synthetic(_) => "hyperlane_sealevel_token",
+            TokenType::SyntheticMemo(_) => "hyperlane_sealevel_token_memo",
             TokenType::Collateral(_) => "hyperlane_sealevel_token_collateral",
             TokenType::CollateralMemo(_) => "hyperlane_sealevel_token_collateral_memo",
         }
@@ -311,6 +314,61 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 ctx.new_txn()
                     .add(
                         hyperlane_sealevel_token::instruction::init_instruction(
+                            program_id,
+                            ctx.payer_pubkey,
+                            init,
+                        )
+                        .unwrap(),
+                    )
+                    .with_client(client)
+                    .send_with_payer();
+
+                let (mint_account, _mint_bump) =
+                    Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
+
+                let mut cmd = Command::new(spl_token_binary_path.clone());
+                cmd.args([
+                    "create-token",
+                    mint_account.to_string().as_str(),
+                    "--enable-metadata",
+                    "-p",
+                    spl_token_2022::id().to_string().as_str(),
+                    "--url",
+                    client.url().as_str(),
+                    "--with-compute-unit-limit",
+                    "500000",
+                    "--mint-authority",
+                    &ctx.payer_pubkey.to_string(),
+                    "--fee-payer",
+                    ctx.payer_keypair_path(),
+                ]);
+
+                println!("running command: {:?}", cmd);
+                let status = cmd
+                    .stdout(Stdio::inherit())
+                    .stderr(Stdio::inherit())
+                    .status()
+                    .expect("Failed to run command");
+
+                println!("initialized metadata pointer. Status: {status}");
+
+                ctx.new_txn().add(
+                    spl_token_2022::instruction::initialize_mint2(
+                        &spl_token_2022::id(),
+                        &mint_account,
+                        &ctx.payer_pubkey,
+                        None,
+                        decimals,
+                    )
+                    .unwrap(),
+                )
+            }
+            TokenType::SyntheticMemo(_token_metadata) => {
+                let decimals = init.decimals;
+
+                ctx.new_txn()
+                    .add(
+                        hyperlane_sealevel_token_memo::instruction::init_instruction(
                             program_id,
                             ctx.payer_pubkey,
                             init,
@@ -748,7 +806,7 @@ pub fn parse_token_account_data(token_type: FlatTokenType, data: &mut &[u8]) {
             let res = HyperlaneTokenAccount::<NativePlugin>::fetch(data);
             print_data_or_err(res);
         }
-        FlatTokenType::Synthetic => {
+        FlatTokenType::Synthetic | FlatTokenType::SyntheticMemo => {
             let res = HyperlaneTokenAccount::<SyntheticPlugin>::fetch(data);
             print_data_or_err(res);
         }
