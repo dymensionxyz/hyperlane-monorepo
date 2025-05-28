@@ -40,10 +40,6 @@ use hyperlane_sealevel_token::{
     hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds,
     spl_associated_token_account::get_associated_token_address_with_program_id, spl_token_2022,
 };
-use hyperlane_sealevel_token_memo::{
-    hyperlane_token_ata_payer_pda_seeds as hyperlane_token_ata_payer_pda_seeds_memo, hyperlane_token_mint_pda_seeds as hyperlane_token_mint_pda_seeds_memo ,
-    spl_associated_token_account::get_associated_token_address_with_program_id as get_associated_token_address_with_program_id_memo, spl_token_2022 as spl_token_2022_memo,
-};
 use hyperlane_sealevel_token_collateral::{
     hyperlane_token_escrow_pda_seeds, plugin::CollateralPlugin,
 };
@@ -55,6 +51,12 @@ use hyperlane_sealevel_token_lib::{
         DymInstruction as DymHtInstruction, Instruction as HtInstruction,
         TransferRemote as HtTransferRemote, TransferRemoteMemo as DymHtTransferRemoteMemo,
     },
+};
+use hyperlane_sealevel_token_memo::{
+    hyperlane_token_ata_payer_pda_seeds as hyperlane_token_ata_payer_pda_seeds_memo,
+    hyperlane_token_mint_pda_seeds as hyperlane_token_mint_pda_seeds_memo,
+    spl_associated_token_account::get_associated_token_address_with_program_id as get_associated_token_address_with_program_id_memo,
+    spl_token_2022 as spl_token_2022_memo,
 };
 use hyperlane_sealevel_token_native::hyperlane_token_native_collateral_pda_seeds;
 use hyperlane_sealevel_token_native_memo::hyperlane_token_native_collateral_pda_seeds as hyperlane_token_native_memo_collateral_pda_seeds;
@@ -1352,7 +1354,8 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     .unwrap()
                     .into_inner();
                     let sender_associated_token_account =
-                        get_associated_token_address_with_program_id( // DYMENSION: BUG? ASSUMES SYNTHETIC USED ON OTHER CHAIN
+                        get_associated_token_address_with_program_id(
+                            // DYMENSION: BUG? ASSUMES SYNTHETIC USED ON OTHER CHAIN
                             &sender.pubkey(),
                             &token.plugin_data.mint,
                             &token.plugin_data.spl_token_program,
@@ -1577,7 +1580,8 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     .unwrap()
                     .into_inner();
                     let sender_associated_token_account =
-                        get_associated_token_address_with_program_id( // DYMENSION: BUG? ASSUMES SYNTHETIC USED ON OTHER CHAIN
+                        get_associated_token_address_with_program_id(
+                            // DYMENSION: BUG? ASSUMES SYNTHETIC USED ON OTHER CHAIN
                             &sender.pubkey(),
                             &token.plugin_data.mint,
                             &token.plugin_data.spl_token_program,

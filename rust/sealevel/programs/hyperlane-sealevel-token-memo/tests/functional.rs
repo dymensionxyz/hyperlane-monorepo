@@ -20,14 +20,17 @@ use hyperlane_sealevel_mailbox::{
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
-use hyperlane_sealevel_token::{
-    hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds, plugin::SyntheticPlugin,
-};
-use hyperlane_sealevel_token_memo::processor::process_instruction;
 use hyperlane_sealevel_token_lib::{
     accounts::{convert_decimals, HyperlaneToken, HyperlaneTokenAccount},
     hyperlane_token_pda_seeds,
-    instruction::{DymInstruction,Init, Instruction as HyperlaneTokenInstruction, TransferRemote, TransferRemoteMemo},
+    instruction::{
+        DymInstruction, Init, Instruction as HyperlaneTokenInstruction, TransferRemote,
+        TransferRemoteMemo,
+    },
+};
+use hyperlane_sealevel_token_memo::processor::process_instruction;
+use hyperlane_sealevel_token_memo::{
+    hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds, plugin::SyntheticPlugin,
 };
 use hyperlane_test_utils::{
     assert_token_balance, assert_transaction_error, igp_program_id, initialize_igp_accounts,
@@ -725,12 +728,12 @@ async fn test_transfer_remote_memo() {
         &[Instruction::new_with_bytes(
             program_id,
             &DymInstruction::TransferRemoteMemo(TransferRemoteMemo {
-               base : TransferRemote{
-                destination_domain: REMOTE_DOMAIN,
-                recipient: remote_token_recipient,
-                amount_or_id: transfer_amount.into(),
-               }, 
-               memo: test_memo.clone(),
+                base: TransferRemote {
+                    destination_domain: REMOTE_DOMAIN,
+                    recipient: remote_token_recipient,
+                    amount_or_id: transfer_amount.into(),
+                },
+                memo: test_memo.clone(),
             })
             .encode()
             .unwrap(),

@@ -9,7 +9,9 @@ use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
 use hyperlane_sealevel_token_lib::{
-    instruction::{Init, DymInstruction, Instruction as TokenIxn, TransferRemote, TransferRemoteMemo},
+    instruction::{
+        DymInstruction, Init, Instruction as TokenIxn, TransferRemote, TransferRemoteMemo,
+    },
     processor::HyperlaneSealevelToken,
 };
 use solana_program::{account_info::AccountInfo, entrypoint::ProgramResult, msg, pubkey::Pubkey};
@@ -68,7 +70,7 @@ pub fn process_instruction(
             msg!("{}", err);
             err
         });
-    } 
+    }
 
     // Otherwise, try decoding a "normal" token instruction
     match TokenIxn::decode(instruction_data)? {
@@ -102,7 +104,12 @@ fn transfer_remote_memo(
     accounts: &[AccountInfo],
     transfer: TransferRemoteMemo,
 ) -> ProgramResult {
-    HyperlaneSealevelToken::<SyntheticPlugin>::transfer_remote_memo(program_id, accounts, transfer.base, transfer.memo)
+    HyperlaneSealevelToken::<SyntheticPlugin>::transfer_remote_memo(
+        program_id,
+        accounts,
+        transfer.base,
+        transfer.memo,
+    )
 }
 
 /// Initializes the program.
