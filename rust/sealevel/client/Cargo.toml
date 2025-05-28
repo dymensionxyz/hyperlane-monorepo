@@ -35,6 +35,9 @@ hyperlane-sealevel-multisig-ism-message-id = { path = "../programs/ism/multisig-
 hyperlane-sealevel-token = { path = "../programs/hyperlane-sealevel-token", features = [
     "no-entrypoint",
 ] }
+hyperlane-sealevel-token-memo = { path = "../programs/hyperlane-sealevel-token-memo", features = [
+    "no-entrypoint",
+] }
 hyperlane-sealevel-igp = { path = "../programs/hyperlane-sealevel-igp", features = [
     "no-entrypoint",
     "serde",
