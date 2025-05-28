@@ -40,6 +40,10 @@ use hyperlane_sealevel_token::{
     hyperlane_token_ata_payer_pda_seeds, hyperlane_token_mint_pda_seeds,
     spl_associated_token_account::get_associated_token_address_with_program_id, spl_token_2022,
 };
+use hyperlane_sealevel_token_memo::{
+    hyperlane_token_ata_payer_pda_seeds as hyperlane_token_ata_payer_pda_seeds_memo, hyperlane_token_mint_pda_seeds as hyperlane_token_mint_pda_seeds_memo ,
+    spl_associated_token_account::get_associated_token_address_with_program_id as get_associated_token_address_with_program_id_memo, spl_token_2022 as spl_token_2022_memo,
+};
 use hyperlane_sealevel_token_collateral::{
     hyperlane_token_escrow_pda_seeds, plugin::CollateralPlugin,
 };
@@ -312,6 +316,7 @@ pub enum TokenType {
     Native,
     NativeMemo,
     Synthetic,
+    SyntheticMemo,
     Collateral,
     CollateralMemo,
 }
@@ -969,6 +974,18 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     accounts_to_query.push(mint_account);
                     accounts_to_query.push(ata_payer_account);
                 }
+                TokenType::SyntheticMemo => {
+                    let (mint_account, _mint_bump) = Pubkey::find_program_address(
+                        hyperlane_token_mint_pda_seeds_memo!(),
+                        &query.program_id,
+                    );
+                    let (ata_payer_account, _ata_payer_bump) = Pubkey::find_program_address(
+                        hyperlane_token_ata_payer_pda_seeds_memo!(),
+                        &query.program_id,
+                    );
+                    accounts_to_query.push(mint_account);
+                    accounts_to_query.push(ata_payer_account);
+                }
                 TokenType::Collateral => {
                     let (escrow_account, _escrow_bump) = Pubkey::find_program_address(
                         hyperlane_token_escrow_pda_seeds!(),
@@ -1061,6 +1078,35 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
 
                     let (ata_payer_account, ata_payer_bump) = Pubkey::find_program_address(
                         hyperlane_token_ata_payer_pda_seeds!(),
+                        &query.program_id,
+                    );
+                    println!(
+                        "ATA payer account: {}, bump={}",
+                        ata_payer_account, ata_payer_bump,
+                    );
+                }
+                TokenType::SyntheticMemo => {
+                    let (mint_account, mint_bump) = Pubkey::find_program_address(
+                        hyperlane_token_mint_pda_seeds_memo!(),
+                        &query.program_id,
+                    );
+                    println!(
+                        "Mint / Mint Authority: {}, bump={}",
+                        mint_account, mint_bump
+                    );
+                    if let Some(info) = &accounts[1] {
+                        println!("{:#?}", info);
+                        use solana_program::program_pack::Pack as _;
+                        match spl_token_2022::state::Mint::unpack_from_slice(info.data.as_ref()) {
+                            Ok(mint) => println!("{:#?}", mint),
+                            Err(err) => println!("Failed to deserialize account data: {}", err),
+                        }
+                    } else {
+                        println!("Not yet created?");
+                    }
+
+                    let (ata_payer_account, ata_payer_bump) = Pubkey::find_program_address(
+                        hyperlane_token_ata_payer_pda_seeds_memo!(),
                         &query.program_id,
                     );
                     println!(
@@ -1275,6 +1321,26 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                         AccountMeta::new(sender_associated_token_account, false),
                     ]);
                 }
+                TokenType::SyntheticMemo => {
+                    // 5. [executable] The spl_token_2022 program.
+                    // 6. [writeable] The mint / mint authority PDA account.
+                    // 7. [writeable] The token sender's associated token account, from which tokens will be burned.
+                    let (mint_account, _mint_bump) = Pubkey::find_program_address(
+                        hyperlane_token_mint_pda_seeds_memo!(),
+                        &xfer.program_id,
+                    );
+                    let sender_associated_token_account =
+                        get_associated_token_address_with_program_id_memo(
+                            &sender.pubkey(),
+                            &mint_account,
+                            &spl_token_2022::id(),
+                        );
+                    accounts.extend([
+                        AccountMeta::new_readonly(spl_token_2022::id(), false),
+                        AccountMeta::new(mint_account, false),
+                        AccountMeta::new(sender_associated_token_account, false),
+                    ]);
+                }
                 TokenType::Collateral | TokenType::CollateralMemo => {
                     // 5. [executable] The SPL token program for the mint.
                     // 6. [writeable] The mint.
@@ -1286,7 +1352,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     .unwrap()
                     .into_inner();
                     let sender_associated_token_account =
-                        get_associated_token_address_with_program_id(
+                        get_associated_token_address_with_program_id( // DYMENSION: BUG? ASSUMES SYNTHETIC USED ON OTHER CHAIN
                             &sender.pubkey(),
                             &token.plugin_data.mint,
                             &token.plugin_data.spl_token_program,
@@ -1480,6 +1546,26 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                         AccountMeta::new(sender_associated_token_account, false),
                     ]);
                 }
+                TokenType::SyntheticMemo => {
+                    // 5. [executable] The spl_token_2022 program.
+                    // 6. [writeable] The mint / mint authority PDA account.
+                    // 7. [writeable] The token sender's associated token account, from which tokens will be burned.
+                    let (mint_account, _mint_bump) = Pubkey::find_program_address(
+                        hyperlane_token_mint_pda_seeds_memo!(),
+                        &xfer.program_id,
+                    );
+                    let sender_associated_token_account =
+                        get_associated_token_address_with_program_id_memo(
+                            &sender.pubkey(),
+                            &mint_account,
+                            &spl_token_2022::id(),
+                        );
+                    accounts.extend([
+                        AccountMeta::new_readonly(spl_token_2022::id(), false),
+                        AccountMeta::new(mint_account, false),
+                        AccountMeta::new(sender_associated_token_account, false),
+                    ]);
+                }
                 TokenType::Collateral | TokenType::CollateralMemo => {
                     // 5. [executable] The SPL token program for the mint.
                     // 6. [writeable] The mint.
@@ -1491,7 +1577,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                     .unwrap()
                     .into_inner();
                     let sender_associated_token_account =
-                        get_associated_token_address_with_program_id(
+                        get_associated_token_address_with_program_id( // DYMENSION: BUG? ASSUMES SYNTHETIC USED ON OTHER CHAIN
                             &sender.pubkey(),
                             &token.plugin_data.mint,
                             &token.plugin_data.spl_token_program,
