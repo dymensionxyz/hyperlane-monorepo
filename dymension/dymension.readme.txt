@@ -25,6 +25,7 @@ Change list
     Solana
         Added hyperlane-sealevel-token-native-memo
         Added hyperlane-sealevel-token-collateral-memo
+        Added hyperlane-sealevel-token-memo
 
 Improvements to be made (possibly)
     Ethereum
