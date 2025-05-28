@@ -1,7 +1,7 @@
 cargo-features = ["workspace-inheritance"]
 
 [package]
-name = "hyperlane-sealevel-token"
+name = "hyperlane-sealevel-token-memo"
 version = "0.1.0"
 edition = "2021"
 
