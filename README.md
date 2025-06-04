@@ -6,12 +6,13 @@ https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/README.md
 
 Maintenance
     (in root)
+        # recommend node v20^
+        yarn install # crucial to also download turbo tool
         yarn build
         yarn clean
         yarn lint
     (in rust/main and rust/sealevel)
         cargo build
-
 
 Testing
     Global (everything, to ensure no regressions, and correct merges/rebases etc)
