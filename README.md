@@ -32,13 +32,7 @@ Change list
         Added hyperlane-sealevel-token-collateral-memo
         Added hyperlane-sealevel-token-memo
 
-Improvements to be made (possibly)
-    Ethereum
-        Just have a method to do both the memo setting and the transfer remote
-    Solana
-        Find a way to remove the plugin.rs duplication in the tokens
-
-How to work on the typescript CLI:
+How to work on the typescript CLI (locally):
     The CLI depends on the SDK, so first do yarn build from typescript/sdk, and only then will yarn build from typescript/cli work
     How to rebuild and reinstall?
         # in top level (hyperlane-monorepo)
@@ -51,12 +45,19 @@ How to work on the typescript CLI:
         npm install -g
         hyperlane --version
 
+How to get the typescript CLI (our fork)
+  TODO:
+
 How to build rust agents:
     cd rust/main
     cargo build --release --bin relayer
     cargo build --release --bin validator
+    TODO: scraper
 
 How to manage solana versions:
+    # Several versions needed
+    # v1.14.20 for building programs,  v2 for launching a local node, v1.18.18 for deploying programs
+
     # initial install
     curl --proto '=https' --tlsv1.2 -sSfL https://solana-install.solana.workers.dev | bash
     # then agave-install or solana-install
