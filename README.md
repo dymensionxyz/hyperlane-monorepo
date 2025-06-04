@@ -3,11 +3,27 @@
 https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/README.md
 
 ```
+
+Maintenance
+    (in root)
+        yarn build
+        yarn clean
+        yarn lint
+    (in rust/main and rust/sealevel)
+        cargo build
+
+
 Testing
-    yarn test:forge --match-contract HypERC20MemoTest
-    yarn test:forge --match-contract HypERC20CollateralMemoTest
-    yarn test:forge --match-contract HypNativeMemoTest
-    cargo test --test functional
+    Global (everything, to ensure no regressions, and correct merges/rebases etc)
+        (in root)
+            yarn test
+        (in rust/main and rust/sealevel)
+            cargo test
+    Our stuff (our new logic, contracts etc)
+        yarn test:forge --match-contract HypERC20MemoTest
+        yarn test:forge --match-contract HypERC20CollateralMemoTest
+        yarn test:forge --match-contract HypNativeMemoTest
+        cargo test --test functional
 
 Notes
     Ethereum
