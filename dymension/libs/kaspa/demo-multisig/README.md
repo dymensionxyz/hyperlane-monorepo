@@ -27,3 +27,13 @@ Faucet: https://faucet-tn10.kaspanet.io/
 cargo run --release --bin kaspad -- -C /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/libs/kaspa/demo-multisig/kaspad.toml
 
 ## Multisig Theory
+
+### Appendix
+
+Learned on discord:
+
+"Segwit (Bitcoin https://learnmeabitcoin.com/technical/upgrades/segregated-witness/) is not in Kaspa because Kaspa TX ID doesn't include script signature (https://github.com/kaspanet/rusty-kaspa/blob/eaadfa6230fc376f314d9a504c4c70fbc0416844/consensus/core/src/hashing/tx.rs#L20)"
+
+"Multisig upper bound is N=20"
+
+"There are 3 types of addresses currently: schnorr, ecdsa, script. So natively there's no support of multisig. Multisig is only implemented as p2sh. Probably Frost threshold scheme can be used to work with a single schnorr signature and multiple parties, but it's a completely different story"
