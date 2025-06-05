@@ -28,6 +28,11 @@ cargo run --release --bin kaspad -- -C /Users/danwt/Documents/dym/d-hyperlane-mo
 
 ## Multisig Theory
 
+### Src
+
+- Sig definitions https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/crypto/txscript/src/lib.rs#L55-L65
+- PSKT Multisig examples https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/pskt/examples/multisig.rs#L12
+
 ### Appendix
 
 Learned on discord:
