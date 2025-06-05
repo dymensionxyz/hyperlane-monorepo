@@ -35,6 +35,20 @@ _PSKT_
 
 Partially signed kaspa transactions (spec: https://github.com/bitcoin/bips/blob/master/bip-0370.mediawiki#creator) let actors cooperate.
 
+Gist:
+
+_Setup_
+
+Validators need to create key pairs and collaborate to make a multisig redeem script (https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/crypto/txscript/src/standard/multisig.rs#L18).
+
+They will need to publish the script_public_key (p2sh) which can be generated (https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/consensus/client/src/utils.rs#L30).
+
+Users will escrow to that key.
+
+_Construction (relayer)_
+
+_Signing (validators)_
+
 ### Src and refs
 
 - Sig definitions https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/crypto/txscript/src/lib.rs#L55-L65
