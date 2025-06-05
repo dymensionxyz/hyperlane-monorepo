@@ -27,12 +27,22 @@ cargo run --release --bin kaspad -- -C /Users/danwt/Documents/dym/d-hyperlane-mo
 
 ## Multisig Theory
 
-### Src
+### Theory
+
+### TX construction
+
+_PSKT_
+
+Partially signed kaspa transactions (spec: https://github.com/bitcoin/bips/blob/master/bip-0370.mediawiki#creator) let actors cooperate.
+
+### Src and refs
 
 - Sig definitions https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/crypto/txscript/src/lib.rs#L55-L65
 - PSKT Multisig examples https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/pskt/examples/multisig.rs#L12
 
 ### Appendix
+
+_Factoids_
 
 Learned on discord:
 
@@ -41,3 +51,10 @@ Learned on discord:
 "Multisig upper bound is N=20"
 
 "There are 3 types of addresses currently: schnorr, ecdsa, script. So natively there's no support of multisig. Multisig is only implemented as p2sh. Probably Frost threshold scheme can be used to work with a single schnorr signature and multiple parties, but it's a completely different story"
+
+_Frost_
+
+- https://tlu.tarilabs.com/cryptography-101/module2-introduction-schnorr-signatures#basics-of-schnorr-signatures
+- https://frost.zfnd.org/frost.html
+- https://github.com/ZcashFoundation/frost
+- https://github.com/ZcashFoundation/frost-zcash-demo
