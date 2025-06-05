@@ -17,7 +17,6 @@ rustc -V
 
 TN10 is running v1.0.0 https://wiki.kaspa.org/en/testnets
 Endpoint: https://api-tn10.kaspa.org/
-API: https://api.kaspa.org/docs
 Faucet: https://faucet-tn10.kaspanet.io/
 
 ### Node

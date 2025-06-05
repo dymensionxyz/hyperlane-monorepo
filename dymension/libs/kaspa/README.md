@@ -2,6 +2,10 @@
 
 ## Cheatsheet (v1.0.0)
 
+### Resources
+
+API: https://api.kaspa.org/docs
+
 ### Wallet
 
 https://kaspa-ng.org/ You can enable developer mode and choose between main and testnet
@@ -18,8 +22,103 @@ cargo run --release --bin kaspad -- C <config.toml>
 cd wallet/native
 cargo run
 help
+```
 
+### Units, currency and conversions
 
+https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/consensus/core/src/constants.rs#L12-L24
 
+### Tx Construction
+
+_Scripts_
+
+Let's first understand TX semantics.
+
+This article (https://bitcoin.stackexchange.com/a/75169, https://developer.bitcoin.org/devguide/transactions.html#p2pkh-script-validation) explains. Each output has a script_public_key, the input that spends it has a signature_script. Take an example
+
+```
+script_public_key = OP_DUP OP_HASH160 <hash160(pubKey)> OP_EQUAL OP_CHECKSIG
+signature_script = <sig> <pubkey>
+// They are combined
+<sig> <pubKey> OP_DUP OP_HASH160 <hash160(pubKey)> OP_EQUAL OP_CHECKSIG
+```
+
+This is run through a stack machine and the transaction is allowed if it has `true` on top at the end.
+
+To understand we should know some popular op codes:
+
+```
+OP_CHECKSIG = it pops a pubkey and sig and it checks that a) the pubkey produced the sig,  and b) the sig is corresponds to the containing TX
+OP_HASH160	= it shrinks data using a hash. It's commonly used in the above pattern
+```
+
+So this script is run over the stack machine and essentially it does
+
+1. ensure the signing pub key of the spending tx is the one referenced in the original utxo
+2. ensure the signing pub key actually signed the spending tx
+
+Therefore ensuring that the person who spends the utxo is the person intended by the utxo creator.
+
+_Data structures_
+
+In the snippets below, our remarks are prefixed 'REMARK':
+
+```rust
+pub struct TransactionOutpoint {
+    #[serde(with = "serde_bytes_fixed_ref")]
+    pub transaction_id: TransactionId, // REMARK: a hash
+    pub index: TransactionIndexType, // REMARK: an index (0, 1 etc)
+}
+
+// REMARK: aka Locking Script https://bitcoin.stackexchange.com/a/75169
+pub struct ScriptPublicKey {
+    pub version: ScriptPublicKeyVersion, // REMARK: always zero https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/crypto/txscript/src/script_class.rs#L96-L98
+
+    /*
+    REMARK: See typical patterns, but not all BTC patterns are supported on Kaspa
+    Found in Kaspa:
+        - p2pk https://learnmeabitcoin.com/technical/script/p2pk/
+        - p2sh https://learnmeabitcoin.com/technical/script/p2sh/
+    */
+    pub(super) script: ScriptVec, // Kept private to preserve read-only semantics (REMARK: ??)
+}
+
+pub struct TransactionOutput {
+    pub value: u64, // REMARK: in sompis. Require > 0. Max is 29 billion KAS
+    pub script_public_key: ScriptPublicKey,
+}
+
+pub struct TransactionInput {
+    pub previous_outpoint: TransactionOutpoint,
+    #[serde(with = "serde_bytes")]
+    pub signature_script: Vec<u8>, // TODO: Consider using SmallVec
+    pub sequence: u64,
+
+    // TODO: Since this field is used for calculating mass context free, and we already commit
+    // to the mass in a dedicated field (on the tx level), it follows that this field is no longer
+    // needed, and can be removed if we ever implement a v2 transaction
+    pub sig_op_count: u8, // REMARK: not sure if we need to populate it
+}
+
+pub struct Transaction {
+    pub version: u16,
+    pub inputs: Vec<TransactionInput>,
+    pub outputs: Vec<TransactionOutput>,
+    pub lock_time: u64,
+    pub subnetwork_id: SubnetworkId,
+    pub gas: u64,
+    #[serde(with = "serde_bytes")]
+    pub payload: Vec<u8>,
+
+    /// Holds a commitment to the storage mass (KIP-0009)
+    /// TODO: rename field and related methods to storage_mass
+    #[serde(default)]
+    mass: TransactionMass,
+
+    // A field that is used to cache the transaction ID.
+    // Always use the corresponding self.id() instead of accessing this field directly
+    #[serde(with = "serde_bytes_fixed_ref")]
+    id: TransactionId,
+}
 
 ```
