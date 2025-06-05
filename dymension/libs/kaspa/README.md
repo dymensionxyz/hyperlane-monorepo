@@ -89,9 +89,17 @@ pub struct TransactionOutput {
 }
 
 pub struct TransactionInput {
+    // REMARK: what is being spent
     pub previous_outpoint: TransactionOutpoint,
     #[serde(with = "serde_bytes")]
+
+    /*
+    REMARK: the unlocking script, typically contains the signature of whoever has the relevant pub key specified by the locking script.
+    Note: does NOT influence TX id.
+     */
     pub signature_script: Vec<u8>, // TODO: Consider using SmallVec
+
+    // REMARK used in conjunction with TX.lock_time for complex TX timing tricks. Out of scope.
     pub sequence: u64,
 
     // TODO: Since this field is used for calculating mass context free, and we already commit
@@ -101,24 +109,38 @@ pub struct TransactionInput {
 }
 
 pub struct Transaction {
+    // REMARK: semver for format and content
     pub version: u16,
+
     pub inputs: Vec<TransactionInput>,
     pub outputs: Vec<TransactionOutput>,
+
+    // REMARK: dissallows accepting the TX until a wall clock time passes. Out of scope.
     pub lock_time: u64,
+
+    /*
+     REMARK: https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/consensus/core/src/subnets.rs#L130-L137
+     Seems to be for special transactions
+    */
     pub subnetwork_id: SubnetworkId,
+
+    // REMARK: intended for use in conjunction with atypical subnetworks. Usually zero. https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/consensus/src/processes/transaction_validator/tx_validation_in_isolation.rs#L126
     pub gas: u64,
     #[serde(with = "serde_bytes")]
+
+
+    // REMARK: you can put arbitrary data in here. There is a size limit
     pub payload: Vec<u8>,
 
     /// Holds a commitment to the storage mass (KIP-0009)
     /// TODO: rename field and related methods to storage_mass
     #[serde(default)]
-    mass: TransactionMass,
+    mass: TransactionMass, // REMARK: aka gas/size (influences cost). Does NOT impact TX id.
 
     // A field that is used to cache the transaction ID.
     // Always use the corresponding self.id() instead of accessing this field directly
     #[serde(with = "serde_bytes_fixed_ref")]
-    id: TransactionId,
+    id: TransactionId, // REMARK: a hash over various things
 }
 
 ```
