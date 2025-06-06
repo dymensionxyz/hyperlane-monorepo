@@ -557,17 +557,11 @@ dependencies = [
 name = "demo-multisig"
 version = "0.1.0"
 dependencies = [
- "hex",
  "kaspa-consensus-core",
  "kaspa-txscript",
  "kaspa-wallet-pskt",
- "rand 0.8.5",
  "secp256k1",
- "serde",
- "serde-value",
- "serde_bytes",
  "serde_json",
- "serde_repr",
 ]
 
 [[package]]
@@ -1099,8 +1093,8 @@ dependencies = [
 
 [[package]]
 name = "kaspa-addresses"
-version = "1.0.1"
-source = "git+https://github.com/kaspanet/rusty-kaspa#1adeae8e5e2bdf7b65265420d294a356edc6d9e6"
+version = "1.0.0"
+source = "git+https://github.com/kaspanet/rusty-kaspa?rev=eb71df4#eb71df4d284593fccd1342094c37edc8c000da85"
 dependencies = [
  "borsh",
  "js-sys",
@@ -1114,8 +1108,8 @@ dependencies = [
 
 [[package]]
 name = "kaspa-bip32"
-version = "1.0.1"
-source = "git+https://github.com/kaspanet/rusty-kaspa#1adeae8e5e2bdf7b65265420d294a356edc6d9e6"
+version = "1.0.0"
+source = "git+https://github.com/kaspanet/rusty-kaspa?rev=eb71df4#eb71df4d284593fccd1342094c37edc8c000da85"
 dependencies = [
  "borsh",
  "bs58",
@@ -1141,8 +1135,8 @@ dependencies = [
 
 [[package]]
 name = "kaspa-consensus-client"
-version = "1.0.1"
-source = "git+https://github.com/kaspanet/rusty-kaspa#1adeae8e5e2bdf7b65265420d294a356edc6d9e6"
+version = "1.0.0"
+source = "git+https://github.com/kaspanet/rusty-kaspa?rev=eb71df4#eb71df4d284593fccd1342094c37edc8c000da85"
 dependencies = [
  "ahash",
  "cfg-if",
@@ -1170,8 +1164,8 @@ dependencies = [
 
 [[package]]
 name = "kaspa-consensus-core"
-version = "1.0.1"
-source = "git+https://github.com/kaspanet/rusty-kaspa#1adeae8e5e2bdf7b65265420d294a356edc6d9e6"
+version = "1.0.0"
+source = "git+https://github.com/kaspanet/rusty-kaspa?rev=eb71df4#eb71df4d284593fccd1342094c37edc8c000da85"
 dependencies = [
  "arc-swap",
  "async-trait",
@@ -1206,8 +1200,8 @@ dependencies = [
 
 [[package]]
 name = "kaspa-core"
-version = "1.0.1"
-source = "git+https://github.com/kaspanet/rusty-kaspa#1adeae8e5e2bdf7b65265420d294a356edc6d9e6"
+version = "1.0.0"
+source = "git+https://github.com/kaspanet/rusty-kaspa?rev=eb71df4#eb71df4d284593fccd1342094c37edc8c000da85"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -1226,8 +1220,8 @@ dependencies = [
 
 [[package]]
 name = "kaspa-hashes"
-version = "1.0.1"
-source = "git+https://github.com/kaspanet/rusty-kaspa#1adeae8e5e2bdf7b65265420d294a356edc6d9e6"
+version = "1.0.0"
+source = "git+https://github.com/kaspanet/rusty-kaspa?rev=eb71df4#eb71df4d284593fccd1342094c37edc8c000da85"
 dependencies = [
  "blake2b_simd",
  "borsh",
@@ -1245,8 +1239,8 @@ dependencies = [
 
 [[package]]
 name = "kaspa-math"
-version = "1.0.1"
-source = "git+https://github.com/kaspanet/rusty-kaspa#1adeae8e5e2bdf7b65265420d294a356edc6d9e6"
+version = "1.0.0"
+source = "git+https://github.com/kaspanet/rusty-kaspa?rev=eb71df4#eb71df4d284593fccd1342094c37edc8c000da85"
 dependencies = [
  "borsh",
  "faster-hex",
@@ -1265,16 +1259,16 @@ dependencies = [
 
 [[package]]
 name = "kaspa-merkle"
-version = "1.0.1"
-source = "git+https://github.com/kaspanet/rusty-kaspa#1adeae8e5e2bdf7b65265420d294a356edc6d9e6"
+version = "1.0.0"
+source = "git+https://github.com/kaspanet/rusty-kaspa?rev=eb71df4#eb71df4d284593fccd1342094c37edc8c000da85"
 dependencies = [
  "kaspa-hashes",
 ]
 
 [[package]]
 name = "kaspa-muhash"
-version = "1.0.1"
-source = "git+https://github.com/kaspanet/rusty-kaspa#1adeae8e5e2bdf7b65265420d294a356edc6d9e6"
+version = "1.0.0"
+source = "git+https://github.com/kaspanet/rusty-kaspa?rev=eb71df4#eb71df4d284593fccd1342094c37edc8c000da85"
 dependencies = [
  "kaspa-hashes",
  "kaspa-math",
@@ -1284,8 +1278,8 @@ dependencies = [
 
 [[package]]
 name = "kaspa-txscript"
-version = "1.0.1"
-source = "git+https://github.com/kaspanet/rusty-kaspa#1adeae8e5e2bdf7b65265420d294a356edc6d9e6"
+version = "1.0.0"
+source = "git+https://github.com/kaspanet/rusty-kaspa?rev=eb71df4#eb71df4d284593fccd1342094c37edc8c000da85"
 dependencies = [
  "blake2b_simd",
  "borsh",
@@ -1315,8 +1309,8 @@ dependencies = [
 
 [[package]]
 name = "kaspa-txscript-errors"
-version = "1.0.1"
-source = "git+https://github.com/kaspanet/rusty-kaspa#1adeae8e5e2bdf7b65265420d294a356edc6d9e6"
+version = "1.0.0"
+source = "git+https://github.com/kaspanet/rusty-kaspa?rev=eb71df4#eb71df4d284593fccd1342094c37edc8c000da85"
 dependencies = [
  "secp256k1",
  "thiserror",
@@ -1324,8 +1318,8 @@ dependencies = [
 
 [[package]]
 name = "kaspa-utils"
-version = "1.0.1"
-source = "git+https://github.com/kaspanet/rusty-kaspa#1adeae8e5e2bdf7b65265420d294a356edc6d9e6"
+version = "1.0.0"
+source = "git+https://github.com/kaspanet/rusty-kaspa?rev=eb71df4#eb71df4d284593fccd1342094c37edc8c000da85"
 dependencies = [
  "arc-swap",
  "async-channel 2.3.1",
@@ -1354,8 +1348,8 @@ dependencies = [
 
 [[package]]
 name = "kaspa-wallet-pskt"
-version = "1.0.1"
-source = "git+https://github.com/kaspanet/rusty-kaspa#1adeae8e5e2bdf7b65265420d294a356edc6d9e6"
+version = "1.0.0"
+source = "git+https://github.com/kaspanet/rusty-kaspa?rev=eb71df4#eb71df4d284593fccd1342094c37edc8c000da85"
 dependencies = [
  "bincode",
  "derive_builder",
@@ -1370,7 +1364,6 @@ dependencies = [
  "kaspa-txscript-errors",
  "kaspa-utils",
  "secp256k1",
- "separator",
  "serde",
  "serde-value",
  "serde-wasm-bindgen",
@@ -1383,8 +1376,8 @@ dependencies = [
 
 [[package]]
 name = "kaspa-wasm-core"
-version = "1.0.1"
-source = "git+https://github.com/kaspanet/rusty-kaspa#1adeae8e5e2bdf7b65265420d294a356edc6d9e6"
+version = "1.0.0"
+source = "git+https://github.com/kaspanet/rusty-kaspa?rev=eb71df4#eb71df4d284593fccd1342094c37edc8c000da85"
 dependencies = [
  "faster-hex",
  "hexplay",
@@ -2075,12 +2068,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "separator"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f97841a747eef040fcd2e7b3b9a220a7205926e60488e673d9e4926d27772ce5"
-
-[[package]]
 name = "serde"
 version = "1.0.219"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2108,15 +2095,6 @@ dependencies = [
  "js-sys",
  "serde",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "serde_bytes"
-version = "0.11.17"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8437fd221bde2d4ca316d61b90e337e9e702b3820b87d63caa9ba6c02bd06d96"
-dependencies = [
- "serde",
 ]
 
 [[package]]
