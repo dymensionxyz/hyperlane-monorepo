@@ -227,41 +227,26 @@ async fn lets_go_wallet() -> Result<(), Error> {
     kaspa_core::log::init_logger(None, "");
     let args = Args::parse();
 
-    // --- Wallet Framework Setup ---
-
-    // 1. Get the wallet instance. It's not open yet.
     let wallet = get_wallet()?;
 
     // 2. Start the wallet's background services (UTXO processor, event handling).
     wallet.start().await?;
 
-    // You need a secret to open your wallet.
-    // In a real app, you would get this from the user.
     let wallet_secret = Secret::from("lkjsdf");
-    let payment_secret: Option<Secret> = None; // Use Some(Secret::from("...")) if you have a BIP39 passphrase
+    let payment_secret: Option<Secret> = None; 
 
-    // 3. Open the wallet. This decrypts and loads the data.
-    // We assume the default filename. If yours is different, specify it.
-    // We request account descriptors to be loaded.
-    info!("Opening wallet...");
-    wallet.wallet_open(wallet_secret, None, true, false).await?;
+    wallet.clone().wallet_open(wallet_secret, None, true, false).await?;
 
-    // 4. Get the first account from the wallet.
-    // In a real app, you might let the user choose from a list.
-    let accounts = wallet.accounts_enumerate().await?;
+    let accounts = wallet.clone().accounts_enumerate().await?;
     let account_descriptor = accounts.get(0).ok_or("This wallet has no accounts.")?;
     let account_id = account_descriptor.account_id;
     info!("Found account: {}", account_descriptor.name_or_id());
 
-    // 5. Activate the account. This will scan for UTXOs and start tracking.
-    info!("Activating account...");
-    wallet.accounts_activate(Some(vec![account_id])).await?;
-    let account = wallet.account()?;
+    wallet.clone().accounts_activate(Some(vec![account_id])).await?;
+    wallet.clone().accounts_select(Some(account_id)).await?;
+    let account = wallet.clone().account()?;
 
-    // 6. Check the balance. It might take a moment to sync initially.
-    info!("Waiting for initial balance sync...");
-    // Loop briefly to allow the initial UTXO scan to complete.
-    for _ in 0..5 {
+    for _ in 0..10 {
         if account.balance().is_some() {
             break;
         }
@@ -281,8 +266,6 @@ async fn lets_go_wallet() -> Result<(), Error> {
         info!("Account has no balance or is still syncing.");
     }
 
-    // 7. Cleanly shut down the wallet's background services
-    info!("Closing wallet...");
     wallet.stop().await?;
 
     Ok(())
