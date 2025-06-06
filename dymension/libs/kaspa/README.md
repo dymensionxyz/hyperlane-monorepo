@@ -6,6 +6,17 @@
 
 API: https://api.kaspa.org/docs
 
+### Urls
+
+typical port alignment is
+
+- Mainnet RPC 16110
+- Mainnet P2P Listen 16111
+- TestNet 10 RPC 16210
+- TestNet 10 P2P Listen 16211
+- TestNet 11 RPC 16310
+- TestNet 11 P2P Listen 16311
+
 ### Wallet
 
 https://kaspa-ng.org/ You can enable developer mode and choose between main and testnet
@@ -22,6 +33,10 @@ cargo run --release --bin kaspad -- C <config.toml>
 cd wallet/native
 cargo run
 help
+
+# Useful
+connect # connect to rpc server
+monitor # watch balance
 ```
 
 ### Units, currency and conversions

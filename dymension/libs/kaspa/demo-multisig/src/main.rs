@@ -99,53 +99,43 @@ impl Args {
     }
 }
 
-// async fn roth() {
-//     kaspa_core::log::init_logger(None, "");
-//     let args = Args::parse();
-//     let subscription_context = SubscriptionContext::new();
+async fn roth() {
+    kaspa_core::log::init_logger(None, "");
+    let args = Args::parse();
+    let subscription_context = SubscriptionContext::new();
 
-//     let rpc_client = GrpcClient::connect_with_args(
-//         NotificationMode::Direct,
-//         format!("grpc://{}", args.rpc_server),
-//         Some(subscription_context.clone()),
-//         true,
-//         None,
-//         false,
-//         Some(500_000),
-//         Default::default(),
-//     )
-//     .await
-//     .expect("Critical error: failed to connect to the RPC server.");
+    let rpc_client = GrpcClient::connect_with_args(
+        NotificationMode::Direct,
+        format!("grpc://{}", args.rpc_server),
+        Some(subscription_context.clone()),
+        true,
+        None,
+        false,
+        Some(500_000),
+        Default::default(),
+    )
+    .await
+    .expect("Critical error: failed to connect to the RPC server.");
 
-//     info!("Connected to RPC");
+    info!("Connected to RPC");
 
-//     let schnorr_key = if let Some(foo) = args.private_key {
-//         // let xpub = ExtendedPublicKey::<secp256k1::PublicKey>::from_str(&foo).unwrap();
-//         // Derive to the same path if needed
-//         // let path = DerivationPath::from_str("m/44'/111111'/0'/0/0").unwrap();
-//         // let derived = xpub.derive_path(&path).unwrap();
-//         // Keypair::from_pubkey_slice(secp256k1::SECP256K1, &derived.public_key).unwrap()
-//         let prv_key_data = PrvKeyData::try_new_from_mnemonic(
-//             foo,
-//             Some(Secret::from("lkjsdf")),
-//             EncryptionKind::XChaCha20Poly1305
-//         )?;
-//     } else {
-//         let (sk, pk) = &secp256k1::generate_keypair(&mut thread_rng());
-//         let kaspa_addr = Address::new(
-//             ADDRESS_PREFIX,
-//             ADDRESS_VERSION,
-//             &pk.x_only_public_key().0.serialize(),
-//         );
-//         info!(
-//             "Generated private key {} and address {}. Send some funds to this address and rerun rothschild with `--private-key {}`",
-//             sk.display_secret(),
-//             String::from(&kaspa_addr),
-//             sk.display_secret()
-//         );
-//         return;
-//     };
-// }
+
+    let schnorr_key = if let Some(private_key_hex) = args.private_key {
+        let mut private_key_bytes = [0u8; 32];
+        faster_hex::hex_decode(private_key_hex.as_bytes(), &mut private_key_bytes).unwrap();
+        Keypair::from_seckey_slice(secp256k1::SECP256K1, &private_key_bytes).unwrap()
+    } else {
+        let (sk, pk) = &secp256k1::generate_keypair(&mut thread_rng());
+        let kaspa_addr = Address::new(ADDRESS_PREFIX, ADDRESS_VERSION, &pk.x_only_public_key().0.serialize());
+        info!(
+            "Generated private key {} and address {}. Send some funds to this address and rerun rothschild with `--private-key {}`",
+            sk.display_secret(),
+            String::from(&kaspa_addr),
+            sk.display_secret()
+        );
+        return;
+    };
+}
 
 // demonstrates on testnet
 // 1. create multisig escrow address
@@ -159,7 +149,6 @@ async fn run_demo() -> Result<(), Error> {
     let open = wallet.is_open();
     let secret = Secret::from("lkjsdf");
     wallet.wallet_open(secret, None, true, false).await?;
-    wallet
     println!("Open: {:?}", open);
     // wallet.account()
     // let acc = wallet.accounts(filter, guard)
@@ -199,6 +188,6 @@ async fn run_demo() -> Result<(), Error> {
 #[tokio::main]
 async fn main() {
     // tokio::runtime::Runtime::new().unwrap().block_on(run_demo()).unwrap();
-    run_demo().await;
-    // roth().await;
+    // run_demo().await;
+    roth().await;
 }

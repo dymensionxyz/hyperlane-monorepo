@@ -21,13 +21,17 @@ Faucet: https://faucet-tn10.kaspanet.io/
 
 ### Node
 
-<!-- cargo run --release --bin kaspad -- --testnet --netsuffix=10 --utxoindex -->
-
+```bash
+# launch a node which can be used as an RPC server
 cargo run --release --bin kaspad -- -C /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/libs/kaspa/demo-multisig/kaspad.toml
+```
 
 ### Program
 
-cargo run -k
+```bash
+cargo run # it will generate a private key, then fund it
+cargo run -- -k $PRIVATE_KEY
+```
 
 ## Multisig Theory
 
