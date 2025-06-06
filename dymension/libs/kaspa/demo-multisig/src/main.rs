@@ -7,6 +7,7 @@ use kaspa_txscript::{multisig_redeem_script, opcodes::codes::OpData65, pay_to_sc
 use kaspa_wallet_pskt::prelude::{
     Combiner, Creator, Extractor, Finalizer, Inner, InputBuilder, OutputBuilder, SignInputOk, Signature, Signer, Updater, PSKT,
 };
+
 use secp256k1::{rand::thread_rng, Keypair};
 use std::{iter, str::FromStr};
 use kaspa_wrpc_client::{KaspaRpcClient, WrpcEncoding, Resolver};
@@ -15,8 +16,12 @@ const URL: &str = "https://api-tn10.kaspa.org";
 const NETWORK: NetworkType = NetworkType::Testnet;
 
 fn get_signer() -> Keypair {
+
     // For demo purposes, generate a new keypair
-    Keypair::new(secp256k1::SECP256K1, &mut thread_rng())
+    // Keypair::new(secp256k1::SECP256K1, &mut thread_rng())
+
+   // Actually load the key from my key file in .kaspa/kaspa.wallet
+   let wallet = Wallet::new(secp256k1::SECP256K1, &mut thread_rng());
 }
 
 fn get_testnet_client() -> KaspaRpcClient {
