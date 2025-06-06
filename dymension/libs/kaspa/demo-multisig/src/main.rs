@@ -4,7 +4,13 @@ mod x;
 use x::args::Args;
 
 use kaspa_addresses::{Address, Prefix, Version};
-use kaspa_consensus_core::network::{NetworkId, NetworkType};
+use kaspa_consensus_core::{
+    constants::{SOMPI_PER_KASPA, TX_VERSION},
+    network::{NetworkId, NetworkType},
+    subnets::SUBNETWORK_ID_NATIVE,
+    tx::{MutableTransaction, Transaction, TransactionInput, TransactionOutpoint, TransactionOutput, UtxoEntry},
+    sign::sign,
+};
 use kaspa_core::info;
 use kaspa_grpc_client::GrpcClient;
 use kaspa_notify::subscription::context::SubscriptionContext;
@@ -13,8 +19,12 @@ use kaspa_wallet_core::api::WalletApi;
 use kaspa_wallet_core::error::Error;
 use kaspa_wallet_core::wallet::Wallet;
 use kaspa_wallet_keys::secret::Secret;
+use kaspa_txscript::pay_to_address_script;
 
-use kaspa_txscript::{multisig_redeem_script, opcodes::codes::OpData65, pay_to_script_hash_script, script_builder::ScriptBuilder, extract_script_pub_key_address};
+use kaspa_txscript::{
+    extract_script_pub_key_address, multisig_redeem_script, opcodes::codes::OpData65,
+    pay_to_script_hash_script, script_builder::ScriptBuilder,
+};
 
 use std::sync::Arc;
 
@@ -97,16 +107,70 @@ struct Escrow {
 fn create_escrow() -> Escrow {
     let m = 2; // required
     let n = 2; // total
-    let kps = (0..n).map(|_| Keypair::new(secp256k1::SECP256K1, &mut thread_rng())).collect::<Vec<_>>();
-    let redeem_script = multisig_redeem_script(kps.iter().map(|pk| pk.x_only_public_key().0.serialize()), m).unwrap();
+    let kps = (0..n)
+        .map(|_| Keypair::new(secp256k1::SECP256K1, &mut thread_rng()))
+        .collect::<Vec<_>>();
+    let redeem_script =
+        multisig_redeem_script(kps.iter().map(|pk| pk.x_only_public_key().0.serialize()), m)
+            .unwrap();
     let p2hs = pay_to_script_hash_script(&redeem_script);
     let addr = extract_script_pub_key_address(&p2hs, ADDRESS_PREFIX).unwrap();
-    Escrow { keys: kps.to_vec(), redeem_script, addr }
-} 
+    Escrow {
+        keys: kps.to_vec(),
+        redeem_script,
+        addr,
+    }
+}
 
 async fn check_balance(client: &GrpcClient, addr: &Address) -> Result<u64, Error> {
-    let balance = client.get_balance_by_address_call(None, GetBalanceByAddressRequest { address: addr.clone() }).await?;
-    Ok(balance.balance)
+    let balance = client.get_balance_by_address(addr.clone()).await?;
+    Ok(balance)
+}
+
+async fn deposit(client: &GrpcClient, addr: &Address, amount: u64) -> Result<(), Error> {
+    let user = get_user(&Args::parse())?;
+    let utxos = client.get_utxos_by_addresses(vec![user.addr.clone()]).await?;
+    let utxo_entries: Vec<(TransactionOutpoint, UtxoEntry)> = utxos
+        .into_iter()
+        .map(|entry| (TransactionOutpoint::from(entry.outpoint), UtxoEntry::from(entry.utxo_entry)))
+        .collect();
+
+    let script_public_key = pay_to_address_script(addr);
+    let inputs = utxo_entries
+        .iter()
+        .map(|(op, _)| TransactionInput { 
+            previous_outpoint: *op, 
+            signature_script: vec![], 
+            sequence: 0, 
+            sig_op_count: 1 
+        })
+        .collect::<Vec<_>>();
+
+    let outputs = vec![TransactionOutput { 
+        value: amount, 
+        script_public_key: script_public_key.clone() 
+    }];
+
+    let unsigned_tx = Transaction::new_non_finalized(
+        TX_VERSION,
+        inputs,
+        outputs,
+        0,
+        SUBNETWORK_ID_NATIVE,
+        0,
+        vec![],
+    );
+
+    let signed_tx = sign(
+        MutableTransaction::with_entries(
+            unsigned_tx,
+            utxo_entries.iter().map(|(_, entry)| entry.clone()).collect::<Vec<_>>()
+        ),
+        user.k,
+    );
+
+    client.submit_transaction(signed_tx.tx.as_ref().into(), false).await?;
+    Ok(())
 }
 
 // demonstrates on testnet
@@ -125,6 +189,8 @@ async fn lets_go() {
     println!("Balance: {}", balance);
     let escrow = create_escrow();
     println!("Escrow address: {}", escrow.addr);
+    let balance = check_balance(&rpc_client, &escrow.addr).await.unwrap();
+    println!("Escrow balance: {}", balance);
 }
 
 #[tokio::main]
