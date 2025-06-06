@@ -58,11 +58,13 @@ fn get_wallet() -> Result<Arc<Wallet>, Error> {
     )?))
 }
 
-async fn roth() {
-    kaspa_core::log::init_logger(None, "");
-    let args = Args::parse();
-    let subscription_context = SubscriptionContext::new();
+struct User {
+    pub sk: Keypair,
+    pub addr: Address,
+}
 
+async fn get_client(args: &Args) {
+    let subscription_context = SubscriptionContext::new();
     let rpc_client = GrpcClient::connect_with_args(
         NotificationMode::Direct,
         format!("grpc://{}", args.rpc_server),
@@ -75,13 +77,23 @@ async fn roth() {
     )
     .await
     .expect("Critical error: failed to connect to the RPC server.");
-
     info!("Connected to RPC");
+}
 
-    let schnorr_key = if let Some(private_key_hex) = args.private_key {
+fn get_user(args: &Args) -> Result<User, Error> {
+    if let Some(private_key_hex) = &args.private_key {
         let mut private_key_bytes = [0u8; 32];
         faster_hex::hex_decode(private_key_hex.as_bytes(), &mut private_key_bytes).unwrap();
-        Keypair::from_seckey_slice(secp256k1::SECP256K1, &private_key_bytes).unwrap()
+        let k = Keypair::from_seckey_slice(secp256k1::SECP256K1, &private_key_bytes).unwrap();
+        let kaspa_addr = Address::new(
+            ADDRESS_PREFIX,
+            ADDRESS_VERSION,
+            &k.x_only_public_key().0.serialize(),
+        );
+        return Ok(User {
+            sk: k,
+            addr: kaspa_addr,
+        });
     } else {
         let (sk, pk) = &secp256k1::generate_keypair(&mut thread_rng());
         let kaspa_addr = Address::new(
@@ -95,8 +107,22 @@ async fn roth() {
             String::from(&kaspa_addr),
             sk.display_secret()
         );
-        return;
+        return Err(Error::PoisonError("No private key provided".to_string()));
     };
+}
+
+async fn lets_go() {
+    kaspa_core::log::init_logger(None, "");
+    let args = Args::parse();
+    let rpc_client = get_client(&args).await;
+    let user = get_user(&args);
+}
+
+#[tokio::main]
+async fn main() {
+    // tokio::runtime::Runtime::new().unwrap().block_on(run_demo()).unwrap();
+    // run_demo().await;
+    lets_go().await;
 }
 
 // demonstrates on testnet
@@ -145,11 +171,4 @@ async fn run_demo() -> Result<(), Error> {
 
     // let signed_pskts = get_sigs(pskt, &escrow_info);
     // submit_tx(signed_pskts).unwrap();
-}
-
-#[tokio::main]
-async fn main() {
-    // tokio::runtime::Runtime::new().unwrap().block_on(run_demo()).unwrap();
-    // run_demo().await;
-    roth().await;
 }
