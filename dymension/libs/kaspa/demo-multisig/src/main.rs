@@ -21,6 +21,9 @@ use std::sync::Arc;
 use kaspa_wrpc_client::Resolver;
 use secp256k1::{Keypair, rand::thread_rng};
 
+use kaspa_rpc_core::api::rpc::RpcApi;
+use kaspa_rpc_core::model::GetBalanceByAddressRequest;
+
 const NETWORK: NetworkType = NetworkType::Testnet;
 const NETWORK_ID: NetworkId = NetworkId::with_suffix(NETWORK, 10);
 const ADDRESS_PREFIX: Prefix = Prefix::Testnet;
@@ -39,7 +42,7 @@ struct User {
     pub addr: Address,
 }
 
-async fn get_client(args: &Args) {
+async fn get_client(args: &Args) -> GrpcClient {
     let subscription_context = SubscriptionContext::new();
     let rpc_client = GrpcClient::connect_with_args(
         NotificationMode::Direct,
@@ -54,6 +57,7 @@ async fn get_client(args: &Args) {
     .await
     .expect("Critical error: failed to connect to the RPC server.");
     info!("Connected to RPC");
+    rpc_client
 }
 
 fn get_user(args: &Args) -> Result<User, Error> {
@@ -100,6 +104,11 @@ fn create_escrow() -> Escrow {
     Escrow { keys: kps.to_vec(), redeem_script, addr }
 } 
 
+async fn check_balance(client: &GrpcClient, addr: &Address) -> Result<u64, Error> {
+    let balance = client.get_balance_by_address_call(None, GetBalanceByAddressRequest { address: addr.clone() }).await?;
+    Ok(balance.balance)
+}
+
 // demonstrates on testnet
 // 1. create multisig escrow address
 // 2. user deposits to escrow (1 kas)
@@ -111,7 +120,9 @@ async fn lets_go() {
     kaspa_core::log::init_logger(None, "");
     let args = Args::parse();
     let rpc_client = get_client(&args).await;
-    let user = get_user(&args);
+    let user = get_user(&args).unwrap();
+    let balance = check_balance(&rpc_client, &user.addr).await.unwrap();
+    println!("Balance: {}", balance);
     let escrow = create_escrow();
     println!("Escrow address: {}", escrow.addr);
 }
