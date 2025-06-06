@@ -1,7 +1,7 @@
 use kaspa_consensus_core::{
     hashing::sighash::{calc_schnorr_signature_hash, SigHashReusedValuesUnsync},
     tx::{TransactionId, TransactionOutpoint, UtxoEntry},
-    network::{NetworkType, NetworkTypeT},
+    network::{NetworkType, NetworkId},
 };
 use kaspa_txscript::{multisig_redeem_script, opcodes::codes::OpData65, pay_to_script_hash_script, script_builder::ScriptBuilder, extract_script_pub_key_address};
 use kaspa_wallet_pskt::prelude::{
@@ -9,9 +9,9 @@ use kaspa_wallet_pskt::prelude::{
 };
 use secp256k1::{rand::thread_rng, Keypair};
 use std::{iter, str::FromStr};
-use kaspa_wrpc_client::{KaspaRpcClient, WrpcEncoding, NetworkId, Resolver};
-use std::time::Duration;
+use kaspa_wrpc_client::{KaspaRpcClient, WrpcEncoding, Resolver};
 
+const URL: &str = "https://api-tn10.kaspa.org";
 const NETWORK: NetworkType = NetworkType::Testnet;
 
 fn get_signer() -> Keypair {
@@ -21,7 +21,7 @@ fn get_signer() -> Keypair {
 
 fn get_testnet_client() -> KaspaRpcClient {
     let encoding = WrpcEncoding::Borsh;
-    let url = Some("ws://127.0.0.1:17110".to_string());
+    let url = Some(URL);
     let resolver = Some(Resolver::default());
     let network_id = Some(NetworkId::new(NETWORK));
     
