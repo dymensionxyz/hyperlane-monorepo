@@ -9,17 +9,23 @@ use kaspa_wallet_pskt::prelude::{
 };
 use secp256k1::{rand::thread_rng, Keypair};
 use std::{iter, str::FromStr};
+use kaspa_wrpc_client::{KaspaRpcClient, WrpcEncoding, NetworkId, Resolver};
+use std::time::Duration;
 
 const NETWORK: NetworkType = NetworkType::Testnet;
 
-fn get_signer() {
-    // TODO: return a signer from my actualy testnet account
+fn get_signer() -> Keypair {
+    // For demo purposes, generate a new keypair
+    Keypair::new(secp256k1::SECP256K1, &mut thread_rng())
 }
 
-// Return an rpc client for testnet 10
-fn get_testnet_client(){
-    // TODO: complete
-
+fn get_testnet_client() -> KaspaRpcClient {
+    let encoding = WrpcEncoding::Borsh;
+    let url = Some("ws://127.0.0.1:17110".to_string());
+    let resolver = Some(Resolver::default());
+    let network_id = Some(NetworkId::new(NETWORK));
+    
+    KaspaRpcClient::new(encoding, url, resolver, network_id, None).unwrap()
 }
 
 struct EscrowInfo {
@@ -39,7 +45,6 @@ fn create_escrow_addr() -> EscrowInfo {
         2
     ).unwrap();
     
-    // TODO: check, need script_pub_key? 
     let script_pub_key = pay_to_script_hash_script(&redeem_script);
     let escrow_address = extract_script_pub_key_address(&script_pub_key, NETWORK.into()).unwrap().to_string();
 
@@ -50,15 +55,13 @@ fn create_escrow_addr() -> EscrowInfo {
     }
 }
 
-fn deposit_funds(
-    client, // TODO:
+async fn deposit_funds(
+    client: &KaspaRpcClient,
     escrow_address: &str,
     amount: u64,
-    signer: // TODO:
+    signer: &Keypair,
 ) -> Result<(), String> {
     // get a spendable UTXO
-
-    // Deposit funds to escrow
     let from_utxo = UtxoEntry {
         amount: 2_000_000_000, // 2 KAS
         script_public_key: "your_testnet_script_pubkey".parse().unwrap(),
@@ -69,7 +72,6 @@ fn deposit_funds(
         transaction_id: TransactionId::from_str("your_testnet_tx_id").unwrap(),
         index: 0,
     };
-    let from_privkey = [0u8; 32]; // Replace with your testnet private key
 
     let input = InputBuilder::default()
         .utxo_entry(from_utxo)
@@ -80,20 +82,67 @@ fn deposit_funds(
 
     let output = OutputBuilder::default()
         .amount(amount)
-        .script_public_key(escrow_address.parse().unwrap()) // TODO: make sure to use the right addr
+        .script_public_key(escrow_address.parse().unwrap())
         .build()
         .unwrap();
 
-
-    let schnorr_key = secp256k1::Keypair::from_seckey_slice(secp256k1::SECP256K1, &from_privkey)
-        .map_err(|e| e.to_string())?;
-
     let reused_values = SigHashReusedValuesUnsync::new();
-   
-    let tx = extractor.extract_tx().map_err(|e| e.to_string())?(10).0;
+    
+    // Create and submit transaction
+    let tx = PSKT::<Creator>::default()
+        .inputs_modifiable()
+        .outputs_modifiable()
+        .constructor()
+        .input(input)
+        .output(output)
+        .updater()
+        .set_sequence(u64::MAX, 0)
+        .unwrap()
+        .signer()
+        .pass_signature_sync(|tx, sighash| -> Result<Vec<SignInputOk>, String> {
+            tx.tx
+                .inputs
+                .iter()
+                .enumerate()
+                .map(|(idx, _input)| {
+                    let hash = calc_schnorr_signature_hash(&tx.as_verifiable(), idx, sighash[idx], &reused_values);
+                    let msg = secp256k1::Message::from_digest_slice(hash.as_bytes().as_slice()).unwrap();
+                    Ok(SignInputOk {
+                        signature: Signature::Schnorr(signer.sign_schnorr(msg)),
+                        pub_key: signer.public_key(),
+                        key_source: None,
+                    })
+                })
+                .collect()
+        })
+        .unwrap()
+        .finalizer()
+        .finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
+            Ok(inner
+                .inputs
+                .iter()
+                .map(|input| -> Vec<u8> {
+                    let signatures: Vec<_> = input
+                        .partial_sigs
+                        .iter()
+                        .flat_map(|(_, sig)| {
+                            iter::once(OpData65)
+                                .chain(sig.into_bytes())
+                                .chain([input.sighash_type.to_u8()])
+                        })
+                        .collect();
+                    signatures
+                })
+                .collect())
+        })
+        .unwrap()
+        .extractor()
+        .extract_tx()
+        .map_err(|e| e.to_string())?(10).0;
 
-    // TODO: actually submit the tx and verify it is accepted. No need to use PSKT or multisig. Just a simple TX
-
+    // Submit transaction
+    client.submit_transaction(tx).await.map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 // use pskt to create a multisig tx which will spend the escrow funds back to the original signer
@@ -220,28 +269,21 @@ fn submit_tx(signed_pskts: Vec<PSKT<Signer>>) -> Result<(), String> {
 // 3. user creates a multisig tx which requires sigs from the escrow key holders. User adds his own utxo to pay fees
 // 4. user gathers sigs from the escrow key holders, mimick a parallel signing flow, to combine later
 // 5. user combines the sigs and submits to the network for real, confirming he gets a 'refund' from his original deposit
-fn run_demo() {
-    // TODO: fix
-
-
+async fn run_demo() {
     // Create escrow info
     let escrow_info = create_escrow_addr();
     println!("Escrow address: {}", escrow_info.escrow_address);
 
-    
-    client = get_testnet_client();
-
+    let client = get_testnet_client();
+    let signer = get_signer();
     let amt = 1_000_000_000; // 1 KAS
 
     deposit_funds(
-       client, 
+        &client,
         &escrow_info.escrow_address,
-        amt, // 1 KAS
-        signer,
-    ).unwrap();
-
-
-  
+        amt,
+        &signer,
+    ).await.unwrap();
 
     let pskt = create_multisig_tx(
         &escrow_info,
@@ -254,8 +296,8 @@ fn run_demo() {
 }
 
 fn main() {
-    run_demo();
-} 
+    tokio::runtime::Runtime::new().unwrap().block_on(run_demo());
+}
 
 fn example_multisig(){
     let kps = [Keypair::new(secp256k1::SECP256K1, &mut thread_rng()), Keypair::new(secp256k1::SECP256K1, &mut thread_rng())];
