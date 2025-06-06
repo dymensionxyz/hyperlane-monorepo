@@ -4,27 +4,21 @@ mod x;
 use x::args::Args;
 
 use kaspa_addresses::{Address, Prefix, Version};
-use kaspa_consensus_core::
-    network::{NetworkId, NetworkType}
-;
-// use kaspa_wallet::Wallet;
+use kaspa_consensus_core::network::{NetworkId, NetworkType};
 use kaspa_core::info;
 use kaspa_grpc_client::GrpcClient;
 use kaspa_notify::subscription::context::SubscriptionContext;
 use kaspa_rpc_core::notify::mode::NotificationMode;
+use kaspa_wallet_core::api::WalletApi;
 use kaspa_wallet_core::error::Error;
 use kaspa_wallet_core::wallet::Wallet;
-// use kaspa_wallet;
-use kaspa_wallet_core::api::WalletApi;
 use kaspa_wallet_keys::secret::Secret;
-
 
 use std::sync::Arc;
 
 use kaspa_wrpc_client::Resolver;
 use secp256k1::{Keypair, rand::thread_rng};
 
-const URL: &str = "https://api-tn10.kaspa.org";
 const NETWORK: NetworkType = NetworkType::Testnet;
 const NETWORK_ID: NetworkId = NetworkId::with_suffix(NETWORK, 10);
 const ADDRESS_PREFIX: Prefix = Prefix::Testnet;
@@ -39,7 +33,7 @@ fn get_wallet() -> Result<Arc<Wallet>, Error> {
 }
 
 struct User {
-    pub sk: Keypair,
+    pub k: Keypair,
     pub addr: Address,
 }
 
@@ -61,48 +55,31 @@ async fn get_client(args: &Args) {
 }
 
 fn get_user(args: &Args) -> Result<User, Error> {
-    if let Some(private_key_hex) = &args.private_key {
-        let mut private_key_bytes = [0u8; 32];
-        faster_hex::hex_decode(private_key_hex.as_bytes(), &mut private_key_bytes).unwrap();
-        let k = Keypair::from_seckey_slice(secp256k1::SECP256K1, &private_key_bytes).unwrap();
-        let kaspa_addr = Address::new(
+    if let Some(sk_hex) = &args.private_key {
+        let mut sk_bz = [0u8; 32];
+        faster_hex::hex_decode(sk_hex.as_bytes(), &mut sk_bz).unwrap();
+        let k = Keypair::from_seckey_slice(secp256k1::SECP256K1, &sk_bz).unwrap();
+        let kas_addr = Address::new(
             ADDRESS_PREFIX,
             ADDRESS_VERSION,
             &k.x_only_public_key().0.serialize(),
         );
-        return Ok(User {
-            sk: k,
-            addr: kaspa_addr,
-        });
+        return Ok(User { k, addr: kas_addr });
     } else {
         let (sk, pk) = &secp256k1::generate_keypair(&mut thread_rng());
-        let kaspa_addr = Address::new(
+        let kas_addr = Address::new(
             ADDRESS_PREFIX,
             ADDRESS_VERSION,
             &pk.x_only_public_key().0.serialize(),
         );
         info!(
-            "Generated private key {} and address {}. Send some funds to this address and rerun rothschild with `--private-key {}`",
+            "Generated private key {} and address {}. Send some funds to this address and rerun with `--private-key {}`",
             sk.display_secret(),
-            String::from(&kaspa_addr),
+            String::from(&kas_addr),
             sk.display_secret()
         );
         return Err(Error::PoisonError("No private key provided".to_string()));
     };
-}
-
-async fn lets_go() {
-    kaspa_core::log::init_logger(None, "");
-    let args = Args::parse();
-    let rpc_client = get_client(&args).await;
-    let user = get_user(&args);
-}
-
-#[tokio::main]
-async fn main() {
-    // tokio::runtime::Runtime::new().unwrap().block_on(run_demo()).unwrap();
-    // run_demo().await;
-    lets_go().await;
 }
 
 // demonstrates on testnet
@@ -112,43 +89,14 @@ async fn main() {
 // 4. user gathers sigs from the escrow key holders, mimick a parallel signing flow, to combine later
 // 5. user combines the sigs and submits to the network for real, confirming he gets a 'refund' from his original deposit
 // async fn run_demo() {
-async fn run_demo() -> Result<(), Error> {
-    let wallet = get_wallet()?;
-    let open = wallet.is_open();
-    let secret = Secret::from("lkjsdf");
-    wallet.wallet_open(secret, None, true, false).await?;
-    println!("Open: {:?}", open);
-    // wallet.account()
-    // let acc = wallet.accounts(filter, guard)
-    // wallet.open(wallet_secret, filename, args, guard)
-    // let res = wallet.ping(None).await;
-    // let accounts = wallet.accounts(None, &guard).await;
-    // println!("Ping response: {:?}", res);
-    // println!("Accounts: {:?}", accounts);
-    // println!("Ping response: {:?}", res);
-    Ok(())
+async fn lets_go() {
+    kaspa_core::log::init_logger(None, "");
+    let args = Args::parse();
+    let rpc_client = get_client(&args).await;
+    let user = get_user(&args);
+}
 
-    // Create escrow info
-    // let escrow_info = create_escrow_addr();
-    // println!("Escrow address: {}", escrow_info.escrow_address);
-
-    // let client = get_testnet_client();
-    // let signer = get_signer();
-    // let amt = 1_000_000_000; // 1 KAS
-
-    // deposit_funds(
-    //     &client,
-    //     &escrow_info.escrow_address,
-    //     amt,
-    //     &signer,
-    // ).await.unwrap();
-
-    // let pskt = create_multisig_tx(
-    //     &escrow_info,
-    //     "kaspa:qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq".to_string(),
-    //     amt,
-    // );
-
-    // let signed_pskts = get_sigs(pskt, &escrow_info);
-    // submit_tx(signed_pskts).unwrap();
+#[tokio::main]
+async fn main() {
+    lets_go().await;
 }
