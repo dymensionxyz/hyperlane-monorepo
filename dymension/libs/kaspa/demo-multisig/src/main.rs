@@ -9,6 +9,30 @@ use kaspa_wallet_pskt::prelude::{
 use secp256k1::{rand::thread_rng, Keypair};
 use std::{iter, str::FromStr};
 
+fn get_testnet_client(){
+
+}
+
+fn create_escrow_addr(){
+
+}
+
+fn deposit_funds(){
+
+}
+
+fn create_tx(){
+
+}
+
+fn get_sigs(){
+
+}
+
+fn submit_tx(){
+    
+}
+
 fn main() {
     run_demo();
 } 
