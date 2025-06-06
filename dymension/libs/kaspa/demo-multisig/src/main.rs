@@ -4,7 +4,7 @@ use kaspa_consensus_core::{
 };
 use kaspa_txscript::{multisig_redeem_script, opcodes::codes::OpData65, pay_to_script_hash_script, script_builder::ScriptBuilder};
 use kaspa_wallet_pskt::prelude::{
-    Combiner, Creator, Extractor, Finalizer, Inner, InputBuilder, SignInputOk, Signature, Signer, Updater, PSKT,
+    Combiner, Creator, Extractor, Finalizer, Inner, InputBuilder, OutputBuilder, SignInputOk, Signature, Signer, Updater, PSKT,
 };
 use secp256k1::{rand::thread_rng, Keypair};
 use std::{iter, str::FromStr};
@@ -15,54 +15,266 @@ fn get_testnet_client(){
 }
 
 struct EscrowInfo {
-    // contains a list of private, pubkey pairs
-    // a sig hash
-    // a redeem script
-    // the escrow address users can deposit to
+    keypairs: Vec<Keypair>,
+    redeem_script: Vec<u8>,
+    escrow_address: String,
 }
 
-// returns escrow info
-// will need to create the key pairs, the multisig script etc
-fn create_escrow_addr(){
+fn create_escrow_addr() -> EscrowInfo {
+    let kps = [
+        Keypair::new(secp256k1::SECP256K1, &mut thread_rng()),
+        Keypair::new(secp256k1::SECP256K1, &mut thread_rng()),
+    ];
+    
+    let redeem_script = multisig_redeem_script(
+        kps.iter().map(|pk| pk.x_only_public_key().0.serialize()),
+        2
+    ).unwrap();
+    
+    let script_pub_key = pay_to_script_hash_script(&redeem_script);
+    let escrow_address = format!("{:?}", script_pub_key);
 
+    EscrowInfo {
+        keypairs: kps.to_vec(),
+        redeem_script,
+        escrow_address,
+    }
 }
 
-// use my actual testnet account to deposit 1 kas to the escrow address
-fn deposit_funds(){
+fn deposit_funds(
+    escrow_address: &str,
+    amount: u64,
+    from_utxo: UtxoEntry,
+    from_outpoint: TransactionOutpoint,
+    from_privkey: [u8; 32],
+) -> Result<(), String> {
+    let input = InputBuilder::default()
+        .utxo_entry(from_utxo)
+        .previous_outpoint(from_outpoint)
+        .sig_op_count(1)
+        .build()
+        .unwrap();
 
+    let output = OutputBuilder::default()
+        .amount(amount)
+        .script_public_key(escrow_address.parse().unwrap())
+        .build()
+        .unwrap();
+
+    let pskt = PSKT::<Creator>::default()
+        .inputs_modifiable()
+        .outputs_modifiable()
+        .constructor()
+        .input(input)
+        .output(output)
+        .updater()
+        .set_sequence(u64::MAX, 0)
+        .unwrap()
+        .signer();
+
+    let schnorr_key = secp256k1::Keypair::from_seckey_slice(secp256k1::SECP256K1, &from_privkey)
+        .map_err(|e| e.to_string())?;
+
+    let reused_values = SigHashReusedValuesUnsync::new();
+    let signed_pskt = pskt
+        .pass_signature_sync(|tx, sighash| -> Result<Vec<SignInputOk>, String> {
+            tx.tx
+                .inputs
+                .iter()
+                .enumerate()
+                .map(|(idx, _input)| {
+                    let hash = calc_schnorr_signature_hash(&tx.as_verifiable(), idx, sighash[idx], &reused_values);
+                    let msg = secp256k1::Message::from_digest_slice(hash.as_bytes().as_slice()).unwrap();
+                    Ok(SignInputOk {
+                        signature: Signature::Schnorr(schnorr_key.sign_schnorr(msg)),
+                        pub_key: schnorr_key.public_key(),
+                        key_source: None,
+                    })
+                })
+                .collect()
+        })
+        .map_err(|e| e.to_string())?;
+
+    let finalizer = signed_pskt.finalizer();
+    let finalizer = finalizer.finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
+        Ok(inner
+            .inputs
+            .iter()
+            .map(|input| -> Vec<u8> {
+                let sig = input.partial_sigs.get(&schnorr_key.public_key()).unwrap();
+                iter::once(OpData65)
+                    .chain(sig.into_bytes())
+                    .chain([input.sighash_type.to_u8()])
+                    .collect()
+            })
+            .collect())
+    }).map_err(|e| e.to_string())?;
+
+    let extractor = finalizer.extractor().map_err(|e| e.to_string())?;
+    let tx = extractor.extract_tx().map_err(|e| e.to_string())?(10).0;
+
+    println!("Deposit transaction ready to submit: {}", serde_json::to_string_pretty(&tx).unwrap());
+    Ok(())
 }
 
-// create a pskt which will 
-// 1. use the multisig to spend the kas from the escrow to somewhere else
-// 2. pay fees from my actual testnet account. this is not part of the multisig.
-// returns the pskt
-fn create_tx(){
+fn create_tx(
+    escrow_info: &EscrowInfo,
+    utxo: UtxoEntry,
+    outpoint: TransactionOutpoint,
+    destination_address: String,
+    amount: u64,
+) -> PSKT<Signer> {
+    let input = InputBuilder::default()
+        .utxo_entry(utxo)
+        .previous_outpoint(outpoint)
+        .sig_op_count(2)
+        .redeem_script(escrow_info.redeem_script.clone())
+        .build()
+        .unwrap();
 
+    let output = OutputBuilder::default()
+        .amount(amount)
+        .script_public_key(destination_address.parse().unwrap())
+        .build()
+        .unwrap();
+
+    PSKT::<Creator>::default()
+        .inputs_modifiable()
+        .outputs_modifiable()
+        .constructor()
+        .input(input)
+        .output(output)
+        .updater()
+        .set_sequence(u64::MAX, 0)
+        .unwrap()
+        .signer()
 }
 
-// in 'parallel' (actually sequentially but mimicking parallel) gather sigs from the multisig keys
-// returns a list of pskts to be combined
-fn get_sigs(){
+fn get_sigs(pskt: PSKT<Signer>, escrow_info: &EscrowInfo) -> Vec<PSKT<Signer>> {
+    let reused_values = SigHashReusedValuesUnsync::new();
+    let sign = |signer_pskt: PSKT<Signer>, kp: &Keypair| {
+        signer_pskt
+            .pass_signature_sync(|tx, sighash| -> Result<Vec<SignInputOk>, String> {
+                tx.tx
+                    .inputs
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, _input)| {
+                        let hash = calc_schnorr_signature_hash(&tx.as_verifiable(), idx, sighash[idx], &reused_values);
+                        let msg = secp256k1::Message::from_digest_slice(hash.as_bytes().as_slice()).unwrap();
+                        Ok(SignInputOk {
+                            signature: Signature::Schnorr(kp.sign_schnorr(msg)),
+                            pub_key: kp.public_key(),
+                            key_source: None,
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap()
+    };
 
+    escrow_info.keypairs.iter()
+        .map(|kp| sign(pskt.clone(), kp))
+        .collect()
 }
 
-// combine the pskts, and submit it to the network
-// it should succeed and spend the kas from the escrow 
-fn submit_tx(){
+fn submit_tx(signed_pskts: Vec<PSKT<Signer>>) -> Result<(), String> {
+    let mut combined = signed_pskts[0].clone().combiner();
+    for pskt in signed_pskts.iter().skip(1) {
+        combined = (combined + pskt.clone().combiner()).map_err(|e| e.to_string())?;
+    }
 
+    let finalizer = combined.finalizer();
+    let finalizer = finalizer.finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
+        Ok(inner
+            .inputs
+            .iter()
+            .map(|input| -> Vec<u8> {
+                let signatures: Vec<_> = input
+                    .partial_sigs
+                    .iter()
+                    .flat_map(|(_, sig)| {
+                        iter::once(OpData65)
+                            .chain(sig.into_bytes())
+                            .chain([input.sighash_type.to_u8()])
+                    })
+                    .collect();
+
+                signatures
+                    .into_iter()
+                    .chain(
+                        ScriptBuilder::new()
+                            .add_data(input.redeem_script.as_ref().unwrap().as_slice())
+                            .unwrap()
+                            .drain()
+                            .iter()
+                            .cloned(),
+                    )
+                    .collect()
+            })
+            .collect())
+    }).map_err(|e| e.to_string())?;
+
+    let extractor = finalizer.extractor().map_err(|e| e.to_string())?;
+    let tx = extractor.extract_tx().map_err(|e| e.to_string())?(10).0;
+    
+    println!("Transaction ready to submit: {}", serde_json::to_string_pretty(&tx).unwrap());
+    Ok(())
 }
 
-fn run_demo(){
-    // create escrow info
-    // deposit funds
-    // create tx
-    // get sigs
-    // submit tx
-}
+fn run_demo() {
+    // Create escrow info
+    let escrow_info = create_escrow_addr();
+    println!("Escrow address: {}", escrow_info.escrow_address);
 
+    // Deposit funds to escrow
+    let from_utxo = UtxoEntry {
+        amount: 2_000_000_000, // 2 KAS
+        script_public_key: "your_testnet_script_pubkey".parse().unwrap(),
+        block_daa_score: 0,
+        is_coinbase: false,
+    };
+    let from_outpoint = TransactionOutpoint {
+        transaction_id: TransactionId::from_str("your_testnet_tx_id").unwrap(),
+        index: 0,
+    };
+    let from_privkey = [0u8; 32]; // Replace with your testnet private key
+
+    deposit_funds(
+        &escrow_info.escrow_address,
+        1_000_000_000, // 1 KAS
+        from_utxo,
+        from_outpoint,
+        from_privkey,
+    ).unwrap();
+
+    // Wait for deposit to confirm...
+
+    // Create transaction to spend from escrow
+    let utxo = UtxoEntry {
+        amount: 1_000_000_000, // 1 KAS
+        script_public_key: pay_to_script_hash_script(&escrow_info.redeem_script),
+        block_daa_score: 0,
+        is_coinbase: false,
+    };
+    let outpoint = TransactionOutpoint {
+        transaction_id: TransactionId::from_str("escrow_tx_id").unwrap(), // Replace with actual escrow tx id
+        index: 0,
+    };
+
+    let pskt = create_tx(
+        &escrow_info,
+        utxo,
+        outpoint,
+        "kaspa:qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq".to_string(),
+        900_000_000, // 0.9 KAS
+    );
+
+    let signed_pskts = get_sigs(pskt, &escrow_info);
+    submit_tx(signed_pskts).unwrap();
+}
 
 fn main() {
-    // example_multisig();
     run_demo();
 } 
 
