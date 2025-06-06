@@ -804,6 +804,7 @@ name = "demo-multisig"
 version = "0.1.0"
 dependencies = [
  "kaspa-consensus-core",
+ "kaspa-rpc-core",
  "kaspa-txscript",
  "kaspa-wallet-core",
  "kaspa-wallet-pskt",
