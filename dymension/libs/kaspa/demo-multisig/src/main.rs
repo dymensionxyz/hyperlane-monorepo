@@ -1,37 +1,151 @@
 #![allow(unused)] // TODO: remove
 
+use kaspa_addresses::{Address, Prefix, Version};
 use kaspa_consensus_core::{
-    hashing::sighash::{calc_schnorr_signature_hash, SigHashReusedValuesUnsync},
+    hashing::sighash::{SigHashReusedValuesUnsync, calc_schnorr_signature_hash},
+    network::{NetworkId, NetworkType},
     tx::{TransactionId, TransactionOutpoint, UtxoEntry},
-    network::{NetworkType, NetworkId},
 };
-use kaspa_txscript::{multisig_redeem_script, opcodes::codes::OpData65, pay_to_script_hash_script, script_builder::ScriptBuilder, extract_script_pub_key_address};
+use kaspa_txscript::{
+    extract_script_pub_key_address, multisig_redeem_script, opcodes::codes::OpData65,
+    pay_to_script_hash_script, script_builder::ScriptBuilder,
+};
 use kaspa_wallet_pskt::prelude::{
-    Combiner, Creator, Extractor, Finalizer, Inner, InputBuilder, OutputBuilder, SignInputOk, Signature, Signer, Updater, PSKT,
+    Combiner, Creator, Extractor, Finalizer, Inner, InputBuilder, OutputBuilder, PSKT, SignInputOk,
+    Signature, Signer, Updater,
 };
 // use kaspa_wallet::Wallet;
-use kaspa_wallet_core::{account::Account, api::WalletApi, api::PingRequest};
+use kaspa_core::{info, kaspad_env::version, time::unix_now, warn};
+use kaspa_grpc_client::{ClientPool, GrpcClient};
+use kaspa_notify::subscription::context::SubscriptionContext;
+use kaspa_rpc_core::{RpcUtxoEntry, api::rpc::RpcApi, notify::mode::NotificationMode};
+use kaspa_txscript::pay_to_address_script;
+use kaspa_wallet_core::error::Error;
 use kaspa_wallet_core::rpc::DynRpcApi;
 use kaspa_wallet_core::storage::{IdT, PrvKeyDataInfo};
 use kaspa_wallet_core::wallet::Wallet;
-use kaspa_wallet_core::error::Error;
+// use kaspa_wallet;
+use kaspa_wallet_keys::secret::Secret;
+use kaspa_wallet_core::{account::Account, api::PingRequest, api::WalletApi};
+// use parking_lot::Mutex;
+// use rand::RngCore;
+// use rayon::prelude::*;
+// use bip39::{Language, Mnemonic, Seed};
+use kaspa_bip32::{DerivationPath, ExtendedPublicKey};
 
+use clap::{Arg, Command};
 
 use std::sync::Arc;
 
-use secp256k1::{rand::thread_rng, Keypair};
+use kaspa_wrpc_client::{KaspaRpcClient, Resolver, WrpcEncoding};
+use secp256k1::{Keypair, rand::thread_rng};
 use std::{iter, str::FromStr};
-use kaspa_wrpc_client::{KaspaRpcClient, WrpcEncoding, Resolver};
 
 const URL: &str = "https://api-tn10.kaspa.org";
 const NETWORK: NetworkType = NetworkType::Testnet;
 const NETWORK_ID: NetworkId = NetworkId::with_suffix(NETWORK, 10);
-
+const ADDRESS_PREFIX: Prefix = Prefix::Testnet;
+const ADDRESS_VERSION: Version = Version::PubKey;
 
 fn get_wallet() -> Result<Arc<Wallet>, Error> {
     // Wallet::try_with_rpc(rpc, store, network_id);
-    Ok(Arc::new(Wallet::try_new(Wallet::local_store()?,Some(Resolver::default()), Some(NETWORK_ID))?))
+    Ok(Arc::new(Wallet::try_new(
+        Wallet::local_store()?,
+        Some(Resolver::default()),
+        Some(NETWORK_ID),
+    )?))
 }
+
+pub fn cli() -> Command {
+    Command::new("rothschild")
+        .about(format!(
+            "{} (rothschild) v{}",
+            env!("CARGO_PKG_DESCRIPTION"),
+            version()
+        ))
+        .version(env!("CARGO_PKG_VERSION"))
+        .arg(
+            Arg::new("private-key")
+                .long("private-key")
+                .short('k')
+                .value_name("private-key")
+                .help("Private key in hex format"),
+        )
+        .arg(
+            Arg::new("rpcserver")
+                .long("rpcserver")
+                .short('s')
+                .value_name("rpcserver")
+                .default_value("localhost:16210")
+                .help("RPC server"),
+        )
+}
+
+pub struct Args {
+    pub private_key: Option<String>,
+    pub rpc_server: String,
+}
+
+impl Args {
+    fn parse() -> Self {
+        let m = cli().get_matches();
+        Args {
+            private_key: m.get_one::<String>("private-key").cloned(),
+            rpc_server: m
+                .get_one::<String>("rpcserver")
+                .cloned()
+                .unwrap_or("localhost:16210".to_owned()),
+        }
+    }
+}
+
+// async fn roth() {
+//     kaspa_core::log::init_logger(None, "");
+//     let args = Args::parse();
+//     let subscription_context = SubscriptionContext::new();
+
+//     let rpc_client = GrpcClient::connect_with_args(
+//         NotificationMode::Direct,
+//         format!("grpc://{}", args.rpc_server),
+//         Some(subscription_context.clone()),
+//         true,
+//         None,
+//         false,
+//         Some(500_000),
+//         Default::default(),
+//     )
+//     .await
+//     .expect("Critical error: failed to connect to the RPC server.");
+
+//     info!("Connected to RPC");
+
+//     let schnorr_key = if let Some(foo) = args.private_key {
+//         // let xpub = ExtendedPublicKey::<secp256k1::PublicKey>::from_str(&foo).unwrap();
+//         // Derive to the same path if needed
+//         // let path = DerivationPath::from_str("m/44'/111111'/0'/0/0").unwrap();
+//         // let derived = xpub.derive_path(&path).unwrap();
+//         // Keypair::from_pubkey_slice(secp256k1::SECP256K1, &derived.public_key).unwrap()
+//         let prv_key_data = PrvKeyData::try_new_from_mnemonic(
+//             foo,
+//             Some(Secret::from("lkjsdf")),
+//             EncryptionKind::XChaCha20Poly1305
+//         )?;
+//     } else {
+//         let (sk, pk) = &secp256k1::generate_keypair(&mut thread_rng());
+//         let kaspa_addr = Address::new(
+//             ADDRESS_PREFIX,
+//             ADDRESS_VERSION,
+//             &pk.x_only_public_key().0.serialize(),
+//         );
+//         info!(
+//             "Generated private key {} and address {}. Send some funds to this address and rerun rothschild with `--private-key {}`",
+//             sk.display_secret(),
+//             String::from(&kaspa_addr),
+//             sk.display_secret()
+//         );
+//         return;
+//     };
+// }
 
 // demonstrates on testnet
 // 1. create multisig escrow address
@@ -41,9 +155,11 @@ fn get_wallet() -> Result<Arc<Wallet>, Error> {
 // 5. user combines the sigs and submits to the network for real, confirming he gets a 'refund' from his original deposit
 // async fn run_demo() {
 async fn run_demo() -> Result<(), Error> {
-
     let wallet = get_wallet()?;
     let open = wallet.is_open();
+    let secret = Secret::from("lkjsdf");
+    wallet.wallet_open(secret, None, true, false).await?;
+    wallet
     println!("Open: {:?}", open);
     // wallet.account()
     // let acc = wallet.accounts(filter, guard)
@@ -54,7 +170,6 @@ async fn run_demo() -> Result<(), Error> {
     // println!("Accounts: {:?}", accounts);
     // println!("Ping response: {:?}", res);
     Ok(())
-
 
     // Create escrow info
     // let escrow_info = create_escrow_addr();
@@ -74,14 +189,16 @@ async fn run_demo() -> Result<(), Error> {
     // let pskt = create_multisig_tx(
     //     &escrow_info,
     //     "kaspa:qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq".to_string(),
-    //     amt, 
+    //     amt,
     // );
 
     // let signed_pskts = get_sigs(pskt, &escrow_info);
     // submit_tx(signed_pskts).unwrap();
 }
 
-fn main() {
-    tokio::runtime::Runtime::new().unwrap().block_on(run_demo()).unwrap();
-    // run_demo().unwrap();
+#[tokio::main]
+async fn main() {
+    // tokio::runtime::Runtime::new().unwrap().block_on(run_demo()).unwrap();
+    run_demo().await;
+    // roth().await;
 }

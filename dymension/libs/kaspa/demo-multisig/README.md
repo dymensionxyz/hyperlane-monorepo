@@ -25,6 +25,10 @@ Faucet: https://faucet-tn10.kaspanet.io/
 
 cargo run --release --bin kaspad -- -C /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/libs/kaspa/demo-multisig/kaspad.toml
 
+### Program
+
+cargo run -k
+
 ## Multisig Theory
 
 ### Theory
