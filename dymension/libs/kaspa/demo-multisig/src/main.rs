@@ -234,16 +234,16 @@ async fn lets_go_wallet() -> Result<(), Error> {
 
     let wallet_secret = Secret::from("lkjsdf");
     let payment_secret: Option<Secret> = None; 
-
     wallet.clone().wallet_open(wallet_secret, None, true, false).await?;
-
+    let account_id = "e85870c5";
+    
     let accounts = wallet.clone().accounts_enumerate().await?;
     let account_descriptor = accounts.get(0).ok_or("This wallet has no accounts.")?;
     let account_id = account_descriptor.account_id;
     info!("Found account: {}", account_descriptor.name_or_id());
 
-    wallet.clone().accounts_activate(Some(vec![account_id])).await?;
     wallet.clone().accounts_select(Some(account_id)).await?;
+    wallet.clone().accounts_activate(Some(vec![account_id])).await?;
     let account = wallet.clone().account()?;
 
     for _ in 0..10 {
