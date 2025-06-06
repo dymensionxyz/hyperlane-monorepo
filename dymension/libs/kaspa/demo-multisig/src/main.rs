@@ -1,5 +1,8 @@
 #![allow(unused)] // TODO: remove
 
+mod x;
+use x::args::Args;
+
 use kaspa_addresses::{Address, Prefix, Version};
 use kaspa_consensus_core::{
     hashing::sighash::{SigHashReusedValuesUnsync, calc_schnorr_signature_hash},
@@ -25,8 +28,8 @@ use kaspa_wallet_core::rpc::DynRpcApi;
 use kaspa_wallet_core::storage::{IdT, PrvKeyDataInfo};
 use kaspa_wallet_core::wallet::Wallet;
 // use kaspa_wallet;
-use kaspa_wallet_keys::secret::Secret;
 use kaspa_wallet_core::{account::Account, api::PingRequest, api::WalletApi};
+use kaspa_wallet_keys::secret::Secret;
 // use parking_lot::Mutex;
 // use rand::RngCore;
 // use rayon::prelude::*;
@@ -48,55 +51,11 @@ const ADDRESS_PREFIX: Prefix = Prefix::Testnet;
 const ADDRESS_VERSION: Version = Version::PubKey;
 
 fn get_wallet() -> Result<Arc<Wallet>, Error> {
-    // Wallet::try_with_rpc(rpc, store, network_id);
     Ok(Arc::new(Wallet::try_new(
         Wallet::local_store()?,
         Some(Resolver::default()),
         Some(NETWORK_ID),
     )?))
-}
-
-pub fn cli() -> Command {
-    Command::new("rothschild")
-        .about(format!(
-            "{} (rothschild) v{}",
-            env!("CARGO_PKG_DESCRIPTION"),
-            version()
-        ))
-        .version(env!("CARGO_PKG_VERSION"))
-        .arg(
-            Arg::new("private-key")
-                .long("private-key")
-                .short('k')
-                .value_name("private-key")
-                .help("Private key in hex format"),
-        )
-        .arg(
-            Arg::new("rpcserver")
-                .long("rpcserver")
-                .short('s')
-                .value_name("rpcserver")
-                .default_value("localhost:16210")
-                .help("RPC server"),
-        )
-}
-
-pub struct Args {
-    pub private_key: Option<String>,
-    pub rpc_server: String,
-}
-
-impl Args {
-    fn parse() -> Self {
-        let m = cli().get_matches();
-        Args {
-            private_key: m.get_one::<String>("private-key").cloned(),
-            rpc_server: m
-                .get_one::<String>("rpcserver")
-                .cloned()
-                .unwrap_or("localhost:16210".to_owned()),
-        }
-    }
 }
 
 async fn roth() {
@@ -119,14 +78,17 @@ async fn roth() {
 
     info!("Connected to RPC");
 
-
     let schnorr_key = if let Some(private_key_hex) = args.private_key {
         let mut private_key_bytes = [0u8; 32];
         faster_hex::hex_decode(private_key_hex.as_bytes(), &mut private_key_bytes).unwrap();
         Keypair::from_seckey_slice(secp256k1::SECP256K1, &private_key_bytes).unwrap()
     } else {
         let (sk, pk) = &secp256k1::generate_keypair(&mut thread_rng());
-        let kaspa_addr = Address::new(ADDRESS_PREFIX, ADDRESS_VERSION, &pk.x_only_public_key().0.serialize());
+        let kaspa_addr = Address::new(
+            ADDRESS_PREFIX,
+            ADDRESS_VERSION,
+            &pk.x_only_public_key().0.serialize(),
+        );
         info!(
             "Generated private key {} and address {}. Send some funds to this address and rerun rothschild with `--private-key {}`",
             sk.display_secret(),
