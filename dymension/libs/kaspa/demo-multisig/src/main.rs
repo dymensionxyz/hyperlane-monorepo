@@ -29,7 +29,7 @@ const NETWORK_ID: NetworkId = NetworkId::with_suffix(NETWORK, 10);
 
 
 fn get_wallet() -> Result<Arc<Wallet>, Error> {
-    Wallet::try_with_rpc(rpc, store, network_id)
+    // Wallet::try_with_rpc(rpc, store, network_id);
     Ok(Arc::new(Wallet::try_new(Wallet::local_store()?,Some(Resolver::default()), Some(NETWORK_ID))?))
 }
 
@@ -44,10 +44,10 @@ async fn run_demo() -> Result<(), Error> {
 
     let wallet = get_wallet()?;
     let open = wallet.is_open();
-    wallet.account()
-    let acc = wallet.accounts(filter, guard)
-    // wallet.open(wallet_secret, filename, args, guard)
     println!("Open: {:?}", open);
+    // wallet.account()
+    // let acc = wallet.accounts(filter, guard)
+    // wallet.open(wallet_secret, filename, args, guard)
     // let res = wallet.ping(None).await;
     // let accounts = wallet.accounts(None, &guard).await;
     // println!("Ping response: {:?}", res);
