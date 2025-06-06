@@ -10,6 +10,10 @@ use secp256k1::{rand::thread_rng, Keypair};
 use std::{iter, str::FromStr};
 
 fn main() {
+    run_demo();
+} 
+
+fn run_demo(){
     let kps = [Keypair::new(secp256k1::SECP256K1, &mut thread_rng()), Keypair::new(secp256k1::SECP256K1, &mut thread_rng())];
     let redeem_script = multisig_redeem_script(kps.iter().map(|pk| pk.x_only_public_key().0.serialize()), 2).unwrap();
     // Create the PSKT.
