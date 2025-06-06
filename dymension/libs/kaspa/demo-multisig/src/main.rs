@@ -14,6 +14,8 @@ use kaspa_wallet_core::error::Error;
 use kaspa_wallet_core::wallet::Wallet;
 use kaspa_wallet_keys::secret::Secret;
 
+use kaspa_txscript::{multisig_redeem_script, opcodes::codes::OpData65, pay_to_script_hash_script, script_builder::ScriptBuilder, extract_script_pub_key_address};
+
 use std::sync::Arc;
 
 use kaspa_wrpc_client::Resolver;
@@ -82,6 +84,22 @@ fn get_user(args: &Args) -> Result<User, Error> {
     };
 }
 
+struct Escrow {
+    keys: Vec<Keypair>,
+    redeem_script: Vec<u8>,
+    addr: Address,
+}
+
+fn create_escrow() -> Escrow {
+    let m = 2; // required
+    let n = 2; // total
+    let kps = (0..n).map(|_| Keypair::new(secp256k1::SECP256K1, &mut thread_rng())).collect::<Vec<_>>();
+    let redeem_script = multisig_redeem_script(kps.iter().map(|pk| pk.x_only_public_key().0.serialize()), m).unwrap();
+    let p2hs = pay_to_script_hash_script(&redeem_script);
+    let addr = extract_script_pub_key_address(&p2hs, ADDRESS_PREFIX).unwrap();
+    Escrow { keys: kps.to_vec(), redeem_script, addr }
+} 
+
 // demonstrates on testnet
 // 1. create multisig escrow address
 // 2. user deposits to escrow (1 kas)
@@ -94,6 +112,8 @@ async fn lets_go() {
     let args = Args::parse();
     let rpc_client = get_client(&args).await;
     let user = get_user(&args);
+    let escrow = create_escrow();
+    println!("Escrow address: {}", escrow.addr);
 }
 
 #[tokio::main]
