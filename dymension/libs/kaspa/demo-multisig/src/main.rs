@@ -1,16 +1,24 @@
 use kaspa_consensus_core::{
     hashing::sighash::{calc_schnorr_signature_hash, SigHashReusedValuesUnsync},
     tx::{TransactionId, TransactionOutpoint, UtxoEntry},
+    network::{NetworkType, NetworkTypeT},
 };
-use kaspa_txscript::{multisig_redeem_script, opcodes::codes::OpData65, pay_to_script_hash_script, script_builder::ScriptBuilder};
+use kaspa_txscript::{multisig_redeem_script, opcodes::codes::OpData65, pay_to_script_hash_script, script_builder::ScriptBuilder, extract_script_pub_key_address};
 use kaspa_wallet_pskt::prelude::{
     Combiner, Creator, Extractor, Finalizer, Inner, InputBuilder, OutputBuilder, SignInputOk, Signature, Signer, Updater, PSKT,
 };
 use secp256k1::{rand::thread_rng, Keypair};
 use std::{iter, str::FromStr};
 
+const NETWORK: NetworkType = NetworkType::Testnet;
+
+fn get_signer() {
+    // TODO: return a signer from my actualy testnet account
+}
+
 // Return an rpc client for testnet 10
 fn get_testnet_client(){
+    // TODO: complete
 
 }
 
@@ -31,8 +39,9 @@ fn create_escrow_addr() -> EscrowInfo {
         2
     ).unwrap();
     
+    // TODO: check, need script_pub_key? 
     let script_pub_key = pay_to_script_hash_script(&redeem_script);
-    let escrow_address = format!("{:?}", script_pub_key);
+    let escrow_address = extract_script_pub_key_address(&script_pub_key, NETWORK.into()).unwrap().to_string();
 
     EscrowInfo {
         keypairs: kps.to_vec(),
@@ -42,12 +51,26 @@ fn create_escrow_addr() -> EscrowInfo {
 }
 
 fn deposit_funds(
+    client, // TODO:
     escrow_address: &str,
     amount: u64,
-    from_utxo: UtxoEntry,
-    from_outpoint: TransactionOutpoint,
-    from_privkey: [u8; 32],
+    signer: // TODO:
 ) -> Result<(), String> {
+    // get a spendable UTXO
+
+    // Deposit funds to escrow
+    let from_utxo = UtxoEntry {
+        amount: 2_000_000_000, // 2 KAS
+        script_public_key: "your_testnet_script_pubkey".parse().unwrap(),
+        block_daa_score: 0,
+        is_coinbase: false,
+    };
+    let from_outpoint = TransactionOutpoint {
+        transaction_id: TransactionId::from_str("your_testnet_tx_id").unwrap(),
+        index: 0,
+    };
+    let from_privkey = [0u8; 32]; // Replace with your testnet private key
+
     let input = InputBuilder::default()
         .utxo_entry(from_utxo)
         .previous_outpoint(from_outpoint)
@@ -57,73 +80,40 @@ fn deposit_funds(
 
     let output = OutputBuilder::default()
         .amount(amount)
-        .script_public_key(escrow_address.parse().unwrap())
+        .script_public_key(escrow_address.parse().unwrap()) // TODO: make sure to use the right addr
         .build()
         .unwrap();
 
-    let pskt = PSKT::<Creator>::default()
-        .inputs_modifiable()
-        .outputs_modifiable()
-        .constructor()
-        .input(input)
-        .output(output)
-        .updater()
-        .set_sequence(u64::MAX, 0)
-        .unwrap()
-        .signer();
 
     let schnorr_key = secp256k1::Keypair::from_seckey_slice(secp256k1::SECP256K1, &from_privkey)
         .map_err(|e| e.to_string())?;
 
     let reused_values = SigHashReusedValuesUnsync::new();
-    let signed_pskt = pskt
-        .pass_signature_sync(|tx, sighash| -> Result<Vec<SignInputOk>, String> {
-            tx.tx
-                .inputs
-                .iter()
-                .enumerate()
-                .map(|(idx, _input)| {
-                    let hash = calc_schnorr_signature_hash(&tx.as_verifiable(), idx, sighash[idx], &reused_values);
-                    let msg = secp256k1::Message::from_digest_slice(hash.as_bytes().as_slice()).unwrap();
-                    Ok(SignInputOk {
-                        signature: Signature::Schnorr(schnorr_key.sign_schnorr(msg)),
-                        pub_key: schnorr_key.public_key(),
-                        key_source: None,
-                    })
-                })
-                .collect()
-        })
-        .map_err(|e| e.to_string())?;
-
-    let finalizer = signed_pskt.finalizer();
-    let finalizer = finalizer.finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
-        Ok(inner
-            .inputs
-            .iter()
-            .map(|input| -> Vec<u8> {
-                let sig = input.partial_sigs.get(&schnorr_key.public_key()).unwrap();
-                iter::once(OpData65)
-                    .chain(sig.into_bytes())
-                    .chain([input.sighash_type.to_u8()])
-                    .collect()
-            })
-            .collect())
-    }).map_err(|e| e.to_string())?;
-
-    let extractor = finalizer.extractor().map_err(|e| e.to_string())?;
+   
     let tx = extractor.extract_tx().map_err(|e| e.to_string())?(10).0;
 
-    println!("Deposit transaction ready to submit: {}", serde_json::to_string_pretty(&tx).unwrap());
-    Ok(())
+    // TODO: actually submit the tx and verify it is accepted. No need to use PSKT or multisig. Just a simple TX
+
 }
 
-fn create_tx(
+// use pskt to create a multisig tx which will spend the escrow funds back to the original signer
+// the creator should also be the one who adds his own utxo to pay fees
+fn create_multisig_tx(
     escrow_info: &EscrowInfo,
-    utxo: UtxoEntry,
-    outpoint: TransactionOutpoint,
-    destination_address: String,
-    amount: u64,
+    destination_address: String, // Send back to the original signer
+    amount: u64, // same amount that was deposited
 ) -> PSKT<Signer> {
+      // Create transaction to spend from escrow
+      let utxo = UtxoEntry {
+        amount: 1_000_000_000, // 1 KAS
+        script_public_key: pay_to_script_hash_script(&escrow_info.redeem_script),
+        block_daa_score: 0,
+        is_coinbase: false,
+    };
+    let outpoint = TransactionOutpoint {
+        transaction_id: TransactionId::from_str("escrow_tx_id").unwrap(), // Replace with actual escrow tx id
+        index: 0,
+    };
     let input = InputBuilder::default()
         .utxo_entry(utxo)
         .previous_outpoint(outpoint)
@@ -150,6 +140,7 @@ fn create_tx(
         .signer()
 }
 
+// gather sigs from the multisig key pairs, mimick a parallel signing flow, to combine later
 fn get_sigs(pskt: PSKT<Signer>, escrow_info: &EscrowInfo) -> Vec<PSKT<Signer>> {
     let reused_values = SigHashReusedValuesUnsync::new();
     let sign = |signer_pskt: PSKT<Signer>, kp: &Keypair| {
@@ -178,6 +169,8 @@ fn get_sigs(pskt: PSKT<Signer>, escrow_info: &EscrowInfo) -> Vec<PSKT<Signer>> {
         .collect()
 }
 
+// combine the pskts and submit to the network for real
+// make sure it's accepted
 fn submit_tx(signed_pskts: Vec<PSKT<Signer>>) -> Result<(), String> {
     let mut combined = signed_pskts[0].clone().combiner();
     for pskt in signed_pskts.iter().skip(1) {
@@ -218,56 +211,42 @@ fn submit_tx(signed_pskts: Vec<PSKT<Signer>>) -> Result<(), String> {
     let extractor = finalizer.extractor().map_err(|e| e.to_string())?;
     let tx = extractor.extract_tx().map_err(|e| e.to_string())?(10).0;
     
-    println!("Transaction ready to submit: {}", serde_json::to_string_pretty(&tx).unwrap());
-    Ok(())
+    // TODO: submit for real
 }
 
+// demonstrates on testnet
+// 1. create multisig escrow address
+// 2. user deposits to escrow (1 kas)
+// 3. user creates a multisig tx which requires sigs from the escrow key holders. User adds his own utxo to pay fees
+// 4. user gathers sigs from the escrow key holders, mimick a parallel signing flow, to combine later
+// 5. user combines the sigs and submits to the network for real, confirming he gets a 'refund' from his original deposit
 fn run_demo() {
+    // TODO: fix
+
+
     // Create escrow info
     let escrow_info = create_escrow_addr();
     println!("Escrow address: {}", escrow_info.escrow_address);
 
-    // Deposit funds to escrow
-    let from_utxo = UtxoEntry {
-        amount: 2_000_000_000, // 2 KAS
-        script_public_key: "your_testnet_script_pubkey".parse().unwrap(),
-        block_daa_score: 0,
-        is_coinbase: false,
-    };
-    let from_outpoint = TransactionOutpoint {
-        transaction_id: TransactionId::from_str("your_testnet_tx_id").unwrap(),
-        index: 0,
-    };
-    let from_privkey = [0u8; 32]; // Replace with your testnet private key
+    
+    client = get_testnet_client();
+
+    let amt = 1_000_000_000; // 1 KAS
 
     deposit_funds(
+       client, 
         &escrow_info.escrow_address,
-        1_000_000_000, // 1 KAS
-        from_utxo,
-        from_outpoint,
-        from_privkey,
+        amt, // 1 KAS
+        signer,
     ).unwrap();
 
-    // Wait for deposit to confirm...
 
-    // Create transaction to spend from escrow
-    let utxo = UtxoEntry {
-        amount: 1_000_000_000, // 1 KAS
-        script_public_key: pay_to_script_hash_script(&escrow_info.redeem_script),
-        block_daa_score: 0,
-        is_coinbase: false,
-    };
-    let outpoint = TransactionOutpoint {
-        transaction_id: TransactionId::from_str("escrow_tx_id").unwrap(), // Replace with actual escrow tx id
-        index: 0,
-    };
+  
 
-    let pskt = create_tx(
+    let pskt = create_multisig_tx(
         &escrow_info,
-        utxo,
-        outpoint,
         "kaspa:qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq".to_string(),
-        900_000_000, // 0.9 KAS
+        amt, 
     );
 
     let signed_pskts = get_sigs(pskt, &escrow_info);
