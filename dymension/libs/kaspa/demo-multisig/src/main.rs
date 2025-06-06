@@ -1,3 +1,5 @@
+#![allow(unused)] // TODO: remove
+
 use kaspa_consensus_core::{
     hashing::sighash::{calc_schnorr_signature_hash, SigHashReusedValuesUnsync},
     tx::{TransactionId, TransactionOutpoint, UtxoEntry},
@@ -8,11 +10,12 @@ use kaspa_wallet_pskt::prelude::{
     Combiner, Creator, Extractor, Finalizer, Inner, InputBuilder, OutputBuilder, SignInputOk, Signature, Signer, Updater, PSKT,
 };
 // use kaspa_wallet::Wallet;
-use kaspa_wallet_core::account::Account;
+use kaspa_wallet_core::{account::Account, api::WalletApi, api::PingRequest};
 use kaspa_wallet_core::rpc::DynRpcApi;
 use kaspa_wallet_core::storage::{IdT, PrvKeyDataInfo};
 use kaspa_wallet_core::wallet::Wallet;
 use kaspa_wallet_core::error::Error;
+
 
 use std::sync::Arc;
 
@@ -22,11 +25,11 @@ use kaspa_wrpc_client::{KaspaRpcClient, WrpcEncoding, Resolver};
 
 const URL: &str = "https://api-tn10.kaspa.org";
 const NETWORK: NetworkType = NetworkType::Testnet;
+const NETWORK_ID: NetworkId = NetworkId::with_suffix(NETWORK, 10);
 
 
 fn get_wallet() -> Result<Arc<Wallet>, Error> {
-    let network_id = Some(NetworkId::new(NETWORK));
-    Ok(Arc::new(Wallet::try_new(Wallet::local_store()?,Some(Resolver::default()), network_id)?))
+    Ok(Arc::new(Wallet::try_new(Wallet::local_store()?,Some(Resolver::default()), Some(NETWORK_ID))?))
 }
 
 // demonstrates on testnet
@@ -36,9 +39,11 @@ fn get_wallet() -> Result<Arc<Wallet>, Error> {
 // 4. user gathers sigs from the escrow key holders, mimick a parallel signing flow, to combine later
 // 5. user combines the sigs and submits to the network for real, confirming he gets a 'refund' from his original deposit
 // async fn run_demo() {
-fn run_demo() -> Result<(), Error> {
+async fn run_demo() -> Result<(), Error> {
 
     let wallet = get_wallet()?;
+    let res = wallet.ping(None).await;
+    println!("Ping response: {:?}", res);
     Ok(())
 
 
@@ -68,8 +73,8 @@ fn run_demo() -> Result<(), Error> {
 }
 
 fn main() {
-    // tokio::runtime::Runtime::new().unwrap().block_on(run_demo());
-    run_demo().unwrap();
+    tokio::runtime::Runtime::new().unwrap().block_on(run_demo()).unwrap();
+    // run_demo().unwrap();
 }
 
 fn example_multisig(){
