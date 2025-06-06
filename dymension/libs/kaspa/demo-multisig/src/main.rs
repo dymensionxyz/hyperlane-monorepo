@@ -9,35 +9,64 @@ use kaspa_wallet_pskt::prelude::{
 use secp256k1::{rand::thread_rng, Keypair};
 use std::{iter, str::FromStr};
 
+// Return an rpc client for testnet 10
 fn get_testnet_client(){
 
 }
 
+struct EscrowInfo {
+    // contains a list of private, pubkey pairs
+    // a sig hash
+    // a redeem script
+    // the escrow address users can deposit to
+}
+
+// returns escrow info
+// will need to create the key pairs, the multisig script etc
 fn create_escrow_addr(){
 
 }
 
+// use my actual testnet account to deposit 1 kas to the escrow address
 fn deposit_funds(){
 
 }
 
+// create a pskt which will 
+// 1. use the multisig to spend the kas from the escrow to somewhere else
+// 2. pay fees from my actual testnet account. this is not part of the multisig.
+// returns the pskt
 fn create_tx(){
 
 }
 
+// in 'parallel' (actually sequentially but mimicking parallel) gather sigs from the multisig keys
+// returns a list of pskts to be combined
 fn get_sigs(){
 
 }
 
+// combine the pskts, and submit it to the network
+// it should succeed and spend the kas from the escrow 
 fn submit_tx(){
-    
+
 }
 
+fn run_demo(){
+    // create escrow info
+    // deposit funds
+    // create tx
+    // get sigs
+    // submit tx
+}
+
+
 fn main() {
+    // example_multisig();
     run_demo();
 } 
 
-fn run_demo(){
+fn example_multisig(){
     let kps = [Keypair::new(secp256k1::SECP256K1, &mut thread_rng()), Keypair::new(secp256k1::SECP256K1, &mut thread_rng())];
     let redeem_script = multisig_redeem_script(kps.iter().map(|pk| pk.x_only_public_key().0.serialize()), 2).unwrap();
     // Create the PSKT.
