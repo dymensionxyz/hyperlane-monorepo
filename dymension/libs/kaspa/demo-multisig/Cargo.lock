@@ -1001,6 +1001,7 @@ dependencies = [
  "secp256k1",
  "serde_json",
  "tokio",
+ "workflow-core",
 ]
 
 [[package]]

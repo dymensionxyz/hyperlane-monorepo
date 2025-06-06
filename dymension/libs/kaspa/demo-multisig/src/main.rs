@@ -10,8 +10,8 @@ use kaspa_consensus_core::{
     sign::sign,
     subnets::SUBNETWORK_ID_NATIVE,
     tx::{
-        MutableTransaction, Transaction, TransactionInput, TransactionOutpoint, TransactionOutput,
-        UtxoEntry, ScriptPublicKey,
+        MutableTransaction, ScriptPublicKey, Transaction, TransactionInput, TransactionOutpoint,
+        TransactionOutput, UtxoEntry,
     },
 };
 use kaspa_core::info;
@@ -23,9 +23,10 @@ use kaspa_wallet_core::error::Error;
 use kaspa_wallet_core::wallet::Wallet;
 use kaspa_wallet_keys::secret::Secret;
 
+use kaspa_wallet_core::prelude::*; // Import the prelude for easy access to traits/structs
+
 use kaspa_txscript::{
-    extract_script_pub_key_address, multisig_redeem_script, opcodes::codes::OpData65,
-    pay_to_address_script, pay_to_script_hash_script, script_builder::ScriptBuilder,
+    extract_script_pub_key_address, multisig_redeem_script, pay_to_script_hash_script,
 };
 
 use std::sync::Arc;
@@ -34,7 +35,6 @@ use kaspa_wrpc_client::Resolver;
 use secp256k1::{Keypair, rand::thread_rng};
 
 use kaspa_rpc_core::api::rpc::RpcApi;
-use kaspa_rpc_core::model::GetBalanceByAddressRequest;
 
 const NETWORK: NetworkType = NetworkType::Testnet;
 const NETWORK_ID: NetworkId = NetworkId::with_suffix(NETWORK, 10);
@@ -199,7 +199,7 @@ async fn deposit(
 // 4. user gathers sigs from the escrow key holders, mimick a parallel signing flow, to combine later
 // 5. user combines the sigs and submits to the network for real, confirming he gets a 'refund' from his original deposit
 // async fn run_demo() {
-async fn lets_go() {
+async fn lets_go_low() {
     kaspa_core::log::init_logger(None, "");
     let args = Args::parse();
     let rpc_client = get_client(&args).await;
@@ -213,7 +213,7 @@ async fn lets_go() {
 
     // Deposit 1 KAS to escrow
     let amount = 1_000_000_000; // 1 KAS in sompi
-    deposit(&rpc_client, &escrow.addr, amount).await.unwrap();
+    deposit(&rpc_client, &user, &escrow, amount).await.unwrap();
     println!("Deposited {} sompi to escrow", amount);
 
     // Check new balances
@@ -223,7 +223,76 @@ async fn lets_go() {
     println!("New escrow balance: {}", balance);
 }
 
+async fn lets_go_wallet() -> Result<(), Error> {
+    kaspa_core::log::init_logger(None, "");
+    let args = Args::parse();
+
+    // --- Wallet Framework Setup ---
+
+    // 1. Get the wallet instance. It's not open yet.
+    let wallet = get_wallet()?;
+
+    // 2. Start the wallet's background services (UTXO processor, event handling).
+    wallet.start().await?;
+
+    // You need a secret to open your wallet.
+    // In a real app, you would get this from the user.
+    let wallet_secret = Secret::from("lkjsdf");
+    let payment_secret: Option<Secret> = None; // Use Some(Secret::from("...")) if you have a BIP39 passphrase
+
+    // 3. Open the wallet. This decrypts and loads the data.
+    // We assume the default filename. If yours is different, specify it.
+    // We request account descriptors to be loaded.
+    info!("Opening wallet...");
+    wallet.wallet_open(wallet_secret, None, true, false).await?;
+
+    // 4. Get the first account from the wallet.
+    // In a real app, you might let the user choose from a list.
+    let accounts = wallet.accounts_enumerate().await?;
+    let account_descriptor = accounts.get(0).ok_or("This wallet has no accounts.")?;
+    let account_id = account_descriptor.account_id;
+    info!("Found account: {}", account_descriptor.name_or_id());
+
+    // 5. Activate the account. This will scan for UTXOs and start tracking.
+    info!("Activating account...");
+    wallet.accounts_activate(Some(vec![account_id])).await?;
+    let account = wallet.account()?;
+
+    // 6. Check the balance. It might take a moment to sync initially.
+    info!("Waiting for initial balance sync...");
+    // Loop briefly to allow the initial UTXO scan to complete.
+    for _ in 0..5 {
+        if account.balance().is_some() {
+            break;
+        }
+        workflow_core::task::sleep(std::time::Duration::from_millis(200)).await;
+    }
+
+    if let Some(balance) = account.balance() {
+        // The Balance struct has mature, pending, and outgoing fields.
+        info!("Account Balance:");
+        info!("  Mature:   {} KAS", sompi_to_kaspa_string(balance.mature));
+        info!("  Pending:  {} KAS", sompi_to_kaspa_string(balance.pending));
+        info!(
+            "  Outgoing: {} KAS",
+            sompi_to_kaspa_string(balance.outgoing)
+        );
+    } else {
+        info!("Account has no balance or is still syncing.");
+    }
+
+    // 7. Cleanly shut down the wallet's background services
+    info!("Closing wallet...");
+    wallet.stop().await?;
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() {
-    lets_go().await;
+    // lets_go_low().await;
+
+    if let Err(e) = lets_go_wallet().await {
+        eprintln!("Error: {}", e);
+    }
 }
