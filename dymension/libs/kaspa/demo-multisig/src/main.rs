@@ -12,6 +12,7 @@ use kaspa_wallet_core::account::Account;
 use kaspa_wallet_core::rpc::DynRpcApi;
 use kaspa_wallet_core::storage::{IdT, PrvKeyDataInfo};
 use kaspa_wallet_core::wallet::Wallet;
+use kaspa_wallet_core::error::Error;
 
 use std::sync::Arc;
 
@@ -23,7 +24,7 @@ const URL: &str = "https://api-tn10.kaspa.org";
 const NETWORK: NetworkType = NetworkType::Testnet;
 
 
-fn get_wallet() -> Result<Arc<Wallet>, std::Error> {
+fn get_wallet() -> Result<Arc<Wallet>, Error> {
     let network_id = Some(NetworkId::new(NETWORK));
     Ok(Arc::new(Wallet::try_new(Wallet::local_store()?,Some(Resolver::default()), network_id)?))
 }
@@ -34,7 +35,11 @@ fn get_wallet() -> Result<Arc<Wallet>, std::Error> {
 // 3. user creates a multisig tx which requires sigs from the escrow key holders. User adds his own utxo to pay fees
 // 4. user gathers sigs from the escrow key holders, mimick a parallel signing flow, to combine later
 // 5. user combines the sigs and submits to the network for real, confirming he gets a 'refund' from his original deposit
-async fn run_demo() {
+// async fn run_demo() {
+fn run_demo() -> Result<(), Error> {
+
+    let wallet = get_wallet()?;
+    Ok(())
 
 
     // Create escrow info
@@ -63,7 +68,8 @@ async fn run_demo() {
 }
 
 fn main() {
-    tokio::runtime::Runtime::new().unwrap().block_on(run_demo());
+    // tokio::runtime::Runtime::new().unwrap().block_on(run_demo());
+    run_demo().unwrap();
 }
 
 fn example_multisig(){

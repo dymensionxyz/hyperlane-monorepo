@@ -807,6 +807,7 @@ dependencies = [
  "kaspa-txscript",
  "kaspa-wallet-core",
  "kaspa-wallet-pskt",
+ "kaspa-wrpc-client",
  "secp256k1",
  "serde_json",
  "tokio",
