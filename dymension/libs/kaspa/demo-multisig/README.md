@@ -29,13 +29,13 @@ cargo run --release --bin kaspad -- -C /Users/danwt/Documents/dym/d-hyperlane-mo
 
 ### Theory
 
+TODO:
+
 ### TX construction
 
 _PSKT_
 
-Partially signed kaspa transactions (spec: https://github.com/bitcoin/bips/blob/master/bip-0370.mediawiki#creator) let actors cooperate.
-
-Gist:
+Partially signed kaspa transactions (spec: https://github.com/bitcoin/bips/blob/master/bip-0174.mediawiki, https://github.com/bitcoin/bips/blob/master/bip-0370.mediawiki#creator) let actors cooperate.
 
 _Setup_
 
@@ -43,11 +43,17 @@ Validators need to create key pairs and collaborate to make a multisig redeem sc
 
 They will need to publish the script_public_key (p2sh) which can be generated (https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/consensus/client/src/utils.rs#L30).
 
-Users will escrow to that key.
+Actually there is a util to combine this (https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/derivation.rs#L442-L456).
 
-_Construction (relayer)_
+Users will escrow to that address.
 
-_Signing (validators)_
+_Construction (relayer)_ (https://github.com/bitcoin/bips/blob/master/bip-0174.mediawiki#creator)
+
+Use bundle (https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/pskt/src/bundle.rs#L23) for transport.
+
+_Signing (validators)_ (https://github.com/bitcoin/bips/blob/master/bip-0174.mediawiki#signer)
+
+TODO: parallel aspect
 
 ### Src and refs
 
