@@ -7,7 +7,6 @@ use x::wallet::*;
 
 use std::sync::Arc;
 
-
 use kaspa_addresses::Address;
 use kaspa_consensus_core::{
     constants::TX_VERSION,
@@ -20,7 +19,9 @@ use kaspa_consensus_core::{
 };
 use kaspa_core::info;
 use kaspa_grpc_client::GrpcClient;
+use kaspa_wallet_core::api::{AccountsSendRequest, WalletApi};
 use kaspa_wallet_core::error::Error;
+use kaspa_wallet_core::tx::Fees;
 
 use kaspa_wallet_core::prelude::*; // Import the prelude for easy access to traits/structs
 
@@ -58,63 +59,21 @@ fn create_escrow() -> Escrow {
     }
 }
 
-async fn deposit(
-    wallet: &Arc<Wallet>,
-    escrow: &Escrow,
-    amount: u64,
-) -> Result<(), Error> {
-    let utxos = client
-        .get_utxos_by_addresses(vec![user.addr.clone()])
-        .await?;
-    let utxo_entries: Vec<(TransactionOutpoint, UtxoEntry)> = utxos
-        .into_iter()
-        .map(|entry| {
-            (
-                TransactionOutpoint::from(entry.outpoint),
-                UtxoEntry::from(entry.utxo_entry),
-            )
+async fn deposit(w: &Arc<Wallet>, secret: &Secret, e: &Escrow, amt: u64) -> Result<(), Error> {
+    let a = w.account()?;
+
+    let r = w
+        .clone()
+        .accounts_send(AccountsSendRequest {
+            account_id: a.id().clone(),
+            wallet_secret: secret.clone(),
+            payment_secret: None,
+            destination: PaymentDestination::from(PaymentOutput::new(e.addr.clone(), amt)),
+            priority_fee_sompi: Fees::from(1000i64),
+            payload: None,
         })
-        .collect();
+        .await;
 
-    let inputs = utxo_entries
-        .iter()
-        .map(|(op, _)| TransactionInput {
-            previous_outpoint: *op,
-            signature_script: vec![],
-            sequence: 0,
-            sig_op_count: 1,
-        })
-        .collect::<Vec<_>>();
-
-    let outputs = vec![TransactionOutput {
-        value: amount,
-        script_public_key: escrow.p2sh.clone(),
-    }];
-
-    let unsigned_tx = Transaction::new_non_finalized(
-        TX_VERSION,
-        inputs,
-        outputs,
-        0,
-        SUBNETWORK_ID_NATIVE,
-        0,
-        vec![],
-    );
-
-    let signed_tx = sign(
-        MutableTransaction::with_entries(
-            unsigned_tx,
-            utxo_entries
-                .iter()
-                .map(|(_, entry)| entry.clone())
-                .collect::<Vec<_>>(),
-        ),
-        user.k,
-    );
-
-    client
-        .submit_transaction(signed_tx.tx.as_ref().into(), false)
-        .await?;
     Ok(())
 }
 
@@ -122,7 +81,8 @@ async fn demo() -> Result<(), Error> {
     kaspa_core::log::init_logger(None, "");
     let args = Args::parse();
 
-    let w = get_wallet(args.wallet_secret.unwrap_or("".to_string())).await?;
+    let s = Secret::from(args.wallet_secret.unwrap_or("".to_string()));
+    let w = get_wallet(&s).await?;
 
     debug_balance(w.clone()).await?;
 
@@ -130,6 +90,8 @@ async fn demo() -> Result<(), Error> {
     info!("Escrow address: {}", e.addr);
 
     w.stop().await?;
+
+    deposit(&w, &s, &e, 20_000_000).await?;
     Ok(())
 }
 

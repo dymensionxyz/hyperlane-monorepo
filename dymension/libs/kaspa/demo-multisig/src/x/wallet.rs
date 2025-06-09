@@ -13,7 +13,7 @@ use std::sync::Arc;
 use crate::x::consts::*;
 use kaspa_wrpc_client::Resolver;
 
-pub async fn get_wallet(secret: String) -> Result<Arc<Wallet>, Error> {
+pub async fn get_wallet(s: &Secret) -> Result<Arc<Wallet>, Error> {
     let w = Arc::new(Wallet::try_new(
         Wallet::local_store()?,
         Some(Resolver::default()),
@@ -27,7 +27,6 @@ pub async fn get_wallet(secret: String) -> Result<Arc<Wallet>, Error> {
         .connect(Some(URL.to_string()), &NETWORK_ID)
         .await?;
 
-    let s = Secret::from(secret);
     w.clone().wallet_open(s, None, true, false).await?;
 
     let accounts = w.clone().accounts_enumerate().await?;
