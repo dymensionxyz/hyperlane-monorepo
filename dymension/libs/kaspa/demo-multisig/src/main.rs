@@ -91,7 +91,7 @@ async fn demo() -> Result<(), Error> {
 
     w.stop().await?;
 
-    deposit(&w, &s, &e, 20_000_000).await?;
+    // deposit(&w, &s, &e, 20_000_000).await?;
     Ok(())
 }
 

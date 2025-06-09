@@ -27,7 +27,7 @@ pub async fn get_wallet(s: &Secret) -> Result<Arc<Wallet>, Error> {
         .connect(Some(URL.to_string()), &NETWORK_ID)
         .await?;
 
-    w.clone().wallet_open(s, None, true, false).await?;
+    w.clone().wallet_open(s.clone(), None, true, false).await?;
 
     let accounts = w.clone().accounts_enumerate().await?;
     let account_descriptor = accounts.get(0).ok_or("Wallet has no accounts.")?;
