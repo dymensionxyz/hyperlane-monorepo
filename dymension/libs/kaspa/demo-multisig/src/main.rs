@@ -165,6 +165,9 @@ async fn demo() -> Result<(), Error> {
 
     debug_balance(w.clone()).await?;
 
+    let e = create_escrow();
+    info!("Escrow address: {}", e.addr);
+
     w.stop().await?;
     Ok(())
 }
