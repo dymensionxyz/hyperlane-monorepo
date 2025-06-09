@@ -27,10 +27,18 @@ pub fn cli() -> Command {
                 .default_value("localhost:16210")
                 .help("RPC server"),
         )
+        .arg(
+            Arg::new("wallet-secret")
+                .long("wallet-secret")
+                .short('w')
+                .value_name("wallet-secret")
+                .help("Wallet secret"),
+        )
 }
 
 pub struct Args {
     pub private_key: Option<String>,
+    pub wallet_secret: Option<String>,
     pub rpc_server: String,
 }
 
@@ -39,6 +47,7 @@ impl Args {
         let m = cli().get_matches();
         Args {
             private_key: m.get_one::<String>("private-key").cloned(),
+            wallet_secret: m.get_one::<String>("wallet-secret").cloned(),
             rpc_server: m
                 .get_one::<String>("rpcserver")
                 .cloned()

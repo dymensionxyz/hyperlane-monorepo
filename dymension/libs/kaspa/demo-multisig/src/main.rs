@@ -2,9 +2,10 @@
 
 mod x;
 use x::args::Args;
+use x::wallet::*;
+use x::consts::*;
 
-use kaspa_addresses::{Address, Prefix, Version};
-use kaspa_consensus_core::network::{NetworkId, NetworkType};
+use kaspa_addresses::Address;
 use kaspa_consensus_core::{
     constants::TX_VERSION,
     sign::sign,
@@ -16,12 +17,7 @@ use kaspa_consensus_core::{
 };
 use kaspa_core::info;
 use kaspa_grpc_client::GrpcClient;
-use kaspa_notify::subscription::context::SubscriptionContext;
-use kaspa_rpc_core::notify::mode::NotificationMode;
-use kaspa_wallet_core::api::WalletApi;
 use kaspa_wallet_core::error::Error;
-use kaspa_wallet_core::wallet::Wallet;
-use kaspa_wallet_keys::secret::Secret;
 
 use kaspa_wallet_core::prelude::*; // Import the prelude for easy access to traits/structs
 
@@ -29,47 +25,13 @@ use kaspa_txscript::{
     extract_script_pub_key_address, multisig_redeem_script, pay_to_script_hash_script,
 };
 
-use std::sync::Arc;
-
-use kaspa_wrpc_client::Resolver;
 use secp256k1::{Keypair, rand::thread_rng};
 
 use kaspa_rpc_core::api::rpc::RpcApi;
 
-const NETWORK: NetworkType = NetworkType::Testnet;
-const NETWORK_ID: NetworkId = NetworkId::with_suffix(NETWORK, 10);
-const ADDRESS_PREFIX: Prefix = Prefix::Testnet;
-const ADDRESS_VERSION: Version = Version::PubKey;
-
-fn get_wallet() -> Result<Arc<Wallet>, Error> {
-    Ok(Arc::new(Wallet::try_new(
-        Wallet::local_store()?,
-        Some(Resolver::default()),
-        Some(NETWORK_ID),
-    )?))
-}
-
 struct User {
     pub k: Keypair,
     pub addr: Address,
-}
-
-async fn get_client(args: &Args) -> GrpcClient {
-    let subscription_context = SubscriptionContext::new();
-    let rpc_client = GrpcClient::connect_with_args(
-        NotificationMode::Direct,
-        format!("grpc://{}", args.rpc_server),
-        Some(subscription_context.clone()),
-        true,
-        None,
-        false,
-        Some(500_000),
-        Default::default(),
-    )
-    .await
-    .expect("Critical error: failed to connect to the RPC server.");
-    info!("Connected to RPC");
-    rpc_client
 }
 
 fn get_user(args: &Args) -> Result<User, Error> {
@@ -192,98 +154,24 @@ async fn deposit(
     Ok(())
 }
 
-// demonstrates on testnet
-// 1. create multisig escrow address
-// 2. user deposits to escrow (1 kas)
-// 3. user creates a multisig tx which requires sigs from the escrow key holders. User adds his own utxo to pay fees
-// 4. user gathers sigs from the escrow key holders, mimick a parallel signing flow, to combine later
-// 5. user combines the sigs and submits to the network for real, confirming he gets a 'refund' from his original deposit
-// async fn run_demo() {
-async fn lets_go_low() {
-    kaspa_core::log::init_logger(None, "");
-    let args = Args::parse();
-    let rpc_client = get_client(&args).await;
-    let user = get_user(&args).unwrap();
-    let balance = check_balance(&rpc_client, &user.addr).await.unwrap();
-    println!("Balance: {}", balance);
-    let escrow = create_escrow();
-    println!("Escrow address: {}", escrow.addr);
-    let balance = check_balance(&rpc_client, &escrow.addr).await.unwrap();
-    println!("Escrow balance: {}", balance);
-
-    // Deposit 1 KAS to escrow
-    let amount = 1_000_000_000; // 1 KAS in sompi
-    deposit(&rpc_client, &user, &escrow, amount).await.unwrap();
-    println!("Deposited {} sompi to escrow", amount);
-
-    // Check new balances
-    let balance = check_balance(&rpc_client, &user.addr).await.unwrap();
-    println!("New user balance: {}", balance);
-    let balance = check_balance(&rpc_client, &escrow.addr).await.unwrap();
-    println!("New escrow balance: {}", balance);
-}
-
-async fn lets_go_wallet() -> Result<(), Error> {
+async fn demo() -> Result<(), Error> {
     kaspa_core::log::init_logger(None, "");
     let args = Args::parse();
 
-    let wallet = get_wallet()?;
+    let w = get_wallet(
+        args.wallet_secret.unwrap_or("".to_string()),
+    )
+    .await?;
 
-    // 2. Start the wallet's background services (UTXO processor, event handling).
-    wallet.start().await?;
+    debug_balance(w.clone()).await?;
 
-    let url = format!("grpc://{}", args.rpc_server);
-    wallet.clone().connect(Some(url), &NETWORK_ID).await?;
-
-    let wallet_secret = Secret::from("lkjsdf");
-    let payment_secret: Option<Secret> = None;
-    wallet
-        .clone()
-        .wallet_open(wallet_secret, None, true, false)
-        .await?;
-
-    let accounts = wallet.clone().accounts_enumerate().await?;
-    let account_descriptor = accounts.get(0).ok_or("This wallet has no accounts.")?;
-    info!("Found account: {:?}", account_descriptor);
-
-    let account_id = account_descriptor.account_id;
-    wallet.clone().accounts_select(Some(account_id)).await?;
-    wallet
-        .clone()
-        .accounts_activate(Some(vec![account_id]))
-        .await?;
-    let account = wallet.clone().account()?;
-
-    for _ in 0..10 {
-        if account.balance().is_some() {
-            break;
-        }
-        workflow_core::task::sleep(std::time::Duration::from_millis(200)).await;
-    }
-
-    if let Some(balance) = account.balance() {
-        // The Balance struct has mature, pending, and outgoing fields.
-        info!("Account Balance:");
-        info!("  Mature:   {} KAS", sompi_to_kaspa_string(balance.mature));
-        info!("  Pending:  {} KAS", sompi_to_kaspa_string(balance.pending));
-        info!(
-            "  Outgoing: {} KAS",
-            sompi_to_kaspa_string(balance.outgoing)
-        );
-    } else {
-        info!("Account has no balance or is still syncing.");
-    }
-
-    wallet.stop().await?;
-
+    w.stop().await?;
     Ok(())
 }
 
 #[tokio::main]
 async fn main() {
-    // lets_go_low().await;
-
-    if let Err(e) = lets_go_wallet().await {
+    if let Err(e) = demo().await {
         eprintln!("Error: {}", e);
     }
 }
