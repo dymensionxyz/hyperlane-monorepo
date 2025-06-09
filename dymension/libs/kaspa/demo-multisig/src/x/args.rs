@@ -2,8 +2,6 @@ use kaspa_core::kaspad_env::version;
 
 use clap::{Arg, Command};
 
-
-
 pub fn cli() -> Command {
     Command::new("rothschild")
         .about(format!(

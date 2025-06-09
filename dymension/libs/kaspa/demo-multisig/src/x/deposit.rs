@@ -6,9 +6,6 @@ use kaspa_wallet_core::error::Error;
 use kaspa_wallet_core::tx::Fees;
 
 use kaspa_wallet_core::prelude::*;
- // Import the prelude for easy access to traits/structs
-
-
 
 use workflow_core::abortable::Abortable;
 
@@ -20,7 +17,7 @@ pub async fn deposit(
 ) -> Result<TransactionId, Error> {
     let a = w.account()?;
 
-    let dst = PaymentDestination::from(PaymentOutput::new(e.addr.clone(), amt));
+    let dst = PaymentDestination::from(PaymentOutput::new(e.public().addr, amt));
     let fees = Fees::from(0i64);
     let payload = None;
     let payment_secret = None;

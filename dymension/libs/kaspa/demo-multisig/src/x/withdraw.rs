@@ -24,21 +24,17 @@ use kaspa_consensus_core::hashing::sighash::{
 
 use std::iter;
 
-pub async fn build_withdrawal_tx(
-    w: &Arc<Wallet>,
-    e: &Escrow,
+pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
+    rpc: &T,
+    e: &EscrowPublic,
     user_address: Address,
 ) -> Result<PSKT<Signer>, Error> {
-    info!("Building withdrawal transaction...");
-    let rpc = w.rpc_api();
-
     let utxos = rpc.get_utxos_by_addresses(vec![e.addr.clone()]).await?;
     let utxo_ref = utxos
         .into_iter()
         .next()
         .ok_or("No UTXO found at escrow address")?;
     let utxo_entry = utxo_ref.utxo_entry;
-    info!("Found UTXO with amount {}", utxo_entry.amount);
 
     let fee = 10000; // A reasonable network fee (0.0001 KAS)
     let output_amount = utxo_entry
@@ -52,7 +48,7 @@ pub async fn build_withdrawal_tx(
     let input = InputBuilder::default()
         .utxo_entry(utxo_entry)
         .previous_outpoint(outpoint)
-        .sig_op_count(e.keys.len() as u8) // Total possible signers
+        .sig_op_count(e.n) // Total possible signers
         .redeem_script(e.redeem_script.clone())
         .build()
         .map_err(|e| Error::Custom(format!("Error building PSKT input: {}", e)))?;

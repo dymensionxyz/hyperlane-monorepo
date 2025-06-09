@@ -66,7 +66,7 @@ _____________
 TODO:s
     - let the relayer pay the fee directly with an explicit additional input
     - factor out so all the minimal information is more obvious (args should be minimal)
-    - actually document and understand all the magic stuff 
+    - actually document and understand all the magic stuff
     - extract to a lib
     - add the borshing
     - figure out a way to avoid sleeps, need proper event model
@@ -81,8 +81,8 @@ async fn demo() -> Result<(), Error> {
 
     check_wallet_balance(w.clone()).await?;
 
-    let e = create_escrow();
-    info!("Escrow address: {}", e.addr);
+    let e = Escrow::new(2);
+    info!("Escrow address: {}", e.public().addr);
 
     let amt = DEPOSIT_AMOUNT;
     let tx_id = deposit(&w, &s, &e, amt).await?;
@@ -91,12 +91,12 @@ async fn demo() -> Result<(), Error> {
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 
     check_wallet_balance(w.clone()).await?;
-    let balance = check_escrow_balance(&w, &e).await?;
+    let balance = check_escrow_balance(&w, &e.public()).await?;
     info!("Escrow balance: {}", balance);
 
     let user_addr = w.account()?.receive_address()?;
 
-    let pskt_unsigned = build_withdrawal_tx(&w, &e, user_addr).await?;
+    let pskt_unsigned = build_withdrawal_tx(w.rpc_api().as_ref(), &e.public(), user_addr).await?;
 
     let pskt_signed = sign_withdrawal_tx(pskt_unsigned, &e)?;
 
@@ -105,7 +105,7 @@ async fn demo() -> Result<(), Error> {
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 
     check_wallet_balance(w.clone()).await?;
-    let balance = check_escrow_balance(&w, &e).await?;
+    let balance = check_escrow_balance(&w, &e.public()).await?;
     info!("Escrow balance: {}", balance);
 
     w.stop().await?;
