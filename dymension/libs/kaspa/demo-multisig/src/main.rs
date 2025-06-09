@@ -83,20 +83,19 @@ async fn demo() -> Result<(), Error> {
 
     let rpc = w.rpc_api();
 
-    check_balance_wallet(w.clone()).await?;
+    check_balance("wallet", rpc.as_ref(), &w.account()?.receive_address()?).await?;
 
     let e = Escrow::new(2);
-    info!("Escrow address: {}", e.public().addr);
+    info!("Created escrow address: {}", e.public().addr);
 
     let amt = DEPOSIT_AMOUNT;
     let tx_id = deposit(&w, &s, &e, amt).await?;
-    info!("Deposit transaction sent: {}", tx_id);
+    info!("Sent deposit transaction: {}", tx_id);
 
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 
-    check_balance_wallet(w.clone()).await?;
-    let balance = check_balance(rpc.as_ref(), &e.public().addr).await?;
-    info!("Escrow balance: {}", balance);
+    check_balance("wallet", rpc.as_ref(), &w.account()?.receive_address()?).await?;
+    check_balance("escrow", rpc.as_ref(), &e.public().addr).await?;
 
     let user_addr = w.account()?.receive_address()?;
 
@@ -108,9 +107,8 @@ async fn demo() -> Result<(), Error> {
 
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 
-    check_balance_wallet(w.clone()).await?;
-    let balance = check_balance(rpc.as_ref(), &e.public().addr).await?;
-    info!("Escrow balance: {}", balance);
+    check_balance("wallet", rpc.as_ref(), &w.account()?.receive_address()?).await?;
+    check_balance("escrow", rpc.as_ref(), &e.public().addr).await?;
 
     w.stop().await?;
     Ok(())
