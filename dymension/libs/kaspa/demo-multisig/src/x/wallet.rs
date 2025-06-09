@@ -31,8 +31,7 @@ pub async fn get_wallet(s: &Secret) -> Result<Arc<Wallet>, Error> {
 
     let accounts = w.clone().accounts_enumerate().await?;
     let account_descriptor = accounts.get(0).ok_or("Wallet has no accounts.")?;
-    info!("Found account: {:?}", account_descriptor.name_or_id());
-    info!("Account ID: {:?}, address: {:?}, balance: {:?}", account_descriptor.account_id, account_descriptor.receive_address, account_descriptor.balance);
+    info!("Account ID: {:?}, recv addr: {:?}, change addr: {:?}", account_descriptor.account_id, account_descriptor.receive_address, account_descriptor.change_address);
 
     let account_id = account_descriptor.account_id;
     w.clone().accounts_select(Some(account_id)).await?;
@@ -42,7 +41,7 @@ pub async fn get_wallet(s: &Secret) -> Result<Arc<Wallet>, Error> {
     Ok(w)
 }
 
-pub async fn debug_balance(wallet: Arc<Wallet>) -> Result<(), Error> {
+pub async fn check_wallet_balance(wallet: Arc<Wallet>) -> Result<(), Error> {
     let a = wallet.account()?;
     for _ in 0..10 {
         if a.balance().is_some() {

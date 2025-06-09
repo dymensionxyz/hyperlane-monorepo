@@ -69,12 +69,13 @@ async fn deposit(
 
     let r = w
         .clone()
+       // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/cli/src/modules/send.rs#L28-L38 
         .accounts_send(AccountsSendRequest {
             account_id: a.id().clone(),
             wallet_secret: secret.clone(),
             payment_secret: None,
             destination: PaymentDestination::from(PaymentOutput::new(e.addr.clone(), amt)),
-            priority_fee_sompi: Fees::from(1i64),
+            priority_fee_sompi: Fees::from(0i64),
             payload: None,
         })
         .await;
@@ -88,6 +89,7 @@ async fn check_escrow_balance(w: &Arc<Wallet>, e: &Escrow) -> Result<u64, Error>
     w.rpc_api().get_balance_by_address(e.addr.clone()).await.map_err(|e| {
         Error::Custom(format!("Error getting balance for escrow address: {}", e))
     })
+
 }
 
 /*
@@ -118,19 +120,18 @@ async fn demo() -> Result<(), Error> {
     let s = Secret::from(args.wallet_secret.unwrap_or("".to_string()));
     let w = get_wallet(&s).await?;
 
-    debug_balance(w.clone()).await?;
+    check_wallet_balance(w.clone()).await?;
 
     let e = create_escrow();
     info!("Escrow address: {}", e.addr);
-
-    w.stop().await?;
-
-    let tx_id = deposit(&w, &s, &e, 1).await?;
+    
+    info!("Doing the deposit");
+    let tx_id = deposit(&w, &s, &e, 20_000_000).await?;
     info!("Deposit transaction sent: {}", tx_id);
 
     let balance = check_escrow_balance(&w, &e).await?;
     info!("Escrow balance: {}", balance);
-    debug_balance(w.clone()).await?;
+    check_wallet_balance(w.clone()).await?;
 
 
     w.stop().await?;
