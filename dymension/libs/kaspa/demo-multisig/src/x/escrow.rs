@@ -13,16 +13,15 @@ use secp256k1::{Keypair, PublicKey, rand::thread_rng};
 
 pub struct Escrow {
     pub keys: Vec<Keypair>,
-    pub required_signatures: u8,
+    required_signatures: u8,
 }
 
 pub struct EscrowPublic {
-    pub n: u8,
-    pub m: u8,
+    pub pubs: Vec<PublicKey>,
+    required_signatures: u8,
     pub redeem_script: Vec<u8>,
     pub p2sh: ScriptPublicKey,
     pub addr: Address,
-    pub pubs: Vec<PublicKey>,
 }
 
 impl Escrow {
@@ -37,12 +36,20 @@ impl Escrow {
         }
     }
 
+    pub fn n(&self) -> usize {
+        self.keys.len()
+    }
+
+    pub fn m(&self) -> usize {
+        self.required_signatures as usize
+    }
+
     pub fn public(&self) -> EscrowPublic {
         let redeem_script = multisig_redeem_script(
             self.keys
                 .iter()
                 .map(|pk| pk.x_only_public_key().0.serialize()),
-            self.required_signatures as usize,
+            self.m(),
         )
         .unwrap();
 
@@ -50,12 +57,21 @@ impl Escrow {
         let addr = extract_script_pub_key_address(&p2sh, ADDRESS_PREFIX).unwrap();
 
         EscrowPublic {
-            n: self.keys.len() as u8,
-            m: self.required_signatures,
+            required_signatures: self.required_signatures,
             redeem_script,
             p2sh,
             addr,
             pubs: self.keys.iter().map(|kp| kp.public_key()).collect(),
         }
+    }
+}
+
+impl EscrowPublic {
+    pub fn n(&self) -> usize {
+        self.pubs.len()
+    }
+
+    pub fn m(&self) -> usize {
+        self.required_signatures as usize
     }
 }

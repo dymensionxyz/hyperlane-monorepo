@@ -2,11 +2,14 @@ use kaspa_core::kaspad_env::version;
 
 use clap::{Arg, Command};
 
+const NAME: &str = "demo";
+
 pub fn cli() -> Command {
-    Command::new("rothschild")
+    Command::new(NAME)
         .about(format!(
-            "{} (rothschild) v{}",
+            "{} ({}) v{}",
             env!("CARGO_PKG_DESCRIPTION"),
+            NAME,
             version()
         ))
         .version(env!("CARGO_PKG_VERSION"))
@@ -22,7 +25,7 @@ pub fn cli() -> Command {
                 .long("rpcserver")
                 .short('s')
                 .value_name("rpcserver")
-                .default_value("localhost:16210")
+                .default_value("localhost:16210") // TODO: this is mainnet wprc 
                 .help("RPC server"),
         )
         .arg(

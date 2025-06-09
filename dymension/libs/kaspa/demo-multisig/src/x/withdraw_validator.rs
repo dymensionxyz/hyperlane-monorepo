@@ -1,3 +1,5 @@
+// We call the signers 'validators'
+
 use super::escrow::*;
 
 use std::sync::Arc;
@@ -24,31 +26,33 @@ use kaspa_consensus_core::hashing::sighash::{
 
 use std::iter;
 
+// Mimic a parallel multi-validator signing process
 pub fn sign_withdrawal_tx(e: &Escrow, pskt: PSKT<Signer>) -> Result<PSKT<Combiner>, Error> {
-    let signed_pskts: Vec<PSKT<Signer>> = e
+    let signed: Vec<PSKT<Signer>> = e
         .keys
         .iter()
         .enumerate()
         .map(|(i, keypair)| {
             info!("-> Signer {} is signing their copy...", i + 1);
-            sign_pskt_with_single_key(keypair, pskt.clone())
+            sign_pskt(keypair, pskt.clone())
         })
         .collect::<Result<Vec<PSKT<Signer>>, Error>>()?;
 
-    let mut combined_pskt = signed_pskts
+    let mut combined = signed
         .first()
         .ok_or("No signatures provided to combine")?
         .clone()
         .combiner();
 
-    for signed_pskt in signed_pskts.iter().skip(1) {
-        combined_pskt = (combined_pskt + signed_pskt.clone()).unwrap();
+    for s in signed.iter().skip(1) {
+        combined = (combined + s.clone()).unwrap();
     }
 
-    Ok(combined_pskt)
+    Ok(combined)
 }
 
-fn sign_pskt_with_single_key(kp: &SecpKeypair, pskt: PSKT<Signer>) -> Result<PSKT<Signer>, Error> {
+// Mimic a local validator node signing procedure
+fn sign_pskt(kp: &SecpKeypair, pskt: PSKT<Signer>) -> Result<PSKT<Signer>, Error> {
     let reused_values = SigHashReusedValuesUnsync::new();
 
     pskt.pass_signature_sync(|tx, sighashes| {

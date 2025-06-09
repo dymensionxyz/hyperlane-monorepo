@@ -34,17 +34,16 @@ pub async fn get_wallet(s: &Secret) -> Result<Arc<Wallet>, Error> {
 
     let accounts = w.clone().accounts_enumerate().await?;
     let account_descriptor = accounts.get(0).ok_or("Wallet has no accounts.")?;
+    let account_id = account_descriptor.account_id;
     info!(
         "Account ID: {:?}, recv addr: {:?}, change addr: {:?}",
-        account_descriptor.account_id,
+        account_id,
         account_descriptor.receive_address,
         account_descriptor.change_address
     );
 
-    let account_id = account_descriptor.account_id;
     w.clone().accounts_select(Some(account_id)).await?;
     w.clone().accounts_activate(Some(vec![account_id])).await?;
-    let account = w.clone().account()?;
 
     Ok(w)
 }

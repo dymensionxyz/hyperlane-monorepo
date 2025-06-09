@@ -48,7 +48,7 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
     let input = InputBuilder::default()
         .utxo_entry(utxo_entry)
         .previous_outpoint(outpoint)
-        .sig_op_count(e.n) // Total possible signers
+        .sig_op_count(e.n() as u8) // Total possible signers
         .redeem_script(e.redeem_script.clone())
         .build()
         .map_err(|e| Error::Custom(format!("Error building PSKT input: {}", e)))?;
