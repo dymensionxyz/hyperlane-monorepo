@@ -55,10 +55,6 @@ fn create_escrow() -> Escrow {
     }
 }
 
-async fn check_balance(client: &GrpcClient, addr: &Address) -> Result<u64, Error> {
-    let balance = client.get_balance_by_address(addr.clone()).await?;
-    Ok(balance)
-}
 
 async fn deposit(
     client: &GrpcClient,
