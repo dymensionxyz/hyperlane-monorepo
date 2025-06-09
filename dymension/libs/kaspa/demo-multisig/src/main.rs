@@ -32,6 +32,7 @@ use kaspa_txscript::{
 use secp256k1::{Keypair, rand::thread_rng};
 
 use kaspa_rpc_core::api::rpc::RpcApi;
+use workflow_core::abortable::Abortable;
 
 struct Escrow {
     keys: Vec<Keypair>,
@@ -67,24 +68,46 @@ async fn deposit(
 ) -> Result<TransactionId, Error> {
     let a = w.account()?;
 
-    let r = w
-        .clone()
-        // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/cli/src/modules/send.rs#L28-L38
-        .accounts_send(AccountsSendRequest {
-            account_id: a.id().clone(),
-            wallet_secret: secret.clone(),
-            payment_secret: None,
-            destination: PaymentDestination::from(PaymentOutput::new(e.addr.clone(), amt)),
-            priority_fee_sompi: Fees::from(0i64),
-            payload: None,
-        })
-        .await;
+    let dst = PaymentDestination::from(PaymentOutput::new(e.addr.clone(), amt));
+    let fees = Fees::from(0i64);
+    let payload = None;
+    let payment_secret = None;
+    let abortable = Abortable::new();
 
-    info!("result: {:?}", r);
+    let (sum, ids) = a
+        .send(
+            dst,
+            fees,
+            payload,
+            secret.clone(),
+            payment_secret,
+            &abortable,
+            None,
+        )
+        .await?;
+    info!("sum: {:?}, ids: {:?}", sum, ids);
 
-    r?.final_transaction_id().ok_or_else(|| {
-        Error::Custom("Deposit transaction failed to generate a transaction ID".to_string())
-    })
+    Ok(ids[0])
+}
+
+    // let r = w
+    //     .clone()
+    //     // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/cli/src/modules/send.rs#L28-L38
+    //     .accounts_send(AccountsSendRequest {
+    //         account_id: a.id().clone(),
+    //         wallet_secret: secret.clone(),
+    //         payment_secret: None,
+    //         destination: PaymentDestination::from(PaymentOutput::new(e.addr.clone(), amt)),
+    //         priority_fee_sompi: Fees::from(0i64),
+    //         payload: None,
+    //     })
+    //     .await;
+
+    // info!("result: {:?}", r);
+
+    // r?.final_transaction_id().ok_or_else(|| {
+    //     Error::Custom("Deposit transaction failed to generate a transaction ID".to_string())
+    // })
 }
 
 async fn check_escrow_balance(w: &Arc<Wallet>, e: &Escrow) -> Result<u64, Error> {
@@ -128,7 +151,8 @@ async fn demo() -> Result<(), Error> {
     info!("Escrow address: {}", e.addr);
 
     info!("Doing the deposit");
-    let tx_id = deposit(&w, &s, &e, 1).await?;
+    let amt = 20_000_000u64;
+    let tx_id = deposit(&w, &s, &e, amt).await?;
     info!("Deposit transaction sent: {}", tx_id);
 
     let balance = check_escrow_balance(&w, &e).await?;
