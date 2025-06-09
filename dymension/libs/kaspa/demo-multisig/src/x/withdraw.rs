@@ -70,22 +70,28 @@ pub async fn build_withdrawal_tx(
 }
 
 pub fn sign_withdrawal_tx(pskt: PSKT<Signer>, e: &Escrow) -> Result<PSKT<Combiner>, Error> {
-    let mut temp = Vec::new();
-    for _ in 0..e.keys.len() {
-        temp.push(pskt.clone());
+    let signed_pskts: Vec<PSKT<Signer>> = e
+        .keys
+        .iter()
+        .enumerate()
+        .map(|(i, keypair)| {
+            info!("-> Signer {} is signing their copy...", i + 1);
+            sign_pskt_with_single_key(pskt.clone(), keypair)
+        })
+        .collect::<Result<Vec<PSKT<Signer>>, Error>>()?;
+
+    
+    let mut combined_pskt = signed_pskts
+        .first()
+        .ok_or("No signatures provided to combine")?
+        .clone()
+        .combiner();
+
+    for signed_pskt in signed_pskts.iter().skip(1) {
+        combined_pskt = (combined_pskt + signed_pskt.clone()).unwrap();
     }
 
-    for (i, k) in e.keys.iter().enumerate() {
-        let signed = sign_pskt_with_single_key(temp[i].clone(), k)?;
-        temp[i] = signed;
-    }
-
-    let mut combined = temp[0].clone().combiner();
-    for signed in temp.iter().skip(1) {
-        combined = (combined + signed.clone()).unwrap();
-    }
-
-    Ok(combined)
+    Ok(combined_pskt)
 }
 
 fn sign_pskt_with_single_key(
