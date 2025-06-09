@@ -10,13 +10,19 @@ use kaspa_wallet_core::error::Error;
 use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_keys::prelude::*;
 use kaspa_wallet_pskt::prelude::*;
-use secp256k1::{ Secp256k1, Keypair as SecpKeypair};
+use secp256k1::{Keypair as SecpKeypair, Secp256k1};
 
-use kaspa_txscript::pay_to_address_script;
+use kaspa_txscript::{
+    opcodes::codes::OpData65, pay_to_address_script, script_builder::ScriptBuilder,
+};
 
 use kaspa_rpc_core::api::rpc::RpcApi;
 
-use kaspa_consensus_core::hashing::sighash::{calc_schnorr_signature_hash, SigHashReusedValuesUnsync};
+use kaspa_consensus_core::hashing::sighash::{
+    SigHashReusedValuesUnsync, calc_schnorr_signature_hash,
+};
+
+use std::iter;
 
 pub async fn build_withdrawal_tx(
     w: &Arc<Wallet>,
@@ -80,7 +86,6 @@ pub fn sign_withdrawal_tx(pskt: PSKT<Signer>, e: &Escrow) -> Result<PSKT<Combine
         })
         .collect::<Result<Vec<PSKT<Signer>>, Error>>()?;
 
-    
     let mut combined_pskt = signed_pskts
         .first()
         .ok_or("No signatures provided to combine")?
@@ -94,10 +99,7 @@ pub fn sign_withdrawal_tx(pskt: PSKT<Signer>, e: &Escrow) -> Result<PSKT<Combine
     Ok(combined_pskt)
 }
 
-fn sign_pskt_with_single_key(
-    pskt: PSKT<Signer>,
-    kp: &SecpKeypair,
-) -> Result<PSKT<Signer>, Error> {
+fn sign_pskt_with_single_key(pskt: PSKT<Signer>, kp: &SecpKeypair) -> Result<PSKT<Signer>, Error> {
     let reused_values = SigHashReusedValuesUnsync::new();
 
     pskt.pass_signature_sync(|tx, sighashes| {
@@ -107,9 +109,14 @@ fn sign_pskt_with_single_key(
             .iter()
             .enumerate()
             .map(|(idx, _input)| {
-                let hash = calc_schnorr_signature_hash(&tx.as_verifiable(), idx, sighashes[idx], &reused_values);
-                let msg =
-                    secp256k1::Message::from_digest_slice(&hash.as_bytes()).map_err(|e| e.to_string())?;
+                let hash = calc_schnorr_signature_hash(
+                    &tx.as_verifiable(),
+                    idx,
+                    sighashes[idx],
+                    &reused_values,
+                );
+                let msg = secp256k1::Message::from_digest_slice(&hash.as_bytes())
+                    .map_err(|e| e.to_string())?;
                 Ok(SignInputOk {
                     signature: Signature::Schnorr(kp.sign_schnorr(msg)),
                     pub_key: kp.public_key(),
@@ -120,6 +127,57 @@ fn sign_pskt_with_single_key(
     })
 }
 
-pub async fn deliver_withdrawal_tx(w: &Arc<Wallet>, e: &Escrow, amt: u64) -> Result<(), Error> {
-    Ok(())
+pub async fn deliver_withdrawal_tx(
+    w: &Arc<Wallet>,
+    signed_pskt: PSKT<Combiner>, // Takes the result from the signing function
+    e: &Escrow,
+) -> Result<TransactionId, Error> {
+    let rpc = w.rpc_api();
+
+    let finalized_pskt = signed_pskt
+        .finalizer()
+        .finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
+            Ok(inner
+                .inputs
+                .iter()
+                .map(|input| -> Vec<u8> {
+                    // todo actually required count can be retrieved from redeem_script, sigs can be taken from partial sigs according to required count
+                    // considering xpubs sorted order
+
+                    let signatures: Vec<_> = e
+                        .keys
+                        .iter()
+                        .flat_map(|kp| {
+                            let sig = input
+                                .partial_sigs
+                                .get(&kp.public_key())
+                                .unwrap()
+                                .into_bytes();
+                            iter::once(OpData65)
+                                .chain(sig)
+                                .chain([input.sighash_type.to_u8()])
+                        })
+                        .collect();
+                    signatures
+                        .into_iter()
+                        .chain(
+                            ScriptBuilder::new()
+                                .add_data(input.redeem_script.as_ref().unwrap().as_slice())
+                                .unwrap()
+                                .drain()
+                                .iter()
+                                .cloned(),
+                        )
+                        .collect()
+                })
+                .collect())
+        })
+        .unwrap();
+
+    let (tx, _) = finalized_pskt.extractor().unwrap().extract_tx().unwrap()(10000); // TODO: wtf is this number?
+
+    let rpc_tx = (&tx).into();
+    let tx_id = rpc.submit_transaction(rpc_tx, false).await?;
+
+    Ok(tx_id)
 }

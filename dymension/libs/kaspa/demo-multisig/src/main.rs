@@ -79,35 +79,23 @@ async fn demo() -> Result<(), Error> {
 
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 
+    check_wallet_balance(w.clone()).await?;
     let balance = check_escrow_balance(&w, &e).await?;
     info!("Escrow balance: {}", balance);
 
     let user_addr = w.account()?.receive_address()?;
 
     let pskt_unsigned = build_withdrawal_tx(&w, &e, user_addr).await?;
-    
+
     let pskt_signed = sign_withdrawal_tx(pskt_unsigned, &e)?;
 
-    // let withdrawal_tx_id = deliver_withdrawal_tx(&w, signed_pskt).await?;
-    // info!("Withdrawal transaction sent: {}", withdrawal_tx_id);
+    let withdrawal_tx_id = deliver_withdrawal_tx(&w, pskt_signed, &e).await?;
 
-    // info!("Waiting for withdrawal to be confirmed...");
-    // loop {
-    //     let event = events.next().await.ok_or("Event stream ended")?;
-    //     if let Events::Maturity { record } = &*event {
-    //         if record.id() == &withdrawal_tx_id {
-    //             break;
-    //         }
-    //     }
-    // }
-    // info!("Withdrawal confirmed!");
+    workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 
-    // // --- Final Verification ---
-    // let final_escrow_balance = check_escrow_balance(&w, &e).await?;
-    // info!("Final Escrow Balance: {}", final_escrow_balance);
-    // assert_eq!(final_escrow_balance, 0, "Escrow should be empty!");
-
-    // info!("\nSUCCESS! The full deposit-and-withdraw cycle is complete.");
+    check_wallet_balance(w.clone()).await?;
+    let balance = check_escrow_balance(&w, &e).await?;
+    info!("Escrow balance: {}", balance);
 
     w.stop().await?;
     Ok(())
