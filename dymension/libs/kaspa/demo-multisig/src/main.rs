@@ -74,9 +74,31 @@ async fn deposit(w: &Arc<Wallet>, secret: &Secret, e: &Escrow, amt: u64) -> Resu
         })
         .await;
 
+
     Ok(())
 }
 
+/*
+Demo:
+The purpose is to test out using a multisig for securing an escrow address.
+There are three roles, signer 1 and 2, and a relayer.
+The relayer is responsible for building and orchestrating the multisig TXs, including paying any fees.
+The signers are just responsible for signing.
+
+The test involves a 'user', which corresponds to the local wallet account.
+
+Steps are:
+
+1. Create an escrow address.
+2. User deposits some funds to the escrow address.
+3. The relayer builds a multisig TX to send the funds back to the user from the escrow address.
+4. The signers sign the TX.
+5. The relayer sends the TX to the network.
+
+Always, we want to get confirmation that everything has worked, been accepted by the network etc.
+
+We will test against testnet 10. The wallet has 200k KAS available.
+ */
 async fn demo() -> Result<(), Error> {
     kaspa_core::log::init_logger(None, "");
     let args = Args::parse();
@@ -91,7 +113,7 @@ async fn demo() -> Result<(), Error> {
 
     w.stop().await?;
 
-    // deposit(&w, &s, &e, 20_000_000).await?;
+    deposit(&w, &s, &e, 20_000_000).await?;
     Ok(())
 }
 
