@@ -5,6 +5,9 @@ use x::args::Args;
 use x::consts::*;
 use x::wallet::*;
 
+use std::sync::Arc;
+
+
 use kaspa_addresses::Address;
 use kaspa_consensus_core::{
     constants::TX_VERSION,
@@ -55,10 +58,8 @@ fn create_escrow() -> Escrow {
     }
 }
 
-
 async fn deposit(
-    client: &GrpcClient,
-    user: &User,
+    wallet: &Arc<Wallet>,
     escrow: &Escrow,
     amount: u64,
 ) -> Result<(), Error> {
