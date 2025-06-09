@@ -3,11 +3,11 @@
 mod x;
 use x::args::Args;
 use x::consts::*;
+use x::deposit::*;
+use x::escrow::*;
+use x::util::*;
 use x::wallet::*;
 use x::withdraw::*;
-use x::escrow::*;
-use x::deposit::*;
-use x::util::*;
 
 use std::sync::Arc;
 
@@ -39,125 +39,6 @@ use secp256k1::{Keypair, rand::thread_rng};
 
 use kaspa_rpc_core::api::rpc::RpcApi;
 use workflow_core::abortable::Abortable;
-
-struct Escrow {
-    keys: Vec<Keypair>,
-    redeem_script: Vec<u8>,
-    p2sh: ScriptPublicKey,
-    addr: Address,
-}
-
-fn create_escrow() -> Escrow {
-    let m = 2; // required
-    let n = 2; // total
-    let kps = (0..n)
-        .map(|_| Keypair::new(secp256k1::SECP256K1, &mut thread_rng()))
-        .collect::<Vec<_>>();
-    let redeem_script =
-        multisig_redeem_script(kps.iter().map(|pk| pk.x_only_public_key().0.serialize()), m)
-            .unwrap();
-    let p2sh = pay_to_script_hash_script(&redeem_script);
-    let addr = extract_script_pub_key_address(&p2sh, ADDRESS_PREFIX).unwrap();
-    Escrow {
-        keys: kps.to_vec(),
-        redeem_script,
-        p2sh,
-        addr,
-    }
-}
-
-async fn deposit(
-    w: &Arc<Wallet>,
-    secret: &Secret,
-    e: &Escrow,
-    amt: u64,
-) -> Result<TransactionId, Error> {
-    let a = w.account()?;
-
-    let dst = PaymentDestination::from(PaymentOutput::new(e.addr.clone(), amt));
-    let fees = Fees::from(0i64);
-    let payload = None;
-    let payment_secret = None;
-    let abortable = Abortable::new();
-
-    // use account.send, because wallet.accounts_send(AccountsSendRequest{..}) is buggy
-    let (summary, _) = a
-        .send(
-            dst,
-            fees,
-            payload,
-            secret.clone(),
-            payment_secret,
-            &abortable,
-            None,
-        )
-        .await?;
-
-    summary.final_transaction_id().ok_or_else(|| {
-        Error::Custom("Deposit transaction failed to generate a transaction ID".to_string())
-    })
-}
-
-async fn check_escrow_balance(w: &Arc<Wallet>, e: &Escrow) -> Result<u64, Error> {
-    w.rpc_api()
-        .get_balance_by_address(e.addr.clone())
-        .await
-        .map_err(|e| Error::Custom(format!("Error getting balance for escrow address: {}", e)))
-}
-
-async fn build_withdrawal_tx(
-    w: &Arc<Wallet>,
-    e: &Escrow,
-    user_address: Address,
-) -> Result<PSKT<Updater>, Error> {
-    info!("Building withdrawal transaction...");
-    let rpc = w.rpc_api();
-
-    let utxos = rpc.get_utxos_by_addresses(vec![e.addr.clone()]).await?;
-    let utxo_ref = utxos
-        .into_iter()
-        .next()
-        .ok_or("No UTXO found at escrow address")?;
-    let utxo_entry = utxo_ref.utxo_entry;
-    info!("Found UTXO with amount {}", utxo_entry.amount);
-
-    let fee = 10000; // A reasonable network fee (0.0001 KAS)
-    let output_amount = utxo_entry
-        .amount
-        .checked_sub(fee)
-        .ok_or("UTXO amount is less than the fee")?;
-    // TODO: here it's like the withdrawer is paying fees directly from escrow, but actually we want it to be more expliclit (from relayer)
-
-    let utxo_entry = UtxoEntry::from(utxo_entry);
-    let outpoint = TransactionOutpoint::from(utxo_ref.outpoint);
-    let input = InputBuilder::default()
-        .utxo_entry(utxo_entry)
-        .previous_outpoint(outpoint)
-        .sig_op_count(e.keys.len() as u8) // Total possible signers
-        .redeem_script(e.redeem_script.clone())
-        .build()
-        .map_err(|e| Error::Custom(format!("Error building PSKT input: {}", e)))?;
-
-    let output_script = pay_to_address_script(&user_address);
-    let output = OutputBuilder::default()
-        .amount(output_amount)
-        .script_public_key(ScriptPublicKey::from(output_script))
-        .build()
-        .map_err(|e| Error::Custom(format!("Error building PSKT output: {}", e)))?;
-
-    let pskt = PSKT::<Creator>::default()
-        .constructor()
-        .input(input)
-        .output(output)
-        .updater();
-
-    info!("PSKT built successfully. Ready for signing.");
-    Ok(pskt)
-}
-
-async fn sign_withdrawal_tx(e: &Escrow, amt: u64) -> Result<(), Error> {}
-
-async fn deliver_withdrawal_tx(w: &Arc<Wallet>, e: &Escrow, amt: u64) -> Result<(), Error> {}
 
 /*
 Demo:
@@ -201,13 +82,32 @@ async fn demo() -> Result<(), Error> {
     let balance = check_escrow_balance(&w, &e).await?;
     info!("Escrow balance: {}", balance);
 
-    // --- Step 3: Relayer Builds the Withdrawal Transaction ---
-    let user_address = w.account()?.receive_address()?;
-    let pskt_to_sign = build_withdrawal_tx(&w, &e, user_address).await?;
+    let user_addr = w.account()?.receive_address()?;
 
-    // let tx_signed = sign_withdrawal_tx(&e, amt).await?;
+    let pskt_unsigned = build_withdrawal_tx(&w, &e, user_addr).await?;
+    
+    let pskt_signed = sign_withdrawal_tx(pskt_unsigned, &e)?;
 
-    // deliver_withdrawal_tx(&w, &e, amt).await?;
+    // let withdrawal_tx_id = deliver_withdrawal_tx(&w, signed_pskt).await?;
+    // info!("Withdrawal transaction sent: {}", withdrawal_tx_id);
+
+    // info!("Waiting for withdrawal to be confirmed...");
+    // loop {
+    //     let event = events.next().await.ok_or("Event stream ended")?;
+    //     if let Events::Maturity { record } = &*event {
+    //         if record.id() == &withdrawal_tx_id {
+    //             break;
+    //         }
+    //     }
+    // }
+    // info!("Withdrawal confirmed!");
+
+    // // --- Final Verification ---
+    // let final_escrow_balance = check_escrow_balance(&w, &e).await?;
+    // info!("Final Escrow Balance: {}", final_escrow_balance);
+    // assert_eq!(final_escrow_balance, 0, "Escrow should be empty!");
+
+    // info!("\nSUCCESS! The full deposit-and-withdraw cycle is complete.");
 
     w.stop().await?;
     Ok(())

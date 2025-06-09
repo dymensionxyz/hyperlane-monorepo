@@ -2,24 +2,15 @@
 use kaspa_consensus_core::{
     hashing::sighash::{calc_schnorr_signature_hash, SigHashReusedValuesUnsync},
     tx::{TransactionId, TransactionOutpoint, UtxoEntry},
-    network::{NetworkType, NetworkId},
 };
-use kaspa_txscript::{multisig_redeem_script, opcodes::codes::OpData65, pay_to_script_hash_script, script_builder::ScriptBuilder, extract_script_pub_key_address};
+use kaspa_txscript::{multisig_redeem_script, opcodes::codes::OpData65, pay_to_script_hash_script, script_builder::ScriptBuilder};
 use kaspa_wallet_pskt::prelude::{
-    Combiner, Creator, Extractor, Finalizer, Inner, InputBuilder, OutputBuilder, SignInputOk, Signature, Signer, Updater, PSKT,
+    Combiner, Creator, Extractor, Finalizer, Inner, InputBuilder, SignInputOk, Signature, Signer, Updater, PSKT,
 };
-// use kaspa_wallet::Wallet;
-use kaspa_wallet_core::{account::Account, api::WalletApi, api::PingRequest};
-use kaspa_wallet_core::rpc::DynRpcApi;
-use kaspa_wallet_core::storage::{IdT, PrvKeyDataInfo};
-use kaspa_wallet_core::wallet::Wallet;
-use kaspa_wallet_core::error::Error;
 
-use std::sync::Arc;
 
 use secp256k1::{rand::thread_rng, Keypair};
 use std::{iter, str::FromStr};
-use kaspa_wrpc_client::{KaspaRpcClient, WrpcEncoding, Resolver};
 
 
 fn example_multisig(){
