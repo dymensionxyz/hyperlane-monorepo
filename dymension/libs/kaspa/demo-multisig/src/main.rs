@@ -74,7 +74,8 @@ async fn deposit(
     let payment_secret = None;
     let abortable = Abortable::new();
 
-    let (sum, ids) = a
+    // use account.send, because wallet.accounts_send(AccountsSendRequest{..}) is buggy
+    let (summary, _) = a
         .send(
             dst,
             fees,
@@ -85,29 +86,10 @@ async fn deposit(
             None,
         )
         .await?;
-    info!("sum: {:?}, ids: {:?}", sum, ids);
 
-    Ok(ids[0])
-}
-
-    // let r = w
-    //     .clone()
-    //     // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/cli/src/modules/send.rs#L28-L38
-    //     .accounts_send(AccountsSendRequest {
-    //         account_id: a.id().clone(),
-    //         wallet_secret: secret.clone(),
-    //         payment_secret: None,
-    //         destination: PaymentDestination::from(PaymentOutput::new(e.addr.clone(), amt)),
-    //         priority_fee_sompi: Fees::from(0i64),
-    //         payload: None,
-    //     })
-    //     .await;
-
-    // info!("result: {:?}", r);
-
-    // r?.final_transaction_id().ok_or_else(|| {
-    //     Error::Custom("Deposit transaction failed to generate a transaction ID".to_string())
-    // })
+    summary.final_transaction_id().ok_or_else(|| {
+        Error::Custom("Deposit transaction failed to generate a transaction ID".to_string())
+    })
 }
 
 async fn check_escrow_balance(w: &Arc<Wallet>, e: &Escrow) -> Result<u64, Error> {
