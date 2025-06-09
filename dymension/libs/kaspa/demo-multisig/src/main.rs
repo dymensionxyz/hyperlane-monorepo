@@ -75,6 +75,7 @@ TODO:s
  */
 async fn demo() -> Result<(), Error> {
     kaspa_core::log::init_logger(None, "");
+
     let args = Args::parse();
 
     let s = Secret::from(args.wallet_secret.unwrap_or("".to_string()));
@@ -82,7 +83,7 @@ async fn demo() -> Result<(), Error> {
 
     let rpc = w.rpc_api();
 
-    check_wallet_balance(w.clone()).await?;
+    check_balance_wallet(w.clone()).await?;
 
     let e = Escrow::new(2);
     info!("Escrow address: {}", e.public().addr);
@@ -93,7 +94,7 @@ async fn demo() -> Result<(), Error> {
 
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 
-    check_wallet_balance(w.clone()).await?;
+    check_balance_wallet(w.clone()).await?;
     let balance = check_balance(rpc.as_ref(), &e.public().addr).await?;
     info!("Escrow balance: {}", balance);
 
@@ -107,7 +108,7 @@ async fn demo() -> Result<(), Error> {
 
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 
-    check_wallet_balance(w.clone()).await?;
+    check_balance_wallet(w.clone()).await?;
     let balance = check_balance(rpc.as_ref(), &e.public().addr).await?;
     info!("Escrow balance: {}", balance);
 
