@@ -59,7 +59,12 @@ fn create_escrow() -> Escrow {
     }
 }
 
-async fn deposit(w: &Arc<Wallet>, secret: &Secret, e: &Escrow, amt: u64) -> Result<(), Error> {
+async fn deposit(
+    w: &Arc<Wallet>,
+    secret: &Secret,
+    e: &Escrow,
+    amt: u64,
+) -> Result<TransactionId, Error> {
     let a = w.account()?;
 
     let r = w
@@ -69,13 +74,20 @@ async fn deposit(w: &Arc<Wallet>, secret: &Secret, e: &Escrow, amt: u64) -> Resu
             wallet_secret: secret.clone(),
             payment_secret: None,
             destination: PaymentDestination::from(PaymentOutput::new(e.addr.clone(), amt)),
-            priority_fee_sompi: Fees::from(1000i64),
+            priority_fee_sompi: Fees::from(1i64),
             payload: None,
         })
         .await;
 
+    r?.final_transaction_id().ok_or_else(|| {
+        Error::Custom("Deposit transaction failed to generate a transaction ID".to_string())
+    })
+}
 
-    Ok(())
+async fn check_escrow_balance(w: &Arc<Wallet>, e: &Escrow) -> Result<u64, Error> {
+    w.rpc_api().get_balance_by_address(e.addr.clone()).await.map_err(|e| {
+        Error::Custom(format!("Error getting balance for escrow address: {}", e))
+    })
 }
 
 /*
@@ -97,7 +109,7 @@ Steps are:
 
 Always, we want to get confirmation that everything has worked, been accepted by the network etc.
 
-We will test against testnet 10. The wallet has 200k KAS available.
+We will test against testnet 10. The wallet has 200'000 KAS available.
  */
 async fn demo() -> Result<(), Error> {
     kaspa_core::log::init_logger(None, "");
@@ -113,7 +125,15 @@ async fn demo() -> Result<(), Error> {
 
     w.stop().await?;
 
-    deposit(&w, &s, &e, 20_000_000).await?;
+    let tx_id = deposit(&w, &s, &e, 1).await?;
+    info!("Deposit transaction sent: {}", tx_id);
+
+    let balance = check_escrow_balance(&w, &e).await?;
+    info!("Escrow balance: {}", balance);
+    debug_balance(w.clone()).await?;
+
+
+    w.stop().await?;
     Ok(())
 }
 

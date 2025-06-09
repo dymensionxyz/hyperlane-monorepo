@@ -32,6 +32,7 @@ pub async fn get_wallet(s: &Secret) -> Result<Arc<Wallet>, Error> {
     let accounts = w.clone().accounts_enumerate().await?;
     let account_descriptor = accounts.get(0).ok_or("Wallet has no accounts.")?;
     info!("Found account: {:?}", account_descriptor.name_or_id());
+    info!("Account ID: {:?}, address: {:?}, balance: {:?}", account_descriptor.account_id, account_descriptor.receive_address, account_descriptor.balance);
 
     let account_id = account_descriptor.account_id;
     w.clone().accounts_select(Some(account_id)).await?;
@@ -51,15 +52,14 @@ pub async fn debug_balance(wallet: Arc<Wallet>) -> Result<(), Error> {
     }
 
     if let Some(b) = a.balance() {
-        info!("Account Balance:");
+        info!("Wallet account balance:");
         info!("  Mature:   {} KAS", sompi_to_kaspa_string(b.mature));
         info!("  Pending:  {} KAS", sompi_to_kaspa_string(b.pending));
         info!("  Outgoing: {} KAS", sompi_to_kaspa_string(b.outgoing));
     } else {
-        info!("Account has no balance or is still syncing.");
+        info!("Wallet account has no balance or is still syncing.");
     }
 
-    wallet.stop().await?;
 
     Ok(())
 }
