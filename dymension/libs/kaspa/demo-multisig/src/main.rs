@@ -80,7 +80,7 @@ async fn deposit(
         })
         .await;
 
-    info!("r: {:?}", r);
+    info!("result: {:?}", r);
 
     r?.final_transaction_id().ok_or_else(|| {
         Error::Custom("Deposit transaction failed to generate a transaction ID".to_string())
