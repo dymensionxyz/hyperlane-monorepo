@@ -20,12 +20,16 @@ pub async fn get_wallet(s: &Secret) -> Result<Arc<Wallet>, Error> {
         Some(NETWORK_ID),
     )?);
 
+
     // Start background services (UTXO processor, event handling).
     w.start().await?;
 
     w.clone()
         .connect(Some(URL.to_string()), &NETWORK_ID)
         .await?;
+
+    let is_c = w.is_connected();
+    info!("connected: {:?}", is_c);
 
     w.clone().wallet_open(s.clone(), None, true, false).await?;
 

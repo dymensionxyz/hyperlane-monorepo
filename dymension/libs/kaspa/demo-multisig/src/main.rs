@@ -69,7 +69,7 @@ async fn deposit(
 
     let r = w
         .clone()
-       // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/cli/src/modules/send.rs#L28-L38 
+        // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/cli/src/modules/send.rs#L28-L38
         .accounts_send(AccountsSendRequest {
             account_id: a.id().clone(),
             wallet_secret: secret.clone(),
@@ -80,16 +80,18 @@ async fn deposit(
         })
         .await;
 
+    info!("r: {:?}", r);
+
     r?.final_transaction_id().ok_or_else(|| {
         Error::Custom("Deposit transaction failed to generate a transaction ID".to_string())
     })
 }
 
 async fn check_escrow_balance(w: &Arc<Wallet>, e: &Escrow) -> Result<u64, Error> {
-    w.rpc_api().get_balance_by_address(e.addr.clone()).await.map_err(|e| {
-        Error::Custom(format!("Error getting balance for escrow address: {}", e))
-    })
-
+    w.rpc_api()
+        .get_balance_by_address(e.addr.clone())
+        .await
+        .map_err(|e| Error::Custom(format!("Error getting balance for escrow address: {}", e)))
 }
 
 /*
@@ -124,15 +126,14 @@ async fn demo() -> Result<(), Error> {
 
     let e = create_escrow();
     info!("Escrow address: {}", e.addr);
-    
+
     info!("Doing the deposit");
-    let tx_id = deposit(&w, &s, &e, 20_000_000).await?;
+    let tx_id = deposit(&w, &s, &e, 1).await?;
     info!("Deposit transaction sent: {}", tx_id);
 
     let balance = check_escrow_balance(&w, &e).await?;
     info!("Escrow balance: {}", balance);
     check_wallet_balance(w.clone()).await?;
-
 
     w.stop().await?;
     Ok(())

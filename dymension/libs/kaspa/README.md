@@ -37,7 +37,12 @@ help
 # Useful
 connect # connect to rpc server
 monitor # watch balance
+server # set rpc addr
 ```
+
+Exhaustive config: https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/kaspad/src/args.rs#L27-L94
+
+Log levels: https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/kaspad/src/args.rs#L27-L94
 
 ### Units, currency and conversions
 
