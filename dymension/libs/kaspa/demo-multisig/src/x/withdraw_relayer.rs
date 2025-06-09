@@ -71,58 +71,6 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
     Ok(pskt)
 }
 
-pub fn sign_withdrawal_tx(e: &Escrow, pskt: PSKT<Signer>) -> Result<PSKT<Combiner>, Error> {
-    let signed_pskts: Vec<PSKT<Signer>> = e
-        .keys
-        .iter()
-        .enumerate()
-        .map(|(i, keypair)| {
-            info!("-> Signer {} is signing their copy...", i + 1);
-            sign_pskt_with_single_key(keypair, pskt.clone())
-        })
-        .collect::<Result<Vec<PSKT<Signer>>, Error>>()?;
-
-    let mut combined_pskt = signed_pskts
-        .first()
-        .ok_or("No signatures provided to combine")?
-        .clone()
-        .combiner();
-
-    for signed_pskt in signed_pskts.iter().skip(1) {
-        combined_pskt = (combined_pskt + signed_pskt.clone()).unwrap();
-    }
-
-    Ok(combined_pskt)
-}
-
-fn sign_pskt_with_single_key(kp: &SecpKeypair, pskt: PSKT<Signer>) -> Result<PSKT<Signer>, Error> {
-    let reused_values = SigHashReusedValuesUnsync::new();
-
-    pskt.pass_signature_sync(|tx, sighashes| {
-        // let tx = dbg!(tx);
-        tx.tx
-            .inputs
-            .iter()
-            .enumerate()
-            .map(|(idx, _input)| {
-                let hash = calc_schnorr_signature_hash(
-                    &tx.as_verifiable(),
-                    idx,
-                    sighashes[idx],
-                    &reused_values,
-                );
-                let msg = secp256k1::Message::from_digest_slice(&hash.as_bytes())
-                    .map_err(|e| e.to_string())?;
-                Ok(SignInputOk {
-                    signature: Signature::Schnorr(kp.sign_schnorr(msg)),
-                    pub_key: kp.public_key(),
-                    key_source: None,
-                })
-            })
-            .collect()
-    })
-}
-
 pub async fn deliver_withdrawal_tx<T: RpcApi + ?Sized>(
     rpc: &T,
     signed_pskt: PSKT<Combiner>, // Takes the result from the signing function

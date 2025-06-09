@@ -7,7 +7,8 @@ use x::deposit::*;
 use x::escrow::*;
 use x::util::*;
 use x::wallet::*;
-use x::withdraw::*;
+use x::withdraw_relayer::*;
+use x::withdraw_validator::*;
 
 use std::sync::Arc;
 
@@ -79,6 +80,8 @@ async fn demo() -> Result<(), Error> {
     let s = Secret::from(args.wallet_secret.unwrap_or("".to_string()));
     let w = get_wallet(&s).await?;
 
+    let rpc = w.rpc_api();
+
     check_wallet_balance(w.clone()).await?;
 
     let e = Escrow::new(2);
@@ -91,22 +94,21 @@ async fn demo() -> Result<(), Error> {
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 
     check_wallet_balance(w.clone()).await?;
-    let balance = check_escrow_balance(&w, &e.public()).await?;
+    let balance = check_balance(rpc.as_ref(), &e.public().addr).await?;
     info!("Escrow balance: {}", balance);
 
     let user_addr = w.account()?.receive_address()?;
 
-    let pskt_unsigned = build_withdrawal_tx(w.rpc_api().as_ref(), &e.public(), user_addr).await?;
+    let pskt_unsigned = build_withdrawal_tx(rpc.as_ref(), &e.public(), user_addr).await?;
 
     let pskt_signed = sign_withdrawal_tx(&e, pskt_unsigned)?;
 
-    let withdrawal_tx_id =
-        deliver_withdrawal_tx(w.rpc_api().as_ref(), pskt_signed, &e.public()).await?;
+    let tx_id = deliver_withdrawal_tx(rpc.as_ref(), pskt_signed, &e.public()).await?;
 
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 
     check_wallet_balance(w.clone()).await?;
-    let balance = check_escrow_balance(&w, &e.public()).await?;
+    let balance = check_balance(rpc.as_ref(), &e.public().addr).await?;
     info!("Escrow balance: {}", balance);
 
     w.stop().await?;
