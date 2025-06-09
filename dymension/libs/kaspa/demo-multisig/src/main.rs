@@ -4,6 +4,10 @@ mod x;
 use x::args::Args;
 use x::consts::*;
 use x::wallet::*;
+use x::withdraw::*;
+use x::escrow::*;
+use x::deposit::*;
+use x::util::*;
 
 use std::sync::Arc;
 
@@ -23,10 +27,12 @@ use kaspa_wallet_core::api::{AccountsSendRequest, WalletApi};
 use kaspa_wallet_core::error::Error;
 use kaspa_wallet_core::tx::Fees;
 
-use kaspa_wallet_core::prelude::*; // Import the prelude for easy access to traits/structs
+use kaspa_wallet_core::prelude::*;
+use kaspa_wallet_pskt::prelude::*; // Import the prelude for easy access to traits/structs
 
 use kaspa_txscript::{
-    extract_script_pub_key_address, multisig_redeem_script, pay_to_script_hash_script,
+    extract_script_pub_key_address, multisig_redeem_script, pay_to_address_script,
+    pay_to_script_hash_script,
 };
 
 use secp256k1::{Keypair, rand::thread_rng};
@@ -99,17 +105,59 @@ async fn check_escrow_balance(w: &Arc<Wallet>, e: &Escrow) -> Result<u64, Error>
         .map_err(|e| Error::Custom(format!("Error getting balance for escrow address: {}", e)))
 }
 
+async fn build_withdrawal_tx(
+    w: &Arc<Wallet>,
+    e: &Escrow,
+    user_address: Address,
+) -> Result<PSKT<Updater>, Error> {
+    info!("Building withdrawal transaction...");
+    let rpc = w.rpc_api();
 
-async fn build_withdrawal_tx(w: &Arc<Wallet>, e: &Escrow, amt: u64) -> Result<(), Error> {
+    let utxos = rpc.get_utxos_by_addresses(vec![e.addr.clone()]).await?;
+    let utxo_ref = utxos
+        .into_iter()
+        .next()
+        .ok_or("No UTXO found at escrow address")?;
+    let utxo_entry = utxo_ref.utxo_entry;
+    info!("Found UTXO with amount {}", utxo_entry.amount);
+
+    let fee = 10000; // A reasonable network fee (0.0001 KAS)
+    let output_amount = utxo_entry
+        .amount
+        .checked_sub(fee)
+        .ok_or("UTXO amount is less than the fee")?;
+    // TODO: here it's like the withdrawer is paying fees directly from escrow, but actually we want it to be more expliclit (from relayer)
+
+    let utxo_entry = UtxoEntry::from(utxo_entry);
+    let outpoint = TransactionOutpoint::from(utxo_ref.outpoint);
+    let input = InputBuilder::default()
+        .utxo_entry(utxo_entry)
+        .previous_outpoint(outpoint)
+        .sig_op_count(e.keys.len() as u8) // Total possible signers
+        .redeem_script(e.redeem_script.clone())
+        .build()
+        .map_err(|e| Error::Custom(format!("Error building PSKT input: {}", e)))?;
+
+    let output_script = pay_to_address_script(&user_address);
+    let output = OutputBuilder::default()
+        .amount(output_amount)
+        .script_public_key(ScriptPublicKey::from(output_script))
+        .build()
+        .map_err(|e| Error::Custom(format!("Error building PSKT output: {}", e)))?;
+
+    let pskt = PSKT::<Creator>::default()
+        .constructor()
+        .input(input)
+        .output(output)
+        .updater();
+
+    info!("PSKT built successfully. Ready for signing.");
+    Ok(pskt)
 }
 
-async fn sign_withdrawal_tx(e: &Escrow, amt: u64) -> Result<(), Error> {
+async fn sign_withdrawal_tx(e: &Escrow, amt: u64) -> Result<(), Error> {}
 
-}
-
-async fn deliver_withdrawal_tx(w: &Arc<Wallet>, e: &Escrow, amt: u64) -> Result<(), Error> {
-}
-
+async fn deliver_withdrawal_tx(w: &Arc<Wallet>, e: &Escrow, amt: u64) -> Result<(), Error> {}
 
 /*
 Demo:
@@ -153,11 +201,13 @@ async fn demo() -> Result<(), Error> {
     let balance = check_escrow_balance(&w, &e).await?;
     info!("Escrow balance: {}", balance);
 
-    let tx_unsigned = build_withdrawal_tx(&w, &e, amt).await?;
+    // --- Step 3: Relayer Builds the Withdrawal Transaction ---
+    let user_address = w.account()?.receive_address()?;
+    let pskt_to_sign = build_withdrawal_tx(&w, &e, user_address).await?;
 
-    let tx_signed = sign_withdrawal_tx(&e, amt).await?;
+    // let tx_signed = sign_withdrawal_tx(&e, amt).await?;
 
-    deliver_withdrawal_tx(&w, &e, amt).await?;
+    // deliver_withdrawal_tx(&w, &e, amt).await?;
 
     w.stop().await?;
     Ok(())
