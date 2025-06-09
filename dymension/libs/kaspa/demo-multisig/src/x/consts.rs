@@ -9,3 +9,6 @@ pub const URL: &str = "localhost:17210"; // local node wrpc to testnet10
 
 // There is a tx mass penalty for creating UTXO less than 0.2 KAS
 pub const DEPOSIT_AMOUNT: u64 = 20_000_001;
+
+// How much relayer spends to deliver the tx to the network
+pub const RELAYER_NETWORK_FEE: u64 = 1000;

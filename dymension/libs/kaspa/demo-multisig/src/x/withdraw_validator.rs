@@ -27,14 +27,14 @@ use kaspa_consensus_core::hashing::sighash::{
 use std::iter;
 
 // Mimic a parallel multi-validator signing process
-pub fn sign_withdrawal_tx(e: &Escrow, pskt: PSKT<Signer>) -> Result<PSKT<Combiner>, Error> {
+pub fn sign_escrow_spend(e: &Escrow, pskt_unsigned: PSKT<Signer>) -> Result<PSKT<Combiner>, Error> {
     let signed: Vec<PSKT<Signer>> = e
         .keys
         .iter()
         .enumerate()
         .map(|(i, keypair)| {
             info!("-> Signer {} is signing their copy...", i + 1);
-            sign_pskt(keypair, pskt.clone())
+            sign_pskt(keypair, pskt_unsigned.clone())
         })
         .collect::<Result<Vec<PSKT<Signer>>, Error>>()?;
 

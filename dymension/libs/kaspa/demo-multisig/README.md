@@ -63,6 +63,8 @@ _Signing (validators)_ (https://github.com/bitcoin/bips/blob/master/bip-0174.med
 
 TODO: parallel aspect
 
+See the role diagram for a clue https://www.notion.so/dymension/ADR-Kaspa-Bridge-Off-Chain-20da4a51f86a8026aa10e2c616a1b9f5?source=copy_link#20da4a51f86a8023bdcce2a7f0f49527 .
+
 ### Src and refs
 
 - Sig definitions https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/crypto/txscript/src/lib.rs#L55-L65

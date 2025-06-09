@@ -6,6 +6,7 @@ use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint, UtxoEntry};
 use kaspa_core::info;
 use kaspa_wallet_core::error::Error;
+use kaspa_wallet_core::utxo::UtxoIterator;
 
 use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_keys::prelude::*;
@@ -35,18 +36,10 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
         .next()
         .ok_or("No UTXO found at escrow address")?;
     let utxo_entry = utxo_ref.utxo_entry;
-
-    let fee = 10000; // A reasonable network fee (0.0001 KAS)
-    let output_amount = utxo_entry
-        .amount
-        .checked_sub(fee)
-        .ok_or("UTXO amount is less than the fee")?;
-    // TODO: here it's like the withdrawer is paying fees directly from escrow, but actually we want it to be more expliclit (from relayer)
-
     let utxo_entry = UtxoEntry::from(utxo_entry);
     let outpoint = TransactionOutpoint::from(utxo_ref.outpoint);
     let input = InputBuilder::default()
-        .utxo_entry(utxo_entry)
+        .utxo_entry(utxo_entry.clone())
         .previous_outpoint(outpoint)
         .sig_op_count(e.n() as u8) // Total possible signers
         .redeem_script(e.redeem_script.clone())
@@ -55,7 +48,7 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
 
     let output_script = pay_to_address_script(&user_address);
     let output = OutputBuilder::default()
-        .amount(output_amount)
+        .amount(utxo_entry.amount)
         .script_public_key(ScriptPublicKey::from(output_script))
         .build()
         .map_err(|e| Error::Custom(format!("Error building PSKT output: {}", e)))?;
@@ -64,8 +57,8 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
         .constructor()
         .input(input)
         .output(output)
-        .no_more_inputs()
-        .no_more_outputs()
+        // .no_more_inputs()
+        // .no_more_outputs()
         .signer();
 
     Ok(pskt)
@@ -73,10 +66,22 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
 
 pub async fn deliver_withdrawal_tx<T: RpcApi + ?Sized>(
     rpc: &T,
-    signed_pskt: PSKT<Combiner>, // Takes the result from the signing function
+    w_relayer: &Arc<Wallet>,
+    pskt_validator_signed: PSKT<Combiner>, // Takes the result from the signing function
     e: &EscrowPublic,
 ) -> Result<TransactionId, Error> {
-    let finalized_pskt = signed_pskt
+    let a_relayer = w_relayer.account()?;
+    let a_ctx = a_relayer.utxo_context();
+
+    pskt_validator_signed.updater().input(InputBuilder::default()
+
+    let fee_utxo = UtxoIterator::new(a_ctx)
+        .next() // For the demo, we just take the first available UTXO.
+        .ok_or("Relayer account has no spendable UTXO to pay for fees")?;
+
+    pskt_validator_signed.up
+
+    let finalized_pskt = pskt_validator_signed
         .finalizer()
         .finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
             Ok(inner

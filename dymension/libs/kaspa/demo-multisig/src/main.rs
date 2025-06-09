@@ -66,11 +66,16 @@ _____________
 
 TODO:s
     - let the relayer pay the fee directly with an explicit additional input
+        - need to rework
+            Creation:
+                creator -> signer -> final 
+            (Also make all the transitions explicit)
     - factor out so all the minimal information is more obvious (args should be minimal)
     - actually document and understand all the magic stuff
     - extract to a lib
     - add the borshing
     - figure out a way to avoid sleeps, need proper event model
+
 
  */
 async fn demo() -> Result<(), Error> {
@@ -101,7 +106,7 @@ async fn demo() -> Result<(), Error> {
 
     let pskt_unsigned = build_withdrawal_tx(rpc.as_ref(), &e.public(), user_addr).await?;
 
-    let pskt_signed = sign_withdrawal_tx(&e, pskt_unsigned)?;
+    let pskt_signed = sign_escrow_spend(&e, pskt_unsigned)?;
 
     let tx_id = deliver_withdrawal_tx(rpc.as_ref(), pskt_signed, &e.public()).await?;
 
