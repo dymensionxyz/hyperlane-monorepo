@@ -99,6 +99,18 @@ async fn check_escrow_balance(w: &Arc<Wallet>, e: &Escrow) -> Result<u64, Error>
         .map_err(|e| Error::Custom(format!("Error getting balance for escrow address: {}", e)))
 }
 
+
+async fn build_withdrawal_tx(w: &Arc<Wallet>, e: &Escrow, amt: u64) -> Result<(), Error> {
+}
+
+async fn sign_withdrawal_tx(e: &Escrow, amt: u64) -> Result<(), Error> {
+
+}
+
+async fn deliver_withdrawal_tx(w: &Arc<Wallet>, e: &Escrow, amt: u64) -> Result<(), Error> {
+}
+
+
 /*
 Demo:
 The purpose is to test out using a multisig for securing an escrow address.
@@ -140,6 +152,12 @@ async fn demo() -> Result<(), Error> {
 
     let balance = check_escrow_balance(&w, &e).await?;
     info!("Escrow balance: {}", balance);
+
+    let tx_unsigned = build_withdrawal_tx(&w, &e, amt).await?;
+
+    let tx_signed = sign_withdrawal_tx(&e, amt).await?;
+
+    deliver_withdrawal_tx(&w, &e, amt).await?;
 
     w.stop().await?;
     Ok(())
