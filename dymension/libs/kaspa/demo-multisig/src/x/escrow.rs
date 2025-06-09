@@ -9,7 +9,7 @@ use kaspa_txscript::{
     extract_script_pub_key_address, multisig_redeem_script, pay_to_script_hash_script,
 };
 
-use secp256k1::{Keypair, rand::thread_rng};
+use secp256k1::{Keypair, PublicKey, rand::thread_rng};
 
 pub struct Escrow {
     pub keys: Vec<Keypair>,
@@ -22,6 +22,7 @@ pub struct EscrowPublic {
     pub redeem_script: Vec<u8>,
     pub p2sh: ScriptPublicKey,
     pub addr: Address,
+    pub pubs: Vec<PublicKey>,
 }
 
 impl Escrow {
@@ -54,6 +55,7 @@ impl Escrow {
             redeem_script,
             p2sh,
             addr,
+            pubs: self.keys.iter().map(|kp| kp.public_key()).collect(),
         }
     }
 }

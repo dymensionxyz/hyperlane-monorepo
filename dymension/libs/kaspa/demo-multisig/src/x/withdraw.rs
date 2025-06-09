@@ -71,14 +71,14 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
     Ok(pskt)
 }
 
-pub fn sign_withdrawal_tx(pskt: PSKT<Signer>, e: &Escrow) -> Result<PSKT<Combiner>, Error> {
+pub fn sign_withdrawal_tx(e: &Escrow, pskt: PSKT<Signer>) -> Result<PSKT<Combiner>, Error> {
     let signed_pskts: Vec<PSKT<Signer>> = e
         .keys
         .iter()
         .enumerate()
         .map(|(i, keypair)| {
             info!("-> Signer {} is signing their copy...", i + 1);
-            sign_pskt_with_single_key(pskt.clone(), keypair)
+            sign_pskt_with_single_key(keypair, pskt.clone())
         })
         .collect::<Result<Vec<PSKT<Signer>>, Error>>()?;
 
@@ -95,7 +95,7 @@ pub fn sign_withdrawal_tx(pskt: PSKT<Signer>, e: &Escrow) -> Result<PSKT<Combine
     Ok(combined_pskt)
 }
 
-fn sign_pskt_with_single_key(pskt: PSKT<Signer>, kp: &SecpKeypair) -> Result<PSKT<Signer>, Error> {
+fn sign_pskt_with_single_key(kp: &SecpKeypair, pskt: PSKT<Signer>) -> Result<PSKT<Signer>, Error> {
     let reused_values = SigHashReusedValuesUnsync::new();
 
     pskt.pass_signature_sync(|tx, sighashes| {
@@ -123,13 +123,11 @@ fn sign_pskt_with_single_key(pskt: PSKT<Signer>, kp: &SecpKeypair) -> Result<PSK
     })
 }
 
-pub async fn deliver_withdrawal_tx(
-    w: &Arc<Wallet>,
+pub async fn deliver_withdrawal_tx<T: RpcApi + ?Sized>(
+    rpc: &T,
     signed_pskt: PSKT<Combiner>, // Takes the result from the signing function
-    e: &Escrow,
+    e: &EscrowPublic,
 ) -> Result<TransactionId, Error> {
-    let rpc = w.rpc_api();
-
     let finalized_pskt = signed_pskt
         .finalizer()
         .finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
@@ -141,14 +139,10 @@ pub async fn deliver_withdrawal_tx(
                     // considering xpubs sorted order
 
                     let signatures: Vec<_> = e
-                        .keys
+                        .pubs
                         .iter()
                         .flat_map(|kp| {
-                            let sig = input
-                                .partial_sigs
-                                .get(&kp.public_key())
-                                .unwrap()
-                                .into_bytes();
+                            let sig = input.partial_sigs.get(&kp).unwrap().into_bytes();
                             iter::once(OpData65)
                                 .chain(sig)
                                 .chain([input.sighash_type.to_u8()])

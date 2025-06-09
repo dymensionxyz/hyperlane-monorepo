@@ -98,9 +98,10 @@ async fn demo() -> Result<(), Error> {
 
     let pskt_unsigned = build_withdrawal_tx(w.rpc_api().as_ref(), &e.public(), user_addr).await?;
 
-    let pskt_signed = sign_withdrawal_tx(pskt_unsigned, &e)?;
+    let pskt_signed = sign_withdrawal_tx(&e, pskt_unsigned)?;
 
-    let withdrawal_tx_id = deliver_withdrawal_tx(&w, pskt_signed, &e).await?;
+    let withdrawal_tx_id =
+        deliver_withdrawal_tx(w.rpc_api().as_ref(), pskt_signed, &e.public()).await?;
 
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 
