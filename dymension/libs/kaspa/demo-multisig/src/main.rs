@@ -2,8 +2,8 @@
 
 mod x;
 use x::args::Args;
-use x::wallet::*;
 use x::consts::*;
+use x::wallet::*;
 
 use kaspa_addresses::Address;
 use kaspa_consensus_core::{
@@ -28,39 +28,6 @@ use kaspa_txscript::{
 use secp256k1::{Keypair, rand::thread_rng};
 
 use kaspa_rpc_core::api::rpc::RpcApi;
-
-struct User {
-    pub k: Keypair,
-    pub addr: Address,
-}
-
-fn get_user(args: &Args) -> Result<User, Error> {
-    if let Some(sk_hex) = &args.private_key {
-        let mut sk_bz = [0u8; 32];
-        faster_hex::hex_decode(sk_hex.as_bytes(), &mut sk_bz).unwrap();
-        let k = Keypair::from_seckey_slice(secp256k1::SECP256K1, &sk_bz).unwrap();
-        let kas_addr = Address::new(
-            ADDRESS_PREFIX,
-            ADDRESS_VERSION,
-            &k.x_only_public_key().0.serialize(),
-        );
-        return Ok(User { k, addr: kas_addr });
-    } else {
-        let (sk, pk) = &secp256k1::generate_keypair(&mut thread_rng());
-        let kas_addr = Address::new(
-            ADDRESS_PREFIX,
-            ADDRESS_VERSION,
-            &pk.x_only_public_key().0.serialize(),
-        );
-        info!(
-            "Generated private key {} and address {}. Send some funds to this address and rerun with `--private-key {}`",
-            sk.display_secret(),
-            String::from(&kas_addr),
-            sk.display_secret()
-        );
-        return Err(Error::PoisonError("No private key provided".to_string()));
-    };
-}
 
 struct Escrow {
     keys: Vec<Keypair>,
@@ -158,10 +125,7 @@ async fn demo() -> Result<(), Error> {
     kaspa_core::log::init_logger(None, "");
     let args = Args::parse();
 
-    let w = get_wallet(
-        args.wallet_secret.unwrap_or("".to_string()),
-    )
-    .await?;
+    let w = get_wallet(args.wallet_secret.unwrap_or("".to_string())).await?;
 
     debug_balance(w.clone()).await?;
 
