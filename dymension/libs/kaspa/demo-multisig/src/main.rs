@@ -132,14 +132,14 @@ async fn demo() -> Result<(), Error> {
     let e = create_escrow();
     info!("Escrow address: {}", e.addr);
 
-    info!("Doing the deposit");
     let amt = 20_000_000u64;
     let tx_id = deposit(&w, &s, &e, amt).await?;
     info!("Deposit transaction sent: {}", tx_id);
 
+    workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
+
     let balance = check_escrow_balance(&w, &e).await?;
     info!("Escrow balance: {}", balance);
-    check_wallet_balance(w.clone()).await?;
 
     w.stop().await?;
     Ok(())
