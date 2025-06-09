@@ -132,7 +132,7 @@ async fn demo() -> Result<(), Error> {
     let e = create_escrow();
     info!("Escrow address: {}", e.addr);
 
-    let amt = 20_000_000u64;
+    let amt = DEPOSIT_AMOUNT;
     let tx_id = deposit(&w, &s, &e, amt).await?;
     info!("Deposit transaction sent: {}", tx_id);
 

@@ -6,3 +6,6 @@ pub const NETWORK_ID: NetworkId = NetworkId::with_suffix(NETWORK, 10);
 pub const ADDRESS_PREFIX: Prefix = Prefix::Testnet;
 pub const ADDRESS_VERSION: Version = Version::PubKey;
 pub const URL: &str = "localhost:17210"; // local node wrpc to testnet10
+
+// There is a tx mass penalty for creating UTXO less than 0.2 KAS
+pub const DEPOSIT_AMOUNT: u64 = 20_000_001;
