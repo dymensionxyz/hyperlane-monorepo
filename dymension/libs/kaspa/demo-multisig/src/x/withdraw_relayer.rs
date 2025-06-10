@@ -67,7 +67,7 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
     let input_r = InputBuilder::default()
         .utxo_entry(utxo_r_entry.clone())
         .previous_outpoint(utxo_r_out)
-        .redeem_script(redeem_script_r)
+        // .redeem_script(redeem_script_r)
         .sig_op_count(1)
         .sighash_type(SIG_HASH_ALL)
         .build()
@@ -131,7 +131,7 @@ pub async fn sponsor_and_send_tx<T: RpcApi + ?Sized>(
 
                     // ORIGINAL COMMENT: todo actually required count can be retrieved from redeem_script, sigs can be taken from partial sigs according to required count
                     // ORIGINAL COMMENT: considering xpubs sorted order
-                    if input.redeem_script.as_ref() == Some(&e.redeem_script) {
+                    if i < 1 {
                         let sigs: Vec<_> = e
                             .pubs
                             .iter()
