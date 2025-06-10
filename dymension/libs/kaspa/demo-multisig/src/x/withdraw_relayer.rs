@@ -1,6 +1,7 @@
 use super::escrow::*;
+use super::util::sign_pskt;
 
-use std::sync::Arc;
+use std::{ops::Deref, sync::Arc};
 
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint, UtxoEntry};
@@ -44,7 +45,7 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
         .previous_outpoint(outpoint)
         .sig_op_count(e.n() as u8) // Total possible signers
         .redeem_script(e.redeem_script.clone())
-        .sighash_type(SigHashType::from_u8(SIG_HASH_ALL.0 | SIG_HASH_ANY_ONE_CAN_PAY.0).unwrap())
+        .sighash_type(SIG_HASH_ANY_ONE_CAN_PAY)
         .build()
         .map_err(|e| Error::Custom(format!("Error building PSKT input: {}", e)))?;
 
@@ -72,18 +73,12 @@ pub async fn deliver_withdrawal_tx<T: RpcApi + ?Sized>(
     pskt_validator_signed: PSKT<Combiner>, // Takes the result from the signing function
     e: &EscrowPublic,
 ) -> Result<TransactionId, Error> {
-    let a_relayer = w_relayer.account()?;
-    let a_ctx = a_relayer.utxo_context();
 
-    pskt_validator_signed.updater().input(InputBuilder::default()
+    let pskt_fee = get_fee_pskt(w_relayer)?;
 
-    let fee_utxo = UtxoIterator::new(a_ctx)
-        .next() // For the demo, we just take the first available UTXO.
-        .ok_or("Relayer account has no spendable UTXO to pay for fees")?;
+    let pskt_done = (pskt_validator_signed + pskt_fee).unwrap();
 
-    pskt_validator_signed.up
-
-    let finalized_pskt = pskt_validator_signed
+    let finalized_pskt = pskt_done
         .finalizer()
         .finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
             Ok(inner
@@ -125,4 +120,44 @@ pub async fn deliver_withdrawal_tx<T: RpcApi + ?Sized>(
     let tx_id = rpc.submit_transaction(rpc_tx, false).await?;
 
     Ok(tx_id)
+}
+
+fn get_fee_pskt(w_relayer: &Arc<Wallet>) -> Result<PSKT<Combiner>, Error> {
+    let a_relayer = w_relayer.account()?;
+    let a_ctx = a_relayer.utxo_context();
+
+    let fee_utxo = UtxoIterator::new(a_ctx)
+        .next() // For the demo, we just take the first available UTXO.
+        .ok_or("Relayer account has no spendable UTXO to pay for fees")?.utxo.as_ref().clone();
+
+    let entry = UtxoEntry::from(&fee_utxo);
+    let outpoint = TransactionOutpoint::from(fee_utxo.outpoint);
+
+    let input = InputBuilder::default()
+        .utxo_entry(entry)
+        .previous_outpoint(outpoint)
+        .sig_op_count(1)
+        .sighash_type(SIG_HASH_ALL)
+        .build().map_err(|e| Error::Custom(format!("Error building PSKT input: {}", e)))?;
+
+    let addr = a_relayer.change_address()?;
+    let change_script = pay_to_address_script(&addr);
+    let change_output = OutputBuilder::default()
+        .amount(fee_utxo.amount)
+        .script_public_key(pay_to_address_script(&addr))
+        .build()
+        .map_err(|e| Error::Custom(format!("Error building PSKT output: {}", e)))?;
+
+    let pskt = PSKT::<Creator>::default()
+        .constructor()
+        .input(input)
+        .output(change_output)
+        .signer();
+
+    let relayer_private_key = get_private_key_for_input(&relayer_account, secret, 0, &unsigned_pskt).await?;
+    let relayer_keypair = SecpKeypair::from_secret_key(&relayer_private_key);
+
+    sign_pskt_input_with_key(unsigned_pskt, &relayer_keypair, 0)
+
+    Ok(pskt)
 }
