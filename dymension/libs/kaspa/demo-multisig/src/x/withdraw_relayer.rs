@@ -1,4 +1,4 @@
-use super::consts::RELAYER_NETWORK_FEE;
+use super::consts::{ADDRESS_PREFIX, RELAYER_NETWORK_FEE};
 use super::escrow::*;
 use super::util::sign_pskt;
 
@@ -22,6 +22,7 @@ use kaspa_txscript::{
     opcodes::codes::{OpCheckSig, OpData65},
     script_builder::ScriptBuilder,
     standard::pay_to_address_script,
+    extract_script_pub_key_address,
 };
 
 use kaspa_rpc_core::api::rpc::RpcApi;
@@ -29,6 +30,7 @@ use kaspa_rpc_core::api::rpc::RpcApi;
 use kaspa_consensus_core::hashing::sighash::{
     SigHashReusedValuesUnsync, calc_schnorr_signature_hash,
 };
+use workflow_core::hex::ToHex;
 
 use std::iter;
 
@@ -58,19 +60,27 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
         .previous_outpoint(utxo_e_out)
         .redeem_script(e.redeem_script.clone())
         .sig_op_count(e.n() as u8) // Total possible signers
-        .sighash_type(SIG_HASH_ALL)
+        .sighash_type(SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8()).unwrap())
+        // .sighash_type(SIG_HASH_ANY_ONE_CAN_PAY)
         .build()
         .map_err(|e| Error::Custom(format!("pskt input e: {}", e)))?;
 
     // TODO: not exactly sure how to build input for p2pk
     let redeem_script_spk = pay_to_address_script(&a_relayer.change_address()?);
+
+    // I checked this reversed value is correct against explorer, it's indeed the wallet change addr with funds
+    let reversed = extract_script_pub_key_address(&redeem_script_spk, ADDRESS_PREFIX).unwrap();
+    info!("reversed: {:?}", reversed);
     let redeem_script_r = redeem_script_spk.script().to_vec();
+    // this is also correct, as it matches the script show in the xplorer
+    info!("redeem_script_r: {:?}", redeem_script_r.to_hex());
     let input_r = InputBuilder::default()
         .utxo_entry(utxo_r_entry.clone())
         .previous_outpoint(utxo_r_out)
         .redeem_script(redeem_script_r)
         .sig_op_count(1)
-        .sighash_type(SIG_HASH_ALL)
+        // .sighash_type(SIG_HASH_ANY_ONE_CAN_PAY)
+        .sighash_type(SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8()).unwrap())
         .build()
         .map_err(|e| Error::Custom(format!("pskt input r: {}", e)))?;
 
