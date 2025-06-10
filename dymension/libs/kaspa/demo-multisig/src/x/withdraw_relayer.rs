@@ -132,31 +132,64 @@ pub async fn sponsor_and_send_tx<T: RpcApi + ?Sized>(
                 .iter()
                 .enumerate()
                 .map(|(i, input)| -> Vec<u8> {
-                    // Return the full script
+                    if i < 1 {
+                        // Return the full script
 
-                    // ORIGINAL COMMENT: todo actually required count can be retrieved from redeem_script, sigs can be taken from partial sigs according to required count
-                    // ORIGINAL COMMENT: considering xpubs sorted order
-                    let sigs: Vec<_> = e
-                        .pubs
-                        .iter()
-                        .flat_map(|kp| {
-                            let sig = input.partial_sigs.get(&kp).unwrap().into_bytes();
-                            iter::once(OpData65)
-                                .chain(sig)
-                                .chain([input.sighash_type.to_u8()])
-                        })
-                        .collect();
+                        // ORIGINAL COMMENT: todo actually required count can be retrieved from redeem_script, sigs can be taken from partial sigs according to required count
+                        // ORIGINAL COMMENT: considering xpubs sorted order
 
-                    sigs.into_iter()
-                        .chain(
-                            ScriptBuilder::new()
-                                .add_data(input.redeem_script.as_ref().unwrap().as_slice())
-                                .unwrap()
-                                .drain()
-                                .iter()
-                                .cloned(),
-                        )
-                        .collect()
+                        // For each escrow pubkey return <op code, sig, sighash type> and then concat these triples
+                        let sigs: Vec<_> = e
+                            .pubs
+                            .iter()
+                            .flat_map(|kp| {
+                                let sig = input.partial_sigs.get(&kp).unwrap().into_bytes();
+                                iter::once(OpData65)
+                                    .chain(sig)
+                                    .chain([input.sighash_type.to_u8()])
+                            })
+                            .collect();
+
+                        // Then add the multisig redeem script to the end
+                        sigs.into_iter()
+                            .chain(
+                                ScriptBuilder::new()
+                                    .add_data(input.redeem_script.as_ref().unwrap().as_slice())
+                                    .unwrap()
+                                    .drain()
+                                    .iter()
+                                    .cloned(),
+                            )
+                            .collect()
+                    } else {
+                        let signatures: Vec<_> = input
+                            .partial_sigs
+                            .clone()
+                            .into_iter()
+                            .flat_map(|(_, signature)| {
+                                iter::once(OpData65)
+                                    .chain(signature.into_bytes())
+                                    .chain([input.sighash_type.to_u8()])
+                            })
+                            .collect();
+
+                        signatures
+                            .into_iter()
+                            .chain(
+                                input
+                                    .redeem_script
+                                    .as_ref()
+                                    .map(|redeem_script| {
+                                        ScriptBuilder::new()
+                                            .add_data(redeem_script.as_slice())
+                                            .unwrap()
+                                            .drain()
+                                            .to_vec()
+                                    })
+                                    .unwrap_or_default(),
+                            )
+                            .collect()
+                    }
                 })
                 .collect())
         })
@@ -177,6 +210,9 @@ async fn sign_pay_fee<T: RpcApi + ?Sized>(
     w: &Arc<Wallet>,
     s: &Secret,
 ) -> Result<PSKT<Combiner>, Error> {
+    // TODO: interesting? https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/pskb.rs#L154
+    
+
     let bundle = Bundle::from(pskt_unsigned);
     let addr = w.account()?.change_address()?;
     let sign_for_address = Some(&addr);
