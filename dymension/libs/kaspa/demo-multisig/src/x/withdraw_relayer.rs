@@ -63,12 +63,12 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
         .map_err(|e| Error::Custom(format!("pskt input e: {}", e)))?;
 
     // TODO: not exactly sure how to build input for p2pk
-    // let redeem_script_spk = pay_to_address_script(&a_relayer.change_address()?);
-    // let redeem_script_r = redeem_script_spk.script().to_vec();
+    let redeem_script_spk = pay_to_address_script(&a_relayer.change_address()?);
+    let redeem_script_r = redeem_script_spk.script().to_vec();
     let input_r = InputBuilder::default()
         .utxo_entry(utxo_r_entry.clone())
         .previous_outpoint(utxo_r_out)
-        // .redeem_script(redeem_script_r)
+        .redeem_script(redeem_script_r)
         .sig_op_count(1)
         .sighash_type(SIG_HASH_ALL)
         .build()
