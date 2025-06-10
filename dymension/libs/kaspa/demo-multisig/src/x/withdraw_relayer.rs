@@ -67,7 +67,7 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
     let input_r = InputBuilder::default()
         .utxo_entry(utxo_r_entry.clone())
         .previous_outpoint(utxo_r_out)
-        .redeem_script(redeem_script_r)
+        // .redeem_script(redeem_script_r)
         .sig_op_count(1)
         .sighash_type(SIG_HASH_ALL)
         .build()
@@ -155,10 +155,11 @@ pub async fn sponsor_and_send_tx<T: RpcApi + ?Sized>(
                             .collect()
                     }else{
                         input
-                        .redeem_script
-                        .as_ref()
-                        .map(|redeem_script| ScriptBuilder::new().add_data(redeem_script.as_slice()).unwrap().drain().to_vec())
-                        .unwrap_or_default()
+                        .final_script_sig.clone().unwrap()
+                        // .redeem_script
+                        // .as_ref()
+                        // .map(|redeem_script| ScriptBuilder::new().add_data(redeem_script.as_slice()).unwrap().drain().to_vec())
+                        // .unwrap_or_default()
                     }
                 })
                 .collect())
