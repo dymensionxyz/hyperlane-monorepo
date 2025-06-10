@@ -100,84 +100,17 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
     Ok(pskt)
 }
 
-pub async fn sign_network_fee<T: RpcApi + ?Sized>(
+pub async fn sponsor_and_send_tx<T: RpcApi + ?Sized>(
     rpc: &T,
+    pskt_signed_vals: PSKT<Combiner>,
     pskt_unsigned: PSKT<Signer>,
-    w_relayer: &Arc<Wallet>,
-    w_relayer_secret: &Secret,
-) -> Result<PSKT<Combiner>, Error> {
-    let relayer_account = w_relayer.account()?;
-
-    let relayer_keypair =
-        get_private_key_for_input(&relayer_account, w_relayer_secret, 1, &pskt_unsigned).await?;
-
-    let signed = sign_pskt(&relayer_keypair, pskt_unsigned)?;
-
-    Ok(signed.combiner())
-}
-
-async fn get_private_key_for_input(
-    account: &Arc<dyn Account>,
-    secret: &Secret,
-    input_index: usize,
-    pskt: &PSKT<Signer>,
-) -> Result<SecpKeypair, Error> {
-    let keydata = account.prv_key_data(secret.clone()).await?;
-    let derivation_capable = account.as_derivation_capable()?;
-
-    let utxo_entry = pskt
-        .inputs
-        .get(input_index)
-        .ok_or("Input index out of bounds")?.utxo_entry.as_ref().ok_or("err")?;
-
-    let utxo_address = kaspa_txscript::extract_script_pub_key_address(
-        &utxo_entry.script_public_key,
-        account.wallet().address_prefix()?,
-    )?;
-
-    let derivation_manager = derivation_capable.derivation();
-    let receive_manager = derivation_manager.receive_address_manager();
-    let change_manager = derivation_manager.change_address_manager();
-
-    let (is_change, index) = if let Some(index) = receive_manager
-        .inner()
-        .address_to_index_map
-        .get(&utxo_address)
-    {
-        (false, *index)
-    } else if let Some(index) = change_manager
-        .inner()
-        .address_to_index_map
-        .get(&utxo_address)
-    {
-        (true, *index)
-    } else {
-        return Err(format!(
-            "Could not find derivation index for relayer's fee UTXO address: {}",
-            utxo_address
-        )
-        .into());
-    };
-
-    let xprv = keydata.get_xprv(None)?;
-    let derivation_path = kaspa_wallet_keys::derivation::gen1::WalletDerivationManager::build_derivate_path(
-        false, // Assuming relayer account is not multisig
-        account.account_index(),
-        None,
-        Some(if is_change { kaspa_bip32::AddressType::Change } else { kaspa_bip32::AddressType::Receive })
-    )?;
-    
-    let derived_xprv = xprv.derive_path(&derivation_path)?;
-    let final_xprv = derived_xprv.derive_child(kaspa_bip32::ChildNumber::new(index, false)?)?;
-    
-    Ok(final_xprv.private_key().inner)
-}
-
-pub async fn deliver_withdrawal_tx<T: RpcApi + ?Sized>(
-    rpc: &T,
-    pskt_signed: PSKT<Combiner>, // Takes the result from the signing function
     e: &EscrowPublic,
+    w_relayer: &Arc<Wallet>,
+    s_relayer: &Secret,
 ) -> Result<TransactionId, Error> {
+    let pskt_signed_relayer = sign_network_fee(rpc, pskt_unsigned.clone(), w_relayer, s_relayer).await?;
+    let pskt_signed = (pskt_signed_relayer + pskt_signed_vals).unwrap();
+
     let finalized_pskt = pskt_signed
         .finalizer()
         .finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
@@ -220,4 +153,13 @@ pub async fn deliver_withdrawal_tx<T: RpcApi + ?Sized>(
     let tx_id = rpc.submit_transaction(rpc_tx, false).await?;
 
     Ok(tx_id)
+}
+
+async fn sign_network_fee<T: RpcApi + ?Sized>(
+    rpc: &T,
+    pskt_unsigned: PSKT<Signer>,
+    w: &Arc<Wallet>,
+    s: &Secret,
+) -> Result<PSKT<Combiner>, Error> {
+    Ok(pskt_done)
 }

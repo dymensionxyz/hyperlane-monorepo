@@ -109,9 +109,9 @@ async fn demo() -> Result<(), Error> {
 
     let pskt_signed_vals = sign_escrow_spend(&e, pskt_unsigned.clone())?;
 
-    let pskt_signer_relayer = sign_network_fee(rpc.as_ref(), pskt_unsigned.clone(), &w, &s).await?;
-
     let pskt_signed = (pskt_signer_relayer + pskt_signed_vals).unwrap();
+    
+    let pskt_signer_relayer = sign_network_fee(rpc.as_ref(), pskt_unsigned.clone(), &w, &s).await?;
 
     let tx_id = deliver_withdrawal_tx(rpc.as_ref(), pskt_signed, &e.public()).await?;
 
