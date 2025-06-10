@@ -7,6 +7,7 @@ use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint, UtxoEntry};
 use kaspa_core::info;
 use kaspa_wallet_core::error::Error;
 use kaspa_wallet_core::utxo::UtxoIterator;
+use kaspa_consensus_core::hashing::sighash_type::{SigHashType, SIG_HASH_ALL, SIG_HASH_ANY_ONE_CAN_PAY};
 
 use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_keys::prelude::*;
@@ -43,6 +44,7 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
         .previous_outpoint(outpoint)
         .sig_op_count(e.n() as u8) // Total possible signers
         .redeem_script(e.redeem_script.clone())
+        .sighash_type(SigHashType::from_u8(SIG_HASH_ALL.0 | SIG_HASH_ANY_ONE_CAN_PAY.0).unwrap())
         .build()
         .map_err(|e| Error::Custom(format!("Error building PSKT input: {}", e)))?;
 
