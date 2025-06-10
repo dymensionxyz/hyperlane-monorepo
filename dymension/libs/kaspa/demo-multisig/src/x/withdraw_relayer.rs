@@ -34,54 +34,91 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
     rpc: &T,
     e: &EscrowPublic,
     user_address: Address,
+    a_relayer: &Arc<dyn Account>,
+    amt: u64,
 ) -> Result<PSKT<Signer>, Error> {
-    let utxos = rpc.get_utxos_by_addresses(vec![e.addr.clone()]).await?;
-    let utxo_ref = utxos
+    let utxos_e = rpc.get_utxos_by_addresses(vec![e.addr.clone()]).await?;
+    let utxo_e_first = utxos_e
         .into_iter()
         .next()
         .ok_or("No UTXO found at escrow address")?;
-    let utxo_entry = utxo_ref.utxo_entry;
-    let utxo_entry = UtxoEntry::from(utxo_entry);
-    let outpoint = TransactionOutpoint::from(utxo_ref.outpoint);
-    let input = InputBuilder::default()
-        .utxo_entry(utxo_entry.clone())
-        .previous_outpoint(outpoint)
+    let utxo_e_entry = UtxoEntry::from(utxo_e_first.utxo_entry);
+    let utxo_e_out = TransactionOutpoint::from(utxo_e_first.outpoint);
+
+    let utxo_r = UtxoIterator::new(a_relayer.utxo_context())
+        .next()
+        .ok_or("Relayer has no UTXOs")?;
+    let utxo_r_entry: UtxoEntry = (utxo_r.utxo.as_ref()).into();
+    let utxo_r_out = TransactionOutpoint::from(utxo_r.outpoint());
+
+    let input_e = InputBuilder::default()
+        .utxo_entry(utxo_e_entry.clone())
+        .previous_outpoint(utxo_e_out)
         .sig_op_count(e.n() as u8) // Total possible signers
         .redeem_script(e.redeem_script.clone())
-        .sighash_type(SIG_HASH_ANY_ONE_CAN_PAY)
         .build()
-        .map_err(|e| Error::Custom(format!("Error building PSKT input: {}", e)))?;
+        .map_err(|e| Error::Custom(format!("pskt input e: {}", e)))?;
 
-    let output_script = pay_to_address_script(&user_address);
-    let output = OutputBuilder::default()
-        .amount(utxo_entry.amount)
-        .script_public_key(ScriptPublicKey::from(output_script))
+    let input_r = InputBuilder::default()
+        .utxo_entry(utxo_r_entry.clone())
+        .previous_outpoint(utxo_r_out)
+        .sig_op_count(1)
         .build()
-        .map_err(|e| Error::Custom(format!("Error building PSKT output: {}", e)))?;
+        .map_err(|e| Error::Custom(format!("pskt input r: {}", e)))?;
+
+    let output_e_to_user = OutputBuilder::default()
+        .amount(amt)
+        .script_public_key(ScriptPublicKey::from(pay_to_address_script(&user_address)))
+        .build()
+        .map_err(|e| Error::Custom(format!("pskt output e_to_user: {}", e)))?;
+
+    let output_e_change = OutputBuilder::default()
+        .amount(utxo_e_entry.amount - amt)
+        .script_public_key(e.p2sh.clone())
+        .build()
+        .map_err(|e| Error::Custom(format!("pskt output e_change: {}", e)))?;
+
+    let output_r_change = OutputBuilder::default()
+        .amount(utxo_r_entry.amount - RELAYER_NETWORK_FEE)
+        .script_public_key(ScriptPublicKey::from(pay_to_address_script(
+            &a_relayer.change_address()?,
+        )))
+        .build()
+        .map_err(|e| Error::Custom(format!("pskt output r_change: {}", e)))?;
 
     let pskt = PSKT::<Creator>::default()
         .constructor()
-        .input(input)
-        .output(output)
-        // .no_more_inputs()
-        // .no_more_outputs()
+        .input(input_e)
+        .input(input_r)
+        .output(output_e_to_user)
+        .output(output_e_change)
+        .output(output_r_change)
+        .no_more_inputs()
+        .no_more_outputs()
         .signer();
 
     Ok(pskt)
 }
 
-pub async fn deliver_withdrawal_tx<T: RpcApi + ?Sized>(
+pub async fn sign_network_fee<T: RpcApi + ?Sized>(
     rpc: &T,
+    pskt_unsigned: PSKT<Signer>,
     w_relayer: &Arc<Wallet>,
     w_relayer_secret: &Secret,
-    pskt_validator_signed: PSKT<Combiner>, // Takes the result from the signing function
-    e: &EscrowPublic,
-) -> Result<TransactionId, Error> {
+) -> Result<PSKT<Combiner>, Error> {
     let pskt_fee = get_fee_pskt(w_relayer, w_relayer_secret)?;
 
-    let pskt_done = (pskt_validator_signed + pskt_fee).unwrap();
+    let pskt_done = (pskt_unsigned + pskt_fee).unwrap();
 
-    let finalized_pskt = pskt_done
+    Ok(pskt_done)
+}
+
+pub async fn deliver_withdrawal_tx<T: RpcApi + ?Sized>(
+    rpc: &T,
+    pskt_signed: PSKT<Combiner>, // Takes the result from the signing function
+    e: &EscrowPublic,
+) -> Result<TransactionId, Error> {
+    let finalized_pskt = pskt_signed
         .finalizer()
         .finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
             Ok(inner
@@ -123,90 +160,4 @@ pub async fn deliver_withdrawal_tx<T: RpcApi + ?Sized>(
     let tx_id = rpc.submit_transaction(rpc_tx, false).await?;
 
     Ok(tx_id)
-}
-
-fn get_fee_pskt(w_relayer: &Arc<Wallet>, w_relayer_secret: &Secret) -> Result<PSKT<Combiner>, Error> {
-    let a_relayer = w_relayer.account()?;
-    let a_ctx = a_relayer.utxo_context();
-
-    let utxo = UtxoIterator::new(a_ctx)
-        .next() // For the demo, we just take the first available UTXO.
-        .ok_or("Relayer account has no spendable UTXO to pay for fees")?
-        .utxo
-        .as_ref()
-        .clone();
-
-    let entry = UtxoEntry::from(&utxo);
-    let outpoint = TransactionOutpoint::from(utxo.outpoint);
-
-    let input = InputBuilder::default()
-        .utxo_entry(entry)
-        .previous_outpoint(outpoint)
-        .sig_op_count(1)
-        .sighash_type(SIG_HASH_ALL)
-        .build()
-        .map_err(|e| Error::Custom(format!("Error building PSKT input: {}", e)))?;
-
-    let change_amount = utxo.amount - RELAYER_NETWORK_FEE; // TODO: negative check
-
-    let addr = a_relayer.change_address()?;
-    let change_script = pay_to_address_script(&addr);
-    let change_output = OutputBuilder::default()
-        .amount(change_amount)
-        .script_public_key(change_script)
-        .build()
-        .map_err(|e| Error::Custom(format!("Error building PSKT output: {}", e)))?;
-
-    let pskt = PSKT::<Creator>::default()
-        .constructor()
-        .input(input)
-        .output(change_output)
-        .signer();
-
-    let relayer_private_key =
-        get_private_key_for_input(&a_relayer, w_relayer_secret, 0, &pskt).await?;
-    let relayer_keypair = SecpKeypair::from_secret_key(&relayer_private_key);
-
-    sign_pskt(pskt, &relayer_keypair, 0)
-}
-
-async fn get_private_key_for_input(
-    account: &Arc<dyn Account>,
-    secret: &Secret,
-    input_index: usize,
-    pskt: &PSKT<Signer>,
-) -> Result<secp256k1::SecretKey, Error> {
-    let keydata = account.prv_key_data(secret.clone()).await?;
-    let derivation_capable = account.as_derivation_capable()?;
-    
-    let input = pskt.inputs.get(input_index).ok_or("Input index out of bounds")?;
-    let utxo_entry = input.utxo_entry.as_ref().ok_or("Input is missing UTXO entry")?;
-    let utxo_address = kaspa_txscript::extract_script_pub_key_address(
-        &utxo_entry.script_public_key,
-        account.wallet().address_prefix()?
-    )?;
-
-    // --- THIS IS THE FIX ---
-    // We interact with the public AddressManager APIs provided by the trait.
-
-    // 1. Get the address managers.
-    let receive_manager = derivation_capable.receive_address_manager();
-    let change_manager = derivation_capable.change_address_manager();
-
-    // 2. Check if the address belongs to the receive set, then the change set.
-    let (is_change, index) = if let Some(index) = receive_manager.inner().address_to_index_map.get(&utxo_address) {
-        (false, *index)
-    } else if let Some(index) = change_manager.inner().address_to_index_map.get(&utxo_address) {
-        (true, *index)
-    } else {
-        // The address was not found in either manager. This can happen if the UTXO
-        // belongs to an address outside the current derivation window.
-        // A full application might need to scan further, but for this demo, it's an error.
-        return Err(format!("Could not find derivation index for relayer's fee UTXO address: {}. Please ensure the account is fully synced.", utxo_address).into());
-    };
-    // ----------------------
-
-    let xprv = keydata.get_xprv(None)?;
-    let derived_keys = derivation_capable.get_range_with_keys(is_change, index..index + 1, false, &xprv).await?;
-    Ok(derived_keys.first().ok_or("Failed to derive private key for relayer")?.1)
 }

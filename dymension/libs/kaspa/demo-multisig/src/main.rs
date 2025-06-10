@@ -104,9 +104,13 @@ async fn demo() -> Result<(), Error> {
 
     let user_addr = w.account()?.receive_address()?;
 
-    let pskt_unsigned = build_withdrawal_tx(rpc.as_ref(), &e.public(), user_addr).await?;
+    let pskt_unsigned = build_withdrawal_tx(rpc.as_ref(), &e.public(), user_addr, &w.account()?, amt).await?;
 
-    let pskt_signed = sign_escrow_spend(&e, pskt_unsigned)?;
+    let pskt_signer_relayer = sign_network_fee(rpc.as_ref(), pskt_unsigned.clone(), &w, &s).await?;
+
+    let pskt_signed_vals = sign_escrow_spend(&e, pskt_unsigned.clone())?;
+
+    let pskt_signed = (pskt_signer_relayer + pskt_signed_vals).unwrap();
 
     let tx_id = deliver_withdrawal_tx(rpc.as_ref(), pskt_signed, &e.public()).await?;
 
