@@ -1,15 +1,17 @@
+use super::consts::RELAYER_NETWORK_FEE;
 use super::escrow::*;
 use super::util::sign_pskt;
-use super::consts::RELAYER_NETWORK_FEE;
 
 use std::{ops::Deref, sync::Arc};
 
 use kaspa_addresses::Address;
+use kaspa_consensus_core::hashing::sighash_type::{
+    SIG_HASH_ALL, SIG_HASH_ANY_ONE_CAN_PAY, SigHashType,
+};
 use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint, UtxoEntry};
 use kaspa_core::info;
 use kaspa_wallet_core::error::Error;
 use kaspa_wallet_core::utxo::UtxoIterator;
-use kaspa_consensus_core::hashing::sighash_type::{SigHashType, SIG_HASH_ALL, SIG_HASH_ANY_ONE_CAN_PAY};
 
 use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_keys::prelude::*;
@@ -71,11 +73,11 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
 pub async fn deliver_withdrawal_tx<T: RpcApi + ?Sized>(
     rpc: &T,
     w_relayer: &Arc<Wallet>,
+    w_relayer_secret: &Secret,
     pskt_validator_signed: PSKT<Combiner>, // Takes the result from the signing function
     e: &EscrowPublic,
 ) -> Result<TransactionId, Error> {
-
-    let pskt_fee = get_fee_pskt(w_relayer)?;
+    let pskt_fee = get_fee_pskt(w_relayer, w_relayer_secret)?;
 
     let pskt_done = (pskt_validator_signed + pskt_fee).unwrap();
 
@@ -123,13 +125,16 @@ pub async fn deliver_withdrawal_tx<T: RpcApi + ?Sized>(
     Ok(tx_id)
 }
 
-fn get_fee_pskt(w_relayer: &Arc<Wallet>) -> Result<PSKT<Combiner>, Error> {
+fn get_fee_pskt(w_relayer: &Arc<Wallet>, w_relayer_secret: &Secret) -> Result<PSKT<Combiner>, Error> {
     let a_relayer = w_relayer.account()?;
     let a_ctx = a_relayer.utxo_context();
 
     let utxo = UtxoIterator::new(a_ctx)
         .next() // For the demo, we just take the first available UTXO.
-        .ok_or("Relayer account has no spendable UTXO to pay for fees")?.utxo.as_ref().clone();
+        .ok_or("Relayer account has no spendable UTXO to pay for fees")?
+        .utxo
+        .as_ref()
+        .clone();
 
     let entry = UtxoEntry::from(&utxo);
     let outpoint = TransactionOutpoint::from(utxo.outpoint);
@@ -139,8 +144,8 @@ fn get_fee_pskt(w_relayer: &Arc<Wallet>) -> Result<PSKT<Combiner>, Error> {
         .previous_outpoint(outpoint)
         .sig_op_count(1)
         .sighash_type(SIG_HASH_ALL)
-        .build().map_err(|e| Error::Custom(format!("Error building PSKT input: {}", e)))?;
-
+        .build()
+        .map_err(|e| Error::Custom(format!("Error building PSKT input: {}", e)))?;
 
     let change_amount = utxo.amount - RELAYER_NETWORK_FEE; // TODO: negative check
 
@@ -158,6 +163,50 @@ fn get_fee_pskt(w_relayer: &Arc<Wallet>) -> Result<PSKT<Combiner>, Error> {
         .output(change_output)
         .signer();
 
+    let relayer_private_key =
+        get_private_key_for_input(&a_relayer, w_relayer_secret, 0, &pskt).await?;
+    let relayer_keypair = SecpKeypair::from_secret_key(&relayer_private_key);
 
+    sign_pskt(pskt, &relayer_keypair, 0)
+}
 
+async fn get_private_key_for_input(
+    account: &Arc<dyn Account>,
+    secret: &Secret,
+    input_index: usize,
+    pskt: &PSKT<Signer>,
+) -> Result<secp256k1::SecretKey, Error> {
+    let keydata = account.prv_key_data(secret.clone()).await?;
+    let derivation_capable = account.as_derivation_capable()?;
+    
+    let input = pskt.inputs.get(input_index).ok_or("Input index out of bounds")?;
+    let utxo_entry = input.utxo_entry.as_ref().ok_or("Input is missing UTXO entry")?;
+    let utxo_address = kaspa_txscript::extract_script_pub_key_address(
+        &utxo_entry.script_public_key,
+        account.wallet().address_prefix()?
+    )?;
+
+    // --- THIS IS THE FIX ---
+    // We interact with the public AddressManager APIs provided by the trait.
+
+    // 1. Get the address managers.
+    let receive_manager = derivation_capable.receive_address_manager();
+    let change_manager = derivation_capable.change_address_manager();
+
+    // 2. Check if the address belongs to the receive set, then the change set.
+    let (is_change, index) = if let Some(index) = receive_manager.inner().address_to_index_map.get(&utxo_address) {
+        (false, *index)
+    } else if let Some(index) = change_manager.inner().address_to_index_map.get(&utxo_address) {
+        (true, *index)
+    } else {
+        // The address was not found in either manager. This can happen if the UTXO
+        // belongs to an address outside the current derivation window.
+        // A full application might need to scan further, but for this demo, it's an error.
+        return Err(format!("Could not find derivation index for relayer's fee UTXO address: {}. Please ensure the account is fully synced.", utxo_address).into());
+    };
+    // ----------------------
+
+    let xprv = keydata.get_xprv(None)?;
+    let derived_keys = derivation_capable.get_range_with_keys(is_change, index..index + 1, false, &xprv).await?;
+    Ok(derived_keys.first().ok_or("Failed to derive private key for relayer")?.1)
 }
