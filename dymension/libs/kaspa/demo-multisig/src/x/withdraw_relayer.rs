@@ -177,40 +177,17 @@ pub async fn sponsor_and_send_tx<T: RpcApi + ?Sized>(
                             )
                             .collect()
                     } else {
-                        let signatures: Vec<_> = input
+                        let (_pk, signature) = input
                             .partial_sigs
-                            .clone()
-                            .into_iter()
-                            .flat_map(|(_, signature)| {
-                                iter::once(OpData65)
-                                    .chain(signature.into_bytes())
-                                    .chain([input.sighash_type.to_u8()])
-                            })
+                            .iter()
+                            .next()
+                            .expect("Relayer input is missing a signature");
+                        let sig = (*signature).into_bytes();
+
+                        return std::iter::once(65u8)
+                            .chain(sig)
+                            .chain([input.sighash_type.to_u8()])
                             .collect();
-                        // signatures;
-
-                        // ScriptBuilder::new()
-                        //     .add_data(signatures.as_slice())
-                        //     .unwrap()
-                        //     .script()
-                        //     .to_vec()
-
-                        signatures
-                            .into_iter()
-                            .chain(
-                                input
-                                    .redeem_script
-                                    .as_ref()
-                                    .map(|redeem_script| {
-                                        ScriptBuilder::new()
-                                            .add_data(redeem_script.as_slice())
-                                            .unwrap()
-                                            .drain()
-                                            .to_vec()
-                                    })
-                                    .unwrap_or_default(),
-                            )
-                            .collect()
                     }
                 })
                 .collect())
