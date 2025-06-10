@@ -63,12 +63,12 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
         .map_err(|e| Error::Custom(format!("pskt input e: {}", e)))?;
 
     // TODO: not exactly sure how to build input for p2pk
-    let redeem_script_spk = pay_to_address_script(&a_relayer.change_address()?); 
-    let redeem_script_r = redeem_script_spk.script().to_vec(); 
+    // let redeem_script_spk = pay_to_address_script(&a_relayer.change_address()?);
+    // let redeem_script_r = redeem_script_spk.script().to_vec();
     let input_r = InputBuilder::default()
         .utxo_entry(utxo_r_entry.clone())
         .previous_outpoint(utxo_r_out)
-        .redeem_script(redeem_script_r)
+        // .redeem_script(redeem_script_r)
         .sig_op_count(1)
         .sighash_type(SIG_HASH_ALL)
         .build()
@@ -116,9 +116,13 @@ pub async fn sponsor_and_send_tx<T: RpcApi + ?Sized>(
     w_relayer: &Arc<Wallet>,
     s_relayer: &Secret,
 ) -> Result<TransactionId, Error> {
+    info!("-> Relayer   is signing their copy...");
+
     let pskt_signed_relayer =
         sign_pay_fee(rpc, pskt_unsigned.clone(), w_relayer, s_relayer).await?;
     let pskt_signed = (pskt_signed_relayer + pskt_signed_vals).unwrap();
+
+    info!("-> Relayer is finalizing");
 
     let finalized_pskt = pskt_signed
         .finalizer()
@@ -132,42 +136,27 @@ pub async fn sponsor_and_send_tx<T: RpcApi + ?Sized>(
 
                     // ORIGINAL COMMENT: todo actually required count can be retrieved from redeem_script, sigs can be taken from partial sigs according to required count
                     // ORIGINAL COMMENT: considering xpubs sorted order
-                    if i < 100 {
-                        let sigs: Vec<_> = e
-                            .pubs
-                            .iter()
-                            .flat_map(|kp| {
-                                let sig = input.partial_sigs.get(&kp).unwrap().into_bytes();
-                                iter::once(OpData65)
-                                    .chain(sig)
-                                    .chain([input.sighash_type.to_u8()])
-                            })
-                            .collect();
+                    let sigs: Vec<_> = e
+                        .pubs
+                        .iter()
+                        .flat_map(|kp| {
+                            let sig = input.partial_sigs.get(&kp).unwrap().into_bytes();
+                            iter::once(OpData65)
+                                .chain(sig)
+                                .chain([input.sighash_type.to_u8()])
+                        })
+                        .collect();
 
-                        sigs.into_iter()
-                            .chain(
-                                ScriptBuilder::new()
-                                    .add_data(input.redeem_script.as_ref().unwrap().as_slice())
-                                    .unwrap()
-                                    .drain()
-                                    .iter()
-                                    .cloned(),
-                            )
-                            .collect()
-                    } else {
-                        // TODO: fix to make relayer input spendable
-                        input
-                            .redeem_script
-                            .as_ref()
-                            .map(|redeem_script| {
-                                ScriptBuilder::new()
-                                    .add_data(redeem_script.as_slice())
-                                    .unwrap()
-                                    .drain()
-                                    .to_vec()
-                            })
-                            .unwrap_or_default()
-                    }
+                    sigs.into_iter()
+                        .chain(
+                            ScriptBuilder::new()
+                                .add_data(input.redeem_script.as_ref().unwrap().as_slice())
+                                .unwrap()
+                                .drain()
+                                .iter()
+                                .cloned(),
+                        )
+                        .collect()
                 })
                 .collect())
         })
@@ -188,7 +177,6 @@ async fn sign_pay_fee<T: RpcApi + ?Sized>(
     w: &Arc<Wallet>,
     s: &Secret,
 ) -> Result<PSKT<Combiner>, Error> {
-    info!("-> Relayer   is signing their copy...");
     let bundle = Bundle::from(pskt_unsigned);
     let addr = w.account()?.change_address()?;
     let sign_for_address = Some(&addr);
