@@ -19,7 +19,8 @@ use kaspa_wallet_pskt::prelude::*;
 use secp256k1::{Keypair as SecpKeypair, Secp256k1};
 
 use kaspa_txscript::{
-    opcodes::codes::OpData65, pay_to_address_script, script_builder::ScriptBuilder,
+    opcodes::codes::{OpCheckSig, OpData65}, script_builder::ScriptBuilder,
+    standard::pay_to_address_script,
 };
 
 use kaspa_rpc_core::api::rpc::RpcApi;
@@ -54,15 +55,20 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
     let input_e = InputBuilder::default()
         .utxo_entry(utxo_e_entry.clone())
         .previous_outpoint(utxo_e_out)
-        .sig_op_count(e.n() as u8) // Total possible signers
         .redeem_script(e.redeem_script.clone())
+        .sig_op_count(e.n() as u8) // Total possible signers
+        .sighash_type(SIG_HASH_ALL)
         .build()
         .map_err(|e| Error::Custom(format!("pskt input e: {}", e)))?;
 
+    let redeem_script_spk = pay_to_address_script(&a_relayer.receive_address()?); // TODO: sus
+    let redeem_script_r = redeem_script_spk.script().to_vec(); // TODO: sus
     let input_r = InputBuilder::default()
         .utxo_entry(utxo_r_entry.clone())
         .previous_outpoint(utxo_r_out)
+        .redeem_script(redeem_script_r)
         .sig_op_count(1)
+        .sighash_type(SIG_HASH_ALL)
         .build()
         .map_err(|e| Error::Custom(format!("pskt input r: {}", e)))?;
 
@@ -118,10 +124,12 @@ pub async fn sponsor_and_send_tx<T: RpcApi + ?Sized>(
                 .inputs
                 .iter()
                 .map(|input| -> Vec<u8> {
-                    // todo actually required count can be retrieved from redeem_script, sigs can be taken from partial sigs according to required count
-                    // considering xpubs sorted order
+                    // Return the full script
 
-                    let signatures: Vec<_> = e
+                    // ORIGINAL COMMENT: todo actually required count can be retrieved from redeem_script, sigs can be taken from partial sigs according to required count
+                    // ORIGINAL COMMENT: considering xpubs sorted order
+
+                    let sigs: Vec<_> = e
                         .pubs
                         .iter()
                         .flat_map(|kp| {
@@ -131,7 +139,8 @@ pub async fn sponsor_and_send_tx<T: RpcApi + ?Sized>(
                                 .chain([input.sighash_type.to_u8()])
                         })
                         .collect();
-                    signatures
+
+                    sigs
                         .into_iter()
                         .chain(
                             ScriptBuilder::new()
@@ -147,7 +156,8 @@ pub async fn sponsor_and_send_tx<T: RpcApi + ?Sized>(
         })
         .unwrap();
 
-    let (tx, _) = finalized_pskt.extractor().unwrap().extract_tx().unwrap()(10000); // TODO: wtf is this number?
+    let mass = 10_000; // TODO: why?
+    let (tx, _) = finalized_pskt.extractor().unwrap().extract_tx().unwrap()(mass);
 
     let rpc_tx = (&tx).into();
     let tx_id = rpc.submit_transaction(rpc_tx, false).await?;
@@ -161,6 +171,7 @@ async fn sign_pay_fee<T: RpcApi + ?Sized>(
     w: &Arc<Wallet>,
     s: &Secret,
 ) -> Result<PSKT<Combiner>, Error> {
+    info!("-> Relayer   is signing their copy...");
     let bundle = Bundle::from(pskt_unsigned);
     let addr = w.account()?.change_address()?;
     let sign_for_address = Some(&addr);
