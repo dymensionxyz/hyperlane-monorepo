@@ -91,6 +91,7 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
         .map_err(|e| Error::Custom(format!("pskt output e_to_user: {}", e)))?;
 
     let output_e_change = OutputBuilder::default()
+        // .amount(utxo_e_entry.amount - amt)
         .amount(utxo_e_entry.amount - amt)
         .script_public_key(e.p2sh.clone())
         .build()
@@ -107,10 +108,10 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
     let pskt = PSKT::<Creator>::default()
         .constructor()
         .input(input_e)
-        .input(input_r)
+        // .input(input_r)
         .output(output_e_to_user)
-        .output(output_e_change)
-        .output(output_r_change)
+        // .output(output_e_change)
+        // .output(output_r_change)
         .no_more_inputs()
         .no_more_outputs()
         .signer();

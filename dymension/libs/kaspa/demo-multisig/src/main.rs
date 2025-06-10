@@ -85,7 +85,8 @@ async fn demo() -> Result<(), Error> {
     let e = Escrow::new(2);
     info!("Created escrow address: {}", e.public().addr);
 
-    let amt = DEPOSIT_AMOUNT;
+    // let amt = DEPOSIT_AMOUNT;
+    let amt = DEPOSIT_AMOUNT+RELAYER_NETWORK_FEE;
     let tx_id = deposit(&w, &s, &e, amt).await?;
     info!("Sent deposit transaction: {}", tx_id);
 
@@ -96,8 +97,10 @@ async fn demo() -> Result<(), Error> {
 
     let user_addr = w.account()?.receive_address()?;
 
+    // let user_withdrawal_amt = amt;
+    let user_withdrawal_amt = amt-RELAYER_NETWORK_FEE;
     let pskt_unsigned =
-        build_withdrawal_tx(rpc.as_ref(), &e.public(), user_addr, &w.account()?, amt).await?;
+        build_withdrawal_tx(rpc.as_ref(), &e.public(), user_addr, &w.account()?, user_withdrawal_amt).await?;
 
     let pskt_signed_vals = sign_escrow_spend(&e, pskt_unsigned.clone())?;
 
