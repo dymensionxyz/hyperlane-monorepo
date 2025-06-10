@@ -10,7 +10,7 @@ use kaspa_wallet_core::prelude::*; // Import the prelude for easy access to trai
 
 use std::sync::Arc;
 
-use crate::x::consts::*;
+use super::consts::*;
 use kaspa_wrpc_client::Resolver;
 
 pub async fn get_wallet(s: &Secret) -> Result<Arc<Wallet>, Error> {

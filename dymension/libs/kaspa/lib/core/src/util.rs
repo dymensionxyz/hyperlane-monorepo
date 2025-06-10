@@ -9,14 +9,6 @@ use kaspa_core::info;
 use kaspa_addresses::Address;
 use kaspa_wallet_core::error::Error;
 
-use kaspa_wallet_core::prelude::*;
-use kaspa_wallet_pskt::prelude::*;
-use secp256k1::Keypair as SecpKeypair;
-
-use kaspa_consensus_core::hashing::sighash::{
-    SigHashReusedValuesUnsync, calc_schnorr_signature_hash,
-};
-
 pub async fn check_balance<T: RpcApi + ?Sized>(
     source: &str,
     rpc: &T,

@@ -2,29 +2,19 @@
 
 use super::escrow::*;
 
-use std::sync::Arc;
 
-use kaspa_addresses::Address;
-use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint, UtxoEntry};
 use kaspa_core::info;
 use kaspa_wallet_core::error::Error;
 
-use kaspa_wallet_core::prelude::*;
-use kaspa_wallet_keys::prelude::*;
 use kaspa_wallet_pskt::prelude::*;
-use secp256k1::{Keypair as SecpKeypair, Secp256k1};
+use secp256k1::Keypair as SecpKeypair;
 
-use kaspa_txscript::{
-    opcodes::codes::OpData65, pay_to_address_script, script_builder::ScriptBuilder,
-};
 
-use kaspa_rpc_core::api::rpc::RpcApi;
 
 use kaspa_consensus_core::hashing::sighash::{
     SigHashReusedValuesUnsync, calc_schnorr_signature_hash,
 };
 
-use std::iter;
 
 // Mimic a parallel multi-validator signing process
 pub fn sign_escrow_spend(e: &Escrow, pskt_unsigned: PSKT<Signer>) -> Result<PSKT<Combiner>, Error> {

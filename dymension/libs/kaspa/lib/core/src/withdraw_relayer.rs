@@ -1,7 +1,7 @@
-use super::consts::{ADDRESS_PREFIX, RELAYER_NETWORK_FEE};
+use super::consts::RELAYER_NETWORK_FEE;
 use super::escrow::*;
 
-use std::{ops::Deref, sync::Arc};
+use std::sync::Arc;
 
 use kaspa_addresses::Address;
 use kaspa_consensus_core::hashing::sighash_type::{
@@ -13,23 +13,13 @@ use kaspa_wallet_core::error::Error;
 use kaspa_wallet_core::utxo::UtxoIterator;
 
 use kaspa_wallet_core::prelude::*;
-use kaspa_wallet_keys::prelude::*;
 use kaspa_wallet_pskt::prelude::*;
-use secp256k1::{Keypair as SecpKeypair, Secp256k1};
 
 use kaspa_txscript::{
-    extract_script_pub_key_address,
-    opcodes::codes::{OpCheckSig, OpData65},
-    script_builder::ScriptBuilder,
-    standard::pay_to_address_script,
+    opcodes::codes::OpData65, script_builder::ScriptBuilder, standard::pay_to_address_script,
 };
 
 use kaspa_rpc_core::api::rpc::RpcApi;
-
-use kaspa_consensus_core::hashing::sighash::{
-    SigHashReusedValuesUnsync, calc_schnorr_signature_hash,
-};
-use workflow_core::hex::ToHex;
 
 use std::iter;
 
@@ -86,6 +76,7 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
         .script_public_key(e.p2sh.clone())
         .build()
         .map_err(|e| Error::Custom(format!("pskt output e_change: {}", e)))?;
+    _ = output_e_change; // TODO: fix
 
     let output_r_change = OutputBuilder::default()
         .amount(utxo_r_entry.amount - RELAYER_NETWORK_FEE)
@@ -119,8 +110,7 @@ pub async fn sponsor_and_send_tx<T: RpcApi + ?Sized>(
 ) -> Result<TransactionId, Error> {
     info!("-> Relayer   is signing their copy...");
 
-    let pskt_signed_relayer =
-        sign_pay_fee(rpc, pskt_unsigned.clone(), w_relayer, s_relayer).await?;
+    let pskt_signed_relayer = sign_pay_fee(pskt_unsigned.clone(), w_relayer, s_relayer).await?;
     let pskt_signed = (pskt_signed_relayer + pskt_signed_vals).unwrap();
 
     info!("-> Relayer is finalizing");
@@ -191,8 +181,7 @@ pub async fn sponsor_and_send_tx<T: RpcApi + ?Sized>(
     Ok(tx_id)
 }
 
-async fn sign_pay_fee<T: RpcApi + ?Sized>(
-    rpc: &T,
+async fn sign_pay_fee(
     pskt_unsigned: PSKT<Signer>,
     w: &Arc<Wallet>,
     s: &Secret,

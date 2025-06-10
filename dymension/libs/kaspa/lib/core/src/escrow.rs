@@ -3,8 +3,6 @@ use super::consts::*;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::ScriptPublicKey;
 
-use kaspa_wallet_core::prelude::*;
-
 use kaspa_txscript::{
     extract_script_pub_key_address, multisig_redeem_script, pay_to_script_hash_script,
 };
