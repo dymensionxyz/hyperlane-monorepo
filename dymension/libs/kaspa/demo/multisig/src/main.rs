@@ -1,14 +1,13 @@
 #![allow(unused)] // TODO: remove
 
-mod x;
-use x::args::Args;
-use x::consts::*;
-use x::deposit::*;
-use x::escrow::*;
-use x::util::*;
-use x::wallet::*;
-use x::withdraw_relayer::*;
-use x::withdraw_validator::*;
+use dym_kaspa_core::args::Args;
+use dym_kaspa_core::consts::*;
+use dym_kaspa_core::deposit::*;
+use dym_kaspa_core::escrow::*;
+use dym_kaspa_core::util::*;
+use dym_kaspa_core::wallet::*;
+use dym_kaspa_core::withdraw_relayer::*;
+use dym_kaspa_core::withdraw_validator::*;
 
 use std::sync::Arc;
 
