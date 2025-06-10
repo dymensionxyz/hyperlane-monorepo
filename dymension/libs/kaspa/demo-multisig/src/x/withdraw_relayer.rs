@@ -62,25 +62,13 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
         .sighash_type(
             SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8()).unwrap(),
         )
-        // .sighash_type(SIG_HASH_ANY_ONE_CAN_PAY)
         .build()
         .map_err(|e| Error::Custom(format!("pskt input e: {}", e)))?;
 
-    // TODO: not exactly sure how to build input for p2pk
-    let redeem_script_spk = pay_to_address_script(&a_relayer.change_address()?);
-
-    // I checked this reversed value is correct against explorer, it's indeed the wallet change addr with funds
-    let reversed = extract_script_pub_key_address(&redeem_script_spk, ADDRESS_PREFIX).unwrap();
-    info!("reversed: {:?}", reversed);
-    let redeem_script_r = redeem_script_spk.script().to_vec();
-    // this is also correct, as it matches the script show in the xplorer
-    info!("redeem_script_r: {:?}", redeem_script_r.to_hex());
     let input_r = InputBuilder::default()
         .utxo_entry(utxo_r_entry.clone())
         .previous_outpoint(utxo_r_out)
-        // .redeem_script(redeem_script_r)
         .sig_op_count(1) // TODO: needed if using p2pk?
-        // .sighash_type(SIG_HASH_ANY_ONE_CAN_PAY)
         .sighash_type(
             SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8()).unwrap(),
         )
@@ -94,7 +82,6 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
         .map_err(|e| Error::Custom(format!("pskt output e_to_user: {}", e)))?;
 
     let output_e_change = OutputBuilder::default()
-        .amount(utxo_e_entry.amount - amt)
         .amount(utxo_e_entry.amount - amt)
         .script_public_key(e.p2sh.clone())
         .build()
@@ -113,7 +100,7 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
         .input(input_e)
         .input(input_r)
         .output(output_e_to_user)
-        // .output(output_e_change) // NOTE: in this example the escrow has nothing left, so not possible to have empty UTXO, not realistic
+        // .output(output_e_change) 
         .output(output_r_change)
         .no_more_inputs()
         .no_more_outputs()
@@ -176,9 +163,10 @@ pub async fn sponsor_and_send_tx<T: RpcApi + ?Sized>(
                             )
                             .collect()
                     } else {
-                        let (_pk, signature) = input.partial_sigs.iter().collect::<Vec<_>>()[2];
-                        // .expect("Relayer input is missing a signature");
-                        let sig = (*signature).into_bytes();
+
+                        let sig = input.partial_sigs.iter().filter(|(pk, _sig)| {
+                            !e.pubs.contains(pk)
+                        }).next().unwrap().1.into_bytes();
 
                         return std::iter::once(65u8)
                             .chain(sig)

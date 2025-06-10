@@ -1,7 +1,6 @@
 // We call the signers 'validators'
 
 use super::escrow::*;
-use super::util::sign_pskt;
 
 use std::sync::Arc;
 
