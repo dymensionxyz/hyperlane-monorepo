@@ -53,7 +53,6 @@ pub async fn check_balance_wallet(w: Arc<Wallet>) -> Result<(), Error> {
     Ok(())
 }
 
-// Mimic a local validator node signing procedure
 pub fn sign_pskt(kp: &SecpKeypair, pskt: PSKT<Signer>) -> Result<PSKT<Signer>, Error> {
     let reused_values = SigHashReusedValuesUnsync::new();
 
@@ -79,14 +78,5 @@ pub fn sign_pskt(kp: &SecpKeypair, pskt: PSKT<Signer>) -> Result<PSKT<Signer>, E
                 })
             })
             .collect()
-    })
-}
-
-fn sign_pskt_input_with_key(pskt: PSKT<Signer>, kp: &SecpKeypair, input_index: usize) -> Result<PSKT<Signer>, Error> {
-    let reused_values = SigHashReusedValuesUnsync::new();
-    pskt.pass_signature_sync(|tx, sighashes| {
-        let hash = calc_schnorr_signature_hash(&tx.as_verifiable(), input_index, sighashes[input_index], &reused_values);
-        let msg = secp256k1::Message::from_digest_slice(hash.as_bytes()).map_err(|e| e.to_string())?;
-        Ok(vec![SignInputOk { signature: Signature::Schnorr(kp.sign_schnorr(msg)), pub_key: kp.public_key(), key_source: None }])
     })
 }

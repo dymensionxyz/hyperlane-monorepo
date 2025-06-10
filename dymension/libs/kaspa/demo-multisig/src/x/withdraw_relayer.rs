@@ -160,13 +160,17 @@ async fn get_private_key_for_input(
     };
 
     let xprv = keydata.get_xprv(None)?;
-    let derived_keys = derivation_capable
-        .get_range_with_keys(is_change, index..index + 1, false, &xprv)
-        .await?;
-    Ok(derived_keys
-        .first()
-        .ok_or("Failed to derive private key for relayer")?
-        .1)
+    let derivation_path = kaspa_wallet_keys::derivation::gen1::WalletDerivationManager::build_derivate_path(
+        false, // Assuming relayer account is not multisig
+        account.account_index(),
+        None,
+        Some(if is_change { kaspa_bip32::AddressType::Change } else { kaspa_bip32::AddressType::Receive })
+    )?;
+    
+    let derived_xprv = xprv.derive_path(&derivation_path)?;
+    let final_xprv = derived_xprv.derive_child(kaspa_bip32::ChildNumber::new(index, false)?)?;
+    
+    Ok(final_xprv.private_key().inner)
 }
 
 pub async fn deliver_withdrawal_tx<T: RpcApi + ?Sized>(
