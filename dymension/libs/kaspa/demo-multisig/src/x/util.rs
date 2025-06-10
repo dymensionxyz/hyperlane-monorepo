@@ -52,31 +52,3 @@ pub async fn check_balance_wallet(w: Arc<Wallet>) -> Result<(), Error> {
 
     Ok(())
 }
-
-pub fn sign_pskt(kp: &SecpKeypair, pskt: PSKT<Signer>) -> Result<PSKT<Signer>, Error> {
-    let reused_values = SigHashReusedValuesUnsync::new();
-
-    pskt.pass_signature_sync(|tx, sighashes| {
-        // let tx = dbg!(tx);
-        tx.tx
-            .inputs
-            .iter()
-            .enumerate()
-            .map(|(idx, _input)| {
-                let hash = calc_schnorr_signature_hash(
-                    &tx.as_verifiable(),
-                    idx,
-                    sighashes[idx],
-                    &reused_values,
-                );
-                let msg = secp256k1::Message::from_digest_slice(&hash.as_bytes())
-                    .map_err(|e| e.to_string())?;
-                Ok(SignInputOk {
-                    signature: Signature::Schnorr(kp.sign_schnorr(msg)),
-                    pub_key: kp.public_key(),
-                    key_source: None,
-                })
-            })
-            .collect()
-    })
-}

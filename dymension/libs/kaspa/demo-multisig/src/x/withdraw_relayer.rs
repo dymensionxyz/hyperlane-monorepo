@@ -100,7 +100,7 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
         .input(input_e)
         .input(input_r)
         .output(output_e_to_user)
-        // .output(output_e_change) 
+        // .output(output_e_change)
         .output(output_r_change)
         .no_more_inputs()
         .no_more_outputs()
@@ -163,10 +163,14 @@ pub async fn sponsor_and_send_tx<T: RpcApi + ?Sized>(
                             )
                             .collect()
                     } else {
-
-                        let sig = input.partial_sigs.iter().filter(|(pk, _sig)| {
-                            !e.pubs.contains(pk)
-                        }).next().unwrap().1.into_bytes();
+                        let sig = input
+                            .partial_sigs
+                            .iter()
+                            .filter(|(pk, _sig)| !e.pubs.contains(pk))
+                            .next()
+                            .unwrap()
+                            .1
+                            .into_bytes();
 
                         return std::iter::once(65u8)
                             .chain(sig)
