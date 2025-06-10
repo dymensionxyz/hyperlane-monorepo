@@ -65,12 +65,6 @@ We will test against testnet 10. The wallet has 200'000 KAS available.
 _____________
 
 TODO:s
-    - let the relayer pay the fee directly with an explicit additional input
-        - need to rework
-            Creation:
-                creator -> signer -> final
-            (Also make all the transitions explicit)
-    - factor out so all the minimal information is more obvious (args should be minimal)
     - actually document and understand all the magic stuff
     - extract to a lib
     - add the borshing
@@ -109,11 +103,7 @@ async fn demo() -> Result<(), Error> {
 
     let pskt_signed_vals = sign_escrow_spend(&e, pskt_unsigned.clone())?;
 
-    let pskt_signed = (pskt_signer_relayer + pskt_signed_vals).unwrap();
-    
-    let pskt_signer_relayer = sign_network_fee(rpc.as_ref(), pskt_unsigned.clone(), &w, &s).await?;
-
-    let tx_id = deliver_withdrawal_tx(rpc.as_ref(), pskt_signed, &e.public()).await?;
+    let tx_id = sponsor_and_send_tx(rpc.as_ref(), pskt_signed_vals, pskt_unsigned, &e.public(), &w, &s).await?;
 
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 

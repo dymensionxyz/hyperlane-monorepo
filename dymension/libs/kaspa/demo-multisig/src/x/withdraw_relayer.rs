@@ -108,7 +108,7 @@ pub async fn sponsor_and_send_tx<T: RpcApi + ?Sized>(
     w_relayer: &Arc<Wallet>,
     s_relayer: &Secret,
 ) -> Result<TransactionId, Error> {
-    let pskt_signed_relayer = sign_network_fee(rpc, pskt_unsigned.clone(), w_relayer, s_relayer).await?;
+    let pskt_signed_relayer = sign_pay_fee(rpc, pskt_unsigned.clone(), w_relayer, s_relayer).await?;
     let pskt_signed = (pskt_signed_relayer + pskt_signed_vals).unwrap();
 
     let finalized_pskt = pskt_signed
@@ -155,11 +155,18 @@ pub async fn sponsor_and_send_tx<T: RpcApi + ?Sized>(
     Ok(tx_id)
 }
 
-async fn sign_network_fee<T: RpcApi + ?Sized>(
+async fn sign_pay_fee<T: RpcApi + ?Sized>(
     rpc: &T,
     pskt_unsigned: PSKT<Signer>,
     w: &Arc<Wallet>,
     s: &Secret,
 ) -> Result<PSKT<Combiner>, Error> {
-    Ok(pskt_done)
+    let bundle = Bundle::from(pskt_unsigned);
+    let addr = w.account()?.change_address()?;
+    let sign_for_address = Some(&addr);
+    let bundle_signed = w.account()?.pskb_sign(&bundle, s.clone(), None, sign_for_address).await?;
+
+    let pskt_done = bundle_signed.iter().next().unwrap();
+    let combiner = PSKT::from(pskt_done.clone());
+    Ok(combiner)
 }
