@@ -64,7 +64,7 @@ fn sign_pskt(kp: &SecpKeypair, pskt: PSKT<Signer>) -> Result<PSKT<Signer>, Error
                 let hash = calc_schnorr_signature_hash(
                     &tx.as_verifiable(),
                     idx,
-                    sighashes[idx],
+                    sighashes[idx], // TODO: don't forget need to verify it's what's expected
                     &reused_values,
                 );
                 let msg = secp256k1::Message::from_digest_slice(&hash.as_bytes())

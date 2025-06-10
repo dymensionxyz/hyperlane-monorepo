@@ -13,6 +13,7 @@ typical port alignment is
 - Mainnet RPC 16110
 - Mainnet P2P Listen 16111
 - TestNet 10 RPC 16210
+- TestNet 10 WRPC 17210
 - TestNet 10 P2P Listen 16211
 - TestNet 11 RPC 16310
 - TestNet 11 P2P Listen 16311
@@ -44,13 +45,19 @@ Exhaustive config: https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fc
 
 Log levels: https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/kaspad/src/args.rs#L27-L94
 
+### Client
+
+⚠️ ⚠️ IMPORTANT ⚠️ ⚠️
+
+In Kaspa, clients using the high level rust lib wallet API should connect to a node via WRPC. That node must also be running a GRPC server, and it must have a UTXO index. It will not allow sending TX's if the node is unsynced or syncing.
+
 ### Units, currency and conversions
 
 https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/consensus/core/src/constants.rs#L12-L24
 
 ### Tx Construction
 
-_Scripts_
+**_Scripts_**
 
 Let's first understand TX semantics.
 
@@ -79,9 +86,9 @@ So this script is run over the stack machine and essentially it does
 
 Therefore ensuring that the person who spends the utxo is the person intended by the utxo creator.
 
-_Data structures_
+**_Data structures_**
 
-In the snippets below, our remarks are prefixed 'REMARK':
+(Note: In the snippets below, our remarks are prefixed 'REMARK')
 
 ```rust
 pub struct TransactionOutpoint {

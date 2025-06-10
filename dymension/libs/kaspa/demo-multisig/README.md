@@ -41,11 +41,13 @@ TODO:
 
 ### TX construction
 
-_PSKT_
+**_PSKT_**
 
 Partially signed kaspa transactions (spec: https://github.com/bitcoin/bips/blob/master/bip-0174.mediawiki, https://github.com/bitcoin/bips/blob/master/bip-0370.mediawiki#creator) let actors cooperate.
 
-_Setup_
+See the role diagram for a clue https://www.notion.so/dymension/ADR-Kaspa-Bridge-Off-Chain-20da4a51f86a8026aa10e2c616a1b9f5?source=copy_link#20da4a51f86a8023bdcce2a7f0f49527
+
+**_Setup_**
 
 Validators need to create key pairs and collaborate to make a multisig redeem script (https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/crypto/txscript/src/standard/multisig.rs#L18).
 
@@ -55,15 +57,21 @@ Actually there is a util to combine this (https://github.com/kaspanet/rusty-kasp
 
 Users will escrow to that address.
 
-_Construction (relayer)_ (https://github.com/bitcoin/bips/blob/master/bip-0174.mediawiki#creator)
+**_Construction (relayer)_** (https://github.com/bitcoin/bips/blob/master/bip-0174.mediawiki#creator)
 
-Use bundle (https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/pskt/src/bundle.rs#L23) for transport.
+Relayer will construct the TX with ALL inputs and outputs (i.e. for escrow and for network fees). It must use ANYONE CAN PAY hash function for the inputs. It will produce a PSKT.
 
-_Signing (validators)_ (https://github.com/bitcoin/bips/blob/master/bip-0174.mediawiki#signer)
+It will gather partially signed inputs from the validators, and then combine them. It will also it's own fee input.
 
-TODO: parallel aspect
+Afterwards it delivers to network.
 
-See the role diagram for a clue https://www.notion.so/dymension/ADR-Kaspa-Bridge-Off-Chain-20da4a51f86a8026aa10e2c616a1b9f5?source=copy_link#20da4a51f86a8023bdcce2a7f0f49527 .
+**_Signing (validators)_** (https://github.com/bitcoin/bips/blob/master/bip-0174.mediawiki#signer)
+
+They will provide signatures for only the inputs that spend the escrow, and also the sig will be over _all_ outputs too.
+
+**_Transport_**
+
+Use bundle (https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/pskt/src/bundle.rs#L23) for transport. There is no out of the box communication library, so some suitable thing should be used (e.g. libp2p).
 
 ### Src and refs
 
