@@ -106,11 +106,67 @@ pub async fn sign_network_fee<T: RpcApi + ?Sized>(
     w_relayer: &Arc<Wallet>,
     w_relayer_secret: &Secret,
 ) -> Result<PSKT<Combiner>, Error> {
-    let pskt_fee = get_fee_pskt(w_relayer, w_relayer_secret)?;
+    let relayer_account = w_relayer.account()?;
 
-    let pskt_done = (pskt_unsigned + pskt_fee).unwrap();
+    let relayer_keypair =
+        get_private_key_for_input(&relayer_account, w_relayer_secret, 1, &pskt_unsigned).await?;
 
-    Ok(pskt_done)
+    let signed = sign_pskt(&relayer_keypair, pskt_unsigned)?;
+
+    Ok(signed.combiner())
+}
+
+async fn get_private_key_for_input(
+    account: &Arc<dyn Account>,
+    secret: &Secret,
+    input_index: usize,
+    pskt: &PSKT<Signer>,
+) -> Result<SecpKeypair, Error> {
+    let keydata = account.prv_key_data(secret.clone()).await?;
+    let derivation_capable = account.as_derivation_capable()?;
+
+    let utxo_entry = pskt
+        .inputs
+        .get(input_index)
+        .ok_or("Input index out of bounds")?.utxo_entry.as_ref().ok_or("err")?;
+
+    let utxo_address = kaspa_txscript::extract_script_pub_key_address(
+        &utxo_entry.script_public_key,
+        account.wallet().address_prefix()?,
+    )?;
+
+    let derivation_manager = derivation_capable.derivation();
+    let receive_manager = derivation_manager.receive_address_manager();
+    let change_manager = derivation_manager.change_address_manager();
+
+    let (is_change, index) = if let Some(index) = receive_manager
+        .inner()
+        .address_to_index_map
+        .get(&utxo_address)
+    {
+        (false, *index)
+    } else if let Some(index) = change_manager
+        .inner()
+        .address_to_index_map
+        .get(&utxo_address)
+    {
+        (true, *index)
+    } else {
+        return Err(format!(
+            "Could not find derivation index for relayer's fee UTXO address: {}",
+            utxo_address
+        )
+        .into());
+    };
+
+    let xprv = keydata.get_xprv(None)?;
+    let derived_keys = derivation_capable
+        .get_range_with_keys(is_change, index..index + 1, false, &xprv)
+        .await?;
+    Ok(derived_keys
+        .first()
+        .ok_or("Failed to derive private key for relayer")?
+        .1)
 }
 
 pub async fn deliver_withdrawal_tx<T: RpcApi + ?Sized>(
