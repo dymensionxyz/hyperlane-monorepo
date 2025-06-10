@@ -68,7 +68,7 @@ TODO:s
     - let the relayer pay the fee directly with an explicit additional input
         - need to rework
             Creation:
-                creator -> signer -> final 
+                creator -> signer -> final
             (Also make all the transitions explicit)
     - factor out so all the minimal information is more obvious (args should be minimal)
     - actually document and understand all the magic stuff
@@ -104,11 +104,12 @@ async fn demo() -> Result<(), Error> {
 
     let user_addr = w.account()?.receive_address()?;
 
-    let pskt_unsigned = build_withdrawal_tx(rpc.as_ref(), &e.public(), user_addr, &w.account()?, amt).await?;
-
-    let pskt_signer_relayer = sign_network_fee(rpc.as_ref(), pskt_unsigned.clone(), &w, &s).await?;
+    let pskt_unsigned =
+        build_withdrawal_tx(rpc.as_ref(), &e.public(), user_addr, &w.account()?, amt).await?;
 
     let pskt_signed_vals = sign_escrow_spend(&e, pskt_unsigned.clone())?;
+
+    let pskt_signer_relayer = sign_network_fee(rpc.as_ref(), pskt_unsigned.clone(), &w, &s).await?;
 
     let pskt_signed = (pskt_signer_relayer + pskt_signed_vals).unwrap();
 
