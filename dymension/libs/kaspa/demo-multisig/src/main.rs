@@ -101,7 +101,15 @@ async fn demo() -> Result<(), Error> {
 
     let pskt_signed_vals = sign_escrow_spend(&e, pskt_unsigned.clone())?;
 
-    let tx_id = sponsor_and_send_tx(rpc.as_ref(), pskt_signed_vals, pskt_unsigned, &e.public(), &w, &s).await?;
+    let tx_id = sponsor_and_send_tx(
+        rpc.as_ref(),
+        pskt_signed_vals,
+        pskt_unsigned,
+        &e.public(),
+        &w,
+        &s,
+    )
+    .await?;
 
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 

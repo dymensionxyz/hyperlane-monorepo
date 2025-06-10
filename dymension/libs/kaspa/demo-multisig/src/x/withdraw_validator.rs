@@ -51,5 +51,3 @@ pub fn sign_escrow_spend(e: &Escrow, pskt_unsigned: PSKT<Signer>) -> Result<PSKT
 
     Ok(combined)
 }
-
-

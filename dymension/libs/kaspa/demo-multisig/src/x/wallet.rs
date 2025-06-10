@@ -37,9 +37,7 @@ pub async fn get_wallet(s: &Secret) -> Result<Arc<Wallet>, Error> {
     let account_id = account_descriptor.account_id;
     info!(
         "Account ID: {:?}, recv addr: {:?}, change addr: {:?}",
-        account_id,
-        account_descriptor.receive_address,
-        account_descriptor.change_address
+        account_id, account_descriptor.receive_address, account_descriptor.change_address
     );
 
     w.clone().accounts_select(Some(account_id)).await?;

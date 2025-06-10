@@ -25,7 +25,7 @@ pub fn cli() -> Command {
                 .long("rpcserver")
                 .short('s')
                 .value_name("rpcserver")
-                .default_value("localhost:16210") // TODO: this is mainnet wprc 
+                .default_value("localhost:16210") // TODO: this is mainnet wprc
                 .help("RPC server"),
         )
         .arg(
