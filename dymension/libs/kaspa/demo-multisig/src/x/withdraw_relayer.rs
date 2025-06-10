@@ -19,7 +19,8 @@ use kaspa_wallet_pskt::prelude::*;
 use secp256k1::{Keypair as SecpKeypair, Secp256k1};
 
 use kaspa_txscript::{
-    opcodes::codes::{OpCheckSig, OpData65}, script_builder::ScriptBuilder,
+    opcodes::codes::{OpCheckSig, OpData65},
+    script_builder::ScriptBuilder,
     standard::pay_to_address_script,
 };
 
@@ -114,7 +115,8 @@ pub async fn sponsor_and_send_tx<T: RpcApi + ?Sized>(
     w_relayer: &Arc<Wallet>,
     s_relayer: &Secret,
 ) -> Result<TransactionId, Error> {
-    let pskt_signed_relayer = sign_pay_fee(rpc, pskt_unsigned.clone(), w_relayer, s_relayer).await?;
+    let pskt_signed_relayer =
+        sign_pay_fee(rpc, pskt_unsigned.clone(), w_relayer, s_relayer).await?;
     let pskt_signed = (pskt_signed_relayer + pskt_signed_vals).unwrap();
 
     let finalized_pskt = pskt_signed
@@ -123,34 +125,41 @@ pub async fn sponsor_and_send_tx<T: RpcApi + ?Sized>(
             Ok(inner
                 .inputs
                 .iter()
-                .map(|input| -> Vec<u8> {
+                .enumerate()
+                .map(|(i, input)| -> Vec<u8> {
                     // Return the full script
 
                     // ORIGINAL COMMENT: todo actually required count can be retrieved from redeem_script, sigs can be taken from partial sigs according to required count
                     // ORIGINAL COMMENT: considering xpubs sorted order
+                    if input.redeem_script.as_ref() == Some(&e.redeem_script) {
+                        let sigs: Vec<_> = e
+                            .pubs
+                            .iter()
+                            .flat_map(|kp| {
+                                let sig = input.partial_sigs.get(&kp).unwrap().into_bytes();
+                                iter::once(OpData65)
+                                    .chain(sig)
+                                    .chain([input.sighash_type.to_u8()])
+                            })
+                            .collect();
 
-                    let sigs: Vec<_> = e
-                        .pubs
-                        .iter()
-                        .flat_map(|kp| {
-                            let sig = input.partial_sigs.get(&kp).unwrap().into_bytes();
-                            iter::once(OpData65)
-                                .chain(sig)
-                                .chain([input.sighash_type.to_u8()])
-                        })
-                        .collect();
-
-                    sigs
-                        .into_iter()
-                        .chain(
-                            ScriptBuilder::new()
-                                .add_data(input.redeem_script.as_ref().unwrap().as_slice())
-                                .unwrap()
-                                .drain()
-                                .iter()
-                                .cloned(),
-                        )
-                        .collect()
+                        sigs.into_iter()
+                            .chain(
+                                ScriptBuilder::new()
+                                    .add_data(input.redeem_script.as_ref().unwrap().as_slice())
+                                    .unwrap()
+                                    .drain()
+                                    .iter()
+                                    .cloned(),
+                            )
+                            .collect()
+                    }else{
+                        input
+                        .redeem_script
+                        .as_ref()
+                        .map(|redeem_script| ScriptBuilder::new().add_data(redeem_script.as_slice()).unwrap().drain().to_vec())
+                        .unwrap_or_default()
+                    }
                 })
                 .collect())
         })
@@ -175,7 +184,10 @@ async fn sign_pay_fee<T: RpcApi + ?Sized>(
     let bundle = Bundle::from(pskt_unsigned);
     let addr = w.account()?.change_address()?;
     let sign_for_address = Some(&addr);
-    let bundle_signed = w.account()?.pskb_sign(&bundle, s.clone(), None, sign_for_address).await?;
+    let bundle_signed = w
+        .account()?
+        .pskb_sign(&bundle, s.clone(), None, sign_for_address)
+        .await?;
 
     let pskt_done = bundle_signed.iter().next().unwrap();
     let combiner = PSKT::from(pskt_done.clone());
