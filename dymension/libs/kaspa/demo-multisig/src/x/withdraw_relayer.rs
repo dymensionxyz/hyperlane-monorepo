@@ -1,5 +1,6 @@
 use super::escrow::*;
 use super::util::sign_pskt;
+use super::consts::RELAYER_NETWORK_FEE;
 
 use std::{ops::Deref, sync::Arc};
 
@@ -126,12 +127,12 @@ fn get_fee_pskt(w_relayer: &Arc<Wallet>) -> Result<PSKT<Combiner>, Error> {
     let a_relayer = w_relayer.account()?;
     let a_ctx = a_relayer.utxo_context();
 
-    let fee_utxo = UtxoIterator::new(a_ctx)
+    let utxo = UtxoIterator::new(a_ctx)
         .next() // For the demo, we just take the first available UTXO.
         .ok_or("Relayer account has no spendable UTXO to pay for fees")?.utxo.as_ref().clone();
 
-    let entry = UtxoEntry::from(&fee_utxo);
-    let outpoint = TransactionOutpoint::from(fee_utxo.outpoint);
+    let entry = UtxoEntry::from(&utxo);
+    let outpoint = TransactionOutpoint::from(utxo.outpoint);
 
     let input = InputBuilder::default()
         .utxo_entry(entry)
@@ -140,11 +141,14 @@ fn get_fee_pskt(w_relayer: &Arc<Wallet>) -> Result<PSKT<Combiner>, Error> {
         .sighash_type(SIG_HASH_ALL)
         .build().map_err(|e| Error::Custom(format!("Error building PSKT input: {}", e)))?;
 
+
+    let change_amount = utxo.amount - RELAYER_NETWORK_FEE; // TODO: negative check
+
     let addr = a_relayer.change_address()?;
     let change_script = pay_to_address_script(&addr);
     let change_output = OutputBuilder::default()
-        .amount(fee_utxo.amount)
-        .script_public_key(pay_to_address_script(&addr))
+        .amount(change_amount)
+        .script_public_key(change_script)
         .build()
         .map_err(|e| Error::Custom(format!("Error building PSKT output: {}", e)))?;
 
@@ -154,10 +158,6 @@ fn get_fee_pskt(w_relayer: &Arc<Wallet>) -> Result<PSKT<Combiner>, Error> {
         .output(change_output)
         .signer();
 
-    let relayer_private_key = get_private_key_for_input(&relayer_account, secret, 0, &unsigned_pskt).await?;
-    let relayer_keypair = SecpKeypair::from_secret_key(&relayer_private_key);
 
-    sign_pskt_input_with_key(unsigned_pskt, &relayer_keypair, 0)
 
-    Ok(pskt)
 }
