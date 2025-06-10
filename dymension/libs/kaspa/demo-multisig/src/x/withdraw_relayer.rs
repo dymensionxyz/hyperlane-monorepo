@@ -132,7 +132,7 @@ pub async fn sponsor_and_send_tx<T: RpcApi + ?Sized>(
 
                     // ORIGINAL COMMENT: todo actually required count can be retrieved from redeem_script, sigs can be taken from partial sigs according to required count
                     // ORIGINAL COMMENT: considering xpubs sorted order
-                    if i < 1 {
+                    if i < 100 {
                         let sigs: Vec<_> = e
                             .pubs
                             .iter()
@@ -155,8 +155,6 @@ pub async fn sponsor_and_send_tx<T: RpcApi + ?Sized>(
                             )
                             .collect()
                     } else {
-
-                        
                         // TODO: fix to make relayer input spendable
                         input
                             .redeem_script
