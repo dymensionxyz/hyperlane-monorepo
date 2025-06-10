@@ -63,7 +63,6 @@ pub fn sign_pskt(kp: &SecpKeypair, pskt: PSKT<Signer>) -> Result<PSKT<Signer>, E
             .iter()
             .enumerate()
             .map(|(idx, _input)| {
-
                 let hash = calc_schnorr_signature_hash(
                     &tx.as_verifiable(),
                     idx,

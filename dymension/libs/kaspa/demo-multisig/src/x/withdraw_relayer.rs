@@ -177,16 +177,14 @@ pub async fn sponsor_and_send_tx<T: RpcApi + ?Sized>(
                             )
                             .collect()
                     } else {
-                 
-                        let (_pk, signature) = input
-                            .partial_sigs
-                            .iter().collect::<Vec<_>>()[2];
-                            // .expect("Relayer input is missing a signature");
+                        let (_pk, signature) = input.partial_sigs.iter().collect::<Vec<_>>()[2];
+                        // .expect("Relayer input is missing a signature");
                         let sig = (*signature).into_bytes();
 
-
-                        return std::iter::once(65u8).chain(sig).chain([input.sighash_type.to_u8()]).collect();
-
+                        return std::iter::once(65u8)
+                            .chain(sig)
+                            .chain([input.sighash_type.to_u8()])
+                            .collect();
                     }
                 })
                 .collect())

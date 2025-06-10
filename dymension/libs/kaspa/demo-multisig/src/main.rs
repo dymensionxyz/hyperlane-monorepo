@@ -99,8 +99,14 @@ async fn demo() -> Result<(), Error> {
 
     let user_withdrawal_amt = amt;
     // let user_withdrawal_amt = amt-RELAYER_NETWORK_FEE;
-    let pskt_unsigned =
-        build_withdrawal_tx(rpc.as_ref(), &e.public(), user_addr, &w.account()?, user_withdrawal_amt).await?;
+    let pskt_unsigned = build_withdrawal_tx(
+        rpc.as_ref(),
+        &e.public(),
+        user_addr,
+        &w.account()?,
+        user_withdrawal_amt,
+    )
+    .await?;
 
     let pskt_signed_vals = sign_escrow_spend(&e, pskt_unsigned.clone())?;
 
