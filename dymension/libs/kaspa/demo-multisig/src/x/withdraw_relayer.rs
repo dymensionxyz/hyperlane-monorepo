@@ -19,10 +19,10 @@ use kaspa_wallet_pskt::prelude::*;
 use secp256k1::{Keypair as SecpKeypair, Secp256k1};
 
 use kaspa_txscript::{
+    extract_script_pub_key_address,
     opcodes::codes::{OpCheckSig, OpData65},
     script_builder::ScriptBuilder,
     standard::pay_to_address_script,
-    extract_script_pub_key_address,
 };
 
 use kaspa_rpc_core::api::rpc::RpcApi;
@@ -60,7 +60,9 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
         .previous_outpoint(utxo_e_out)
         .redeem_script(e.redeem_script.clone())
         .sig_op_count(e.n() as u8) // Total possible signers
-        .sighash_type(SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8()).unwrap())
+        .sighash_type(
+            SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8()).unwrap(),
+        )
         // .sighash_type(SIG_HASH_ANY_ONE_CAN_PAY)
         .build()
         .map_err(|e| Error::Custom(format!("pskt input e: {}", e)))?;
@@ -77,10 +79,12 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
     let input_r = InputBuilder::default()
         .utxo_entry(utxo_r_entry.clone())
         .previous_outpoint(utxo_r_out)
-        .redeem_script(redeem_script_r)
-        .sig_op_count(1)
+        // .redeem_script(redeem_script_r)
+        .sig_op_count(1) // TODO: needed if using p2pk?
         // .sighash_type(SIG_HASH_ANY_ONE_CAN_PAY)
-        .sighash_type(SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8()).unwrap())
+        .sighash_type(
+            SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8()).unwrap(),
+        )
         .build()
         .map_err(|e| Error::Custom(format!("pskt input r: {}", e)))?;
 
@@ -91,7 +95,7 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
         .map_err(|e| Error::Custom(format!("pskt output e_to_user: {}", e)))?;
 
     let output_e_change = OutputBuilder::default()
-        // .amount(utxo_e_entry.amount - amt)
+        .amount(utxo_e_entry.amount - amt)
         .amount(utxo_e_entry.amount - amt)
         .script_public_key(e.p2sh.clone())
         .build()
@@ -108,10 +112,10 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
     let pskt = PSKT::<Creator>::default()
         .constructor()
         .input(input_e)
-        // .input(input_r)
+        .input(input_r)
         .output(output_e_to_user)
-        // .output(output_e_change)
-        // .output(output_r_change)
+        // .output(output_e_change) // NOTE: in this example the escrow has nothing left, so not possible to have empty UTXO, not realistic
+        .output(output_r_change)
         .no_more_inputs()
         .no_more_outputs()
         .signer();
@@ -183,6 +187,13 @@ pub async fn sponsor_and_send_tx<T: RpcApi + ?Sized>(
                                     .chain([input.sighash_type.to_u8()])
                             })
                             .collect();
+                        // signatures;
+
+                        // ScriptBuilder::new()
+                        //     .add_data(signatures.as_slice())
+                        //     .unwrap()
+                        //     .script()
+                        //     .to_vec()
 
                         signatures
                             .into_iter()
@@ -222,7 +233,6 @@ async fn sign_pay_fee<T: RpcApi + ?Sized>(
     s: &Secret,
 ) -> Result<PSKT<Combiner>, Error> {
     // TODO: interesting? https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/pskb.rs#L154
-    
 
     let bundle = Bundle::from(pskt_unsigned);
     let addr = w.account()?.change_address()?;
