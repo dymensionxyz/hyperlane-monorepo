@@ -1,6 +1,5 @@
 use super::consts::{ADDRESS_PREFIX, RELAYER_NETWORK_FEE};
 use super::escrow::*;
-use super::util::sign_pskt;
 
 use std::{ops::Deref, sync::Arc};
 
