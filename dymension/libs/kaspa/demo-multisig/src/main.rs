@@ -69,8 +69,6 @@ TODO:s
     - extract to a lib
     - add the borshing
     - figure out a way to avoid sleeps, need proper event model
-
-
  */
 async fn demo() -> Result<(), Error> {
     kaspa_core::log::init_logger(None, "");
