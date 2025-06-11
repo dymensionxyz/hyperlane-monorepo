@@ -1,6 +1,4 @@
-use super::consts::*;
-
-use kaspa_addresses::Address;
+use kaspa_addresses::{Address, Prefix};
 use kaspa_consensus_core::tx::ScriptPublicKey;
 
 use kaspa_txscript::{
@@ -42,7 +40,7 @@ impl Escrow {
         self.required_signatures as usize
     }
 
-    pub fn public(&self) -> EscrowPublic {
+    pub fn public(&self, address_prefix: Prefix) -> EscrowPublic {
         let redeem_script = multisig_redeem_script(
             self.keys
                 .iter()
@@ -52,7 +50,7 @@ impl Escrow {
         .unwrap();
 
         let p2sh = pay_to_script_hash_script(&redeem_script);
-        let addr = extract_script_pub_key_address(&p2sh, ADDRESS_PREFIX).unwrap();
+        let addr = extract_script_pub_key_address(&p2sh, address_prefix).unwrap();
 
         EscrowPublic {
             required_signatures: self.required_signatures,

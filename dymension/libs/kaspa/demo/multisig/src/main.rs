@@ -1,13 +1,15 @@
 #![allow(unused)] // TODO: remove
 
-use core::args::Args;
-use core::consts::*;
+mod x;
+
 use core::deposit::*;
 use core::escrow::*;
 use core::util::*;
 use core::wallet::*;
 use core::withdraw_relayer::*;
 use core::withdraw_validator::*;
+use x::args::Args;
+use x::consts::*;
 
 use std::sync::Arc;
 
@@ -69,28 +71,35 @@ async fn demo() -> Result<(), Error> {
     let args = Args::parse();
 
     let s = Secret::from(args.wallet_secret.unwrap_or("".to_string()));
-    let w = get_wallet(&s).await?;
+    let w = get_wallet(&s, NETWORK_ID, URL.to_string()).await?;
 
     let rpc = w.rpc_api();
 
     check_balance("wallet", rpc.as_ref(), &w.account()?.receive_address()?).await?;
 
     let e = Escrow::new(2);
-    info!("Created escrow address: {}", e.public().addr);
+    info!("Created escrow address: {}", e.public(ADDRESS_PREFIX).addr);
 
     let amt = DEPOSIT_AMOUNT;
-    let tx_id = deposit(&w, &s, &e, amt).await?;
+    let tx_id = deposit(&w, &s, &e, amt, ADDRESS_PREFIX).await?;
     info!("Sent deposit transaction: {}", tx_id);
 
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 
     check_balance("wallet", rpc.as_ref(), &w.account()?.receive_address()?).await?;
-    check_balance("escrow", rpc.as_ref(), &e.public().addr).await?;
+    check_balance("escrow", rpc.as_ref(), &e.public(ADDRESS_PREFIX).addr).await?;
 
     let user_addr = w.account()?.receive_address()?;
 
-    let pskt_unsigned =
-        build_withdrawal_tx(rpc.as_ref(), &e.public(), user_addr, &w.account()?, amt).await?;
+    let pskt_unsigned = build_withdrawal_tx(
+        rpc.as_ref(),
+        &e.public(ADDRESS_PREFIX),
+        user_addr,
+        &w.account()?,
+        amt,
+        RELAYER_NETWORK_FEE,
+    )
+    .await?;
 
     let pskt_signed_vals = sign_escrow_spend(&e, pskt_unsigned.clone())?;
 
@@ -98,7 +107,7 @@ async fn demo() -> Result<(), Error> {
         rpc.as_ref(),
         pskt_signed_vals,
         pskt_unsigned,
-        &e.public(),
+        &e.public(ADDRESS_PREFIX),
         &w,
         &s,
     )
@@ -107,7 +116,7 @@ async fn demo() -> Result<(), Error> {
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 
     check_balance("wallet", rpc.as_ref(), &w.account()?.receive_address()?).await?;
-    check_balance("escrow", rpc.as_ref(), &e.public().addr).await?;
+    check_balance("escrow", rpc.as_ref(), &e.public(ADDRESS_PREFIX).addr).await?;
 
     w.stop().await?;
     Ok(())

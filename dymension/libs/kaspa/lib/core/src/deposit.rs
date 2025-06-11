@@ -5,6 +5,8 @@ use std::sync::Arc;
 use kaspa_wallet_core::error::Error;
 use kaspa_wallet_core::tx::Fees;
 
+use kaspa_addresses::Prefix;
+
 use kaspa_wallet_core::prelude::*;
 
 use workflow_core::abortable::Abortable;
@@ -14,10 +16,11 @@ pub async fn deposit(
     secret: &Secret,
     e: &Escrow,
     amt: u64,
+    prefix: Prefix,
 ) -> Result<TransactionId, Error> {
     let a = w.account()?;
 
-    let dst = PaymentDestination::from(PaymentOutput::new(e.public().addr, amt));
+    let dst = PaymentDestination::from(PaymentOutput::new(e.public(prefix).addr, amt));
     let fees = Fees::from(0i64);
     let payload = None;
     let payment_secret = None;

@@ -975,6 +975,7 @@ dependencies = [
 name = "demo-multisig"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "core",
  "kaspa-addresses",
  "kaspa-consensus-core",

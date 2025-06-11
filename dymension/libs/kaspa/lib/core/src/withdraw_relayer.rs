@@ -1,4 +1,3 @@
-use super::consts::RELAYER_NETWORK_FEE;
 use super::escrow::*;
 
 use std::sync::Arc;
@@ -28,6 +27,7 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
     e: &EscrowPublic,
     user_address: Address,
     a_relayer: &Arc<dyn Account>,
+    fee: u64,
     amt: u64,
 ) -> Result<PSKT<Signer>, Error> {
     let utxos_e = rpc.get_utxos_by_addresses(vec![e.addr.clone()]).await?;
@@ -79,7 +79,7 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
     _ = output_e_change; // TODO: fix
 
     let output_r_change = OutputBuilder::default()
-        .amount(utxo_r_entry.amount - RELAYER_NETWORK_FEE)
+        .amount(utxo_r_entry.amount - fee)
         .script_public_key(ScriptPublicKey::from(pay_to_address_script(
             &a_relayer.change_address()?,
         )))

@@ -3,28 +3,28 @@
 use kaspa_core::info;
 use kaspa_wallet_core::api::WalletApi;
 use kaspa_wallet_core::error::Error;
-use kaspa_wallet_core::wallet::Wallet;
+use kaspa_wallet_core::wallet::{Wallet};
 use kaspa_wallet_keys::secret::Secret;
+use kaspa_consensus_core::network::NetworkId;
 
 use kaspa_wallet_core::prelude::*; // Import the prelude for easy access to traits/structs
 
 use std::sync::Arc;
 
-use super::consts::*;
 use kaspa_wrpc_client::Resolver;
 
-pub async fn get_wallet(s: &Secret) -> Result<Arc<Wallet>, Error> {
+pub async fn get_wallet(s: &Secret, network_id: NetworkId, url: String) -> Result<Arc<Wallet>, Error> {
     let w = Arc::new(Wallet::try_new(
         Wallet::local_store()?,
         Some(Resolver::default()),
-        Some(NETWORK_ID),
+        Some(network_id),
     )?);
 
     // Start background services (UTXO processor, event handling).
     w.start().await?;
 
     w.clone()
-        .connect(Some(URL.to_string()), &NETWORK_ID)
+        .connect(Some(url), &network_id)
         .await?;
 
     let is_c = w.is_connected();
