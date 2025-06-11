@@ -1,3 +1,9 @@
+## What?
+
+Demonstrates the simplest possible validator + relayer multisig flow. 'Validators' represented by randomized in memory private keys create an escrow address. A local wallet instance with testnet tokens plays the roles of 'user' and also 'relayer'.
+
+The user deposits to the escrow address and then relayer constructs a TX to withdraw from the escrow back to user. The construction is via PSKT and includes both a relayer paid network fee, and the escrow multisig sigs from the validators.
+
 ## Instructions
 
 ### Tools
