@@ -94,7 +94,7 @@ async fn demo() -> Result<(), Error> {
 
     let pskt_signed_vals = sign_escrow_spend(&e, pskt_unsigned.clone())?;
 
-    let tx_id = sponsor_and_send_tx(
+    let tx_id = send_tx(
         rpc.as_ref(),
         pskt_signed_vals,
         pskt_unsigned,

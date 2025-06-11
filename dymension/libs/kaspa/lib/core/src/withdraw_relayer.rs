@@ -100,7 +100,7 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
     Ok(pskt)
 }
 
-pub async fn sponsor_and_send_tx<T: RpcApi + ?Sized>(
+pub async fn send_tx<T: RpcApi + ?Sized>(
     rpc: &T,
     pskt_signed_vals: PSKT<Combiner>,
     pskt_unsigned: PSKT<Signer>,
