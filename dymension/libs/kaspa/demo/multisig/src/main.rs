@@ -61,13 +61,7 @@ Always, we want to get confirmation that everything has worked, been accepted by
 
 We will test against testnet 10. The wallet has 200'000 KAS available.
 
-_____________
 
-TODO:s
-    - actually document and understand all the magic stuff
-    - extract to a lib
-    - add the borshing
-    - figure out a way to avoid sleeps, need proper event model
  */
 async fn demo() -> Result<(), Error> {
     kaspa_core::log::init_logger(None, "");
