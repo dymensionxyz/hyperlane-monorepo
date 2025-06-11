@@ -3679,6 +3679,18 @@ name = "relayer"
 version = "0.1.0"
 dependencies = [
  "core",
+ "kaspa-addresses",
+ "kaspa-consensus-core",
+ "kaspa-core",
+ "kaspa-grpc-client",
+ "kaspa-rpc-core",
+ "kaspa-txscript",
+ "kaspa-wallet-core",
+ "kaspa-wallet-pskt",
+ "log",
+ "secp256k1",
+ "tokio",
+ "workflow-core",
 ]
 
 [[package]]
@@ -4749,6 +4761,18 @@ name = "validator"
 version = "0.1.0"
 dependencies = [
  "core",
+ "kaspa-addresses",
+ "kaspa-consensus-core",
+ "kaspa-core",
+ "kaspa-grpc-client",
+ "kaspa-rpc-core",
+ "kaspa-txscript",
+ "kaspa-wallet-core",
+ "kaspa-wallet-pskt",
+ "log",
+ "secp256k1",
+ "tokio",
+ "workflow-core",
 ]
 
 [[package]]

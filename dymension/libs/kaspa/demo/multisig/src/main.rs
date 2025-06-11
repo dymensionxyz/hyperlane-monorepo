@@ -6,8 +6,8 @@ use core::deposit::*;
 use core::escrow::*;
 use core::util::*;
 use core::wallet::*;
-use core::withdraw_relayer::*;
-use core::withdraw_validator::*;
+use relayer::withdraw::*;
+use validator::withdraw::*;
 use x::args::Args;
 use x::consts::*;
 

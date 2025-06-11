@@ -1,4 +1,4 @@
-use super::escrow::*;
+use core::escrow::*;
 
 use std::sync::Arc;
 
