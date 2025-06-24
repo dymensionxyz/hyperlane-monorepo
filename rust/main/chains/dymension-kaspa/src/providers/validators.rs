@@ -108,6 +108,40 @@ impl ValidatorsClient {
         Ok(results)
     }
 
+        /// this runs on relayer
+        pub async fn get_confirmation_sigs(
+            &self,
+            fxg: &ConfirmationFXG,
+        ) -> ChainResult<Vec<Signature>> {
+            // map validator addr to sig(s)
+            // TODO: in parallel
+            let mut results = Vec::new();
+            for (host, validator_id) in self
+                .conf
+                .validator_hosts
+                .clone()
+                .into_iter()
+                .zip(self.conf.validator_ids.clone().into_iter())
+            {
+                //         let checkpoints = futures::future::join_all(futures).await; TODO: Parallel
+                let res = request_validate_new_confirmation(host, fxg).await;
+                match res {
+                    Ok(r) => match r {
+                        Some(sig) => {
+                            results.push(sig);
+                        }
+                        None => {
+                            // TODO: log
+                        }
+                    },
+                    Err(_e) => {
+                        // TODO: log error
+                    }
+                }
+            }
+            Ok(results)
+        }
+
     pub fn multisig_threshold_hub_ism(&self) -> usize {
         // TODO: clearly distinguish with kaspa multisig
         self.conf.multisig_threshold_hub_ism
