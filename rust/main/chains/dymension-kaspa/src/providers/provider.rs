@@ -68,9 +68,8 @@ impl KaspaProvider {
         &self,
         msgs: Vec<HyperlaneMessage>,
     ) -> Result<Option<WithdrawFXG>> {
-        let args = self.get_withdrawal_construction_args().await?;
-        args.messages = msgs;
-        on_new_withdrawals(args).await
+        todo!()
+        // call on new withdrawals
     }
 
     /// dococo
@@ -91,9 +90,6 @@ impl KaspaProvider {
         todo!()
     }
 
-    async fn get_withdrawal_construction_args(&self) -> Result<WithdrawalConstructionArgs<> {
-        todo!()
-    }
 }
 
 impl HyperlaneChain for KaspaProvider {
