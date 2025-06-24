@@ -50,8 +50,8 @@ use lander::{
 };
 
 use super::msg::metadata::dymension_kaspa::PendingMessageMetadataGetter;
-use dymension_kaspa::KaspaProvider;
-use hyperlane_base::kas_hack::{is_kas, logic_loop::Foo as KaspaBridgeFoo};
+use dymension_kaspa::{is_kas, KaspaProvider};
+use hyperlane_base::kas_hack::logic_loop::Foo as KaspaBridgeFoo;
 use hyperlane_cosmos_native::CosmosNativeMailbox;
 
 use crate::{

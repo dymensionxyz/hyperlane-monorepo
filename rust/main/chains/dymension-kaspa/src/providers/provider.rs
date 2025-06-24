@@ -173,20 +173,3 @@ fn combine_all_bundles(bundles: Vec<Bundle>) -> EyreResult<Vec<PSKT<Combiner>>> 
 fn finalize_txs(txs_sigs: Vec<PSKT<Combiner>>) -> Result<Vec<Transaction>> {
     todo!()
 }
-
-struct EasyKaspaWallet {
-    wallet: Wallet,
-    domain: HyperlaneDomain,
-}
-
-struct EasyKaspaWalletArgs {
-    priv_key: String,
-    network_id: NetworkId,
-    rpc_server: String,
-}
-
-impl EasyKaspaWallet {
-    pub async fn new(wallet: Wallet) -> Self {
-        Self { wallet }
-    }
-}
