@@ -12,7 +12,7 @@ use reqwest::StatusCode;
 use crate::ConnectionConf;
 
 use crate::endpoints::*;
-use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG};
+use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG, withdraw::WithdrawFXG};
 
 #[derive(Debug, Clone)]
 pub struct ValidatorsClient {
@@ -109,9 +109,9 @@ impl ValidatorsClient {
     }
 
         /// this runs on relayer
-        pub async fn get_confirmation_sigs(
+        pub async fn get_withdraw_sigs(
             &self,
-            fxg: &ConfirmationFXG,
+            fxg: &WithdrawFXG,
         ) -> ChainResult<Vec<Signature>> {
             // map validator addr to sig(s)
             // TODO: in parallel
