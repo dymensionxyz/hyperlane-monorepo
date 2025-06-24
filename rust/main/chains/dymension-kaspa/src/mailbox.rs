@@ -15,6 +15,7 @@ use kaspa_wallet_pskt::prelude::*;
 
 use crate::KaspaProvider;
 use dym_kas_core::withdraw::WithdrawFXG;
+use eyre::Result as EyreResult;
 
 // pretends to be a mailbox
 #[derive(Debug, Clone)]
@@ -121,15 +122,8 @@ impl Mailbox for KaspaFakeMailbox {
 
     // We hijack this https://github.com/dymensionxyz/hyperlane-monorepo/blob/4ecb864de578648e0c0ef39561f291cd7f4dfe7c/rust/main/agents/relayer/src/msg/op_submitter.rs#L1084
     async fn process_batch<'a>(&self, _ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
-
-        let fxg : WithdrawFXG = WithdrawFXG::default();
+        let fxg: WithdrawFXG = WithdrawFXG::default();
         let bundles = self.provider.validators().get_withdraw_sigs(&fxg).await?;
-        let bundle = bundles.first().unwrap();
-        let pskt = PSKT::from_bundle(bundle);
-        let tx = pskt.tx();
-        let tx_id = tx.tx_id();
-        let gas_used = tx.gas_used();
-        let gas_price = tx.gas_price();
 
         Ok(BatchResult {
             outcome: Some(TxOutcome {
@@ -168,4 +162,16 @@ impl Mailbox for KaspaFakeMailbox {
     fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
         todo!()
     }
+}
+
+fn combine_bundles(bundles: Vec<Bundle>) -> EyreResult<PSKT<Combiner>> {
+    // each bundle is from a different validator, and is a vector of pskt
+    let as_signers = bundles
+        .iter()
+        .map(|b| {
+                b.iter()
+                .map(|inner| PSKT::<Signer>::from(inner.clone())
+                .collect::<Vec<PSKT<Signer>>>()
+        })
+        .collect::<Vec<Vec<PSKT<Signer>>>>();
 }
