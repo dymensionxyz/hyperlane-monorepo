@@ -27,8 +27,8 @@ use hyperlane_cosmos_native::Signer as HyperlaneSigner;
 /// dococo
 #[derive(Debug, Clone)]
 pub struct KaspaProvider {
-    domain: HyperlaneDomain,
     conf: ConnectionConf,
+    domain: HyperlaneDomain,
     rest: RestProvider,
     // TODO: wrpc
     validators: ValidatorsClient,
