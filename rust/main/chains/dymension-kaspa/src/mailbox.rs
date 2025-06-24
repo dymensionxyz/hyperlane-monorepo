@@ -117,6 +117,7 @@ impl Mailbox for KaspaFakeMailbox {
         true
     }
 
+    // We hijack this https://github.com/dymensionxyz/hyperlane-monorepo/blob/7a7b30074bbb8bc7112f43601b5f4f5072f79102/rust/main/agents/relayer/src/msg/op_submitter.rs#L1065
     async fn process_batch<'a>(&self, _ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
         Ok(BatchResult {
             outcome: Some(TxOutcome {
