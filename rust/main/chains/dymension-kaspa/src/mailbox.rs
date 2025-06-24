@@ -98,13 +98,16 @@ impl Mailbox for KaspaFakeMailbox {
         Ok(KASPA_ISM_ADDRESS)
     }
 
-    // Actually sends up a MsgProcessMessage to the kaspa chain
     async fn process(
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8], // contains sigs etc
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
+        /*
+        There is a flow where the relayer will try to submit a batch and any failures will get retried via this method
+        We should
+         */
         unimplemented!("kas does not support single message processing")
     }
 
@@ -114,8 +117,6 @@ impl Mailbox for KaspaFakeMailbox {
         true
     }
 
-    /// Try process the given operations as a batch. Returns the outcome of the
-    /// batch (if one was submitted) and the operations that were not submitted.
     async fn process_batch<'a>(&self, _ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
         Ok(BatchResult {
             outcome: Some(TxOutcome {
