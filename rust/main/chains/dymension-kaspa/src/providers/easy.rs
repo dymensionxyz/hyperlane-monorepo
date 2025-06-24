@@ -13,7 +13,7 @@ use dym_kas_core::withdraw::WithdrawFXG;
 use dym_kas_relayer::withdraw_construction::on_new_withdrawals;
 use hyperlane_core::{
     rpc_clients::FallbackProvider, BlockInfo, ChainInfo, ChainResult, ContractLocator,
-    HyperlaneChain, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError,
+    HyperlaneChain, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError, KnownHyperlaneDomain,
     TxnInfo, H256, H512, U256,
 };
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
@@ -107,5 +107,30 @@ impl EasyKaspaWallet {
 
     pub fn rpc_url(&self) -> Arc<DynRpcApi> {
         self.wallet.rpc_api()
+    }
+}
+
+struct NetworkInfo {
+    network_id: NetworkId,
+    network_type: NetworkType,
+    address_prefix: Prefix,
+    address_version: Version,
+    rpc_url: String,
+    domain: HyperlaneDomain,
+}
+
+impl NetworkInfo {
+    pub fn new(domain: HyperlaneDomain) -> Self {
+        match domain {
+            KnownHyperlaneDomain::Kaspa => {
+                Self {
+                    network_id: NetworkId::Kaspa,
+                    network_type: NetworkType::Kaspa,
+                    address_prefix: Prefix::Kaspa,
+                    address_version: Version::PubKey,
+                    rpc_url: "localhost:16210".to_string(),
+                }
+        }
+        // TODO: finish
     }
 }
