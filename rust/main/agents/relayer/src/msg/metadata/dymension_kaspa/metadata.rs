@@ -1,4 +1,6 @@
 pub struct KaspaMetadataBuilder;
+use async_trait::async_trait;
+use tracing::{info, instrument, warn};
 
 use super::{
     base::{MessageMetadataBuildParams, MetadataBuildError},

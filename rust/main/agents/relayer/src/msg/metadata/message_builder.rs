@@ -22,7 +22,7 @@ use super::{
     aggregation::AggregationIsmMetadataBuilder,
     base::{IsmWithMetadataAndType, MessageMetadataBuildParams, MetadataBuildError},
     ccip_read::CcipReadIsmMetadataBuilder,
-    dymension_kaspa::metadata::KaspaMetadataBuilder,
+    dymension_kaspa::KaspaMetadataBuilder,
     multisig::{MerkleRootMultisigMetadataBuilder, MessageIdMultisigMetadataBuilder},
     null_metadata::NullMetadataBuilder,
     routing::RoutingIsmMetadataBuilder,
