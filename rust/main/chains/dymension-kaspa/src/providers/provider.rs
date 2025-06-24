@@ -13,6 +13,9 @@ use hyperlane_core::{
 };
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use kaspa_wallet_pskt::prelude::Bundle;
+use kaspa_consensus_core::{
+    tx::Transaction,
+};
 
 use super::validators::ValidatorsClient;
 use super::RestProvider;
@@ -64,9 +67,20 @@ impl KaspaProvider {
 
     /// dococo
     pub async fn process_withdrawal(&self, fxg: &WithdrawFXG) -> Result<()> {
-        let bundles = self.validators().get_withdraw_sigs(fxg).await?;
-        let txs_sigs = combine_validator_bundles(bundles)?;
+        let bundle_relayer = self.sign_relayer_fee(fxg).await?; // TODO: can add own sig in parallel to validator network request
+        let bundles_validators = self.validators().get_withdraw_sigs(fxg).await?;
+        let txs_sigs = combine_all_bundles(bundles_validators)?;
+        let finalized = finalize_txs(txs_sigs)?;
+        let res = self.submit_txs(finalized).await?;
         Ok(())
+    }
+
+    async fn sign_relayer_fee(&self, fxg: &WithdrawFXG) -> Result<Bundle> {
+        todo!()
+    }
+
+    async fn submit_txs(&self, txs: Vec<Transaction>) -> Result<()> {
+        todo!()
     }
 }
 
@@ -109,7 +123,7 @@ impl HyperlaneProvider for KaspaProvider {
     }
 }
 
-fn combine_validator_bundles(bundles: Vec<Bundle>) -> EyreResult<Vec<PSKT<Combiner>>> {
+fn combine_all_bundles(bundles: Vec<Bundle>) -> EyreResult<Vec<PSKT<Combiner>>> {
     // each bundle is from a different validator, and is a vector of pskt
     // therefore index i of each vector corresponds to the same TX i
 
@@ -143,4 +157,8 @@ fn combine_validator_bundles(bundles: Vec<Bundle>) -> EyreResult<Vec<PSKT<Combin
         ret.push(combiner);
     }
     Ok(ret)
+}
+
+fn finalize_txs(txs_sigs: Vec<PSKT<Combiner>>) -> Result<Vec<Transaction>> {
+    todo!()
 }
