@@ -126,6 +126,8 @@ impl ValidatorsClient {
             {
                 //         let checkpoints = futures::future::join_all(futures).await; TODO: Parallel
                 let res = request_sign_withdrawal_bundle(host, fxg).await;
+
+                // TODO: should also check that each validator signed either all or none of the bundle
                 match res {
                     Ok(r) => match r {
                         Some(sig) => {

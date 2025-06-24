@@ -124,6 +124,7 @@ impl Mailbox for KaspaFakeMailbox {
     async fn process_batch<'a>(&self, _ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
         let fxg: WithdrawFXG = WithdrawFXG::default();
         let bundles = self.provider.validators().get_withdraw_sigs(&fxg).await?;
+        // TODO: shoudl check get at least M=threshold responses
 
         Ok(BatchResult {
             outcome: Some(TxOutcome {
@@ -174,4 +175,16 @@ fn combine_bundles(bundles: Vec<Bundle>) -> EyreResult<PSKT<Combiner>> {
                 .collect::<Vec<PSKT<Signer>>>()
         })
         .collect::<Vec<Vec<PSKT<Signer>>>>();
+
+    let n_txs = as_signers.first().unwrap().len();
+
+    // need to walk across each tx, and for each tx walk across each signer, and combine all for that tx
+    let mut combined: Vec<PSKT<Combiner>> = Vec::new();
+    for tx in 0..n_txs {
+        let mut combiner = as_signers[0][tx].combiner();
+        for signer in as_signers.iter().skip(1) {
+            combiner = (combiner + signer[tx].clone()).unwrap();
+        }
+        combined.push(combiner);
+    }
 }
