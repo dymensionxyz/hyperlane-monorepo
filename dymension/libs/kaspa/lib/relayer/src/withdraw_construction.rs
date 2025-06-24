@@ -10,21 +10,23 @@ use std::sync::Arc;
 // Assuming EscrowPublic is correctly defined in the `core` crate
 // and `core` is a dependency in this crate's Cargo.toml (e.g., `core = { path = "../core" }`)
 use core::escrow::EscrowPublic;
+use core::withdraw::WithdrawFXG;
 
-struct WithdrawalConstructionArgs<R: RpcApi> {
+pub struct WithdrawalConstructionArgs<R: RpcApi> {
     messages: Vec<HyperlaneMessage>,
     kaspa_rpc: R,
     escrow_public: EscrowPublic,
-    relayer_kaspa_account: Arc<dyn Account>,
+    relayer_kaspa_account: Arc<dyn Account>, // TODO: make generic..?
     current_hub_state: TransactionOutpoint,
     network_id: NetworkId,
 }
 
 /// Updated signature matching the specification
-async fn build_kaspa_withdrawal_pskts_pending<R: RpcApi>(
+pub async fn on_new_withdrawals<R: RpcApi>(
     args: &WithdrawalConstructionArgs<R>,
-) -> Result<Option<Vec<PSKT<Signer>>>> {
-    let v: Vec<PSKT<Signer>> = vec![];
+) -> Result<Option<WithdrawFXG>> {
     // TODO: impl
-    Ok(Some(v))
+    let v: Vec<PSKT<Signer>> = vec![];
+    let fxg = WithdrawFXG::new(Bundle::from(v));
+    Ok(Some(fxg))
 }

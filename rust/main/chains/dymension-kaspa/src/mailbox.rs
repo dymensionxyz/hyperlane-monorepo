@@ -4,6 +4,7 @@ use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
 use hyperlane_cosmos_rs::prost::{Message, Name};
 use tonic::async_trait;
 
+
 use super::consts::*;
 
 use hyperlane_core::{
@@ -15,19 +16,20 @@ use kaspa_wallet_pskt::prelude::*;
 
 use crate::KaspaProvider;
 use dym_kas_core::withdraw::WithdrawFXG;
+use dym_kas_relayer::withdraw_construction::{on_new_withdrawals, WithdrawalConstructionArgs};
 
 // pretends to be a mailbox
 #[derive(Debug, Clone)]
-pub struct KaspaFakeMailbox {
+pub struct KaspaMailbox {
     provider: KaspaProvider,
     domain: HyperlaneDomain,
     address: H256,
 }
 
-impl KaspaFakeMailbox {
+impl KaspaMailbox {
     /// new kaspa native mailbox instance
-    pub fn new(provider: KaspaProvider, locator: ContractLocator) -> ChainResult<KaspaFakeMailbox> {
-        Ok(KaspaFakeMailbox {
+    pub fn new(provider: KaspaProvider, locator: ContractLocator) -> ChainResult<KaspaMailbox> {
+        Ok(KaspaMailbox {
             provider,
             address: locator.address, // TODO: will be zero?
             domain: locator.domain.clone(),
@@ -57,7 +59,7 @@ impl KaspaFakeMailbox {
     }
 }
 
-impl HyperlaneChain for KaspaFakeMailbox {
+impl HyperlaneChain for KaspaMailbox {
     /// Hardcoded // TODO: security implications?
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
@@ -68,7 +70,7 @@ impl HyperlaneChain for KaspaFakeMailbox {
     }
 }
 
-impl HyperlaneContract for KaspaFakeMailbox {
+impl HyperlaneContract for KaspaMailbox {
     /// Hardcoded // TODO: security implications?
     fn address(&self) -> H256 {
         self.address
@@ -76,7 +78,7 @@ impl HyperlaneContract for KaspaFakeMailbox {
 }
 
 #[async_trait]
-impl Mailbox for KaspaFakeMailbox {
+impl Mailbox for KaspaMailbox {
     // TODO: not sure where used
     // it should return the number of dispatched messages so far
     async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
