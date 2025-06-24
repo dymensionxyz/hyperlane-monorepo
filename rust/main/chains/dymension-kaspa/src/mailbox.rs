@@ -7,9 +7,9 @@ use tonic::async_trait;
 use super::consts::*;
 
 use hyperlane_core::{
-    ChainResult, ContractLocator, FixedPointNumber, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox, RawHyperlaneMessage,
-    ReorgPeriod, TxCostEstimate, TxOutcome, H256, H512, U256, BatchResult, QueueOperation,
+    BatchResult, ChainResult, ContractLocator, FixedPointNumber, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox, QueueOperation,
+    RawHyperlaneMessage, ReorgPeriod, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 
 use crate::KaspaProvider;
@@ -106,6 +106,12 @@ impl Mailbox for KaspaFakeMailbox {
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         unimplemented!("kas does not support single message processing")
+    }
+
+    /// True if the destination chain supports batching
+    /// (i.e. if the mailbox contract will succeed on a `process_batch` call)
+    fn supports_batching(&self) -> bool {
+        true
     }
 
     /// Try process the given operations as a batch. Returns the outcome of the
