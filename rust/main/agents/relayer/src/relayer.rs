@@ -49,7 +49,7 @@ use lander::{
     DatabaseOrPath, Dispatcher, DispatcherEntrypoint, DispatcherMetrics, DispatcherSettings,
 };
 
-use super::dymension_metadata::PendingMessageMetadataGetter;
+use super::msg::metadata::dymension_kaspa::PendingMessageMetadataGetter;
 use dymension_kaspa::KaspaProvider;
 use hyperlane_base::kas_hack::{is_kas, logic_loop::Foo as KaspaBridgeFoo};
 use hyperlane_cosmos_native::CosmosNativeMailbox;

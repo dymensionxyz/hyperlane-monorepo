@@ -15,4 +15,3 @@ pub mod server;
 pub use msg::GAS_EXPENDITURE_LOG_MESSAGE;
 pub use relayer::*;
 
-pub mod dymension_metadata;

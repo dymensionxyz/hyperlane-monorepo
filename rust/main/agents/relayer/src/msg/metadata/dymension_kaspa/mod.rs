@@ -10,6 +10,16 @@ use hyperlane_core::{
     utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSignerExt, RawHyperlaneMessage,
     Signable, H160, H256,
 };
+use crate::msg::{
+    metadata::multisig::{
+        MessageIdMultisigMetadataBuilder, MultisigIsmMetadataBuilder, MultisigMetadata,
+    },
+    metadata::DummyBuildsBaseMetadata,
+};
+
+use hyperlane_base::kas_hack::logic_loop::MetadataConstructor;
+use hyperlane_core::{MultisigSignedCheckpoint };
+use std::sync::Arc;
 pub struct KaspaMetadataBuilder;
 
 impl KaspaMetadataBuilder {
@@ -37,5 +47,35 @@ impl MetadataBuilder for KaspaMetadataBuilder {
         Therefore we return a dummy metadata, and then we ignore it later, and construct everything on the fly during submission.
         */
         Ok(Metadata::new(vec![]))
+    }
+}
+
+use eyre::Result;
+
+impl MetadataConstructor for PendingMessageMetadataGetter {
+    /// mimic https://github.com/dymensionxyz/hyperlane-monorepo/blob/f4836a2a7291864d0c1850dbbcecd6af54addce3/rust/main/agents/relayer/src/msg/metadata/multisig/base.rs#L226-L235
+    fn metadata(&self, checkpoint: &MultisigSignedCheckpoint) -> Result<Vec<u8>> {
+        let d: MultisigMetadata = MultisigMetadata::new(checkpoint.clone(), 0, None);
+        let formatter = &self.builder as &dyn MultisigIsmMetadataBuilder;
+        formatter.format_metadata(d)
+    }
+}
+
+/// A convenience way to properly format signature metadata, without requiring a huge amount of unused context objects
+pub struct PendingMessageMetadataGetter {
+    builder: MessageIdMultisigMetadataBuilder,
+}
+
+impl PendingMessageMetadataGetter {
+    pub fn new() -> Self {
+        Self {
+            builder: MessageIdMultisigMetadataBuilder::new(MessageMetadataBuilder {
+                base: Arc::new(DummyBuildsBaseMetadata),
+                app_context: None,
+                root_ism: H256::random(),
+                max_ism_depth: 0,
+                max_ism_count: 0,
+            }),
+        }
     }
 }
