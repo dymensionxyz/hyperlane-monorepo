@@ -6,19 +6,19 @@ use super::{
     message_builder::MessageMetadataBuilder,
     Metadata, MetadataBuilder,
 };
-use hyperlane_core::{
-    utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSignerExt, RawHyperlaneMessage,
-    Signable, H160, H256,
-};
 use crate::msg::{
     metadata::multisig::{
         MessageIdMultisigMetadataBuilder, MultisigIsmMetadataBuilder, MultisigMetadata,
     },
     metadata::DummyBuildsBaseMetadata,
 };
+use hyperlane_core::{
+    utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSignerExt, RawHyperlaneMessage,
+    Signable, H160, H256,
+};
 
 use hyperlane_base::kas_hack::logic_loop::MetadataConstructor;
-use hyperlane_core::{MultisigSignedCheckpoint };
+use hyperlane_core::MultisigSignedCheckpoint;
 use std::sync::Arc;
 pub struct KaspaMetadataBuilder;
 

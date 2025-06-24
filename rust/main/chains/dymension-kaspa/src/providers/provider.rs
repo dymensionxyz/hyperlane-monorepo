@@ -89,7 +89,6 @@ impl KaspaProvider {
     async fn submit_txs(&self, txs: Vec<Transaction>) -> Result<()> {
         todo!()
     }
-
 }
 
 impl HyperlaneChain for KaspaProvider {
