@@ -34,8 +34,9 @@ struct EasyKaspaWallet {
 
 struct EasyKaspaWalletArgs {
     priv_key: String,
-    network_id: NetworkId,
-    rpc_server: String,
+    wallet_secret: String,
+    // network_id: NetworkId,
+    rpc_url: String, // .e.g localhost:16210
 }
 
 impl EasyKaspaWallet {
