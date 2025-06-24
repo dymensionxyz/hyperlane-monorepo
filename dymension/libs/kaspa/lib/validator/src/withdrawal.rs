@@ -1,5 +1,7 @@
 use core::{confirmation::ConfirmationFXG, deposit::DepositFXG, withdraw::WithdrawFXG};
 
-pub fn validate_withdrawals(fxg: &WithdrawFXG) -> bool {
-    true
+use eyre::Result;
+
+pub async fn validate_withdrawals(fxg: &WithdrawFXG) -> Result<bool> {
+    Ok(true)
 }
