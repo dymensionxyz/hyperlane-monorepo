@@ -26,7 +26,7 @@ use super::RestProvider;
 use crate::ConnectionConf;
 use eyre::Result;
 
-use hyperlane_cosmos_native::Signer as HyperlaneSigner
+use hyperlane_cosmos_native::Signer as HyperlaneSigner;
 struct EasyKaspaWallet {
     // wallet: Wallet,
     // domain: HyperlaneDomain,
