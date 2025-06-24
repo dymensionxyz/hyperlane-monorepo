@@ -124,6 +124,7 @@ impl Mailbox for KaspaFakeMailbox {
     async fn process_batch<'a>(&self, _ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
         let fxg: WithdrawFXG = WithdrawFXG::default();
         let bundles = self.provider.validators().get_withdraw_sigs(&fxg).await?;
+        let 
         // TODO: shoudl check get at least M=threshold responses
 
         Ok(BatchResult {
@@ -165,9 +166,11 @@ impl Mailbox for KaspaFakeMailbox {
     }
 }
 
-fn combine_bundles(bundles: Vec<Bundle>) -> EyreResult<PSKT<Combiner>> {
+fn combine_bundles(bundles: Vec<Bundle>) -> EyreResult<Vec<PSKT<Combiner>>> {
     // each bundle is from a different validator, and is a vector of pskt
-    let as_signers = bundles
+    // therefore index i of each vector corresponds to the same TX i
+
+    let validators = bundles
         .iter()
         .map(|b| {
             b.iter()
@@ -176,15 +179,25 @@ fn combine_bundles(bundles: Vec<Bundle>) -> EyreResult<PSKT<Combiner>> {
         })
         .collect::<Vec<Vec<PSKT<Signer>>>>();
 
-    let n_txs = as_signers.first().unwrap().len();
+    let n_txs = validators.first().unwrap().len();
 
     // need to walk across each tx, and for each tx walk across each signer, and combine all for that tx
-    let mut combined: Vec<PSKT<Combiner>> = Vec::new();
-    for tx in 0..n_txs {
-        let mut combiner = as_signers[0][tx].combiner();
-        for signer in as_signers.iter().skip(1) {
-            combiner = (combiner + signer[tx].clone()).unwrap();
+    let mut tx_sigs: Vec<Vec<PSKT<Signer>>> = Vec::new();
+    for tx_i in 0..n_txs {
+        let mut sigs_for_tx = Vec::new();
+        for val_tx_sigs in validators.iter() {
+            sigs_for_tx.push(val_tx_sigs[tx_i].clone());
         }
-        combined.push(combiner);
+        tx_sigs.push(sigs_for_tx);
     }
+
+    let mut ret = Vec::new();
+    for val_sig in tx_sigs.iter() {
+        let mut combiner = val_sig.first().unwrap().clone().combiner();
+        for tx_sig in val_sig.iter().skip(1) {
+            combiner = (combiner + tx_sig.clone()).unwrap();
+        }
+        ret.push(combiner);
+    }
+    Ok(ret)
 }
