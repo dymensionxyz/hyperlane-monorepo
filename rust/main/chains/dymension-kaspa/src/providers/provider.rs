@@ -12,10 +12,8 @@ use hyperlane_core::{
     H512, U256,
 };
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
+use kaspa_consensus_core::tx::Transaction;
 use kaspa_wallet_pskt::prelude::Bundle;
-use kaspa_consensus_core::{
-    tx::Transaction,
-};
 
 use super::validators::ValidatorsClient;
 use super::RestProvider;
