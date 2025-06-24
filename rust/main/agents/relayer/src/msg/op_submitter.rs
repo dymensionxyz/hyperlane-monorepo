@@ -597,7 +597,7 @@ async fn submit_classic_task(
                 &mut confirm_queue,
                 max_batch_size,
                 &metrics,
-                batch,
+                batch.iter().collect(),
             )
             .await;
 
@@ -1069,7 +1069,7 @@ async fn submit_kaspa_batch(
     confirm_queue: &mut OpQueue,
     max_batch_size: u32,
     metrics: &SerialSubmitterMetrics,
-    batch: Vec<Box<dyn PendingOperation + 'static>>,
+    batch: Vec<&Box<dyn PendingOperation>>,
 ) {
     // see https://github.com/dymensionxyz/hyperlane-monorepo/blob/8ca01f1ac17f28fb53df63ee2c9c17e59873af69/rust/main/agents/relayer/src/msg/op_batch.rs#L59-L70
     let Some(first_item) = batch.first() else {
@@ -1081,5 +1081,6 @@ async fn submit_kaspa_batch(
     if !mailbox.supports_batching() {
         panic!("Kaspa must support batching")
     }
-    // TODO: implement kaspa submit logic
+    let res = mailbox.process_batch(batch).await;
+    // TODO: handle errors
 }
