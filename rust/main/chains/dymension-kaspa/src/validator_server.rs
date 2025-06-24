@@ -15,9 +15,9 @@ use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use sha3::{digest::Update, Digest, Keccak256};
 use std::sync::Arc;
 
-use dym_kas_validator::deposit::{
-    validate_confirmed_withdrawals, validate_deposits, validate_withdrawals,
-};
+use dym_kas_validator::withdrawal::validate_withdrawals;
+use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
+use dym_kas_validator::deposit::validate_deposits;
 
 /// Signer here refers to the typical Hyperlane signer which will need to sign attestations to be able to relay TO the hub
 pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(signer: Arc<S>) -> Router {
