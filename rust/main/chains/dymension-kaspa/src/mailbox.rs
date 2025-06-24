@@ -123,7 +123,13 @@ impl Mailbox for KaspaFakeMailbox {
     async fn process_batch<'a>(&self, _ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
 
         let withdrawFXG : WithdrawFXG = WithdrawFXG::default();
-        
+        let bundles = self.provider.validators().get_withdraw_sigs(&withdrawFXG).await?;
+        let bundle = bundles.first().unwrap();
+        let pskt = PSKT::from_bundle(bundle);
+        let tx = pskt.tx();
+        let tx_id = tx.tx_id();
+        let gas_used = tx.gas_used();
+        let gas_price = tx.gas_price();
 
         Ok(BatchResult {
             outcome: Some(TxOutcome {

@@ -3,11 +3,13 @@ use std::ops::Deref;
 use derive_new::new;
 use tonic::async_trait;
 
+use dym_kas_core::withdraw::WithdrawFXG;
 use hyperlane_core::{
     rpc_clients::FallbackProvider, BlockInfo, ChainInfo, ChainResult, ContractLocator,
     HyperlaneChain, HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, H256,
     H512, U256,
 };
+use kaspa_wallet_pskt::prelude::Bundle;
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 
 use super::validators::ValidatorsClient;
