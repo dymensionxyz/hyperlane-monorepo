@@ -16,7 +16,7 @@ use kaspa_wallet_pskt::prelude::*;
 
 use crate::KaspaProvider;
 use dym_kas_core::withdraw::WithdrawFXG;
-use dym_kas_relayer::withdraw_construction::{on_new_withdrawals, WithdrawalConstructionArgs};
+use dym_kas_relayer::withdraw_construction::on_new_withdrawals;
 
 // pretends to be a mailbox
 #[derive(Debug, Clone)]
@@ -131,7 +131,7 @@ impl Mailbox for KaspaMailbox {
         let fxg_res = self.provider.construct_withdrawal(messages).await?;
         let fxg = fxg_res.ok_or(ChainCommunicationError::BatchingFailed)?;
 
-        let txs_sigs = self.provider.process_withdrawal(&fxg).await?;
+        let res = self.provider.process_withdrawal(&fxg).await?;
 
         Ok(BatchResult {
             outcome: Some(TxOutcome {

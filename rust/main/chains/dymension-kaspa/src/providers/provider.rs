@@ -6,7 +6,7 @@ use kaspa_wallet_pskt::prelude::*;
 use tonic::async_trait;
 
 use dym_kas_core::withdraw::WithdrawFXG;
-use dym_kas_relayer::withdraw_construction::{on_new_withdrawals, WithdrawalConstructionArgs};
+use dym_kas_relayer::withdraw_construction::on_new_withdrawals;
 use hyperlane_core::{
     rpc_clients::FallbackProvider, BlockInfo, ChainInfo, ChainResult, ContractLocator,
     HyperlaneChain, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError,
