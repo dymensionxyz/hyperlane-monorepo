@@ -1,5 +1,9 @@
 use std::ops::Deref;
 
+use kaspa_addresses::{Prefix, Version};
+use kaspa_consensus_core::network::{NetworkId, NetworkType};
+use kaspa_wallet_core::wallet::Wallet;
+
 use derive_new::new;
 use eyre::Result as EyreResult;
 use kaspa_wallet_pskt::prelude::*;
@@ -168,4 +172,21 @@ fn combine_all_bundles(bundles: Vec<Bundle>) -> EyreResult<Vec<PSKT<Combiner>>> 
 
 fn finalize_txs(txs_sigs: Vec<PSKT<Combiner>>) -> Result<Vec<Transaction>> {
     todo!()
+}
+
+struct EasyKaspaWallet {
+    wallet: Wallet,
+    domain: HyperlaneDomain,
+}
+
+struct EasyKaspaWalletArgs {
+    priv_key: String,
+    network_id: NetworkId,
+    rpc_server: String,
+}
+
+impl EasyKaspaWallet {
+    pub async fn new(wallet: Wallet) -> Self {
+        Self { wallet }
+    }
 }

@@ -18,8 +18,8 @@ pub async fn on_new_withdrawals(
     kaspa_rpc: &impl RpcApi,
     escrow_public: EscrowPublic,
     relayer_kaspa_account: Arc<dyn Account>, // TODO: make generic..?
-    current_hub_state: TransactionOutpoint,
     network_id: NetworkId,
+    // and cosmos provider
 ) -> Result<Option<WithdrawFXG>> {
     // TODO: impl
     let v: Vec<PSKT<Signer>> = vec![];
