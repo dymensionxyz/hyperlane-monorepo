@@ -12,19 +12,17 @@ use std::sync::Arc;
 use core::escrow::EscrowPublic;
 use core::withdraw::WithdrawFXG;
 
-pub struct WithdrawalConstructionArgs<R: RpcApi> {
-    messages: Vec<HyperlaneMessage>,
-    kaspa_rpc: R,
-    escrow_public: EscrowPublic,
-    relayer_kaspa_account: Arc<dyn Account>, // TODO: make generic..?
-    current_hub_state: TransactionOutpoint,
-    network_id: NetworkId,
+pub struct WithdrawalConstructionArgs {
+    pub messages: Vec<HyperlaneMessage>,
+    pub kaspa_rpc: &impl RpcApi,
+    pub escrow_public: EscrowPublic,
+    pub relayer_kaspa_account: Arc<dyn Account>, // TODO: make generic..?
+    pub current_hub_state: TransactionOutpoint,
+    pub network_id: NetworkId,
 }
 
 /// Updated signature matching the specification
-pub async fn on_new_withdrawals<R: RpcApi>(
-    args: &WithdrawalConstructionArgs<R>,
-) -> Result<Option<WithdrawFXG>> {
+pub async fn on_new_withdrawals(args: &WithdrawalConstructionArgs) -> Result<Option<WithdrawFXG>> {
     // TODO: impl
     let v: Vec<PSKT<Signer>> = vec![];
     let fxg = WithdrawFXG::new(Bundle::from(v));

@@ -4,13 +4,13 @@ use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
 use hyperlane_cosmos_rs::prost::{Message, Name};
 use tonic::async_trait;
 
-
 use super::consts::*;
 
 use hyperlane_core::{
-    BatchResult, ChainResult, ContractLocator, FixedPointNumber, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox, QueueOperation,
-    RawHyperlaneMessage, ReorgPeriod, TxCostEstimate, TxOutcome, H256, H512, U256,
+    BatchResult, ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
+    Mailbox, QueueOperation, RawHyperlaneMessage, ReorgPeriod, TxCostEstimate, TxOutcome, H256,
+    H512, U256,
 };
 use kaspa_wallet_pskt::prelude::*;
 
@@ -128,9 +128,9 @@ impl Mailbox for KaspaMailbox {
             .map(|op| op.try_batch().map(|item| item.data)) // TODO: please work...
             .collect::<ChainResult<Vec<HyperlaneMessage>>>()?;
 
+        let fxg_res = self.provider.construct_withdrawal(messages).await?;
+        let fxg = fxg_res.ok_or(ChainCommunicationError::BatchingFailed)?;
 
-        let fxg: WithdrawFXG = WithdrawFXG::default(); // TODO: from msgs etc, (call kirill)
-                                                       // TODO: shoudl check get at least M=threshold responses
         let txs_sigs = self.provider.process_withdrawal(&fxg).await?;
 
         Ok(BatchResult {

@@ -6,10 +6,11 @@ use kaspa_wallet_pskt::prelude::*;
 use tonic::async_trait;
 
 use dym_kas_core::withdraw::WithdrawFXG;
+use dym_kas_relayer::withdraw_construction::{on_new_withdrawals, WithdrawalConstructionArgs};
 use hyperlane_core::{
     rpc_clients::FallbackProvider, BlockInfo, ChainInfo, ChainResult, ContractLocator,
-    HyperlaneChain, HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, H256,
-    H512, U256,
+    HyperlaneChain, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError,
+    TxnInfo, H256, H512, U256,
 };
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use kaspa_consensus_core::tx::Transaction;
@@ -63,6 +64,15 @@ impl KaspaProvider {
         &self.validators
     }
 
+    pub async fn construct_withdrawal(
+        &self,
+        msgs: Vec<HyperlaneMessage>,
+    ) -> Result<Option<WithdrawFXG>> {
+        let args = self.get_withdrawal_construction_args().await?;
+        args.messages = msgs;
+        on_new_withdrawals(args).await
+    }
+
     /// dococo
     pub async fn process_withdrawal(&self, fxg: &WithdrawFXG) -> Result<()> {
         let bundle_relayer = self.sign_relayer_fee(fxg).await?; // TODO: can add own sig in parallel to validator network request
@@ -78,6 +88,10 @@ impl KaspaProvider {
     }
 
     async fn submit_txs(&self, txs: Vec<Transaction>) -> Result<()> {
+        todo!()
+    }
+
+    async fn get_withdrawal_construction_args(&self) -> Result<WithdrawalConstructionArgs<> {
         todo!()
     }
 }
