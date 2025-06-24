@@ -119,7 +119,7 @@ impl Mailbox for KaspaFakeMailbox {
 
     // We hijack this https://github.com/dymensionxyz/hyperlane-monorepo/blob/4ecb864de578648e0c0ef39561f291cd7f4dfe7c/rust/main/agents/relayer/src/msg/op_submitter.rs#L1084
     async fn process_batch<'a>(&self, _ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
-        
+
 
         Ok(BatchResult {
             outcome: Some(TxOutcome {
@@ -159,3 +159,13 @@ impl Mailbox for KaspaFakeMailbox {
         todo!()
     }
 }
+
+pub async fn build_kaspa_withdrawal_pskts(
+    messages: Vec<HyperlaneMessage>,
+    cosmos_provider: &CosmosNativeProvider,
+    hub_height: Option<u32>,
+    kaspa_rpc: &impl RpcApi,
+    escrow_public: &EscrowPublic,
+    relayer_kaspa_account: &Arc<dyn Account>,
+    network_id: NetworkId,
+) -> Result<Option<Vec<PSKT<Signer>>>> {
