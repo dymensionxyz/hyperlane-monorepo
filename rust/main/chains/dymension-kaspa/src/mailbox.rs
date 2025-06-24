@@ -15,7 +15,6 @@ use kaspa_wallet_pskt::prelude::*;
 
 use crate::KaspaProvider;
 use dym_kas_core::withdraw::WithdrawFXG;
-use eyre::Result as EyreResult;
 
 // pretends to be a mailbox
 #[derive(Debug, Clone)]
@@ -122,10 +121,9 @@ impl Mailbox for KaspaFakeMailbox {
 
     // We hijack this https://github.com/dymensionxyz/hyperlane-monorepo/blob/4ecb864de578648e0c0ef39561f291cd7f4dfe7c/rust/main/agents/relayer/src/msg/op_submitter.rs#L1084
     async fn process_batch<'a>(&self, _ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
-        let fxg: WithdrawFXG = WithdrawFXG::default();
-        let bundles = self.provider.validators().get_withdraw_sigs(&fxg).await?;
-        let 
+        let fxg: WithdrawFXG = WithdrawFXG::default(); // TODO: from msgs etc, (call kirill)
         // TODO: shoudl check get at least M=threshold responses
+        let txs_sigs = self.provider.process_withdrawal(&fxg).await?;
 
         Ok(BatchResult {
             outcome: Some(TxOutcome {
@@ -164,40 +162,4 @@ impl Mailbox for KaspaFakeMailbox {
     fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
         todo!()
     }
-}
-
-fn combine_bundles(bundles: Vec<Bundle>) -> EyreResult<Vec<PSKT<Combiner>>> {
-    // each bundle is from a different validator, and is a vector of pskt
-    // therefore index i of each vector corresponds to the same TX i
-
-    let validators = bundles
-        .iter()
-        .map(|b| {
-            b.iter()
-                .map(|inner| PSKT::<Signer>::from(inner.clone()))
-                .collect::<Vec<PSKT<Signer>>>()
-        })
-        .collect::<Vec<Vec<PSKT<Signer>>>>();
-
-    let n_txs = validators.first().unwrap().len();
-
-    // need to walk across each tx, and for each tx walk across each signer, and combine all for that tx
-    let mut tx_sigs: Vec<Vec<PSKT<Signer>>> = Vec::new();
-    for tx_i in 0..n_txs {
-        let mut sigs_for_tx = Vec::new();
-        for val_tx_sigs in validators.iter() {
-            sigs_for_tx.push(val_tx_sigs[tx_i].clone());
-        }
-        tx_sigs.push(sigs_for_tx);
-    }
-
-    let mut ret = Vec::new();
-    for val_sig in tx_sigs.iter() {
-        let mut combiner = val_sig.first().unwrap().clone().combiner();
-        for tx_sig in val_sig.iter().skip(1) {
-            combiner = (combiner + tx_sig.clone()).unwrap();
-        }
-        ret.push(combiner);
-    }
-    Ok(ret)
 }

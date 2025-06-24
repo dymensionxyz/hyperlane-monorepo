@@ -1,6 +1,8 @@
 use std::ops::Deref;
 
 use derive_new::new;
+use eyre::Result as EyreResult;
+use kaspa_wallet_pskt::prelude::*;
 use tonic::async_trait;
 
 use dym_kas_core::withdraw::WithdrawFXG;
@@ -9,13 +11,14 @@ use hyperlane_core::{
     HyperlaneChain, HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, H256,
     H512, U256,
 };
-use kaspa_wallet_pskt::prelude::Bundle;
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
+use kaspa_wallet_pskt::prelude::Bundle;
 
 use super::validators::ValidatorsClient;
 use super::RestProvider;
 
 use crate::ConnectionConf;
+use eyre::Result;
 
 use hyperlane_cosmos_native::Signer;
 
@@ -58,6 +61,13 @@ impl KaspaProvider {
     pub fn validators(&self) -> &ValidatorsClient {
         &self.validators
     }
+
+    /// dococo
+    pub async fn process_withdrawal(&self, fxg: &WithdrawFXG) -> Result<()> {
+        let bundles = self.validators().get_withdraw_sigs(fxg).await?;
+        let txs_sigs = combine_validator_bundles(bundles)?;
+        Ok(())
+    }
 }
 
 impl HyperlaneChain for KaspaProvider {
@@ -97,4 +107,40 @@ impl HyperlaneProvider for KaspaProvider {
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
         return Ok(None);
     }
+}
+
+fn combine_validator_bundles(bundles: Vec<Bundle>) -> EyreResult<Vec<PSKT<Combiner>>> {
+    // each bundle is from a different validator, and is a vector of pskt
+    // therefore index i of each vector corresponds to the same TX i
+
+    let validators = bundles
+        .iter()
+        .map(|b| {
+            b.iter()
+                .map(|inner| PSKT::<Signer>::from(inner.clone()))
+                .collect::<Vec<PSKT<Signer>>>()
+        })
+        .collect::<Vec<Vec<PSKT<Signer>>>>();
+
+    let n_txs = validators.first().unwrap().len();
+
+    // need to walk across each tx, and for each tx walk across each signer, and combine all for that tx
+    let mut tx_sigs: Vec<Vec<PSKT<Signer>>> = Vec::new();
+    for tx_i in 0..n_txs {
+        let mut sigs_for_tx = Vec::new();
+        for val_tx_sigs in validators.iter() {
+            sigs_for_tx.push(val_tx_sigs[tx_i].clone());
+        }
+        tx_sigs.push(sigs_for_tx);
+    }
+
+    let mut ret = Vec::new();
+    for val_sig in tx_sigs.iter() {
+        let mut combiner = val_sig.first().unwrap().clone().combiner();
+        for tx_sig in val_sig.iter().skip(1) {
+            combiner = (combiner + tx_sig.clone()).unwrap();
+        }
+        ret.push(combiner);
+    }
+    Ok(ret)
 }
