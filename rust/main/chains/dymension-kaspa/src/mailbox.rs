@@ -9,7 +9,7 @@ use super::consts::*;
 use hyperlane_core::{
     ChainResult, ContractLocator, FixedPointNumber, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox, RawHyperlaneMessage,
-    ReorgPeriod, TxCostEstimate, TxOutcome, H256, H512, U256,
+    ReorgPeriod, TxCostEstimate, TxOutcome, H256, H512, U256, BatchResult, QueueOperation,
 };
 
 use crate::KaspaProvider;
@@ -105,12 +105,20 @@ impl Mailbox for KaspaFakeMailbox {
         metadata: &[u8], // contains sigs etc
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
-       // TODO:!! deserialize fully signed pskt from metadata and submit 
-        Ok(TxOutcome {
-            transaction_id: H512::zero(),
-            executed: false,
-            gas_used: U256::zero(),
-            gas_price: FixedPointNumber::from(0),
+        unimplemented!("kas does not support single message processing")
+    }
+
+    /// Try process the given operations as a batch. Returns the outcome of the
+    /// batch (if one was submitted) and the operations that were not submitted.
+    async fn process_batch<'a>(&self, _ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
+        Ok(BatchResult {
+            outcome: Some(TxOutcome {
+                transaction_id: H512::zero(),
+                executed: false,
+                gas_used: U256::zero(),
+                gas_price: FixedPointNumber::from(0),
+            }),
+            failed_indexes: vec![],
         })
     }
 
