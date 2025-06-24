@@ -16,6 +16,7 @@ use tokio_metrics::TaskMonitor;
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument};
 
 use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
+use hyperlane_base::kas_hack::{is_kas}
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
     ConfirmReason, HyperlaneDomain, HyperlaneDomainProtocol, PendingOperationResult,
@@ -582,6 +583,11 @@ async fn submit_classic_task(
     loop {
         let mut batch = submit_queue.pop_many(recv_limit).await;
 
+        if is_kas(&domain) {
+            // TODO: implement kaspa submit logic
+            continue;
+        }
+
         match batch.len().cmp(&1) {
             std::cmp::Ordering::Less => {
                 // The queue is empty, so give some time before checking again to prevent burning CPU
@@ -1037,4 +1043,18 @@ impl SerialSubmitterMetrics {
                 .with_label_values(&["dropped", destination]),
         }
     }
+}
+
+
+#[instrument(skip_all, fields(%domain))]
+async fn submit_kaspa_batch(
+    domain: HyperlaneDomain,
+    mut prepare_queue: OpQueue,
+    mut submit_queue: OpQueue,
+    mut confirm_queue: OpQueue,
+    max_batch_size: u32,
+    metrics: SerialSubmitterMetrics,
+    batch: Vec<Box<dyn PendingOperation + 'static>>,
+) {
+    // TODO: implement kaspa submit logic
 }
