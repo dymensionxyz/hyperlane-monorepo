@@ -169,8 +169,8 @@ fn combine_bundles(bundles: Vec<Bundle>) -> EyreResult<PSKT<Combiner>> {
     let as_signers = bundles
         .iter()
         .map(|b| {
-                b.iter()
-                .map(|inner| PSKT::<Signer>::from(inner.clone())
+            b.iter()
+                .map(|inner| PSKT::<Signer>::from(inner.clone()))
                 .collect::<Vec<PSKT<Signer>>>()
         })
         .collect::<Vec<Vec<PSKT<Signer>>>>();
