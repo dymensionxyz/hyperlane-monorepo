@@ -15,9 +15,9 @@ use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use sha3::{digest::Update, Digest, Keccak256};
 use std::sync::Arc;
 
-use dym_kas_validator::withdrawal::validate_withdrawals;
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
 use dym_kas_validator::deposit::validate_deposits;
+use dym_kas_validator::withdrawal::validate_withdrawals;
 
 /// Signer here refers to the typical Hyperlane signer which will need to sign attestations to be able to relay TO the hub
 pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(signer: Arc<S>) -> Router {
@@ -44,7 +44,10 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
     let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
     // Call to validator.G()
-    if !validate_deposits(&deposits).await.map_err(|e| AppError(e))? {
+    if !validate_deposits(&deposits)
+        .await
+        .map_err(|e| AppError(e))?
+    {
         return Err(AppError(eyre::eyre!("Invalid deposit")));
     }
 
@@ -82,7 +85,10 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
         body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
     // Call to validator.G()
-    if !validate_confirmed_withdrawals(&confirmation_fxg).await.map_err(|e| AppError(e))? {
+    if !validate_confirmed_withdrawals(&confirmation_fxg)
+        .await
+        .map_err(|e| AppError(e))?
+    {
         return Err(AppError(eyre::eyre!("Invalid confirmation")));
     }
 
@@ -179,7 +185,10 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
     let confirmation_fxg: WithdrawFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
     // Call to validator.G()
-    if !validate_withdrawals(&confirmation_fxg).await.map_err(|e| AppError(e))? {
+    if !validate_withdrawals(&confirmation_fxg)
+        .await
+        .map_err(|e| AppError(e))?
+    {
         return Err(AppError(eyre::eyre!("Invalid confirmation")));
     }
 
