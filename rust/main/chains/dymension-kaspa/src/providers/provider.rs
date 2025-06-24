@@ -20,7 +20,7 @@ use super::RestProvider;
 use crate::ConnectionConf;
 use eyre::Result;
 
-use hyperlane_cosmos_native::Signer;
+use hyperlane_cosmos_native::Signer as HyperlaneSigner;
 
 /// dococo
 #[derive(Debug, Clone)]
@@ -37,7 +37,7 @@ impl KaspaProvider {
     pub fn new(
         conf: &ConnectionConf,
         locator: &ContractLocator,
-        signer: Option<Signer>,
+        signer: Option<HyperlaneSigner>,
         metrics: PrometheusClientMetrics,
         chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
@@ -127,17 +127,17 @@ fn combine_validator_bundles(bundles: Vec<Bundle>) -> EyreResult<Vec<PSKT<Combin
     // need to walk across each tx, and for each tx walk across each signer, and combine all for that tx
     let mut tx_sigs: Vec<Vec<PSKT<Signer>>> = Vec::new();
     for tx_i in 0..n_txs {
-        let mut sigs_for_tx = Vec::new();
-        for val_tx_sigs in validators.iter() {
-            sigs_for_tx.push(val_tx_sigs[tx_i].clone());
+        let mut all_sigs_for_tx = Vec::new();
+        for tx_sigs_from_val_j in validators.iter() {
+            all_sigs_for_tx.push(tx_sigs_from_val_j[tx_i].clone());
         }
-        tx_sigs.push(sigs_for_tx);
+        tx_sigs.push(all_sigs_for_tx);
     }
 
     let mut ret = Vec::new();
-    for val_sig in tx_sigs.iter() {
-        let mut combiner = val_sig.first().unwrap().clone().combiner();
-        for tx_sig in val_sig.iter().skip(1) {
+    for all_val_sigs_for_tx in tx_sigs.iter() {
+        let mut combiner = all_val_sigs_for_tx.first().unwrap().clone().combiner();
+        for tx_sig in all_val_sigs_for_tx.iter().skip(1) {
             combiner = (combiner + tx_sig.clone()).unwrap();
         }
         ret.push(combiner);
