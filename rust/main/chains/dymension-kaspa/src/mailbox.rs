@@ -122,8 +122,8 @@ impl Mailbox for KaspaFakeMailbox {
     // We hijack this https://github.com/dymensionxyz/hyperlane-monorepo/blob/4ecb864de578648e0c0ef39561f291cd7f4dfe7c/rust/main/agents/relayer/src/msg/op_submitter.rs#L1084
     async fn process_batch<'a>(&self, _ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
 
-        let withdrawFXG : WithdrawFXG = WithdrawFXG::default();
-        let bundles = self.provider.validators().get_withdraw_sigs(&withdrawFXG).await?;
+        let fxg : WithdrawFXG = WithdrawFXG::default();
+        let bundles = self.provider.validators().get_withdraw_sigs(&fxg).await?;
         let bundle = bundles.first().unwrap();
         let pskt = PSKT::from_bundle(bundle);
         let tx = pskt.tx();
