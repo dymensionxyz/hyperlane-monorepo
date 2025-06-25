@@ -4,8 +4,8 @@ use eyre::Result as EyreResult;
 use kaspa_wallet_pskt::prelude::*;
 use tonic::async_trait;
 
-use dym_kas_core::withdraw::WithdrawFXG;
 use dym_kas_core::escrow::EscrowPublic;
+use dym_kas_core::withdraw::WithdrawFXG;
 use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, ContractLocator, HyperlaneChain, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError, KnownHyperlaneDomain, TxnInfo,
@@ -21,6 +21,7 @@ use super::RestProvider;
 use crate::ConnectionConf;
 use eyre::Result;
 
+use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_native::Signer as HyperlaneSigner;
 
 /// dococo
@@ -31,6 +32,7 @@ pub struct KaspaProvider {
     easy_wallet: EasyKaspaWallet,
     rest: RestProvider,
     validators: ValidatorsClient,
+    cosmos_rpc: Option<CosmosGrpcClient>, // WARNING: NOT SET ON INIT
 }
 
 impl KaspaProvider {
@@ -58,7 +60,13 @@ impl KaspaProvider {
             easy_wallet,
             rest,
             validators,
+            cosmos_rpc: None,
         })
+    }
+
+    /// dococo
+    pub fn set_cosmos_rpc(&mut self, cosmos_rpc: CosmosGrpcClient) {
+        self.cosmos_rpc = Some(cosmos_rpc);
     }
 
     /// dococo
@@ -71,6 +79,7 @@ impl KaspaProvider {
         &self.validators
     }
 
+    /// dococo
     pub async fn construct_withdrawal(
         &self,
         msgs: Vec<HyperlaneMessage>,
@@ -98,7 +107,11 @@ impl KaspaProvider {
     }
 
     fn escrow(&self) -> EscrowPublic {
-        EscrowPublic::from_strs(self.conf.validator_pks.clone(), self.easy_wallet.address_prefix(), self.conf.multisig_threshold_kaspa as u8)
+        EscrowPublic::from_strs(
+            self.conf.validator_pks.clone(),
+            self.easy_wallet.address_prefix(),
+            self.conf.multisig_threshold_kaspa as u8,
+        )
     }
 }
 

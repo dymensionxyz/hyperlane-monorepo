@@ -449,13 +449,8 @@ impl BaseAgent for Relayer {
 
         debug!(elapsed = ?start.elapsed(), event = "fully initialized", "Relayer startup duration measurement");
 
-        let d_k_args = Self::get_dymension_kaspa_args(
-            &settings.origin_chains,
-            &core,
-            &core_metrics,
-            &mailboxes,
-        )
-        .await?;
+        let d_k_args =
+            Self::get_dymension_kaspa_args(&settings.origin_chains, &core, &core_metrics).await?;
 
         Ok(Self {
             dbs,
@@ -1485,7 +1480,6 @@ impl Relayer {
         origin_chains: &HashSet<HyperlaneDomain>,
         core: &HyperlaneAgentCore,
         core_metrics: &CoreMetrics,
-        mailboxes: &HashMap<HyperlaneDomain, Arc<dyn Mailbox>>,
     ) -> Result<Option<DymensionKaspaArgs>> {
         if !origin_chains.iter().any(|chain| is_kas(chain)) {
             return Ok(None);
