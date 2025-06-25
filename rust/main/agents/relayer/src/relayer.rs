@@ -1486,10 +1486,7 @@ impl Relayer {
         let dym_mailbox = mailboxes.get(&dym_domain).unwrap();
 
         let kas_provider_i = kas_mailbox.provider();
-        // downcast to KaspaProvider
         let kas_provider = KaspaProvider::from_box(kas_provider_i);
-
-        let dym_provider = dym_mailbox.provider();
 
         Ok(Some(DymensionKaspaArgs {
             kas_provider,
