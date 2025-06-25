@@ -4,6 +4,8 @@ use kaspa_addresses::{Prefix, Version};
 use kaspa_consensus_core::network::{NetworkId, NetworkType};
 use kaspa_wallet_core::wallet::Wallet;
 
+use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs};
+
 use derive_new::new;
 use eyre::Result as EyreResult;
 use kaspa_wallet_pskt::prelude::*;
@@ -41,7 +43,7 @@ pub struct KaspaProvider {
 
 impl KaspaProvider {
     /// dococo
-    pub fn new(
+    pub async fn new(
         conf: &ConnectionConf,
         locator: &ContractLocator,
         signer: Option<HyperlaneSigner>,
@@ -51,11 +53,12 @@ impl KaspaProvider {
         let rest = RestProvider::new(conf.clone(), signer, metrics.clone(), chain.clone())?;
         let validators = ValidatorsClient::new(conf.clone())?;
 
-        let easy_wallet = get_easy_wallet(locator.domain.clone(), conf.rpc_url.clone(), conf.priv_key.clone(), conf.wallet_secret.clone()).await?;
+        let easy_wallet = get_easy_wallet(locator.domain.clone(), conf.rpc_url.clone(), conf.wallet_secret.clone()).await?;
 
         Ok(KaspaProvider {
             domain: locator.domain.clone(),
             conf: conf.clone(),
+            easy_wallet,
             rest,
             validators,
         })
@@ -180,11 +183,9 @@ fn finalize_txs(txs_sigs: Vec<PSKT<Combiner>>) -> Result<Vec<Transaction>> {
 async fn get_easy_wallet(
     domain: HyperlaneDomain,
     rpc_url: String,
-    priv_key: String,
     wallet_secret: String,
 ) -> Result<EasyKaspaWallet> {
     let args = EasyKaspaWalletArgs {
-        priv_key,
         wallet_secret,
         rpc_url,
         network: match domain {

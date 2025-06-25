@@ -1396,7 +1396,7 @@ pub fn build_cosmos_native_provider(
 
 // TODO: pubb??
 /// docsdkfjlskdf
-pub fn build_kaspa_provider(
+pub async fn build_kaspa_provider(
     chain_conf: &ChainConf,
     connection_conf: &dym_kaspa::ConnectionConf,
     metrics: &CoreMetrics,
@@ -1411,5 +1411,5 @@ pub fn build_kaspa_provider(
         signer,
         metrics,
         middleware_metrics.chain.clone(),
-    )
+    ).await
 }

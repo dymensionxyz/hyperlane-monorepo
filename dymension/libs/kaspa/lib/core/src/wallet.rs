@@ -50,16 +50,15 @@ pub async fn get_wallet(
     Ok(w)
 }
 
-struct EasyKaspaWallet {
+pub struct EasyKaspaWallet {
     wallet: Arc<Wallet>,
     network_info: NetworkInfo,
 }
 
-struct EasyKaspaWalletArgs {
-    priv_key: String,
-    wallet_secret: String,
-    rpc_url: String, // .e.g localhost:16210
-    network: Network,
+pub struct EasyKaspaWalletArgs {
+    pub wallet_secret: String, // this the short password that protects the keychain, not the private key of the crypto account
+    pub rpc_url: String, // .e.g localhost:16210
+    pub network: Network,
 }
 
 impl EasyKaspaWallet {
