@@ -41,6 +41,27 @@ impl Escrow {
     }
 
     pub fn public(&self, address_prefix: Prefix) -> EscrowPublic {
+        let pubs = self.keys.iter().map(|kp| kp.public_key()).collect();
+        EscrowPublic::from_pubs(pubs, address_prefix)
+    }
+}
+
+
+impl EscrowPublic {
+    pub fn n(&self) -> usize {
+        self.pubs.len()
+    }
+
+    pub fn m(&self) -> usize {
+        self.required_signatures as usize
+    }
+
+    pub fn from_strs(pubs: Vec<String>, prefix: Prefix) -> Self {
+        let kps = pubs.iter().map(|pk| PublicKey::from_str(pk.as_str()).unwrap()).collect::<Vec<_>>();
+        Self::from_pubs(kps, prefix)
+    } 
+
+    pub fn from_pubs(pubs: Vec<PublicKey>, prefix: Prefix) -> Self {
         let redeem_script = multisig_redeem_script(
             self.keys
                 .iter()
@@ -57,17 +78,7 @@ impl Escrow {
             redeem_script,
             p2sh,
             addr,
-            pubs: self.keys.iter().map(|kp| kp.public_key()).collect(),
+            pubs: ,
         }
-    }
-}
-
-impl EscrowPublic {
-    pub fn n(&self) -> usize {
-        self.pubs.len()
-    }
-
-    pub fn m(&self) -> usize {
-        self.required_signatures as usize
     }
 }

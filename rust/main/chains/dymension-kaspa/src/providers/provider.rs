@@ -5,6 +5,7 @@ use kaspa_wallet_pskt::prelude::*;
 use tonic::async_trait;
 
 use dym_kas_core::withdraw::WithdrawFXG;
+use dym_kas_core::escrow::EscrowPublic;
 use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, ContractLocator, HyperlaneChain, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError, KnownHyperlaneDomain, TxnInfo,
@@ -93,6 +94,10 @@ impl KaspaProvider {
     }
 
     async fn submit_txs(&self, txs: Vec<Transaction>) -> Result<()> {
+        todo!()
+    }
+
+    fn escrow(&self) -> EscrowPublic {
         todo!()
     }
 }
