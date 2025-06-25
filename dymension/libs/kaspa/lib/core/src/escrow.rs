@@ -9,7 +9,7 @@ use secp256k1::{rand::thread_rng, Keypair, PublicKey};
 use std::str::FromStr;
 
 pub struct Escrow {
-    pub keys: Vec<Keypair>,  // private
+    pub keys: Vec<Keypair>, // private
     required_signatures: u8,
 }
 
