@@ -1,22 +1,16 @@
-use std::ops::Deref;
 
-use kaspa_addresses::{Prefix, Version};
-use kaspa_consensus_core::network::{NetworkId, NetworkType};
-use kaspa_wallet_core::wallet::Wallet;
 
-use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs};
+use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
 
-use derive_new::new;
 use eyre::Result as EyreResult;
 use kaspa_wallet_pskt::prelude::*;
 use tonic::async_trait;
 
 use dym_kas_core::withdraw::WithdrawFXG;
-use dym_kas_relayer::withdraw_construction::on_new_withdrawals;
 use hyperlane_core::{
-    rpc_clients::FallbackProvider, BlockInfo, ChainInfo, ChainResult, ContractLocator,
+    BlockInfo, ChainInfo, ChainResult, ContractLocator,
     HyperlaneChain, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError,
-    TxnInfo, H256, H512, U256,
+    KnownHyperlaneDomain, TxnInfo, H256, H512, U256,
 };
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use kaspa_consensus_core::tx::Transaction;
@@ -35,7 +29,7 @@ use hyperlane_cosmos_native::Signer as HyperlaneSigner;
 pub struct KaspaProvider {
     conf: ConnectionConf,
     domain: HyperlaneDomain,
-    easy_wallet: EasyKaspaWallet,
+    // easy_wallet: EasyKaspaWallet,
     rest: RestProvider,
     // TODO: wrpc
     validators: ValidatorsClient,
@@ -45,7 +39,7 @@ impl KaspaProvider {
     /// dococo
     pub async fn new(
         conf: &ConnectionConf,
-        locator: &ContractLocator,
+        locator: &ContractLocator<'_>,
         signer: Option<HyperlaneSigner>,
         metrics: PrometheusClientMetrics,
         chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
@@ -58,7 +52,7 @@ impl KaspaProvider {
         Ok(KaspaProvider {
             domain: locator.domain.clone(),
             conf: conf.clone(),
-            easy_wallet,
+            // easy_wallet,
             rest,
             validators,
         })

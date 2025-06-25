@@ -9,4 +9,3 @@ pub use provider::KaspaProvider;
 pub use rest::*;
 pub use validators::*;
 pub use wrpc::*;
-pub use easy::*;
