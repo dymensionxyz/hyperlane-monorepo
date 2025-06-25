@@ -6,10 +6,11 @@ use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, Withdrawal
 use hyperlane_warp_route::TokenMessage;
 use kaspa_consensus_core::config::params::Params;
 use kaspa_consensus_core::constants::TX_VERSION;
+use kaspa_consensus_core::mass;
 use kaspa_consensus_core::mass::calc_storage_mass;
 use kaspa_consensus_core::network::NetworkId;
 use kaspa_consensus_core::subnets::SUBNETWORK_ID_NATIVE;
-use kaspa_consensus_core::tx::{ScriptPublicKey, UtxoEntry};
+use kaspa_consensus_core::tx::{PopulatedTransaction, ScriptPublicKey, UtxoEntry};
 use kaspa_consensus_core::tx::{
     Transaction, TransactionInput, TransactionOutpoint, TransactionOutput,
 };
@@ -21,10 +22,14 @@ use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_wallet_core::account::Account;
 use kaspa_wallet_core::tx::{is_transaction_output_dust, MassCalculator};
 use kaspa_wallet_core::utxo::NetworkParams;
+use kaspa_wallet_core::wasm::calculate_unsigned_transaction_fee;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
 use std::io::Cursor;
 use std::sync::Arc;
+use kaspa_consensus_core::hashing::sighash_type::{SigHashType, SIG_HASH_ALL, SIG_HASH_ANY_ONE_CAN_PAY};
+use kaspa_wallet_pskt::pskt;
+use kaspa_wallet_pskt::pskt::Error::{InputBuilder, OutputBuilder};
 
 /// Details of a withdrawal extracted from HyperlaneMessage
 #[derive(Debug, Clone)]
@@ -119,8 +124,51 @@ pub async fn build_withdrawal_pskts(
         &outpoint,
         network_id,
     )
-    .await
-    .map(Some)
+        .await
+        .map(Some)
+}
+
+fn estimate_fee(
+    populated_inputs: Vec<(TransactionInput, UtxoEntry)>,
+    outputs: Vec<TransactionOutput>,
+    payload: Vec<u8>,
+    network_id: NetworkId,
+) -> u64 {
+    let inputs = populated_inputs
+        .iter()
+        .map(|(input, _)| input.into())
+        .collect();
+    let utxo_entries = populated_inputs
+        .iter()
+        .map(|(_, entry)| entry.into())
+        .collect();
+
+    let tx = Transaction::new(
+        TX_VERSION,
+        inputs,
+        outputs.clone(),
+        0, // no tx lock time
+        SUBNETWORK_ID_NATIVE,
+        0,
+        payload, // empty payload
+    );
+    let ptx = PopulatedTransaction::new(&tx, utxo_entries);
+
+    let p = Params::from(network_id);
+    let m = mass::MassCalculator::new_with_consensus_params(&p);
+
+    let ncm = m.calc_non_contextual_masses(&tx);
+    // Assumptions which must be verified before this call:
+    //     1. All output values are non-zero
+    //     2. At least one input (unless coinbase)
+    //
+    // Otherwise this function should never fail. As in our case.
+    let cm = m.calc_contextual_masses(&ptx).unwrap();
+
+    let mass = cm.max(ncm);
+
+    // TODO: Apply current feerate. It can be fetched from https://api.kaspa.org/info/fee-estimate.
+    mass
 }
 
 async fn internal_build_withdrawal_pskt(
@@ -155,7 +203,7 @@ async fn internal_build_withdrawal_pskt(
         kaspa_rpc,
         network_id,
     )
-    .await?;
+        .await?;
 
     //////////////////
     //   Balances   //
@@ -194,23 +242,32 @@ async fn internal_build_withdrawal_pskt(
 
     // Iterate through escrow and relayer UTXO – they would be transaction inputs.
     // Create a vector of "populated" inputs: TransactionInput and UtxoEntry.
-    let inputs: Vec<(TransactionInput, UtxoEntry)> = escrow_utxos
-        .into_iter()
-        .chain(relayer_utxos.into_iter())
-        .enumerate()
-        .map(|(index, utxo)| {
+    
+    let populated_inputs_escrow: Vec<(TransactionInput, UtxoEntry)> = escrow_utxos.into_iter()
+        .map(|utxo| {
             (
-                // signature_script is empty, reference: https://github.com/kaspanet/rusty-kaspa/blob/v1.0.0/wallet/pskt/src/pskt.rs#L138
                 TransactionInput::new(
                     kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint),
-                    vec![], // signature_script
-                    index as u64,
+                    escrow_public.redeem_script.clone(),
+                    0, // sequence does not matter
                     escrow_public.n() as u8,
                 ),
                 UtxoEntry::from(utxo.utxo_entry),
             )
-        })
-        .collect();
+        }).collect();
+
+    let populated_inputs_relayer: Vec<(TransactionInput, UtxoEntry)> = relayer_utxos.into_iter()
+        .map(|utxo| {
+            (
+                TransactionInput::new(
+                    kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint),
+                    vec![],
+                    0, // sequence does not matter
+                    escrow_public.n() as u8,
+                ),
+                UtxoEntry::from(utxo.utxo_entry),
+            )
+        }).collect();
 
     let outputs: Vec<TransactionOutput> = withdrawal_details
         .into_iter()
@@ -222,39 +279,18 @@ async fn internal_build_withdrawal_pskt(
         })
         .collect();
 
-    // Copy of https://github.com/kaspanet/rusty-kaspa/blob/v1.0.0/wallet/pskt/src/pskt.rs#L131-157
-    let transaction = Transaction::new(
-        TX_VERSION,
-        inputs.iter().map(|(input, _)| (*input).clone()).collect(),
-        outputs.clone(),
-        0, // no tx lock time
-        SUBNETWORK_ID_NATIVE,
-        0,
-        vec![], // empty payload
-    );
-
     //////////////////
     //     Fee      //
     //////////////////
 
-    let p = Params::from(network_id);
-    let mc = MassCalculator::new(&p);
-
-    let storage_mass = calc_storage_mass(
-        false,
-        inputs.iter().map(|(_, entry)| entry.into()),
-        outputs.iter().map(|output| output.into()),
-        p.storage_mass_parameter,
-    )
-    .ok_or(kaspa_wallet_core::error::Error::MassCalculationError)?;
-
-    let compute_mass = mc.calc_compute_mass_for_unsigned_consensus_transaction(
-        &transaction,
-        escrow_public.n() as u16,
-    );
-
-    // Multiply the fee by 1.1 to give some space for adding change utxos
-    let tx_fee = mc.calc_fee_for_mass(mc.combine_mass(storage_mass, compute_mass)) * 11 / 10;
+    let combined_inputs: Vec<(TransactionInput, UtxoEntry)> = populated_inputs_escrow
+        .iter()
+        .chain(populated_inputs_relayer.iter())
+        .collect();
+    
+    // Multiply the fee by 1.1 to give some space for adding change UTXOs.
+    // TODO: use feerate.
+    let tx_fee = estimate_fee(combined_inputs, outputs.clone(), Vec::new(), network_id) * 11 / 10;
 
     if relayer_balance < tx_fee {
         return Err(anyhow::anyhow!(
@@ -265,39 +301,63 @@ async fn internal_build_withdrawal_pskt(
     }
 
     //////////////////
-    //    Change    //
-    //////////////////
-
-    // escrow_balance - withdrawal_balance > 0 as checked above
-    let escrow_change = TransactionOutput::new(
-        escrow_balance - withdrawal_balance,
-        ScriptPublicKey::from(pay_to_address_script(&escrow_public.addr)),
-    );
-
-    // relayer_balance - tx_fee as checked above
-    // TODO: receive_address or change_address??
-    let relayer_change = TransactionOutput::new(
-        relayer_balance - tx_fee,
-        ScriptPublicKey::from(pay_to_address_script(
-            &relayer_account.change_address()?.clone(),
-        )),
-    );
-
-    //////////////////
     //     PSKT     //
     //////////////////
 
-    // Create a transaction builder based on the tx – all inputs and outputs are saved.
-    let populated_inputs: Vec<(&TransactionInput, &UtxoEntry)> =
-        inputs.iter().map(|(input, utxo)| (input, utxo)).collect();
+    let mut pskt = PSKT::<Creator>::default().constructor();
 
-    let inner = Inner::try_from((transaction, populated_inputs))?;
-    let pskt = <PSKT<Constructor>>::from(inner);
+    populated_inputs_escrow.into_iter().for_each(|(input, entry)| {
+        let input = kaspa_wallet_pskt::input::InputBuilder::default()
+            .utxo_entry(entry)
+            .previous_outpoint(input.previous_outpoint)
+            .sig_op_count(input.sig_op_count)
+            .redeem_script(input.signature_script)
+            .sighash_type(SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8()).unwrap())
+            .build()
+            .map_err(|e| kaspa_wallet_core::error::Error::Custom(format!("pskt input r: {}", e)))?;
 
-    if !is_transaction_output_dust(&escrow_change) {
-        pskt = pskt.output(escrow_change);
-    }
+        pskt = pskt.input(input);
+    });
 
+    populated_inputs_relayer.into_iter().for_each(|(input, entry)| {
+        let input = kaspa_wallet_pskt::input::InputBuilder::default()
+            .utxo_entry(entry)
+            .previous_outpoint(input.previous_outpoint)
+            .sig_op_count(1) // TODO: needed if using p2pk?
+            .sighash_type(SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8()).unwrap())
+            .build()
+            .map_err(|e| kaspa_wallet_core::error::Error::Custom(format!("pskt input r: {}", e)))?;
+
+        pskt = pskt.input(input);
+    });
+    
+    outputs.into_iter().for_each(|output| {
+        let output = kaspa_wallet_pskt::output::OutputBuilder::default()
+            .amount(output.value)
+            .script_public_key(output.script_public_key)
+            .build()
+            .map_err(|e| kaspa_wallet_core::error::Error::Custom(format!("pskt output e_to_user: {}", e)))?;
+        
+        pskt = pskt.output(output);
+    });
+
+    // escrow_balance - withdrawal_balance > 0 as checked above
+    let escrow_change = kaspa_wallet_pskt::output::OutputBuilder::default()
+        .amount(escrow_balance - withdrawal_balance)
+        .script_public_key(escrow_public.p2sh.clone())
+        .build()
+        .map_err(|e| kaspa_wallet_core::error::Error::Custom(format!("pskt output e_change: {}", e)))?;
+
+    // relayer_balance - tx_fee as checked above
+    let relayer_change = kaspa_wallet_pskt::output::OutputBuilder::default()
+        .amount(relayer_balance - tx_fee)
+        .script_public_key(ScriptPublicKey::from(pay_to_address_script(&relayer_account.change_address()?)))
+        .build()
+        .map_err(|e| kaspa_wallet_core::error::Error::Custom(format!("pskt output r_change: {}", e)))?;
+
+    // escrow_change should always be present even if it's dust
+    pskt = pskt.output(escrow_change);
+    
     if !is_transaction_output_dust(&relayer_change) {
         pskt = pskt.output(relayer_change);
     }
@@ -315,28 +375,17 @@ async fn get_utxo_to_spend(
         .await
         .map_err(|e| anyhow::anyhow!("Failed to get escrow UTXOs: {}", e))?;
 
-    // Descending order – older UTXOs first
-    utxos.sort_by_key(|u| std::cmp::Reverse(u.utxo_entry.block_daa_score));
-
-    let mut selected = Vec::new();
-    let mut total_in = 0u64;
-
     let block = kaspa_rpc
         .get_block_dag_info()
         .await
         .map_err(|e| anyhow::anyhow!("Failed to get block DAG info: {}", e))?;
     let current_daa_score = block.virtual_daa_score;
 
-    for utxo in utxos {
-        if !is_mature(&utxo.utxo_entry, current_daa_score, network_id) {
-            continue;
-        }
+    // Descending order – older UTXOs first
+    utxos.sort_by_key(|u| std::cmp::Reverse(u.utxo_entry.block_daa_score));
+    utxos.retain(|u| is_mature(&u.utxo_entry, current_daa_score, network_id));
 
-        total_in += utxo.utxo_entry.amount;
-        selected.push(utxo);
-    }
-
-    Ok(selected)
+    Ok(utxos)
 }
 
 fn is_mature(utxo: &RpcUtxoEntry, current_daa_score: u64, network_id: NetworkId) -> bool {
@@ -394,7 +443,7 @@ async fn get_pending_withdrawals(
                 .await
         }
     }
-    .map_err(|e| anyhow::anyhow!("Failed to query outpoint from x/kas module: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to query outpoint from x/kas module: {}", e))?;
 
     let outpoint_data = resp
         .outpoint
