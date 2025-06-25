@@ -1485,42 +1485,11 @@ impl Relayer {
         let kas_mailbox = mailboxes.get(&kas_domain).unwrap();
         let dym_mailbox = mailboxes.get(&dym_domain).unwrap();
 
-        let kas_provider = kas_mailbox.provider();
-        let dym_provider = dym_mailbox.provider();
+        let kas_provider_i = kas_mailbox.provider();
+        // downcast to KaspaProvider
+        let kas_provider = kas_provider_i.downcast_ref::<KaspaProvider>().unwrap();
 
-        let dym_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum); // TODO: fix
-
-        let kas_chain_provider = match chain_conf.connection.clone() {
-            ChainConnectionConf::Kaspa(conf) => {
-                build_kaspa_provider(&chain_conf, &conf, &core_metrics, &locator, None).await?
-            }
-            _ => panic!("Dymension Kaspa Args: Kaspa provider not found"),
-        };
-
-        // TODO: technically should use destination chains here
-        let conf = origin_chains.get(&dym_domain).cloned().unwrap();
-        let chain_conf = core.settings.chain_setup(&conf).unwrap().to_owned();
-
-        let dym_mailbox = match chain_conf.connection.clone() {
-            ChainConnectionConf::CosmosNative(conf) => {
-                // https://github.com/dymensionxyz/hyperlane-monorepo/blob/512ff25f6c6eaa66e611c5b5aee0c54bf36ec06c/rust/main/hyperlane-base/src/settings/chains.rs#L330
-                let locator = chain_conf.locator(chain_conf.addresses.mailbox);
-                let signer = chain_conf.cosmos_native_signer().await?;
-
-                // TODO: it's ok to have two of these?
-                let dym_provider = build_cosmos_native_provider(
-                    &chain_conf,
-                    &conf,
-                    &core_metrics,
-                    &locator,
-                    signer,
-                )
-                .expect("Failed to build Cosmos Native provider");
-
-                CosmosNativeMailbox::new(dym_provider, locator.clone())?
-            }
-            _ => panic!("Dymension Kaspa Args: Cosmos Native mailbox not found"),
-        };
+        // let dym_provider = dym_mailbox.provider();
 
         Ok(Some(DymensionKaspaArgs {
             kas_provider: kas_chain_provider,
