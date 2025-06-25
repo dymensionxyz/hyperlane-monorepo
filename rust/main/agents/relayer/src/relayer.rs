@@ -201,7 +201,7 @@ impl BaseAgent for Relayer {
 
         // ~~~~~DYMENSION~~~~~~
         let dymension_args = Self::get_dymension_kaspa_args(&mailboxes).await?; 
-        match &dymension_args {
+        match dymension_args.clone() {
             Some(dymension_args) => {
                 mailboxes.insert(
                     HyperlaneDomain::Known(KnownHyperlaneDomain::KaspaTest10), // TODO: fix
