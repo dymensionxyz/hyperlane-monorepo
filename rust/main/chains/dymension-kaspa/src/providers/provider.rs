@@ -29,9 +29,8 @@ use hyperlane_cosmos_native::Signer as HyperlaneSigner;
 pub struct KaspaProvider {
     conf: ConnectionConf,
     domain: HyperlaneDomain,
-    // easy_wallet: EasyKaspaWallet,
+    easy_wallet: EasyKaspaWallet,
     rest: RestProvider,
-    // TODO: wrpc
     validators: ValidatorsClient,
 }
 
@@ -52,7 +51,7 @@ impl KaspaProvider {
         Ok(KaspaProvider {
             domain: domain.clone(),
             conf: conf.clone(),
-            // easy_wallet,
+            easy_wallet,
             rest,
             validators,
         })

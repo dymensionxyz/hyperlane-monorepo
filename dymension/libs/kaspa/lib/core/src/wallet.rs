@@ -8,6 +8,7 @@ use kaspa_wallet_core::api::WalletApi;
 use kaspa_wallet_core::error::Error;
 use kaspa_wallet_core::wallet::Wallet;
 use kaspa_wallet_keys::secret::Secret;
+use std::fmt;
 
 use kaspa_wallet_core::prelude::*; // Import the prelude for easy access to traits/structs
 
@@ -50,9 +51,17 @@ pub async fn get_wallet(
     Ok(w)
 }
 
+#[derive(Clone)]
 pub struct EasyKaspaWallet {
     wallet: Arc<Wallet>,
     network_info: NetworkInfo,
+}
+
+// Implement Debug for your wrapper
+impl fmt::Debug for EasyKaspaWallet {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "EasyKaspaWallet(<...>)") // TODO:
+    }
 }
 
 pub struct EasyKaspaWalletArgs {
@@ -97,7 +106,7 @@ impl EasyKaspaWallet {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct NetworkInfo {
     pub network_id: NetworkId,
     pub network_type: NetworkType,
