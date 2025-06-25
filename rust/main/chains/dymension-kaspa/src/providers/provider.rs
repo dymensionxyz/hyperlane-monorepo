@@ -1,5 +1,6 @@
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
 
+use futures::stream::{self, StreamExt};
 use core::default;
 use eyre::Result as EyreResult;
 use kaspa_wallet_pskt::prelude::*;
@@ -10,6 +11,7 @@ use url::Url;
 use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::withdraw::WithdrawFXG;
 use dym_kas_relayer::withdraw_construction::on_new_withdrawals;
+use dym_kas_relayer::withdraw::sign_pay_fee;
 use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, ContractLocator, HyperlaneChain, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError, KnownHyperlaneDomain, TxnInfo,
@@ -25,12 +27,12 @@ use super::RestProvider;
 use crate::ConnectionConf;
 use eyre::Result;
 
-use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
-use hyperlane_cosmos_native::Signer as HyperlaneSigner;
 use hyperlane_core::config::OpSubmissionConfig;
 use hyperlane_core::NativeToken;
-use hyperlane_cosmos_native::RawCosmosAmount;
 use hyperlane_cosmos_native::ConnectionConf as HubConnectionConf;
+use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
+use hyperlane_cosmos_native::RawCosmosAmount;
+use hyperlane_cosmos_native::Signer as HyperlaneSigner;
 
 /// dococo
 #[derive(Debug, Clone)]
@@ -111,7 +113,18 @@ impl KaspaProvider {
     }
 
     async fn sign_relayer_fee(&self, fxg: &WithdrawFXG) -> Result<Bundle> {
-        todo!()
+        let signed = fxg
+            .bundle
+            .iter()
+            .map(|pskt| {
+                let pskt = PSKT::<Signer>::from(pskt.clone());
+                let signed_relayer_fee = sign_pay_fee(pskt, &self.easy_wallet.wallet, &self.easy_wallet.secret).await?;
+                let combiner = signed_relayer_fee.combiner();
+                let combiner_signed = self.easy_wallet.sign_pskt(&combiner)?;
+                Ok(combiner_signed)
+            })
+            .collect::<Result<Vec<PSKT<Combiner>>>>()?;
+        Ok(signed)
     }
 
     async fn submit_txs(&self, txs: Vec<Transaction>) -> Result<()> {
@@ -170,7 +183,7 @@ fn combine_all_bundles(bundles: Vec<Bundle>) -> EyreResult<Vec<PSKT<Combiner>>> 
     // each bundle is from a different actor (validator or releayer), and is a vector of pskt
     // therefore index i of each vector corresponds to the same TX i
 
-   // make a list of lists, each top level element is a vector of pskt from a different actor
+    // make a list of lists, each top level element is a vector of pskt from a different actor
     let actor_pskts = bundles
         .iter()
         .map(|b| {
@@ -232,7 +245,7 @@ fn cosmos_grpc_client(urls: Vec<Url>) -> CosmosGrpcClient {
         "".to_string(),
         "".to_string(),
         "".to_string(),
-        RawCosmosAmount{
+        RawCosmosAmount {
             denom: "".to_string(),
             amount: "".to_string(),
         },
