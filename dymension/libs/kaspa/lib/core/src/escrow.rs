@@ -6,9 +6,10 @@ use kaspa_txscript::{
 };
 
 use secp256k1::{rand::thread_rng, Keypair, PublicKey};
+use std::str::FromStr;
 
 pub struct Escrow {
-    pub keys: Vec<Keypair>,
+    pub keys: Vec<Keypair>,  // private
     required_signatures: u8,
 }
 
@@ -42,10 +43,9 @@ impl Escrow {
 
     pub fn public(&self, address_prefix: Prefix) -> EscrowPublic {
         let pubs = self.keys.iter().map(|kp| kp.public_key()).collect();
-        EscrowPublic::from_pubs(pubs, address_prefix)
+        EscrowPublic::from_pubs(pubs, address_prefix, self.m() as u8)
     }
 }
-
 
 impl EscrowPublic {
     pub fn n(&self) -> usize {
@@ -56,29 +56,30 @@ impl EscrowPublic {
         self.required_signatures as usize
     }
 
-    pub fn from_strs(pubs: Vec<String>, prefix: Prefix) -> Self {
-        let kps = pubs.iter().map(|pk| PublicKey::from_str(pk.as_str()).unwrap()).collect::<Vec<_>>();
-        Self::from_pubs(kps, prefix)
-    } 
+    pub fn from_strs(pubs: Vec<String>, prefix: Prefix, required_signatures: u8) -> Self {
+        let pubs = pubs
+            .iter()
+            .map(|pk| PublicKey::from_str(pk.as_str()).unwrap())
+            .collect::<Vec<_>>();
+        Self::from_pubs(pubs, prefix, required_signatures)
+    }
 
-    pub fn from_pubs(pubs: Vec<PublicKey>, prefix: Prefix) -> Self {
+    pub fn from_pubs(pubs: Vec<PublicKey>, prefix: Prefix, required_signatures: u8) -> Self {
         let redeem_script = multisig_redeem_script(
-            self.keys
-                .iter()
-                .map(|pk| pk.x_only_public_key().0.serialize()),
-            self.m(),
+            pubs.iter().map(|pk| pk.x_only_public_key().0.serialize()),
+            required_signatures as usize,
         )
         .unwrap();
 
         let p2sh = pay_to_script_hash_script(&redeem_script);
-        let addr = extract_script_pub_key_address(&p2sh, address_prefix).unwrap();
+        let addr = extract_script_pub_key_address(&p2sh, prefix).unwrap();
 
         EscrowPublic {
-            required_signatures: self.required_signatures,
+            required_signatures: required_signatures,
             redeem_script,
             p2sh,
             addr,
-            pubs: ,
+            pubs: pubs,
         }
     }
 }
