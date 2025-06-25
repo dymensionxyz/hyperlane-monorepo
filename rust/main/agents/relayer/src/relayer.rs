@@ -1471,7 +1471,7 @@ impl Relayer {
 }
 
 struct DymensionKaspaArgs {
-    kas_provider: KaspaProvider,
+    kas_provider: Box<KaspaProvider>,
     dym_mailbox: Arc<CosmosNativeMailbox>,
 }
 
@@ -1482,7 +1482,7 @@ impl Relayer {
         let kas_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::KaspaTest10); // TODO: confirugable
         let kas_mailbox = mailboxes.get(&kas_domain).unwrap();
         let kas_provider_i = kas_mailbox.provider();
-        let kas_provider = kas_provider_i.downcast_box::<KaspaProvider>().unwrap();
+        let kas_provider = kas_provider_i.downcast::<KaspaProvider>().unwrap();
 
         let dym_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum); // TODO: fix
         let dym_mailbox_i = mailboxes.get(&dym_domain).unwrap();
