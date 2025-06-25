@@ -98,7 +98,7 @@ impl KaspaProvider {
     }
 
     fn escrow(&self) -> EscrowPublic {
-        todo!()
+        EscrowPublic::from_strs(self.conf.validator_pks.clone(), self.easy_wallet.address_prefix(), self.conf.multisig_threshold_kaspa as u8)
     }
 }
 
