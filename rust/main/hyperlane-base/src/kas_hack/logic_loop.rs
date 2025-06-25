@@ -15,10 +15,8 @@ use dym_kas_relayer::deposit::on_new_deposit as relayer_on_new_deposit;
 use dymension_kaspa::{Deposit, KaspaProvider};
 
 use crate::{contract_sync::cursors::Indexable, db::HyperlaneRocksDB};
-use std::sync::Arc;
 
 use hyperlane_cosmos_native::mailbox::CosmosNativeMailbox;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 
 pub struct Foo<C: MetadataConstructor> {
     domain: HyperlaneDomain,

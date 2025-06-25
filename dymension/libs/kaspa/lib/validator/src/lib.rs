@@ -9,7 +9,7 @@ use std::io::Cursor;
 use std::str::FromStr;
 use std::time::Duration;
 
-use relayer::DepositFXG;
+use core::deposit::DepositFXG;
 use kaspa_rpc_core::{api::rpc::RpcApi, RpcBlock, RpcScriptPublicKey};
 use kaspa_wrpc_client::{KaspaRpcClient,Resolver, WrpcEncoding,prelude::{NetworkId, NetworkType},client::{ConnectOptions, ConnectStrategy}};
 use kaspa_consensus_core::Hash;

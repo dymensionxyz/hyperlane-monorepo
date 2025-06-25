@@ -1014,10 +1014,12 @@ dependencies = [
 name = "core"
 version = "0.2.0"
 dependencies = [
+ "bincode",
  "bytes",
  "clap",
  "eyre",
  "governor",
+ "hyperlane-core",
  "hyperlane-cosmos-dymension-rs",
  "kaspa-addresses",
  "kaspa-consensus-core",
