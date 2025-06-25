@@ -450,7 +450,7 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start.elapsed(), event = "fully initialized", "Relayer startup duration measurement");
 
         let d_k_args =
-            Self::get_dymension_kaspa_args(&settings.origin_chains, &core, &core_metrics).await?;
+            Self::get_dymension_kaspa_args(&mailboxes).await?;
 
         Ok(Self {
             dbs,
@@ -1477,7 +1477,7 @@ struct DymensionKaspaArgs {
 
 impl Relayer {
     async fn get_dymension_kaspa_args(
-        mailboxes: HashMap<HyperlaneDomain, Arc<dyn Mailbox>>,
+        mailboxes: &HashMap<HyperlaneDomain, Arc<dyn Mailbox>>,
     ) -> Result<Option<DymensionKaspaArgs>> {
         let kas_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::KaspaTest10); // TODO: confirugable
         let kas_mailbox = mailboxes.get(&kas_domain).unwrap();
@@ -1485,7 +1485,7 @@ impl Relayer {
         let kas_provider = kas_provider_i.downcast::<KaspaProvider>().unwrap();
 
         let dym_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum); // TODO: fix
-        let dym_mailbox_i = mailboxes.get(&dym_domain).unwrap();
+        let dym_mailbox_i = mailboxes.get(&dym_domain).unwrap().clone(); // TODO: clone is right here? got a warning
         let dym_mailbox = dym_mailbox_i.downcast_arc::<CosmosNativeMailbox>().unwrap();
 
         Ok(Some(DymensionKaspaArgs {
