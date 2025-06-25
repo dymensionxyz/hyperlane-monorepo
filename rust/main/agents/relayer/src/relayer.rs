@@ -1461,18 +1461,20 @@ impl Relayer {
         let b = KaspaBridgeFoo::new(
             origin.clone(),
             kas_db.clone().to_owned(),
-            kas_provider,
-            hub_mailbox,
+            kas_provider.clone(),
+            hub_mailbox.clone(),
             metadata_getter,
         );
+        
+        // sync relayer before starting other tasks
+        // FIXME: check error
+        b.sync_relayer_if_needed();
 
         tasks.push(b.run_deposit_loop(task_monitor.clone()));
-
-        // TODO: confirmation loop
-
         // it observes the local db and makes sure messages are eventually written to the destination chain
         tasks.push(self.run_message_processor(origin, send_channels.clone(), task_monitor.clone()));
     }
+
 }
 
 struct DymensionKaspaArgs {

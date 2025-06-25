@@ -1,6 +1,6 @@
 use std::{collections::HashSet, fmt::Debug, hash::Hash, time::Duration};
 
-use eyre::Result as EyreResult;
+use eyre::{Result, Result as EyreResult};
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, CheckpointWithMessageId, HyperlaneDomain,
     HyperlaneLogStore, HyperlaneMessage, Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint,
@@ -19,6 +19,12 @@ use std::sync::Arc;
 
 use hyperlane_cosmos_native::mailbox::CosmosNativeMailbox;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
+
+// Add imports for sync methods
+use api_rs::apis::configuration::Configuration;
+use kaspa_consensus_core::tx::{TransactionOutpoint, TransactionId};
+use kaspa_hashes::Hash;
+use dym_kas_relayer::confirmation::prepare_progress_indication;
 
 pub struct Foo<C: MetadataConstructor> {
     domain: HyperlaneDomain,
@@ -136,29 +142,37 @@ where
         logs
     }
 
-    // TODO: not used yet, and why would it be a loop?
-    pub fn run_confirmation_loop(mut self, task_monitor: TaskMonitor) -> JoinHandle<()> {
-        let name = "dymension_kaspa_confirmation_loop";
-        tokio::task::Builder::new()
-            .name(name)
-            .spawn(TaskMonitor::instrument(
-                &task_monitor,
-                async move {
-                    self.confirmation_loop().await;
-                }
-                .instrument(info_span!("Kaspa Monitor")),
-            ))
-            .expect("Failed to spawn kaspa monitor task")
-    }
+    /// Sync relayer that blocks until the system is synced
+    /// Checks if the outpoint committed on the hub is already spent on Kaspa
+    /// If not synced, prepares progress indication and submits to hub
+    pub async fn sync_relayer_if_needed(&self) -> Result<(), Error>{
+        // get anchor utxo from hub
+        let resp = self.hub_mailbox.outpoint(None).await;
+        let anchor_utxo = resp.outpoint;
 
-    async fn confirmation_loop(&mut self) {
-        loop {
-            time::sleep(Duration::from_secs(10)).await;
+        // get all utxos from kaspa for the escrow address
+        let utxos = self.provider.rest().get_utxos_by_addresses(vec![self.provider.escrow_address()]).await?;
+
+
+        // check if the anchor utxo is in the utxos
+        //FIXME: check for index as well!!
+        let is_synced = utxos.iter().any(|utxo| utxo.txid == anchor_utxo.transaction_id);
+
+
+        /* ------------------------------- handle sync ------------------------------ */
+        if !is_synced {
+            // TODO check for errors
+            run_sync_flow(self.provider, &self.hub_mailbox).await;
+        } else {
+            info!("System is synced, proceeding with other tasks");
+            return Ok(());
         }
+        Ok(())
     }
 
-    // TODO: this is a workaround for now because Michael works on the calling of it
-    /*
+
+    /// Handle sync requirement by preparing progress indication and submitting to hub
+    /* 
     - [x] Can assume for time being that some other code will call my function on relayer, with the filled ProgressIndication
     - [x] Relayer will need to reach out to validators to gather the signatures over the progress indication
     - [x] Validator will need endpoint
@@ -167,14 +181,46 @@ where
     - [x] Validator will need to sign appropriately TODO: check/fix/test this part
     - [x] Validator return
     - [x] Relayer post to hub
-        */
     // needs to satisfy
     // https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/keeper/msg_server.go#L42-L48
     // https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/types/d.go#L76-L84
-    pub async fn on_new_progress_indication(
-        &self,
-        fxg: &ConfirmationFXG,
+    */
+    async fn run_sync_flow(
+        kas_provider: &KaspaProvider,
+        hub_mailbox: &CosmosNativeMailbox,
     ) -> ChainResult<TxOutcome> {
+
+        // TODO: Get actual configuration from kas_provider
+        let config = Configuration::default();
+        
+        // TODO: Get actual anchor and new UTXOs from the provider/hub state
+        let anchor_utxo = TransactionOutpoint {
+            transaction_id: TransactionId::from_bytes([0u8; 32]),
+            index: 0,
+        };
+        
+        let new_utxo = TransactionOutpoint {
+            transaction_id: TransactionId::from_bytes([1u8; 32]),
+            index: 0,
+        };
+
+        // Prepare progress indication
+        match prepare_progress_indication(&config, anchor_utxo, new_utxo).await {
+            Ok(confirmation_fxg) => {
+                // TODO: Get validator signatures and submit to hub
+                // This should call the equivalent of on_new_progress_indication
+                info!("Successfully prepared progress indication: {:?}", confirmation_fxg);
+                Ok(())
+            }
+            Err(e) => {
+                let error_msg = format!("Failed to prepare progress indication: {}", e);
+                warn!("{}", error_msg);
+                Err(eyre::eyre!(error_msg))
+            }
+        }
+
+        
+
         let progress_indication = &fxg.progress_indication;
         let mut sigs = self
             .provider
