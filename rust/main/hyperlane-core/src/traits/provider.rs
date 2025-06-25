@@ -5,6 +5,8 @@ use auto_impl::auto_impl;
 use std::any::Any;
 use thiserror::Error;
 
+use downcast_rs::{impl_downcast, DowncastSync};
+
 use crate::{BlockInfo, ChainInfo, ChainResult, HyperlaneChain, TxnInfo, H256, H512, U256};
 
 /// Interface for a provider. Allows abstraction over different provider types
@@ -16,7 +18,7 @@ use crate::{BlockInfo, ChainInfo, ChainResult, HyperlaneChain, TxnInfo, H256, H5
 /// the context of a contract.
 #[async_trait]
 #[auto_impl(&, Box, Arc)]
-pub trait HyperlaneProvider: HyperlaneChain + Send + Sync + Debug {
+pub trait HyperlaneProvider: HyperlaneChain + Send + Sync + Debug + DowncastSync {
     /// Get block info for a given block height
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo>;
 
@@ -31,12 +33,9 @@ pub trait HyperlaneProvider: HyperlaneChain + Send + Sync + Debug {
 
     /// Fetch metrics related to this chain
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>>;
-
-    fn as_any(&self) -> &dyn Any {
-        unimplemented!()
-    }
-
 }
+
+impl_downcast!(sync HyperlaneProvider);
 
 /// Errors when querying for provider information.
 #[derive(Error, Debug)]

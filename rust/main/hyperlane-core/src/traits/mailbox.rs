@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use derive_new::new;
-use downcast_rs::{impl_downcast, Downcast};
+use downcast_rs::{impl_downcast, DowncastSync};
 
 use crate::{
     traits::TxOutcome, utils::domain_hash, ChainCommunicationError, ChainResult, HyperlaneContract,
@@ -12,7 +12,7 @@ use crate::{
 /// Interface for the Mailbox chain contract. Allows abstraction over different
 /// chains
 #[async_trait]
-pub trait Mailbox: HyperlaneContract + Send + Sync + Debug + Downcast {
+pub trait Mailbox: HyperlaneContract + Send + Sync + Debug + DowncastSync {
     /// Return the domain hash
     fn domain_hash(&self) -> H256 {
         domain_hash(self.address(), self.domain().id())
@@ -77,7 +77,7 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug + Downcast {
     fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>>;
 }
 
-impl_downcast!(Mailbox);
+impl_downcast!(sync Mailbox);
 
 /// The result of processing a batch of messages
 #[derive(new, Debug)]
