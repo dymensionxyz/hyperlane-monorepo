@@ -1,9 +1,11 @@
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
 
+use core::default;
 use eyre::Result as EyreResult;
 use kaspa_wallet_pskt::prelude::*;
 use std::any::Any;
 use tonic::async_trait;
+use url::Url;
 
 use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::withdraw::WithdrawFXG;
@@ -25,6 +27,10 @@ use eyre::Result;
 
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_native::Signer as HyperlaneSigner;
+use hyperlane_core::config::OpSubmissionConfig;
+use hyperlane_core::NativeToken;
+use hyperlane_cosmos_native::RawCosmosAmount;
+use hyperlane_cosmos_native::ConnectionConf as HubConnectionConf;
 
 /// dococo
 #[derive(Debug, Clone)]
@@ -34,7 +40,7 @@ pub struct KaspaProvider {
     easy_wallet: EasyKaspaWallet,
     rest: RestProvider,
     validators: ValidatorsClient,
-    cosmos_rpc: Option<CosmosGrpcClient>, // WARNING: NOT SET ON INIT
+    cosmos_rpc: CosmosGrpcClient,
 }
 
 impl KaspaProvider {
@@ -62,13 +68,8 @@ impl KaspaProvider {
             easy_wallet,
             rest,
             validators,
-            cosmos_rpc: None,
+            cosmos_rpc: cosmos_grpc_client(conf.hub_grpc_urls.clone()),
         })
-    }
-
-    /// dococo
-    pub fn set_cosmos_rpc(&mut self, cosmos_rpc: CosmosGrpcClient) {
-        self.cosmos_rpc = Some(cosmos_rpc);
     }
 
     /// dococo
@@ -86,7 +87,13 @@ impl KaspaProvider {
         &self,
         msgs: Vec<HyperlaneMessage>,
     ) -> Result<Option<WithdrawFXG>> {
-        on_new_withdrawals(msgs, self.easy_wallet.clone(), self.cosmos_rpc.clone().unwrap(), self.escrow()).await
+        on_new_withdrawals(
+            msgs,
+            self.easy_wallet.clone(),
+            self.cosmos_rpc.clone(),
+            self.escrow(),
+        )
+        .await
     }
 
     /// dococo
@@ -130,7 +137,6 @@ impl HyperlaneChain for KaspaProvider {
 
 #[async_trait]
 impl HyperlaneProvider for KaspaProvider {
-
     // only used by scraper
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
         Err(HyperlaneProviderError::CouldNotFindBlockByHeight(height).into())
@@ -210,4 +216,25 @@ async fn get_easy_wallet(
         },
     };
     EasyKaspaWallet::try_new(args).await
+}
+
+fn cosmos_grpc_client(urls: Vec<Url>) -> CosmosGrpcClient {
+    let hub_conf = HubConnectionConf::new(
+        vec![],
+        urls, // ONLY URLS IS NEEDED
+        "".to_string(),
+        "".to_string(),
+        "".to_string(),
+        RawCosmosAmount{
+            denom: "".to_string(),
+            amount: "".to_string(),
+        },
+        1.0,
+        32,
+        OpSubmissionConfig::default(),
+        NativeToken::default(),
+    );
+    let metrics = PrometheusClientMetrics::default();
+    let chain = None;
+    CosmosGrpcClient::new(hub_conf, metrics, chain).unwrap() // TODO: no unwrap
 }
