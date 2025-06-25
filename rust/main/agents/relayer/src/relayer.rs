@@ -1477,17 +1477,16 @@ struct DymensionKaspaArgs {
 
 impl Relayer {
     async fn get_dymension_kaspa_args(
-        origin_chains: &HashSet<HyperlaneDomain>,
-        core: &HyperlaneAgentCore,
-        core_metrics: &CoreMetrics,
+        mailboxes: HashMap<HyperlaneDomain, Arc<dyn Mailbox>>,
     ) -> Result<Option<DymensionKaspaArgs>> {
-        if !origin_chains.iter().any(|chain| is_kas(chain)) {
-            return Ok(None);
-        }
+        let kas_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::KaspaTest10); // TODO: confirugable
+        let dym_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum); // TODO: fix
 
-        let conf = origin_chains.iter().find(|chain| is_kas(chain)).unwrap();
-        let chain_conf = core.settings.chain_setup(conf).unwrap().to_owned();
-        let locator = chain_conf.locator(H256::zero()); // TODO: check, pretty sure it's right
+        let kas_mailbox = mailboxes.get(&kas_domain).unwrap();
+        let dym_mailbox = mailboxes.get(&dym_domain).unwrap();
+
+        let kas_provider = kas_mailbox.provider();
+        let dym_provider = dym_mailbox.provider();
 
         let dym_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum); // TODO: fix
 
