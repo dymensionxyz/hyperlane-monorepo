@@ -36,6 +36,14 @@ impl KaspaMailbox {
         })
     }
 
+    pub fn with_provider(&self, provider: KaspaProvider) -> Self {
+        Self{
+            provider,
+            domain: self.domain.clone(),
+            address: self.address,
+        }
+    }
+
     // TODO: where used?
     fn encode_hyperlane_message(
         &self,

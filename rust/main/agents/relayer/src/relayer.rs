@@ -50,7 +50,7 @@ use lander::{
 };
 
 use super::msg::metadata::dymension_kaspa::PendingMessageMetadataGetter;
-use dymension_kaspa::{is_kas, KaspaProvider};
+use dymension_kaspa::{is_kas, KaspaMailbox, KaspaProvider};
 use hyperlane_base::kas_hack::logic_loop::Foo as KaspaBridgeFoo;
 use hyperlane_cosmos_native::CosmosNativeMailbox;
 
@@ -198,8 +198,16 @@ impl BaseAgent for Relayer {
 
         start_entity_init = Instant::now();
         let mut mailboxes = Self::build_mailboxes(&settings, &core_metrics, &chain_metrics).await;
-
         let dymension_args = Self::get_dymension_kaspa_args(&mailboxes).await?; // DYMENSION CODE
+        match dymension_args {
+            Some(dymension_args) => {
+                mailboxes.insert(
+                    HyperlaneDomain::Known(KnownHyperlaneDomain::KaspaTest10), // TODO: fix
+                    dymension_args.kas_mailbox,
+                );
+            }
+            None => {}
+        }
 
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized mailbox", "Relayer startup duration measurement");
 
@@ -577,7 +585,8 @@ impl BaseAgent for Relayer {
 
         start_entity_init = Instant::now();
         for origin in &self.origin_chains {
-            if is_kas(origin) && self.dymension_kaspa_args.is_some() { // TODO: panic if no args
+            if is_kas(origin) && self.dymension_kaspa_args.is_some() {
+                // TODO: panic if no args
                 self.launch_dymension_kaspa_tasks(
                     origin,
                     &mut tasks,
@@ -1471,6 +1480,7 @@ impl Relayer {
 
 struct DymensionKaspaArgs {
     kas_provider: Box<KaspaProvider>,
+    kas_mailbox: Arc<KaspaMailbox>,
     dym_mailbox: Arc<CosmosNativeMailbox>,
 }
 
@@ -1478,19 +1488,36 @@ impl Relayer {
     async fn get_dymension_kaspa_args(
         mailboxes: &HashMap<HyperlaneDomain, Arc<dyn Mailbox>>,
     ) -> Result<Option<DymensionKaspaArgs>> {
+        /*
+         TODO: this probably doesnt work, need to find a better way...............................
+         The goal is to inject cosmos rpc into the kas provider
+         Alternatively kas provider can have it's own cosmos rpc client
+        */
+
         let kas_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::KaspaTest10); // TODO: confirugable
-        let kas_mailbox = mailboxes.get(&kas_domain).unwrap();
-        let kas_provider_i = kas_mailbox.provider();
-        let mut kas_provider = kas_provider_i.downcast::<KaspaProvider>().unwrap();
-        
+        let kas_mailbox_trait = mailboxes.get(&kas_domain).unwrap();
+        let kas_mailbox = kas_mailbox_trait
+            .clone()
+            .downcast_arc::<KaspaMailbox>()
+            .unwrap();
+
+        let kas_provider_trait = kas_mailbox_trait.provider();
+        let mut kas_provider = kas_provider_trait.downcast::<KaspaProvider>().unwrap();
+
         let dym_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum); // TODO: fix
         let dym_mailbox_i = mailboxes.get(&dym_domain).unwrap().clone(); // TODO: clone is right here? got a warning
         let dym_mailbox = dym_mailbox_i.downcast_arc::<CosmosNativeMailbox>().unwrap();
 
+        /*
+        The goal here is to finish creation of the kas provider
+        */
         kas_provider.set_cosmos_rpc(dym_mailbox.provider.grpc().clone());
+
+        let kas_mailbox = kas_mailbox.with_provider(*kas_provider.clone());
 
         Ok(Some(DymensionKaspaArgs {
             kas_provider,
+            kas_mailbox,
             dym_mailbox,
         }))
     }
