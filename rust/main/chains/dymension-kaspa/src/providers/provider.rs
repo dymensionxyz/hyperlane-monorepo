@@ -130,9 +130,6 @@ impl HyperlaneChain for KaspaProvider {
 
 #[async_trait]
 impl HyperlaneProvider for KaspaProvider {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 
     // only used by scraper
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {

@@ -1472,7 +1472,7 @@ impl Relayer {
 
 struct DymensionKaspaArgs {
     kas_provider: KaspaProvider,
-    dym_mailbox: CosmosNativeMailbox,
+    dym_mailbox: Arc<CosmosNativeMailbox>,
 }
 
 impl Relayer {
