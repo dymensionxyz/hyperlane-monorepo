@@ -33,6 +33,7 @@ use hyperlane_cosmos_native::Signer as HyperlaneSigner;
 pub struct KaspaProvider {
     conf: ConnectionConf,
     domain: HyperlaneDomain,
+    easy_wallet: EasyKaspaWallet,
     rest: RestProvider,
     // TODO: wrpc
     validators: ValidatorsClient,
@@ -49,6 +50,8 @@ impl KaspaProvider {
     ) -> ChainResult<Self> {
         let rest = RestProvider::new(conf.clone(), signer, metrics.clone(), chain.clone())?;
         let validators = ValidatorsClient::new(conf.clone())?;
+
+        let easy_wallet = get_easy_wallet(locator.domain.clone(), conf.rpc_url.clone(), conf.priv_key.clone(), conf.wallet_secret.clone()).await?;
 
         Ok(KaspaProvider {
             domain: locator.domain.clone(),
@@ -172,4 +175,22 @@ fn combine_all_bundles(bundles: Vec<Bundle>) -> EyreResult<Vec<PSKT<Combiner>>> 
 
 fn finalize_txs(txs_sigs: Vec<PSKT<Combiner>>) -> Result<Vec<Transaction>> {
     todo!()
+}
+
+async fn get_easy_wallet(
+    domain: HyperlaneDomain,
+    rpc_url: String,
+    priv_key: String,
+    wallet_secret: String,
+) -> Result<EasyKaspaWallet> {
+    let args = EasyKaspaWalletArgs {
+        priv_key,
+        wallet_secret,
+        rpc_url,
+        network: match domain {
+            HyperlaneDomain::Known(KnownHyperlaneDomain::KaspaTest10) => Network::KaspaTest10,
+            _ => todo!("only tn10 supported"),
+        },
+    };
+    EasyKaspaWallet::try_new(args).await
 }
