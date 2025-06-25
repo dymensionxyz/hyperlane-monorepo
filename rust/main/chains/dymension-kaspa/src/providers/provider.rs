@@ -2,7 +2,7 @@ use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
 
 use core::default;
 use eyre::Result as EyreResult;
-use futures::stream::{self, TryStreamExt};
+use futures::stream::{self, StreamExt, TryStreamExt};
 use kaspa_wallet_pskt::prelude::*;
 use std::any::Any;
 use tonic::async_trait;
@@ -114,15 +114,14 @@ impl KaspaProvider {
 
     async fn sign_relayer_fee(&self, fxg: &WithdrawFXG) -> Result<Bundle> {
         let signed = stream::iter(fxg.bundle.iter())
-            .then(|pskt| async move {
+            .map(|pskt| async move {
                 let pskt = PSKT::<Signer>::from(pskt.clone());
-                let signed =
-                    sign_pay_fee(pskt, &self.easy_wallet.wallet, &self.easy_wallet.secret).await?;
-                Ok(signed)
+                sign_pay_fee(pskt, &self.easy_wallet.wallet, &self.easy_wallet.secret).await
             })
-            .try_collect::<Result<Vec<PSKT<Combiner>>>>()
+            .buffer_unordered(1)
+            .try_collect::<Vec<PSKT<Combiner>>>()
             .await?;
-        Ok(signed)
+        Ok(Bundle::from(signed))
     }
 
     async fn submit_txs(&self, txs: Vec<Transaction>) -> Result<()> {
