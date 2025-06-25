@@ -2,8 +2,8 @@ use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
 
 use eyre::Result as EyreResult;
 use kaspa_wallet_pskt::prelude::*;
-use tonic::async_trait;
 use std::any::Any;
+use tonic::async_trait;
 
 use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::withdraw::WithdrawFXG;
@@ -65,14 +65,14 @@ impl KaspaProvider {
         })
     }
 
-    pub fn from_box(obj: Box<dyn HyperlaneProvider>) -> Result<Self, Box<dyn HyperlaneProvider>> {
-        if obj.as_any().is::<KaspaProvider>() {
-            let concrete: Box<KaspaProvider> = obj.downcast().unwrap();
-            Ok(*concrete)
+    pub fn from_box(obj: Box<dyn HyperlaneProvider>) -> Self {
+        let any = obj.as_any();
+        if let Some(kaspa_provider) = any.downcast_ref::<KaspaProvider>() {
+            kaspa_provider.clone()
         } else {
-            Err(obj)
+            panic!("KaspaProvider not found")
         }
-    } 
+    }
 
     /// dococo
     pub fn set_cosmos_rpc(&mut self, cosmos_rpc: CosmosGrpcClient) {
@@ -139,9 +139,10 @@ impl HyperlaneChain for KaspaProvider {
 
 #[async_trait]
 impl HyperlaneProvider for KaspaProvider {
-    fn into_any(self: Box<Self>) -> Box<dyn Any> {
-        Box::new(self)
+    fn as_any(&self) -> &dyn Any {
+        self
     }
+
     // only used by scraper
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
         Err(HyperlaneProviderError::CouldNotFindBlockByHeight(height).into())

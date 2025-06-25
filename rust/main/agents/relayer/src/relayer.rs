@@ -1487,12 +1487,12 @@ impl Relayer {
 
         let kas_provider_i = kas_mailbox.provider();
         // downcast to KaspaProvider
-        let kas_provider = kas_provider_i.downcast_ref::<KaspaProvider>().unwrap();
+        let kas_provider = KaspaProvider::from_box(kas_provider_i);
 
-        // let dym_provider = dym_mailbox.provider();
+        let dym_provider = dym_mailbox.provider();
 
         Ok(Some(DymensionKaspaArgs {
-            kas_provider: kas_chain_provider,
+            kas_provider,
             dym_mailbox,
         }))
     }

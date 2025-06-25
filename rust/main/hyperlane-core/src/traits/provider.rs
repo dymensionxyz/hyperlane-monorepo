@@ -32,10 +32,10 @@ pub trait HyperlaneProvider: HyperlaneChain + Send + Sync + Debug {
     /// Fetch metrics related to this chain
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>>;
 
-    /// dococo
-    fn into_any(self: Box<Self>) -> Box<dyn Any> {
+    fn as_any(&self) -> &dyn Any {
         unimplemented!()
     }
+
 }
 
 /// Errors when querying for provider information.
