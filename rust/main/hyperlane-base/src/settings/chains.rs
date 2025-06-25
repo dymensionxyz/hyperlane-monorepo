@@ -733,7 +733,7 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
             ChainConnectionConf::Kaspa(conf) => {
-                let provider = build_kaspa_provider(self, conf, metrics, locator.clone(), None).await?;
+                let provider = build_kaspa_provider(self, conf, metrics, &locator, None).await?;
                 let indexer = Box::new(dym_kaspa::KaspaGas::new(provider, conf, locator)?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
@@ -1396,18 +1396,18 @@ pub fn build_cosmos_native_provider(
 
 // TODO: pubb??
 /// docsdkfjlskdf
-pub async fn build_kaspa_provider(
+pub async fn build_kaspa_provider<'a>(
     chain_conf: &ChainConf,
     connection_conf: &dym_kaspa::ConnectionConf,
     metrics: &CoreMetrics,
-    locator: &ContractLocator,
+    locator: &ContractLocator<'a>,
     signer: Option<hyperlane_cosmos_native::Signer>,
 ) -> ChainResult<KaspaProvider> {
     let middleware_metrics = chain_conf.metrics_conf();
     let metrics = metrics.client_metrics();
     KaspaProvider::new(
         connection_conf,
-        locator,
+        locator.domain.clone(),
         signer,
         metrics,
         middleware_metrics.chain.clone(),
