@@ -1,32 +1,10 @@
-use std::ops::Deref;
-
 use kaspa_addresses::{Prefix, Version};
 use kaspa_consensus_core::network::{NetworkId, NetworkType};
 use kaspa_wallet_core::wallet::Wallet;
 
-use derive_new::new;
-use eyre::Result as EyreResult;
-use kaspa_wallet_pskt::prelude::*;
-use tonic::async_trait;
+use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain};
 
-use dym_kas_core::withdraw::WithdrawFXG;
-use dym_kas_relayer::withdraw_construction::on_new_withdrawals;
-use hyperlane_core::{
-    rpc_clients::FallbackProvider, BlockInfo, ChainInfo, ChainResult, ContractLocator,
-    HyperlaneChain, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError,
-    KnownHyperlaneDomain, TxnInfo, H256, H512, U256,
-};
-use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
-use kaspa_consensus_core::tx::Transaction;
-use kaspa_wallet_pskt::prelude::Bundle;
-
-use super::validators::ValidatorsClient;
-use super::RestProvider;
-
-use crate::ConnectionConf;
 use eyre::Result;
-
-use hyperlane_cosmos_native::Signer as HyperlaneSigner;
 
 use core::deposit::*;
 use core::escrow::*;
@@ -39,34 +17,9 @@ use x::consts::*;
 
 use std::sync::Arc;
 
-use kaspa_addresses::Address;
-use kaspa_consensus_core::{
-    constants::TX_VERSION,
-    sign::sign,
-    subnets::SUBNETWORK_ID_NATIVE,
-    tx::{
-        MutableTransaction, ScriptPublicKey, Transaction, TransactionInput, TransactionOutpoint,
-        TransactionOutput, UtxoEntry,
-    },
-};
-use kaspa_core::info;
-use kaspa_grpc_client::GrpcClient;
-use kaspa_wallet_core::api::{AccountsSendRequest, WalletApi};
-use kaspa_wallet_core::error::Error;
-use kaspa_wallet_core::tx::Fees;
-
 use kaspa_wallet_core::prelude::*;
-use kaspa_wallet_pskt::prelude::*; // Import the prelude for easy access to traits/structs
+// Import the prelude for easy access to traits/structs
 
-use kaspa_txscript::{
-    extract_script_pub_key_address, multisig_redeem_script, pay_to_address_script,
-    pay_to_script_hash_script,
-};
-
-use secp256k1::{rand::thread_rng, Keypair};
-
-use kaspa_rpc_core::api::rpc::RpcApi;
-use workflow_core::abortable::Abortable;
 struct EasyKaspaWallet {
     wallet: Wallet,
     network_info: NetworkInfo,
@@ -75,7 +28,6 @@ struct EasyKaspaWallet {
 struct EasyKaspaWalletArgs {
     priv_key: String,
     wallet_secret: String,
-    // network_id: NetworkId,
     rpc_url: String, // .e.g localhost:16210
     domain: HyperlaneDomain,
 }
@@ -120,7 +72,6 @@ impl EasyKaspaWallet {
     pub fn account(&self) -> Arc<dyn Account> {
         self.wallet.account()?
     }
-
 }
 
 struct NetworkInfo {
