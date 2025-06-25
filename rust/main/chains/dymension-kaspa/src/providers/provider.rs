@@ -1,5 +1,3 @@
-
-
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
 
 use eyre::Result as EyreResult;
@@ -8,9 +6,9 @@ use tonic::async_trait;
 
 use dym_kas_core::withdraw::WithdrawFXG;
 use hyperlane_core::{
-    BlockInfo, ChainInfo, ChainResult, ContractLocator,
-    HyperlaneChain, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError,
-    KnownHyperlaneDomain, TxnInfo, H256, H512, U256,
+    BlockInfo, ChainInfo, ChainResult, ContractLocator, HyperlaneChain, HyperlaneDomain,
+    HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError, KnownHyperlaneDomain, TxnInfo,
+    H256, H512, U256,
 };
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use kaspa_consensus_core::tx::Transaction;
@@ -46,7 +44,12 @@ impl KaspaProvider {
         let rest = RestProvider::new(conf.clone(), signer, metrics.clone(), chain.clone())?;
         let validators = ValidatorsClient::new(conf.clone())?;
 
-        let easy_wallet = get_easy_wallet(domain.clone(), conf.kaspa_rpc_url.clone(), conf.wallet_secret.clone()).await?;
+        let easy_wallet = get_easy_wallet(
+            domain.clone(),
+            conf.kaspa_rpc_url.clone(),
+            conf.wallet_secret.clone(),
+        )
+        .await?;
 
         Ok(KaspaProvider {
             domain: domain.clone(),

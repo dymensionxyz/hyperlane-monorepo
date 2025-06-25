@@ -15,8 +15,8 @@ use tokio::time::sleep;
 use tokio_metrics::TaskMonitor;
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument};
 
-use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
 use dymension_kaspa::is_kas;
+use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
     BatchResult, ChainCommunicationError, ConfirmReason, HyperlaneDomain, HyperlaneDomainProtocol,

@@ -3,7 +3,7 @@ use eyre::Error as EyreError;
 use kaspa_wallet_pskt::prelude::Bundle;
 
 pub struct WithdrawFXG {
-   // may contain other things, caches, etc 
+    // may contain other things, caches, etc
     pub bundle: Bundle,
 }
 

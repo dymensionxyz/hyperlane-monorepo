@@ -1,7 +1,7 @@
+pub mod confirmation;
 pub mod deposit;
 pub mod hub_to_kaspa_builder;
 pub mod withdraw;
-pub mod confirmation;
 pub mod withdraw_construction;
 
 // Re-export the main function for easier access

@@ -1411,5 +1411,6 @@ pub async fn build_kaspa_provider<'a>(
         signer,
         metrics,
         middleware_metrics.chain.clone(),
-    ).await
+    )
+    .await
 }
