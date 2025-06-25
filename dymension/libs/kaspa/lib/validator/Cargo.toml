@@ -13,8 +13,12 @@ kaspa-wallet-core = { workspace = true }
 kaspa-wallet-pskt = { workspace = true }
 kaspa-txscript = { workspace = true }
 kaspa-rpc-core = { workspace = true }
+kaspa-wrpc-client = { workspace = true }
 secp256k1 = { workspace = true }
 workflow-core = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 log = { workspace = true }
 eyre = { workspace = true }
+hyperlane-warp-route = { path = "../../../../../rust/main/applications/hyperlane-warp-route" }
+hyperlane-core = { path = "../../../../../rust/main/hyperlane-core" , features = ["agent", "async", "test-utils"] }
+relayer = { path = "../relayer" }

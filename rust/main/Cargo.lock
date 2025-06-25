@@ -2548,6 +2548,7 @@ dependencies = [
  "reqwest-middleware",
  "reqwest-ratelimit",
  "secp256k1 0.29.1",
+ "serde",
  "tokio",
  "tracing",
  "url",
@@ -6125,7 +6126,6 @@ dependencies = [
 [[package]]
 name = "hyperlane-cosmos-dymension-rs"
 version = "0.1.4-dymension-v3.2.1"
-source = "git+https://github.com/dymensionxyz/hyperlane-cosmos-rs#2c9cdd73943021b5bb02299fa95b93da4e2b40a5"
 dependencies = [
  "cosmrs",
  "prost 0.13.4",
@@ -10258,6 +10258,7 @@ dependencies = [
  "http-body-util",
  "hyperlane-base",
  "hyperlane-core",
+ "hyperlane-cosmos-dymension-rs",
  "hyperlane-cosmos-native",
  "hyperlane-ethereum",
  "hyperlane-metric",
@@ -10297,6 +10298,7 @@ name = "relayer"
 version = "0.2.0"
 dependencies = [
  "anyhow",
+ "bincode",
  "bytes",
  "core",
  "eyre",
@@ -10316,8 +10318,11 @@ dependencies = [
  "kaspa-wallet-pskt",
  "log",
  "openapi",
+ "prost 0.13.4",
  "reqwest 0.12.15",
+ "reqwest-middleware",
  "secp256k1 0.29.1",
+ "serde",
  "tokio",
  "workflow-core",
 ]
@@ -14520,6 +14525,8 @@ version = "0.2.0"
 dependencies = [
  "core",
  "eyre",
+ "hyperlane-core",
+ "hyperlane-warp-route",
  "kaspa-addresses",
  "kaspa-consensus-core",
  "kaspa-core",
@@ -14528,7 +14535,9 @@ dependencies = [
  "kaspa-txscript",
  "kaspa-wallet-core",
  "kaspa-wallet-pskt",
+ "kaspa-wrpc-client",
  "log",
+ "relayer 0.2.0",
  "secp256k1 0.29.1",
  "tokio",
  "workflow-core",

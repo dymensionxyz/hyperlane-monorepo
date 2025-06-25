@@ -5,3 +5,142 @@ pub mod confirmation;
 
 // Re-export the main function for easier access
 pub use hub_to_kaspa_builder::build_kaspa_withdrawal_pskts;
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::HlMetadata;
+use prost::Message;
+
+use std::io::Cursor;
+use std::error::Error;
+use std::str::FromStr;
+use hyperlane_core::HyperlaneMessage;
+use hyperlane_core::RawHyperlaneMessage;
+use bytes::Bytes;
+use api_rs::apis::{configuration, kaspa_transactions_api::{get_transaction_transactions_transaction_id_get,GetTransactionTransactionsTransactionIdGetParams}};
+use hyperlane_core::U256;
+use hyperlane_core::H256;
+use hyperlane_warp_route::TokenMessage;
+use hyperlane_core::Decode;
+use kaspa_consensus_core::tx::TransactionOutpoint;
+use kaspa_hashes::Hash;
+use serde::{Serialize, Deserialize};
+use anyhow::Result;
+
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct DepositFXG {
+    pub msg_id: H256,
+    pub tx_id: String,
+    pub utxo_index: usize,
+    pub block_id: String,
+    pub payload: HyperlaneMessage,
+}
+
+impl TryFrom<Bytes> for DepositFXG {
+    type Error = eyre::Report;
+
+    fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
+        // Deserialize the bytes into DepositFXG using bincode
+        bincode::deserialize(&bytes)
+            .map_err(|e| eyre::Report::new(e).wrap_err("Failed to deserialize DepositFXG from bytes"))
+
+    }
+}
+
+impl From<&DepositFXG> for Bytes {
+    fn from(deposit: &DepositFXG) -> Self {
+        // Serialize the DepositFXG into bytes using bincode
+        let encoded: Vec<u8> = bincode::serialize(deposit)
+            .expect("Failed to serialize DepositFXG into bytes"); 
+        Bytes::from(encoded)
+    }
+}
+
+
+pub fn parse_hyperlane_message(m: &RawHyperlaneMessage) -> Result<HyperlaneMessage,anyhow::Error> {
+    const MIN_EXPECTED_LENGTH: usize = 77;
+
+    if m.len() < MIN_EXPECTED_LENGTH {
+        return Err(anyhow::Error::msg("Value cannot be zero."));
+    }
+    let message = HyperlaneMessage::from(m);
+
+    Ok(message)
+}
+
+fn get_tn10_config() -> configuration::Configuration {
+    configuration::Configuration {
+        base_path: "https://api-tn10.kaspa.org".to_string(),
+        user_agent: Some("OpenAPI-Generator/a6a9569/rust".to_owned()),
+        client: reqwest_middleware::ClientBuilder::new(reqwest::Client::new()).build(),
+        basic_auth: None,
+        oauth_access_token: None,
+        bearer_access_token: None,
+        api_key: None,
+    }
+}
+
+
+pub async fn handle_new_deposits(
+    transaction_ids: Vec<String>,
+) -> Result<Vec<DepositFXG>, Box<dyn Error>> {
+
+    // rpc config
+    let config = get_tn10_config();
+
+    let mut txs = Vec::new(); 
+
+    for transaction in transaction_ids {
+
+        let get_params = GetTransactionTransactionsTransactionIdGetParams  {
+            transaction_id: transaction.clone(),
+            block_hash: None,
+            inputs: None,
+            outputs: None,
+            resolve_previous_outpoints: None,
+        };
+        // get transaction info using Kaspa API
+        let res = get_transaction_transactions_transaction_id_get(&config, get_params).await?;
+        let payload = res.payload.ok_or("Tx payload not found")?;
+        let block_id = res.accepting_block_hash.ok_or("Block id not found")?;
+
+        // decode payload into Hyperlane message
+        let rawmessage: RawHyperlaneMessage = hex::decode(payload)?;
+        let mut message = parse_hyperlane_message(&rawmessage)?;
+
+        // decode token message inside  Hyperlane message
+        let mut reader = Cursor::new(message.body.as_slice());
+        let token_message =  TokenMessage::read_from(&mut reader)?;
+
+        // find the index of the utxo that satisfies the transfer amount in hl message
+        let utxo_index = res.outputs.ok_or("no utxo found in tx")?.iter().position(|utxo: &api_rs::models::TxOutput| U256::from(utxo.amount) >= token_message.amount()).ok_or("no utx found")?;
+
+        // builds the TransactionOutpoint to inject to hl message 
+        let tx_id = res.transaction_id.ok_or("tx id not found")?;
+        let tx_hash = Hash::from_str(&tx_id)?;
+        let output = TransactionOutpoint{
+            transaction_id: tx_hash,
+            index: utxo_index as u32,
+        };
+        let output_bytes = bincode::serialize(&output)?;
+
+        // replace kaspa value and reencode message
+        let mut metadata: HlMetadata = HlMetadata::decode(token_message.metadata())?;
+        metadata.kaspa = output_bytes;
+        let body = metadata.encode_to_vec();
+        message.body = body;
+
+        // build response for validator
+        let tx  = DepositFXG{
+            msg_id: message.id(),
+            tx_id: transaction,
+            utxo_index: utxo_index,
+            block_id: block_id,
+            payload: message,
+        };
+        txs.push(tx);
+
+    }
+
+    Ok(txs)
+
+}
+
