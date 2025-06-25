@@ -2,6 +2,7 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
+use std::any::Any;
 use thiserror::Error;
 
 use crate::{BlockInfo, ChainInfo, ChainResult, HyperlaneChain, TxnInfo, H256, H512, U256};
@@ -30,6 +31,11 @@ pub trait HyperlaneProvider: HyperlaneChain + Send + Sync + Debug {
 
     /// Fetch metrics related to this chain
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>>;
+
+    /// dococo
+    fn into_any(self: Box<Self>) -> Box<dyn Any> {
+        unimplemented!()
+    }
 }
 
 /// Errors when querying for provider information.
