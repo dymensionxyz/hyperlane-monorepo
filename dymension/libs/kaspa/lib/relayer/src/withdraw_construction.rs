@@ -1,15 +1,17 @@
-use anyhow::Result;
+use eyre::Result;
 use core::wallet::EasyKaspaWallet;
 use core::withdraw::WithdrawFXG;
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use kaspa_wallet_pskt::prelude::Bundle;
 use kaspa_wallet_pskt::prelude::*;
+use core::escrow::EscrowPublic;
 
 pub async fn on_new_withdrawals(
     messages: Vec<HyperlaneMessage>,
     w: EasyKaspaWallet,
     cosmos: CosmosGrpcClient,
+    escrow_public: EscrowPublic,
 ) -> Result<Option<WithdrawFXG>> {
     // TODO: impl
     let v: Vec<PSKT<Signer>> = vec![];

@@ -7,6 +7,7 @@ use tonic::async_trait;
 
 use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::withdraw::WithdrawFXG;
+use dym_kas_relayer::withdraw_construction::on_new_withdrawals;
 use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, ContractLocator, HyperlaneChain, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError, KnownHyperlaneDomain, TxnInfo,
@@ -85,8 +86,7 @@ impl KaspaProvider {
         &self,
         msgs: Vec<HyperlaneMessage>,
     ) -> Result<Option<WithdrawFXG>> {
-        todo!()
-        // call on new withdrawals
+        on_new_withdrawals(msgs, self.easy_wallet.clone(), self.cosmos_rpc.clone().unwrap(), self.escrow()).await
     }
 
     /// dococo

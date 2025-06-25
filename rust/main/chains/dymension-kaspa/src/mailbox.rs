@@ -12,11 +12,8 @@ use hyperlane_core::{
     Mailbox, QueueOperation, RawHyperlaneMessage, ReorgPeriod, TxCostEstimate, TxOutcome, H256,
     H512, U256,
 };
-use kaspa_wallet_pskt::prelude::*;
 
 use crate::KaspaProvider;
-use dym_kas_core::withdraw::WithdrawFXG;
-use dym_kas_relayer::withdraw_construction::on_new_withdrawals;
 
 // pretends to be a mailbox
 #[derive(Debug, Clone)]
@@ -36,7 +33,7 @@ impl KaspaMailbox {
         })
     }
 
-    pub fn with_provider(&self, provider: KaspaProvider) -> Self {
+    pub fn with_provider(&self, provider: KaspaProvider) -> Self { 
         Self{
             provider,
             domain: self.domain.clone(),
