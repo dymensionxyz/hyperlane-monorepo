@@ -142,27 +142,30 @@ where
         logs
     }
 
+
+    /* -------------------------------------------------------------------------- */
+    /*                                 sync logic                                 */
+    /* -------------------------------------------------------------------------- */
+    // TODO: move to a separate file
+
     /// Sync relayer that blocks until the system is synced
     /// Checks if the outpoint committed on the hub is already spent on Kaspa
     /// If not synced, prepares progress indication and submits to hub
     pub async fn sync_relayer_if_needed(&self) -> Result<(), Error>{
         // get anchor utxo from hub
-        let resp = self.hub_mailbox.outpoint(None).await;
+        let resp = self.hub_mailbox.provider().grpc().outpoint(None).await?;
         let anchor_utxo = resp.outpoint;
 
         // get all utxos from kaspa for the escrow address
-        let utxos = self.provider.rest().get_utxos_by_addresses(vec![self.provider.escrow_address()]).await?;
+        let utxos = self.provider.rpc().get_utxos_by_addresses(vec![self.provider.escrow_address()]).await?;
 
 
         // check if the anchor utxo is in the utxos
         //FIXME: check for index as well!!
         let is_synced = utxos.iter().any(|utxo| utxo.txid == anchor_utxo.transaction_id);
-
-
-        /* ------------------------------- handle sync ------------------------------ */
         if !is_synced {
-            // TODO check for errors
-            run_sync_flow(self.provider, &self.hub_mailbox).await;
+            info!("System is not synced, preparing progress indication and submitting to hub");
+            self.run_sync_flow().await?;
         } else {
             info!("System is synced, proceeding with other tasks");
             return Ok(());
@@ -186,9 +189,8 @@ where
     // https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/types/d.go#L76-L84
     */
     async fn run_sync_flow(
-        kas_provider: &KaspaProvider,
-        hub_mailbox: &CosmosNativeMailbox,
-    ) -> ChainResult<TxOutcome> {
+        &self,
+    ) -> Result<(), Error> {
 
         // TODO: Get actual configuration from kas_provider
         let config = Configuration::default();

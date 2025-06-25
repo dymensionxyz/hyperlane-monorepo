@@ -1467,8 +1467,7 @@ impl Relayer {
         );
         
         // sync relayer before starting other tasks
-        // FIXME: check error
-        b.sync_relayer_if_needed();
+        b.sync_relayer_if_needed()?;
 
         tasks.push(b.run_deposit_loop(task_monitor.clone()));
         // it observes the local db and makes sure messages are eventually written to the destination chain
