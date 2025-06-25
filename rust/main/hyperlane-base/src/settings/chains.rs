@@ -1400,7 +1400,7 @@ pub async fn build_kaspa_provider(
     chain_conf: &ChainConf,
     connection_conf: &dym_kaspa::ConnectionConf,
     metrics: &CoreMetrics,
-    locator: ContractLocator,
+    locator: &ContractLocator,
     signer: Option<hyperlane_cosmos_native::Signer>,
 ) -> ChainResult<KaspaProvider> {
     let middleware_metrics = chain_conf.metrics_conf();
