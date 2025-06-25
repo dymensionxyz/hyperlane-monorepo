@@ -197,7 +197,9 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized application operation verifiers", "Relayer startup duration measurement");
 
         start_entity_init = Instant::now();
-        let mailboxes = Self::build_mailboxes(&settings, &core_metrics, &chain_metrics).await;
+        let mut mailboxes = Self::build_mailboxes(&settings, &core_metrics, &chain_metrics).await;
+
+        let dymension_args = Self::get_dymension_kaspa_args(&mailboxes).await?; // DYMENSION CODE
 
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized mailbox", "Relayer startup duration measurement");
 
@@ -449,9 +451,6 @@ impl BaseAgent for Relayer {
 
         debug!(elapsed = ?start.elapsed(), event = "fully initialized", "Relayer startup duration measurement");
 
-        let d_k_args =
-            Self::get_dymension_kaspa_args(&mailboxes).await?;
-
         Ok(Self {
             dbs,
             _cache: cache,
@@ -478,7 +477,7 @@ impl BaseAgent for Relayer {
             tokio_console_server: Some(tokio_console_server),
             payload_dispatcher_entrypoints: dispatcher_entrypoints,
             payload_dispatchers: dispatchers,
-            dymension_kaspa_args: d_k_args,
+            dymension_kaspa_args: dymension_args,
         })
     }
 
@@ -578,7 +577,7 @@ impl BaseAgent for Relayer {
 
         start_entity_init = Instant::now();
         for origin in &self.origin_chains {
-            if is_kas(origin) && self.dymension_kaspa_args.is_some() {
+            if is_kas(origin) && self.dymension_kaspa_args.is_some() { // TODO: panic if no args
                 self.launch_dymension_kaspa_tasks(
                     origin,
                     &mut tasks,
@@ -1482,11 +1481,13 @@ impl Relayer {
         let kas_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::KaspaTest10); // TODO: confirugable
         let kas_mailbox = mailboxes.get(&kas_domain).unwrap();
         let kas_provider_i = kas_mailbox.provider();
-        let kas_provider = kas_provider_i.downcast::<KaspaProvider>().unwrap();
-
+        let mut kas_provider = kas_provider_i.downcast::<KaspaProvider>().unwrap();
+        
         let dym_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum); // TODO: fix
         let dym_mailbox_i = mailboxes.get(&dym_domain).unwrap().clone(); // TODO: clone is right here? got a warning
         let dym_mailbox = dym_mailbox_i.downcast_arc::<CosmosNativeMailbox>().unwrap();
+
+        kas_provider.set_cosmos_rpc(dym_mailbox.provider.grpc().clone());
 
         Ok(Some(DymensionKaspaArgs {
             kas_provider,

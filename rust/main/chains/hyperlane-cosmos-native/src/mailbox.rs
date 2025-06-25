@@ -18,7 +18,7 @@ use crate::CosmosNativeProvider;
 /// Cosmos Native Mailbox
 #[derive(Debug, Clone)]
 pub struct CosmosNativeMailbox {
-    provider: CosmosNativeProvider,
+    pub provider: CosmosNativeProvider,
     domain: HyperlaneDomain,
     address: H256,
 }
