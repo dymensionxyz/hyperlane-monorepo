@@ -7,6 +7,7 @@ use tonic::async_trait;
 use super::consts::*;
 
 use hyperlane_core::{
+    BatchItem,
     BatchResult, ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
     Mailbox, QueueOperation, RawHyperlaneMessage, ReorgPeriod, TxCostEstimate, TxOutcome, H256,
