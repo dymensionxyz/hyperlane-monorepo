@@ -1,5 +1,8 @@
+pub mod confirmation;
 pub mod deposit;
 pub mod withdraw;
+pub mod withdrawal;
+
 
 use std::error::Error;
 use std::io::Cursor;
