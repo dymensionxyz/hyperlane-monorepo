@@ -1,8 +1,8 @@
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
 
-use futures::stream::{self, StreamExt};
 use core::default;
 use eyre::Result as EyreResult;
+use futures::stream::{self, TryStreamExt};
 use kaspa_wallet_pskt::prelude::*;
 use std::any::Any;
 use tonic::async_trait;
@@ -10,8 +10,8 @@ use url::Url;
 
 use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::withdraw::WithdrawFXG;
-use dym_kas_relayer::withdraw_construction::on_new_withdrawals;
 use dym_kas_relayer::withdraw::sign_pay_fee;
+use dym_kas_relayer::withdraw_construction::on_new_withdrawals;
 use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, ContractLocator, HyperlaneChain, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError, KnownHyperlaneDomain, TxnInfo,
@@ -113,17 +113,15 @@ impl KaspaProvider {
     }
 
     async fn sign_relayer_fee(&self, fxg: &WithdrawFXG) -> Result<Bundle> {
-        let signed = fxg
-            .bundle
-            .iter()
-            .map(|pskt| {
+        let signed = stream::iter(fxg.bundle.iter())
+            .then(|pskt| async move {
                 let pskt = PSKT::<Signer>::from(pskt.clone());
-                let signed_relayer_fee = sign_pay_fee(pskt, &self.easy_wallet.wallet, &self.easy_wallet.secret).await?;
-                let combiner = signed_relayer_fee.combiner();
-                let combiner_signed = self.easy_wallet.sign_pskt(&combiner)?;
-                Ok(combiner_signed)
+                let signed =
+                    sign_pay_fee(pskt, &self.easy_wallet.wallet, &self.easy_wallet.secret).await?;
+                Ok(signed)
             })
-            .collect::<Result<Vec<PSKT<Combiner>>>>()?;
+            .try_collect::<Result<Vec<PSKT<Combiner>>>>()
+            .await?;
         Ok(signed)
     }
 
