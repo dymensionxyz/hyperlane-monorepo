@@ -1,8 +1,10 @@
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
 
 use eyre::Result as EyreResult;
+use kaspa_addresses::Address;
 use kaspa_wallet_pskt::prelude::*;
 use tonic::async_trait;
+use kaspa_wallet_core::error::Error as WalletError;
 
 use dym_kas_core::withdraw::WithdrawFXG;
 use hyperlane_core::{
@@ -13,6 +15,9 @@ use hyperlane_core::{
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use kaspa_consensus_core::tx::Transaction;
 use kaspa_wallet_pskt::prelude::Bundle;
+use kaspa_rpc_core::api::rpc::RpcApi;
+use std::sync::Arc;
+
 
 use super::validators::ValidatorsClient;
 use super::RestProvider;
@@ -63,6 +68,17 @@ impl KaspaProvider {
     /// dococo
     pub fn rest(&self) -> &RestProvider {
         &self.rest
+    }
+
+    /// get escrow address
+    // FIXME: is it the same as the escrow address in the conf?
+    pub fn escrow_address(&self) -> Result<Address, WalletError> {
+        self.easy_wallet.account().receive_address()
+    }
+
+    /// dococo
+    pub fn rpc(&self) -> Arc<dyn RpcApi> {
+        self.easy_wallet.api()
     }
 
     /// dococo

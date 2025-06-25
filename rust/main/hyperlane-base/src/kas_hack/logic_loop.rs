@@ -156,16 +156,19 @@ where
         let resp = self.hub_mailbox.provider().grpc().outpoint(None).await?;
         let anchor_utxo = resp.outpoint;
 
+
+        let escrow_address = self.provider.escrow_address()?;
+
         // get all utxos from kaspa for the escrow address
-        let utxos = self.provider.rpc().get_utxos_by_addresses(vec![self.provider.escrow_address()]).await?;
+        let utxos = self.provider.rpc().get_utxos_by_addresses(vec![escrow_address]).await?;
 
 
         // check if the anchor utxo is in the utxos
-        //FIXME: check for index as well!!
-        let is_synced = utxos.iter().any(|utxo| utxo.txid == anchor_utxo.transaction_id);
+        let is_synced = utxos.iter().any(|utxo|
+            utxo.outpoint.transaction_id == anchor_utxo.transaction_id && utxo.outpoint.index == anchor_utxo.index);
         if !is_synced {
             info!("System is not synced, preparing progress indication and submitting to hub");
-            self.run_sync_flow().await?;
+            self.run_sync_flow(anchor_utxo).await?;
         } else {
             info!("System is synced, proceeding with other tasks");
             return Ok(());
@@ -190,39 +193,20 @@ where
     */
     async fn run_sync_flow(
         &self,
-    ) -> Result<(), Error> {
-
-        // TODO: Get actual configuration from kas_provider
-        let config = Configuration::default();
-        
-        // TODO: Get actual anchor and new UTXOs from the provider/hub state
-        let anchor_utxo = TransactionOutpoint {
-            transaction_id: TransactionId::from_bytes([0u8; 32]),
-            index: 0,
-        };
-        
+        anchor_utxo: TransactionOutpoint,
+    ) -> Result<(), Error> {        
+        // FIXME: get latest UTXO from kaspa
         let new_utxo = TransactionOutpoint {
             transaction_id: TransactionId::from_bytes([1u8; 32]),
             index: 0,
         };
 
+
+        let conf = Configuration::default();
+
         // Prepare progress indication
-        match prepare_progress_indication(&config, anchor_utxo, new_utxo).await {
-            Ok(confirmation_fxg) => {
-                // TODO: Get validator signatures and submit to hub
-                // This should call the equivalent of on_new_progress_indication
-                info!("Successfully prepared progress indication: {:?}", confirmation_fxg);
-                Ok(())
-            }
-            Err(e) => {
-                let error_msg = format!("Failed to prepare progress indication: {}", e);
-                warn!("{}", error_msg);
-                Err(eyre::eyre!(error_msg))
-            }
-        }
-
+        let fxg = prepare_progress_indication(&conf, anchor_utxo, new_utxo).await?;
         
-
         let progress_indication = &fxg.progress_indication;
         let mut sigs = self
             .provider
