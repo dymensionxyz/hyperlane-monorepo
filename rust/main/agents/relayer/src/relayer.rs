@@ -1479,15 +1479,13 @@ impl Relayer {
     async fn get_dymension_kaspa_args(
         mailboxes: HashMap<HyperlaneDomain, Arc<dyn Mailbox>>,
     ) -> Result<Option<DymensionKaspaArgs>> {
-        let kas_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::KaspaTest10); // TODO: confirugable
-        let dym_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum); // TODO: fix
-
         let kas_mailbox = mailboxes.get(&kas_domain).unwrap();
-        let dym_mailbox = mailboxes.get(&dym_domain).unwrap();
-
+        let kas_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::KaspaTest10); // TODO: confirugable
         let kas_provider_i = kas_mailbox.provider();
         let kas_provider = KaspaProvider::from_box(kas_provider_i);
 
+        let dym_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum); // TODO: fix
+        let dym_mailbox = mailboxes.get(&dym_domain).unwrap();
         Ok(Some(DymensionKaspaArgs {
             kas_provider,
             dym_mailbox,
