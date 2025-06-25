@@ -198,12 +198,14 @@ impl BaseAgent for Relayer {
 
         start_entity_init = Instant::now();
         let mut mailboxes = Self::build_mailboxes(&settings, &core_metrics, &chain_metrics).await;
-        let dymension_args = Self::get_dymension_kaspa_args(&mailboxes).await?; // DYMENSION CODE
+
+        // ~~~~~DYMENSION~~~~~~
+        let dymension_args = Self::get_dymension_kaspa_args(&mailboxes).await?; 
         match dymension_args {
             Some(dymension_args) => {
                 mailboxes.insert(
                     HyperlaneDomain::Known(KnownHyperlaneDomain::KaspaTest10), // TODO: fix
-                    dymension_args.kas_mailbox,
+                    Arc::new(dymension_args.kas_mailbox),
                 );
             }
             None => {}
@@ -1478,9 +1480,10 @@ impl Relayer {
     }
 }
 
+#[derive(Debug, Clone)]
 struct DymensionKaspaArgs {
     kas_provider: Box<KaspaProvider>,
-    kas_mailbox: Arc<KaspaMailbox>,
+    kas_mailbox: KaspaMailbox,
     dym_mailbox: Arc<CosmosNativeMailbox>,
 }
 
