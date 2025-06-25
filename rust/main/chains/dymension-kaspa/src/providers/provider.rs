@@ -53,7 +53,7 @@ impl KaspaProvider {
         let rest = RestProvider::new(conf.clone(), signer, metrics.clone(), chain.clone())?;
         let validators = ValidatorsClient::new(conf.clone())?;
 
-        let easy_wallet = get_easy_wallet(locator.domain.clone(), conf.rpc_url.clone(), conf.wallet_secret.clone()).await?;
+        let easy_wallet = get_easy_wallet(locator.domain.clone(), conf.kaspa_rpc_url.clone(), conf.wallet_secret.clone()).await?;
 
         Ok(KaspaProvider {
             domain: locator.domain.clone(),

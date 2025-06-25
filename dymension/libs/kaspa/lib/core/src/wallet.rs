@@ -93,7 +93,7 @@ impl EasyKaspaWallet {
     }
 
     pub fn account(&self) -> Arc<dyn Account> {
-        self.wallet.account()?
+        self.wallet.account().unwrap()
     }
 }
 
@@ -106,7 +106,7 @@ struct NetworkInfo {
     pub rpc_url: String,
 }
 
-enum Network {
+pub enum Network {
     KaspaTest10,
     KaspaMainnet,
 }
