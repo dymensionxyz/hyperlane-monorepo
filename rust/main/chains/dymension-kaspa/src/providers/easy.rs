@@ -112,6 +112,15 @@ impl EasyKaspaWallet {
     pub fn rpc_url(&self) -> Arc<DynRpcApi> {
         self.wallet.rpc_api()
     }
+
+    pub fn api(&self) -> Arc<DynRpcApi> {
+        self.wallet.rpc_api()
+    }
+
+    pub fn account(&self) -> Arc<dyn Account> {
+        self.wallet.account()?
+    }
+
 }
 
 struct NetworkInfo {
