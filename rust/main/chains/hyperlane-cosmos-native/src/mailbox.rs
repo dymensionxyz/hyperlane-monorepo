@@ -1,10 +1,10 @@
 use cosmrs::Any;
-use std::any::{Any as StdAny};
-use std::sync::Arc;
 use hex::ToHex;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{MsgIndicateProgress, ProgressIndication};
 use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
 use hyperlane_cosmos_rs::prost::{Message, Name};
+use std::any::Any as StdAny;
+use std::sync::Arc;
 use tonic::async_trait;
 
 use hyperlane_core::{
@@ -55,15 +55,6 @@ impl CosmosNativeMailbox {
             type_url: MsgProcessMessage::type_url(),
             value: process.encode_to_vec(),
         })
-    }
-
-    pub fn from_arc(obj: Arc<dyn Mailbox>) -> Self {
-        let any = obj.as_any();
-        if let Some(cosmos_native_mailbox) = any.downcast_ref::<CosmosNativeMailbox>() {
-            cosmos_native_mailbox.clone()
-        } else {
-            panic!("CosmosNativeMailbox not found")
-        }
     }
 }
 

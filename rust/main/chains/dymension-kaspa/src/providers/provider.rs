@@ -65,15 +65,6 @@ impl KaspaProvider {
         })
     }
 
-    pub fn from_box(obj: Box<dyn HyperlaneProvider>) -> Self {
-        let any = obj.as_any();
-        if let Some(kaspa_provider) = any.downcast_ref::<KaspaProvider>() {
-            kaspa_provider.clone()
-        } else {
-            panic!("KaspaProvider not found")
-        }
-    }
-
     /// dococo
     pub fn set_cosmos_rpc(&mut self, cosmos_rpc: CosmosGrpcClient) {
         self.cosmos_rpc = Some(cosmos_rpc);
