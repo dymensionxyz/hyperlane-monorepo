@@ -113,10 +113,14 @@ impl KaspaProvider {
     }
 
     async fn sign_relayer_fee(&self, fxg: &WithdrawFXG) -> Result<Bundle> {
+        let wallet = &self.easy_wallet.wallet;
+        let secret = &self.easy_wallet.secret;
         let signed = stream::iter(fxg.bundle.iter())
-            .map(|pskt| async move {
+            .map(|pskt| async {
                 let pskt = PSKT::<Signer>::from(pskt.clone());
-                sign_pay_fee(pskt, &self.easy_wallet.wallet, &self.easy_wallet.secret).await
+                let wallet = wallet.clone();
+                let secret = secret.clone();
+                sign_pay_fee(pskt, &wallet, &secret).await
             })
             .buffer_unordered(1)
             .try_collect::<Vec<PSKT<Combiner>>>()
