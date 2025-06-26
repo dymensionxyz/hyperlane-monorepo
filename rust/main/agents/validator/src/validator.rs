@@ -35,7 +35,7 @@ use crate::{
     settings::ValidatorSettings,
     submit::{ValidatorSubmitter, ValidatorSubmitterMetrics},
 };
-use dymension_kaspa::is_kas;
+use dymension_kaspa::{is_kas, KaspaProvider};
 
 /// A validator agent
 #[derive(Debug, AsRef)]
@@ -63,7 +63,7 @@ pub struct Validator {
     agent_metadata: ValidatorMetadata,
     max_sign_concurrency: usize,
     reorg_reporter: Arc<dyn ReorgReporter>,
-    dymension_kaspa_args: Option<DymensionKaspaArgs>, 
+    dymension_kaspa_args: Option<DymensionKaspaArgs>,
 }
 
 /// Metadata for `validator`
@@ -152,7 +152,7 @@ impl BaseAgent for Validator {
             .build_mailbox(&settings.origin_chain, &metrics)
             .await?;
 
-        let dymension_args = Self::get_dymension_kaspa_args(&mailbox).await?;
+        let dymension_args = Self::get_dymension_kaspa_args(mailbox).await?;
 
         let merkle_tree_hook = settings
             .build_merkle_tree_hook(&settings.origin_chain, &metrics)
@@ -203,6 +203,7 @@ impl BaseAgent for Validator {
             agent_metadata,
             max_sign_concurrency: settings.max_sign_concurrency,
             reorg_reporter,
+            dymension_kaspa_args: dymension_args,
         })
     }
 
@@ -228,7 +229,7 @@ impl BaseAgent for Validator {
                 // TODO: config based
                 dymension_kaspa::router(dymension_kaspa::ValidatorServerResources::new(
                     Arc::new(self.raw_signer.clone()),
-                    dymension_kaspa::dym_kas_validator::KaspaSecpKeypair::from_str("").unwrap(),
+                    prov,
                 )),
             )
         }
@@ -520,10 +521,9 @@ struct DymensionKaspaArgs {
 
 impl Validator {
     async fn get_dymension_kaspa_args(
-        kas_mailbox_trait: Arc<dyn Mailbox>,
+        kas_mailbox: Box<dyn Mailbox>,
     ) -> Result<Option<DymensionKaspaArgs>> {
-        let kas_mailbox_trait = mailboxes.get(&kas_domain).unwrap();
-        let kas_provider_trait = kas_mailbox_trait.provider();
+        let kas_provider_trait = kas_mailbox.provider();
         let kas_provider = kas_provider_trait.downcast::<KaspaProvider>().unwrap();
 
         Ok(Some(DymensionKaspaArgs { kas_provider }))

@@ -17,6 +17,7 @@ use kaspa_wallet_pskt::prelude::*;
 use sha3::{digest::Update, Digest, Keccak256};
 use std::{str::FromStr, sync::Arc};
 
+use super::providers::KaspaProvider;
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
 use dym_kas_validator::deposit::validate_deposits;
 use dym_kas_validator::withdrawal::validate_withdrawals;
@@ -24,25 +25,25 @@ use dym_kas_validator::withdrawal::validate_withdrawals;
 #[derive(Clone)]
 pub struct ValidatorServerResources<S: HyperlaneSignerExt + Send + Sync + 'static> {
     signer: Option<Arc<S>>,
-    kas_key: Option<KaspaSecpKeypair>,
+    kas_provider: Option<Box<KaspaProvider>>, // TODO: box, need multithread object? need to lock when signing?
 }
 impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> {
-    pub fn new(signer: Arc<S>, kas_key: KaspaSecpKeypair) -> Self {
+    pub fn new(signer: Arc<S>, kas_provider: Box<KaspaProvider>) -> Self {
         Self {
             signer: Some(signer),
-            kas_key: Some(kas_key),
+            kas_provider: Some(kas_provider),
         }
     }
     fn must_signer(&self) -> Arc<S> {
         self.signer.as_ref().unwrap().clone()
     }
     fn must_kas_key(&self) -> KaspaSecpKeypair {
-        self.kas_key.unwrap()
+        self.kas_provider.as_ref().unwrap().must_kas_key()
     }
     pub fn default() -> Self {
         Self {
             signer: None,
-            kas_key: None,
+            kas_provider: None,
         }
     }
 }
