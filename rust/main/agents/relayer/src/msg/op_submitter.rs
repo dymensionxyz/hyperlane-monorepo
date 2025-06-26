@@ -5,6 +5,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
 
+use itertools::{Either, Itertools};
 use futures::future::join_all;
 use futures_util::future::try_join_all;
 use num_traits::Zero;
@@ -14,6 +15,7 @@ use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tokio_metrics::TaskMonitor;
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument};
+use itertools::Itertools;
 
 use dymension_kaspa::is_kas;
 use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
@@ -1087,6 +1089,26 @@ async fn submit_kaspa_batch(
         https://github.com/dymensionxyz/hyperlane-monorepo/blob/f55a096adf07a6d445a01d3a862e6da2a5720c69/rust/main/agents/relayer/src/msg/op_batch.rs#L132-L141
     unprocessed items aren't explicitly handled by the existing batch processor, so we can't directly mimic it
         https://github.com/dymensionxyz/hyperlane-monorepo/blob/f55a096adf07a6d445a01d3a862e6da2a5720c69/rust/main/agents/relayer/src/msg/op_batch.rs#L49
+    our best bet is to mimic the single submission
+        https://github.com/dymensionxyz/hyperlane-monorepo/blob/f55a096adf07a6d445a01d3a862e6da2a5720c69/rust/main/agents/relayer/src/msg/op_submitter.rs#L738-L762
      */ 
     // TODO: handle errors
+    match res {
+        Ok(batch_result) => {
+            let (sent_ops, excluded_ops): (Vec<_>, Vec<_>) =
+            batch.into_iter().enumerate().partition_map(|(i, op)| {
+                if !batch_result.failed_indexes.contains(&i) {
+                    Either::Left(op)
+                } else {
+                    Either::Right(op)
+                }
+            })
+            // TODO: handle batch result
+        }
+        Err(e) => {
+            // shouldn't happen
+            error!(error=?e, "Error when submitting kaspa batch");
+
+        }
+    }
 }
