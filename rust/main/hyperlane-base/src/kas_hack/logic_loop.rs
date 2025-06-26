@@ -78,7 +78,7 @@ where
 
             for d in &deposits_new {
                 // Call to relayer.F()
-                if let Some(fxg) = relayer_on_new_deposit(d) {
+                if let Some(fxg) = relayer_on_new_deposit(d).await? {
                     let res = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
                     // TODO: check result
                 }

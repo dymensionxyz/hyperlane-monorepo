@@ -9,6 +9,7 @@ pub use hub_to_kaspa_builder::build_kaspa_withdrawal_pskts;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::HlMetadata;
 use prost::Message;
 
+use eyre::Result;
 use std::io::Cursor;
 use std::error::Error;
 use std::str::FromStr;
@@ -20,7 +21,6 @@ use hyperlane_warp_route::TokenMessage;
 use hyperlane_core::Decode;
 use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_hashes::Hash;
-use anyhow::Result;
 use core::deposit::DepositFXG;
 
 
@@ -47,7 +47,7 @@ fn get_tn10_config() -> configuration::Configuration {
     }
 }
 
-pub async fn handle_new_deposit(tx: String) -> Result<DepositFXG, Box<dyn Error>> {
+pub async fn handle_new_deposit(tx: String) -> Result<DepositFXG> {
     // rpc config
     let config = get_tn10_config();
 
@@ -60,22 +60,22 @@ pub async fn handle_new_deposit(tx: String) -> Result<DepositFXG, Box<dyn Error>
     };
     // get transaction info using Kaspa API
     let res = get_transaction_transactions_transaction_id_get(&config, get_params).await?;
-    let payload = res.payload.ok_or("Tx payload not found")?;
-    let block_id = res.accepting_block_hash.ok_or("Block id not found")?;
+    let payload = res.payload.ok_or("Tx payload not found").map_err(|e| eyre::eyre!(e))?;
+    let block_id = res.accepting_block_hash.ok_or("Block id not found").map_err(|e| eyre::eyre!(e))?;
 
     // decode payload into Hyperlane message
-    let rawmessage: RawHyperlaneMessage = hex::decode(payload)?;
-    let mut message = parse_hyperlane_message(&rawmessage)?;
+    let rawmessage: RawHyperlaneMessage = hex::decode(payload).map_err(|e| eyre::eyre!(e))?;
+    let mut message = parse_hyperlane_message(&rawmessage).map_err(|e| eyre::eyre!(e))?;
 
     // decode token message inside  Hyperlane message
     let mut reader = Cursor::new(message.body.as_slice());
     let token_message =  TokenMessage::read_from(&mut reader)?;
 
     // find the index of the utxo that satisfies the transfer amount in hl message
-    let utxo_index = res.outputs.ok_or("no utxo found in tx")?.iter().position(|utxo: &api_rs::models::TxOutput| U256::from(utxo.amount) >= token_message.amount()).ok_or("no utx found")?;
+    let utxo_index = res.outputs.ok_or("no utxo found in tx").map_err(|e| eyre::eyre!(e))?.iter().position(|utxo: &api_rs::models::TxOutput| U256::from(utxo.amount) >= token_message.amount()).ok_or("no utx found").map_err(|e| eyre::eyre!(e))?;
 
     // builds the TransactionOutpoint to inject to hl message 
-    let tx_id = res.transaction_id.ok_or("tx id not found")?;
+    let tx_id = res.transaction_id.ok_or("tx id not found").map_err(|e| eyre::eyre!(e))?;
     let tx_hash = Hash::from_str(&tx_id)?;
     let output = TransactionOutpoint{
         transaction_id: tx_hash,
