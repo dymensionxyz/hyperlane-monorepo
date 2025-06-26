@@ -24,7 +24,7 @@ use anyhow::Result;
 use core::deposit::DepositFXG;
 
 
-pub fn parse_hyperlane_message(m: &RawHyperlaneMessage) -> Result<HyperlaneMessage,anyhow::Error> {
+fn parse_hyperlane_message(m: &RawHyperlaneMessage) -> Result<HyperlaneMessage,anyhow::Error> {
     const MIN_EXPECTED_LENGTH: usize = 77;
 
     if m.len() < MIN_EXPECTED_LENGTH {
