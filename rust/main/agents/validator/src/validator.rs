@@ -152,7 +152,7 @@ impl BaseAgent for Validator {
             .build_mailbox(&settings.origin_chain, &metrics)
             .await?;
 
-        let dymension_args = Self::get_dymension_kaspa_args(mailbox).await?;
+        let dymension_args = Self::get_dymension_kaspa_args(mailbox.clone()).await?;
 
         let merkle_tree_hook = settings
             .build_merkle_tree_hook(&settings.origin_chain, &metrics)
