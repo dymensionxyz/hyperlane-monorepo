@@ -84,7 +84,6 @@ impl EasyKaspaWallet {
         })
     }
 
-
     pub fn network(&self) -> NetworkType {
         self.network_info.network_type
     }
