@@ -221,7 +221,12 @@ impl BaseAgent for Validator {
         if is_kas(&self.origin_chain) {
             router = router.merge(
                 // TODO: config based
-                dymension_kaspa::router(Arc::new(self.raw_signer.clone())),
+                dymension_kaspa::router(
+                    dymension_kaspa::ValidatorServerResources::new(
+                        Arc::new(self.raw_signer.clone()),
+                        KaspaSecpKeypair::from_str("").unwrap(),
+                    ),
+                )
             )
         }
 
