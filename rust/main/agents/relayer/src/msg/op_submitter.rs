@@ -1082,5 +1082,11 @@ async fn submit_kaspa_batch(
         panic!("Kaspa must support batching")
     }
     let res = mailbox.process_batch(batch).await;
+    /*
+    for processed items, we need to mimic
+        https://github.com/dymensionxyz/hyperlane-monorepo/blob/f55a096adf07a6d445a01d3a862e6da2a5720c69/rust/main/agents/relayer/src/msg/op_batch.rs#L132-L141
+    unprocessed items aren't explicitly handled by the existing batch processor, so we can't directly mimic it
+        https://github.com/dymensionxyz/hyperlane-monorepo/blob/f55a096adf07a6d445a01d3a862e6da2a5720c69/rust/main/agents/relayer/src/msg/op_batch.rs#L49
+     */ 
     // TODO: handle errors
 }
