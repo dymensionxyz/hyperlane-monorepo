@@ -21,12 +21,12 @@ use kaspa_rpc_core::{RpcUtxoEntry, RpcUtxosByAddressesEntry};
 use kaspa_txscript;
 use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_wallet_core::account::Account;
+use kaspa_wallet_core::prelude::DynRpcApi;
 use kaspa_wallet_core::utxo::NetworkParams;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
 use std::io::Cursor;
 use std::sync::Arc;
-use kaspa_wallet_core::prelude::DynRpcApi;
 
 /// Details of a withdrawal extracted from HyperlaneMessage
 #[derive(Debug, Clone)]
