@@ -119,7 +119,8 @@ impl KaspaProvider {
         Ok(())
     }
 
-    async fn sign_relayer_fee(&self, fxg: &WithdrawFXG) -> Result<Bundle> { // returns bundle of Signer
+    async fn sign_relayer_fee(&self, fxg: &WithdrawFXG) -> Result<Bundle> {
+        // returns bundle of Signer
         let mut signed = Vec::new();
         for pskt in fxg.bundle.iter() {
             let pskt = PSKT::<Signer>::from(pskt.clone());
@@ -238,10 +239,9 @@ fn finalize_txs(
 ) -> Result<Vec<RpcTransaction>> {
     let transactions_result: Result<Vec<RpcTransaction>, _> = txs_sigs
         .iter()
-        /* 
+        /*
         TODO: finalize_pskt has some hacky assumptions on the order of inputs, which needs to be reconciled which was only for demo
         but we need to generalise to make it work for the real construction https://github.com/dymensionxyz/hyperlane-monorepo/blob/1bc3abb42e9cb0b67146b89afa9fe97eea267126/dymension/libs/kaspa/lib/relayer/src/withdraw.rs#L136
-
         */
         .map(|tx| finalize_pskt(tx.clone(), escrow_pubs.clone())) // TODO: avoid clones
         .collect();
