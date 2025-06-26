@@ -1108,16 +1108,16 @@ async fn submit_kaspa_batch(
                 for mut op in sent_ops {
                     let cost = U256::from(0); // TODO: fix
                     op.set_operation_outcome(outcome.clone(), cost);
-                    op.set_next_attempt_after(CONFIRM_DELAY);
+                    // op.set_next_attempt_after(CONFIRM_DELAY);
                     // TODO: do we actually want to do this... maybe we dont want to use confirm queue?
-                    confirm_queue
-                        .push(
-                            op,
-                            Some(PendingOperationStatus::Confirm(
-                                ConfirmReason::SubmittedBySelf,
-                            )),
-                        )
-                        .await;
+                    // confirm_queue
+                    //     .push(
+                    //         op,
+                    //         Some(PendingOperationStatus::Confirm(
+                    //             ConfirmReason::SubmittedBySelf,
+                    //         )),
+                    //     )
+                    //     .await;
                 }
             }
            /*
@@ -1126,7 +1126,7 @@ async fn submit_kaspa_batch(
            1. we never submitted singularly, so  we cant get a pendingOperationResult.
            2. We will probably never care about reprepare, or notready
            3. Drop we should probably deal with!
-           4. we should deal/figure out the confirmation branch
+           4. we should deal/figure out the confirmation branch(??)
             */ 
         }
         Err(e) => {
