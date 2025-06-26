@@ -2,7 +2,6 @@ use core::escrow::*;
 
 use std::sync::Arc;
 
-use secp256k1::{rand::thread_rng, Keypair, PublicKey};
 use kaspa_addresses::Address;
 use kaspa_consensus_core::hashing::sighash_type::{
     SigHashType, SIG_HASH_ALL, SIG_HASH_ANY_ONE_CAN_PAY,
@@ -11,6 +10,7 @@ use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint, UtxoEntry};
 use kaspa_core::info;
 use kaspa_wallet_core::error::Error;
 use kaspa_wallet_core::utxo::UtxoIterator;
+use secp256k1::{rand::thread_rng, Keypair, PublicKey};
 
 use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_pskt::prelude::*;
@@ -112,8 +112,10 @@ pub async fn send_tx<T: RpcApi + ?Sized>(
 ) -> Result<TransactionId, Error> {
     info!("-> Relayer   is signing their copy...");
 
-    let pskt_signed_relayer = sign_pay_fee(pskt_unsigned.clone(), w_relayer, s_relayer).await?;
-    let pskt_signed = (pskt_signed_relayer + pskt_signed_vals).unwrap();
+    let pskt_signed_relayer: PSKT<Signer> =
+        sign_pay_fee(pskt_unsigned.clone(), w_relayer, s_relayer).await?;
+    let combiner = pskt_signed_relayer.combiner();
+    let pskt_signed = (combiner + pskt_signed_vals).unwrap();
 
     info!("-> Relayer is finalizing");
 
@@ -124,7 +126,10 @@ pub async fn send_tx<T: RpcApi + ?Sized>(
     Ok(tx_id)
 }
 
-pub fn finalize_pskt(c: PSKT<Combiner>, escrow_pubs: Vec<PublicKey>) -> Result<RpcTransaction, Error> {
+pub fn finalize_pskt(
+    c: PSKT<Combiner>,
+    escrow_pubs: Vec<PublicKey>,
+) -> Result<RpcTransaction, Error> {
     let finalized_pskt = c
         .finalizer()
         .finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
@@ -192,7 +197,7 @@ pub async fn sign_pay_fee(
     pskt_unsigned: PSKT<Signer>,
     w: &Arc<Wallet>,
     s: &Secret,
-) -> Result<PSKT<Combiner>, Error> {
+) -> Result<PSKT<Signer>, Error> {
     // TODO: interesting? https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/pskb.rs#L154
 
     let bundle = Bundle::from(pskt_unsigned);
@@ -204,6 +209,7 @@ pub async fn sign_pay_fee(
         .await?;
 
     let pskt_done = bundle_signed.iter().next().unwrap();
+
     let combiner = PSKT::from(pskt_done.clone());
     Ok(combiner)
 }

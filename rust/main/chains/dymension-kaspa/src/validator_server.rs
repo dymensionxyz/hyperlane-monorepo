@@ -200,13 +200,13 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
         return Err(AppError(eyre::eyre!("Invalid confirmation")));
     }
 
-    let bundle = fxg.bundle;
     let mut signed = Vec::new();
-    for pskt in bundle.iter() {
+    for pskt in fxg.bundle.iter() {
         let pskt = PSKT::<Signer>::from(pskt.clone());
         let signed_pskt = sign_pskt(&args.kp, pskt).map_err(|e| AppError(e.into()))?;
         signed.push(signed_pskt);
     }
+    let bundle = Bundle::from(signed);
 
     let stringy = bundle
         .serialize()

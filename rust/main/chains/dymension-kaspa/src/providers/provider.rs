@@ -192,6 +192,7 @@ impl HyperlaneProvider for KaspaProvider {
     }
 }
 
+/// accepts bundle of signer
 fn combine_all_bundles(bundles: Vec<Bundle>) -> EyreResult<Vec<PSKT<Combiner>>> {
     // each bundle is from a different actor (validator or releayer), and is a vector of pskt
     // therefore index i of each vector corresponds to the same TX i
