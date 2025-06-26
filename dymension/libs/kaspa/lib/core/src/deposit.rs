@@ -15,7 +15,7 @@ use workflow_core::abortable::Abortable;
 
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::H256;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct DepositFXG {
@@ -26,23 +26,22 @@ pub struct DepositFXG {
     pub payload: HyperlaneMessage,
 }
 
-
 impl TryFrom<Bytes> for DepositFXG {
     type Error = eyre::Report;
 
     fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
         // Deserialize the bytes into DepositFXG using bincode
-        bincode::deserialize(&bytes)
-            .map_err(|e| eyre::Report::new(e).wrap_err("Failed to deserialize DepositFXG from bytes"))
-
+        bincode::deserialize(&bytes).map_err(|e| {
+            eyre::Report::new(e).wrap_err("Failed to deserialize DepositFXG from bytes")
+        })
     }
 }
 
 impl From<&DepositFXG> for Bytes {
     fn from(deposit: &DepositFXG) -> Self {
         // Serialize the DepositFXG into bytes using bincode
-        let encoded: Vec<u8> = bincode::serialize(deposit)
-            .expect("Failed to serialize DepositFXG into bytes"); 
+        let encoded: Vec<u8> =
+            bincode::serialize(deposit).expect("Failed to serialize DepositFXG into bytes");
         Bytes::from(encoded)
     }
 }
