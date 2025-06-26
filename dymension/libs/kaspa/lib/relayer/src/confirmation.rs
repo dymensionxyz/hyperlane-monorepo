@@ -49,23 +49,21 @@ pub async fn prepare_progress_indication(
         processed_withdrawals.len()
     );
 
-    // Create new outpoint for the progress indication
-    let new_outpoint_indication = Some(
+    let new_outpoint_indication = 
         hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint {
             transaction_id: new_utxo.transaction_id.as_bytes().to_vec(),
             index: new_utxo.index,
-        },
-    );
-    let anchor_outpoint_indication = Some(
+        };
+
+    let anchor_outpoint_indication = 
         hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint {
             transaction_id: anchor_utxo.transaction_id.as_bytes().to_vec(),
             index: anchor_utxo.index,
-        },
-    );
+        };
 
     let progress_indication = ProgressIndication {
-        old_outpoint: anchor_outpoint_indication,
-        new_outpoint: new_outpoint_indication,
+        old_outpoint: Some(anchor_outpoint_indication),
+        new_outpoint: Some(new_outpoint_indication),
         processed_withdrawals,
     };
 
@@ -75,8 +73,9 @@ pub async fn prepare_progress_indication(
     Ok(confirmation_fxg)
 }
 
-/// Trace transactions from a starting transaction ID to a target transaction ID,
+/// Trace transactions in reverse, from a recent unspent UTXO to an already spent UTXO
 /// collecting payloads along the way.
+/// Follows the transaction lineage of the escrow address.
 ///
 /// # Arguments
 /// * `config` - The Kaspa API client configuration for querying transactions
@@ -117,7 +116,7 @@ async fn trace_transactions(
                 block_hash: None,
                 inputs: Some(true),
                 outputs: Some(true),
-                resolve_previous_outpoints: Some("full".to_string()),
+                resolve_previous_outpoints: Some("light".to_string()),
             },
         )
         .await
@@ -128,11 +127,25 @@ async fn trace_transactions(
             ))
         })?;
 
-        // Extract payload from transaction
+        let lineage_address = transaction
+            .outputs
+            .as_ref()
+            .ok_or(Error::Custom("Transaction outputs not found".to_string()))?
+            .get(current_utxo.index as usize)
+            .ok_or(Error::Custom(format!("Output index {} not found", current_utxo.index)))?
+            .script_public_key_address
+            .as_ref()
+            .ok_or(Error::Custom("Script public key address not found".to_string()))?
+            .clone();
+
+            
+        // FIXME: validate transaction
+        // - inputs populated
+        // - payload exists
+
+        // Parse the payload string to extract the message ID
         if let Some(payload) = transaction.payload {
-            println!("Found payload in transaction: {:?}", payload);
-            // Parse the payload string to extract the message ID
-            // FIXME: might need tuning after integration
+            // FIXME: change to vector of withdrawal IDs
             let withdrawal_id = WithdrawalId {
                 message_id: payload,
             };
@@ -141,18 +154,18 @@ async fn trace_transactions(
             return Err(Error::Custom("No payload found in transaction".to_string()));
         }
 
-        // Find the next UTXO to trace by checking all inputs
+        // check if we reached the anchor transaction_id
         let mut found_anchor = false;
         if let Some(inputs) = &transaction.inputs {
-            // check if we reached the anchor transaction_id
             for input in inputs {
                 // Validate previous_outpoint_hash populated
-                if input.previous_outpoint_hash.is_empty() {
+                if input.previous_outpoint_hash.is_empty() || input.previous_outpoint_index.is_empty() {
                     return Err(Error::Custom("Empty previous_outpoint_hash".to_string()));
                 }
-
+                
                 // If this input's previous_outpoint_hash matches the anchor transaction_id, break
-                if input.previous_outpoint_hash == current_anchor_utxo.transaction_id.to_string() {
+                if input.previous_outpoint_hash == current_anchor_utxo.transaction_id.to_string() 
+                && input.previous_outpoint_index == current_anchor_utxo.index.to_string() {
                     println!(
                         "Reached anchor transaction_id in input: {}",
                         input.previous_outpoint_hash
@@ -162,18 +175,20 @@ async fn trace_transactions(
                 }
             }
         }
-
+        
         if found_anchor {
             break;
         }
-
-        // FIXME: this logic needs rework. currently we assume single hop, which supposed to be handled above
+        
+        // Find the next UTXO to trace by checking all inputs
+        // not supposed to happen in current design (we assume single hop between anchor and new UTXO)
         let mut found_next_utxo = false;
         if let Some(inputs) = transaction.inputs {
             for input in &inputs {
                 println!("Checking input: {:?}", input.index);
                 // check if this input is canonical (part of the escrow account lineage)
-                if check_if_input_is_canonical(input) {
+                let input_address = input.previous_outpoint_address.clone().ok_or(Error::Custom("Previous outpoint address not found".to_string()))?;
+                if input_address == lineage_address {
                     // Use the previous outpoint of this canonical input as the next UTXO
                     current_utxo = TransactionOutpoint {
                         transaction_id: kaspa_hashes::Hash::from_bytes(
@@ -203,13 +218,6 @@ async fn trace_transactions(
     Ok(processed_withdrawals)
 }
 
-// This is a placeholder for the canonical input check logic.
-// It should be implemented to find the TxInput that is canonical (part of the escrow account lineage)
-fn check_if_input_is_canonical(_input: &api_rs::models::TxInput) -> bool {
-    // FIXME: implement canonical input check logic here
-    println!("Called check_if_input_is_canonical");
-    true
-}
 
 // FIXME: AI generated tests. review and rewrite
 #[cfg(test)]
