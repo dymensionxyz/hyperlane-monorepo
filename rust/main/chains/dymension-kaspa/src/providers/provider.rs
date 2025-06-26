@@ -87,6 +87,11 @@ impl KaspaProvider {
     }
 
     /// dococo
+    pub fn hub_rpc(&self) -> &CosmosGrpcClient {
+        &self.cosmos_rpc
+    }
+
+    /// dococo
     pub async fn construct_withdrawal(
         &self,
         msgs: Vec<HyperlaneMessage>,
