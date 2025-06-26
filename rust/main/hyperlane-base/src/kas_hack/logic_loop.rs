@@ -78,9 +78,15 @@ where
 
             for d in &deposits_new {
                 // Call to relayer.F()
-                if let Some(fxg) = relayer_on_new_deposit(d).await? {
-                    let res = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
-                    // TODO: check result
+                let new_deposit_res = relayer_on_new_deposit(d).await;
+                match new_deposit_res {
+                    Ok(Some(fxg)) => {
+                        let res = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
+                        // TODO: check result
+                    }
+                    _ => {
+                        // TODO: do somethign with error
+                    }
                 }
             }
             time::sleep(Duration::from_secs(10)).await;
