@@ -2,6 +2,7 @@ use core::escrow::*;
 
 use std::sync::Arc;
 
+use secp256k1::{rand::thread_rng, Keypair, PublicKey};
 use kaspa_addresses::Address;
 use kaspa_consensus_core::hashing::sighash_type::{
     SigHashType, SIG_HASH_ALL, SIG_HASH_ANY_ONE_CAN_PAY,
@@ -19,6 +20,7 @@ use kaspa_txscript::{
 };
 
 use kaspa_rpc_core::api::rpc::RpcApi;
+use kaspa_rpc_core::model::RpcTransaction;
 
 use std::iter;
 
@@ -115,7 +117,15 @@ pub async fn send_tx<T: RpcApi + ?Sized>(
 
     info!("-> Relayer is finalizing");
 
-    let finalized_pskt = pskt_signed
+    let rpc_tx = finalize_pskt(pskt_signed, e.pubs.clone())?;
+
+    let tx_id = rpc.submit_transaction(rpc_tx, false).await?;
+
+    Ok(tx_id)
+}
+
+pub fn finalize_pskt(c: PSKT<Combiner>, escrow_pubs: Vec<PublicKey>) -> Result<RpcTransaction, Error> {
+    let finalized_pskt = c
         .finalizer()
         .finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
             Ok(inner
@@ -130,8 +140,7 @@ pub async fn send_tx<T: RpcApi + ?Sized>(
                         // ORIGINAL COMMENT: considering xpubs sorted order
 
                         // For each escrow pubkey return <op code, sig, sighash type> and then concat these triples
-                        let sigs: Vec<_> = e
-                            .pubs
+                        let sigs: Vec<_> = escrow_pubs
                             .iter()
                             .flat_map(|kp| {
                                 let sig = input.partial_sigs.get(&kp).unwrap().into_bytes();
@@ -156,7 +165,7 @@ pub async fn send_tx<T: RpcApi + ?Sized>(
                         let sig = input
                             .partial_sigs
                             .iter()
-                            .filter(|(pk, _sig)| !e.pubs.contains(pk))
+                            .filter(|(pk, _sig)| !escrow_pubs.contains(pk))
                             .next()
                             .unwrap()
                             .1
@@ -176,9 +185,7 @@ pub async fn send_tx<T: RpcApi + ?Sized>(
     let (tx, _) = finalized_pskt.extractor().unwrap().extract_tx().unwrap()(mass);
 
     let rpc_tx = (&tx).into();
-    let tx_id = rpc.submit_transaction(rpc_tx, false).await?;
-
-    Ok(tx_id)
+    Ok(rpc_tx)
 }
 
 pub async fn sign_pay_fee(

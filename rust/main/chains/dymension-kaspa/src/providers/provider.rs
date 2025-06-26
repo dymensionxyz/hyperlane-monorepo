@@ -1,8 +1,10 @@
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
+use dym_kas_relayer::PublicKey;
 
 use core::default;
 use eyre::Result as EyreResult;
 use futures::stream::{self, StreamExt, TryStreamExt};
+use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
 use kaspa_wallet_pskt::prelude::*;
 use std::any::Any;
 use tonic::async_trait;
@@ -10,7 +12,7 @@ use url::Url;
 
 use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::withdraw::WithdrawFXG;
-use dym_kas_relayer::withdraw::sign_pay_fee;
+use dym_kas_relayer::withdraw::{finalize_pskt, sign_pay_fee};
 use dym_kas_relayer::withdraw_construction::on_new_withdrawals;
 use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, ContractLocator, HyperlaneChain, HyperlaneDomain,
@@ -106,8 +108,8 @@ impl KaspaProvider {
             bundles_validators.push(bundle_relayer);
             bundles_validators
         };
-        let txs_sigs = combine_all_bundles(all_bundles)?;
-        let finalized = finalize_txs(txs_sigs)?;
+        let txs_signed = combine_all_bundles(all_bundles)?;
+        let finalized = finalize_txs(txs_signed)?;
         let res = self.submit_txs(finalized).await?;
         Ok(())
     }
@@ -123,8 +125,18 @@ impl KaspaProvider {
         Ok(Bundle::from(signed))
     }
 
-    async fn submit_txs(&self, txs: Vec<Transaction>) -> Result<()> {
-        todo!()
+    async fn submit_txs(&self, txs: Vec<RpcTransaction>) -> Result<Vec<RpcTransactionId>> {
+        let mut ret = Vec::new();
+        for tx in txs {
+            let allow_orphan = false; // TODO: what is this?
+            let tx_id = self
+                .easy_wallet
+                .api()
+                .submit_transaction(tx, allow_orphan)
+                .await?;
+            ret.push(tx_id);
+        }
+        Ok(ret)
     }
 
     fn escrow(&self) -> EscrowPublic {
@@ -214,8 +226,8 @@ fn combine_all_bundles(bundles: Vec<Bundle>) -> EyreResult<Vec<PSKT<Combiner>>> 
     Ok(ret)
 }
 
-fn finalize_txs(txs_sigs: Vec<PSKT<Combiner>>) -> Result<Vec<Transaction>> {
-    todo!()
+fn finalize_txs(txs_sigs: Vec<PSKT<Combiner>>, escrow_pubs: Vec<PublicKey>) -> Result<Vec<RpcTransaction>> {
+    return Ok(txs_sigs.iter().map(|tx| finalize_pskt(tx, escrow_pubs)).collect());
 }
 
 async fn get_easy_wallet(
