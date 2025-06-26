@@ -7,16 +7,13 @@ use tonic::async_trait;
 use super::consts::*;
 
 use hyperlane_core::{
-    BatchResult, ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    Mailbox, QueueOperation, RawHyperlaneMessage, ReorgPeriod, TxCostEstimate, TxOutcome, H256,
-    H512, U256,
+    BatchItem, BatchResult, ChainCommunicationError, ChainResult, ContractLocator,
+    FixedPointNumber, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
+    HyperlaneProvider, Mailbox, QueueOperation, RawHyperlaneMessage, ReorgPeriod, TxCostEstimate,
+    TxOutcome, H256, H512, U256,
 };
-use kaspa_wallet_pskt::prelude::*;
 
 use crate::KaspaProvider;
-use dym_kas_core::withdraw::WithdrawFXG;
-use dym_kas_relayer::withdraw_construction::on_new_withdrawals;
 
 // pretends to be a mailbox
 #[derive(Debug, Clone)]
@@ -34,6 +31,14 @@ impl KaspaMailbox {
             address: locator.address, // TODO: will be zero?
             domain: locator.domain.clone(),
         })
+    }
+
+    pub fn with_provider(&self, provider: KaspaProvider) -> Self {
+        Self {
+            provider,
+            domain: self.domain.clone(),
+            address: self.address,
+        }
     }
 
     // TODO: where used?

@@ -1,12 +1,18 @@
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
 
+use core::default;
 use eyre::Result as EyreResult;
 use kaspa_addresses::Address;
+use futures::stream::{self, StreamExt, TryStreamExt};
 use kaspa_wallet_pskt::prelude::*;
+use std::any::Any;
 use tonic::async_trait;
-use kaspa_wallet_core::error::Error as WalletError;
+use url::Url;
 
+use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::withdraw::WithdrawFXG;
+use dym_kas_relayer::withdraw::sign_pay_fee;
+use dym_kas_relayer::withdraw_construction::on_new_withdrawals;
 use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, ContractLocator, HyperlaneChain, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError, KnownHyperlaneDomain, TxnInfo,
@@ -25,6 +31,11 @@ use super::RestProvider;
 use crate::ConnectionConf;
 use eyre::Result;
 
+use hyperlane_core::config::OpSubmissionConfig;
+use hyperlane_core::NativeToken;
+use hyperlane_cosmos_native::ConnectionConf as HubConnectionConf;
+use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
+use hyperlane_cosmos_native::RawCosmosAmount;
 use hyperlane_cosmos_native::Signer as HyperlaneSigner;
 
 /// dococo
@@ -35,6 +46,7 @@ pub struct KaspaProvider {
     easy_wallet: EasyKaspaWallet,
     rest: RestProvider,
     validators: ValidatorsClient,
+    cosmos_rpc: CosmosGrpcClient,
 }
 
 impl KaspaProvider {
@@ -62,18 +74,13 @@ impl KaspaProvider {
             easy_wallet,
             rest,
             validators,
+            cosmos_rpc: cosmos_grpc_client(conf.hub_grpc_urls.clone()),
         })
     }
 
     /// dococo
     pub fn rest(&self) -> &RestProvider {
         &self.rest
-    }
-
-    /// get escrow address
-    // FIXME: is it the same as the escrow address in the conf?
-    pub fn escrow_address(&self) -> Result<Address, WalletError> {
-        self.easy_wallet.account().receive_address()
     }
 
     /// dococo
@@ -86,30 +93,62 @@ impl KaspaProvider {
         &self.validators
     }
 
+    /// dococo
     pub async fn construct_withdrawal(
         &self,
         msgs: Vec<HyperlaneMessage>,
     ) -> Result<Option<WithdrawFXG>> {
-        todo!()
-        // call on new withdrawals
+        on_new_withdrawals(
+            msgs,
+            self.easy_wallet.clone(),
+            self.cosmos_rpc.clone(),
+            self.escrow(),
+        )
+        .await
     }
 
     /// dococo
     pub async fn process_withdrawal(&self, fxg: &WithdrawFXG) -> Result<()> {
-        let bundle_relayer = self.sign_relayer_fee(fxg).await?; // TODO: can add own sig in parallel to validator network request
-        let bundles_validators = self.validators().get_withdraw_sigs(fxg).await?;
-        let txs_sigs = combine_all_bundles(bundles_validators)?;
+        let all_bundles = {
+            let mut bundles_validators = self.validators().get_withdraw_sigs(fxg).await?;
+            let bundle_relayer = self.sign_relayer_fee(fxg).await?; // TODO: can add own sig in parallel to validator network request
+            bundles_validators.push(bundle_relayer);
+            bundles_validators
+        };
+        let txs_sigs = combine_all_bundles(all_bundles)?;
         let finalized = finalize_txs(txs_sigs)?;
         let res = self.submit_txs(finalized).await?;
         Ok(())
     }
 
     async fn sign_relayer_fee(&self, fxg: &WithdrawFXG) -> Result<Bundle> {
-        todo!()
+        let wallet = self.easy_wallet.wallet.clone();
+        let secret = self.easy_wallet.secret.clone();
+        let mut signed = Vec::new();
+        for pskt in fxg.bundle.iter() {
+            let pskt = PSKT::<Signer>::from(pskt.clone());
+            let wallet = wallet.clone();
+            let secret = secret.clone();
+            signed.push(sign_pay_fee(pskt, &wallet, &secret).await?);
+        }
+        Ok(Bundle::from(signed))
     }
 
     async fn submit_txs(&self, txs: Vec<Transaction>) -> Result<()> {
         todo!()
+    }
+
+    fn escrow(&self) -> EscrowPublic {
+        EscrowPublic::from_strs(
+            self.conf.validator_pks.clone(),
+            self.easy_wallet.address_prefix(),
+            self.conf.multisig_threshold_kaspa as u8,
+        )
+    }
+
+      /// get escrow address
+      pub fn escrow_address(&self) -> Address {
+        self.escrow().addr
     }
 }
 
@@ -153,10 +192,11 @@ impl HyperlaneProvider for KaspaProvider {
 }
 
 fn combine_all_bundles(bundles: Vec<Bundle>) -> EyreResult<Vec<PSKT<Combiner>>> {
-    // each bundle is from a different validator, and is a vector of pskt
+    // each bundle is from a different actor (validator or releayer), and is a vector of pskt
     // therefore index i of each vector corresponds to the same TX i
 
-    let validators = bundles
+    // make a list of lists, each top level element is a vector of pskt from a different actor
+    let actor_pskts = bundles
         .iter()
         .map(|b| {
             b.iter()
@@ -165,22 +205,24 @@ fn combine_all_bundles(bundles: Vec<Bundle>) -> EyreResult<Vec<PSKT<Combiner>>> 
         })
         .collect::<Vec<Vec<PSKT<Signer>>>>();
 
-    let n_txs = validators.first().unwrap().len();
+    let n_txs = actor_pskts.first().unwrap().len();
 
-    // need to walk across each tx, and for each tx walk across each signer, and combine all for that tx
+    // need to walk across each tx, and for each tx walk across each actor, and combine all for that tx, so all the sigs
+    // for each tx are grouped together in one vector
     let mut tx_sigs: Vec<Vec<PSKT<Signer>>> = Vec::new();
     for tx_i in 0..n_txs {
         let mut all_sigs_for_tx = Vec::new();
-        for tx_sigs_from_val_j in validators.iter() {
-            all_sigs_for_tx.push(tx_sigs_from_val_j[tx_i].clone());
+        for tx_sigs_from_actor_j in actor_pskts.iter() {
+            all_sigs_for_tx.push(tx_sigs_from_actor_j[tx_i].clone());
         }
         tx_sigs.push(all_sigs_for_tx);
     }
 
+    // walk across each tx and combine all the sigs for that tx into one combiner
     let mut ret = Vec::new();
-    for all_val_sigs_for_tx in tx_sigs.iter() {
-        let mut combiner = all_val_sigs_for_tx.first().unwrap().clone().combiner();
-        for tx_sig in all_val_sigs_for_tx.iter().skip(1) {
+    for all_actor_sigs_for_tx in tx_sigs.iter() {
+        let mut combiner = all_actor_sigs_for_tx.first().unwrap().clone().combiner();
+        for tx_sig in all_actor_sigs_for_tx.iter().skip(1) {
             combiner = (combiner + tx_sig.clone()).unwrap();
         }
         ret.push(combiner);
@@ -206,4 +248,25 @@ async fn get_easy_wallet(
         },
     };
     EasyKaspaWallet::try_new(args).await
+}
+
+fn cosmos_grpc_client(urls: Vec<Url>) -> CosmosGrpcClient {
+    let hub_conf = HubConnectionConf::new(
+        vec![],
+        urls, // ONLY URLS IS NEEDED
+        "".to_string(),
+        "".to_string(),
+        "".to_string(),
+        RawCosmosAmount {
+            denom: "".to_string(),
+            amount: "".to_string(),
+        },
+        1.0,
+        32,
+        OpSubmissionConfig::default(),
+        NativeToken::default(),
+    );
+    let metrics = PrometheusClientMetrics::default();
+    let chain = None;
+    CosmosGrpcClient::new(hub_conf, metrics, chain).unwrap() // TODO: no unwrap
 }
