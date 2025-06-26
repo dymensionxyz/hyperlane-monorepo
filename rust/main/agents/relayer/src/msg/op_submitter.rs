@@ -1120,6 +1120,14 @@ async fn submit_kaspa_batch(
                         .await;
                 }
             }
+           /*
+           TODO: here, according to batch submission (https://github.com/dymensionxyz/hyperlane-monorepo/blob/a490602276d561829d0b4e1104b561e07550dba9/rust/main/agents/relayer/src/msg/op_batch.rs#L49)
+           need to handle like this (https://github.com/dymensionxyz/hyperlane-monorepo/blob/a490602276d561829d0b4e1104b561e07550dba9/rust/main/agents/relayer/src/msg/op_submitter.rs#L741-L763), however:
+           1. we never submitted singularly, so  we cant get a pendingOperationResult.
+           2. We will probably never care about reprepare, or notready
+           3. Drop we should probably deal with!
+           4. we should deal/figure out the confirmation branch
+            */ 
         }
         Err(e) => {
             // shouldn't happen
