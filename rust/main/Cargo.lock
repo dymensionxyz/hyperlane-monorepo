@@ -6140,6 +6140,7 @@ dependencies = [
 [[package]]
 name = "hyperlane-cosmos-dymension-rs"
 version = "0.1.4-dymension-v3.2.1"
+source = "git+https://github.com/srene/hyperlane-cosmos-rs?rev=0a64221#0a64221f15c8e10fec0268f0b9ab3ae57b23ec9a"
 dependencies = [
  "cosmrs",
  "prost 0.13.4",
@@ -10272,7 +10273,6 @@ dependencies = [
  "http-body-util",
  "hyperlane-base",
  "hyperlane-core",
- "hyperlane-cosmos-dymension-rs",
  "hyperlane-cosmos-native",
  "hyperlane-ethereum",
  "hyperlane-metric",
@@ -14537,6 +14537,8 @@ dependencies = [
 name = "validator"
 version = "0.2.0"
 dependencies = [
+ "anyhow",
+ "axum 0.8.4",
  "core",
  "eyre",
  "hyperlane-core",
@@ -14545,6 +14547,7 @@ dependencies = [
  "kaspa-consensus-core",
  "kaspa-core",
  "kaspa-grpc-client",
+ "kaspa-hashes",
  "kaspa-rpc-core",
  "kaspa-txscript",
  "kaspa-wallet-core",
@@ -14553,6 +14556,7 @@ dependencies = [
  "log",
  "relayer 0.2.0",
  "secp256k1 0.29.1",
+ "serde",
  "tokio",
  "workflow-core",
 ]
