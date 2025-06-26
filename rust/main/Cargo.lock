@@ -2531,6 +2531,7 @@ dependencies = [
  "clap 4.5.40",
  "eyre",
  "governor",
+ "hyperlane-cosmos-dymension-rs",
  "kaspa-addresses",
  "kaspa-consensus-core",
  "kaspa-core",
@@ -3666,6 +3667,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 
 [[package]]
+name = "downcast-rs"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea8a8b81cacc08888170eef4d13b775126db426d0b348bee9d18c2c1eaf123cf"
+
+[[package]]
 name = "dtoa"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3716,6 +3723,18 @@ dependencies = [
  "hyperlane-operation-verifier",
  "hyperlane-warp-route",
  "itertools 0.13.0",
+ "kaspa-addresses",
+ "kaspa-bip32",
+ "kaspa-consensus-core",
+ "kaspa-core",
+ "kaspa-grpc-client",
+ "kaspa-notify",
+ "kaspa-rpc-core",
+ "kaspa-txscript",
+ "kaspa-wallet-core",
+ "kaspa-wallet-keys",
+ "kaspa-wallet-pskt",
+ "kaspa-wrpc-client",
  "once_cell",
  "pin-project",
  "protobuf",
@@ -6046,6 +6065,7 @@ dependencies = [
  "convert_case 0.6.0",
  "derive-new",
  "derive_more 0.99.18",
+ "downcast-rs 2.0.1",
  "ethers-contract",
  "ethers-core",
  "ethers-providers",
@@ -15402,7 +15422,7 @@ dependencies = [
  "async-std",
  "async-trait",
  "borsh 1.5.1",
- "downcast-rs",
+ "downcast-rs 1.2.1",
  "futures",
  "futures-util",
  "getrandom 0.2.15",
@@ -15548,7 +15568,7 @@ dependencies = [
  "async-std",
  "async-trait",
  "cfg-if 1.0.0",
- "downcast-rs",
+ "downcast-rs 1.2.1",
  "futures",
  "futures-util",
  "js-sys",
