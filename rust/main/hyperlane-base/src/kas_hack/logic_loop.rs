@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt::Debug, hash::Hash, time::Duration};
+use std::{collections::HashSet, fmt::Debug, hash::Hash, sync::Arc, time::Duration};
 
 use eyre::Result as EyreResult;
 use hyperlane_core::{
@@ -21,8 +21,8 @@ use hyperlane_cosmos_native::mailbox::CosmosNativeMailbox;
 pub struct Foo<C: MetadataConstructor> {
     domain: HyperlaneDomain,
     kdb: HyperlaneRocksDB,
-    provider: KaspaProvider,
-    hub_mailbox: CosmosNativeMailbox,
+    provider: Box<KaspaProvider>,
+    hub_mailbox: Arc<CosmosNativeMailbox>,
     metadata_constructor: C,
     deposit_cache: DepositCache,
 }
@@ -34,8 +34,8 @@ where
     pub fn new(
         domain: HyperlaneDomain,
         kdb: HyperlaneRocksDB,
-        provider: KaspaProvider,
-        hub_mailbox: CosmosNativeMailbox,
+        provider: Box<KaspaProvider>,
+        hub_mailbox: Arc<CosmosNativeMailbox>,
         metadata_constructor: C,
     ) -> Self {
         Self {
