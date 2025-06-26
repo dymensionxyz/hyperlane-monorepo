@@ -8,6 +8,7 @@ use eyre::{eyre, Result};
 use futures_util::future::try_join_all;
 use itertools::Itertools;
 use serde::Serialize;
+use std::str::FromStr;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, warn, Instrument};
 
@@ -221,12 +222,10 @@ impl BaseAgent for Validator {
         if is_kas(&self.origin_chain) {
             router = router.merge(
                 // TODO: config based
-                dymension_kaspa::router(
-                    dymension_kaspa::ValidatorServerResources::new(
-                        Arc::new(self.raw_signer.clone()),
-                        KaspaSecpKeypair::from_str("").unwrap(),
-                    ),
-                )
+                dymension_kaspa::router(dymension_kaspa::ValidatorServerResources::new(
+                    Arc::new(self.raw_signer.clone()),
+                    dymension_kaspa::dym_kas_validator::KaspaSecpKeypair::from_str("").unwrap(),
+                )),
             )
         }
 

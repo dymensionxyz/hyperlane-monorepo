@@ -10,7 +10,7 @@ use axum::{
 use dym_kas_core::deposit::DepositFXG;
 use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use dym_kas_validator::withdraw::sign_pskt;
-use dym_kas_validator::KaspaSecpKeypair;
+pub use dym_kas_validator::KaspaSecpKeypair;
 use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable, H256};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use kaspa_wallet_pskt::prelude::*;
@@ -214,7 +214,8 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
     let mut signed = Vec::new();
     for pskt in fxg.bundle.iter() {
         let pskt = PSKT::<Signer>::from(pskt.clone());
-        let signed_pskt = sign_pskt(&resources.must_kas_key(), pskt).map_err(|e| AppError(e.into()))?;
+        let signed_pskt =
+            sign_pskt(&resources.must_kas_key(), pskt).map_err(|e| AppError(e.into()))?;
         signed.push(signed_pskt);
     }
     let bundle = Bundle::from(signed);
