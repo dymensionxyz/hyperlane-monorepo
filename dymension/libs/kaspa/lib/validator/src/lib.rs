@@ -29,7 +29,7 @@ async fn validate_transaction(deposits: Vec<DepositFXG>) -> Result<Vec<bool>,Box
 
     // If you want to connect to your own node, define your node address and wRPC port using let url = Some("ws://0.0.0.0:17110")
     // Verify your Kaspa node is runnning with --rpclisten-borsh=0.0.0.0:17110 parameter
-    let url = Some("ws://127.0.0.1:17210");
+    let url = Some("ws://127.0.0.1:17210"); // TODO: factor out
     let resolver = Some(Resolver::default());
     // Define the network your Kaspa node is connected to
     // You can select NetworkType::Mainnet, NetworkType::Testnet, NetworkType::Devnet, NetworkType::Simnet
