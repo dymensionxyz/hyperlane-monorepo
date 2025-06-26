@@ -113,13 +113,11 @@ impl KaspaProvider {
     }
 
     async fn sign_relayer_fee(&self, fxg: &WithdrawFXG) -> Result<Bundle> {
-        let wallet = self.easy_wallet.wallet.clone();
-        let secret = self.easy_wallet.secret.clone();
         let mut signed = Vec::new();
         for pskt in fxg.bundle.iter() {
             let pskt = PSKT::<Signer>::from(pskt.clone());
-            let wallet = wallet.clone();
-            let secret = secret.clone();
+            let wallet = self.easy_wallet.wallet.clone();
+            let secret = self.easy_wallet.secret.clone();
             signed.push(sign_pay_fee(pskt, &wallet, &secret).await?);
         }
         Ok(Bundle::from(signed))
