@@ -7,8 +7,8 @@ use std::time::Duration;
 
 use futures::future::join_all;
 use futures_util::future::try_join_all;
+use itertools::Either;
 use itertools::Itertools;
-use itertools::{Either, Itertools};
 use num_traits::Zero;
 use prometheus::{IntCounter, IntGaugeVec};
 use tokio::sync::{broadcast::Sender, mpsc, Mutex};
@@ -1095,8 +1095,11 @@ async fn submit_kaspa_batch(
     // TODO: handle errors
     match res {
         Ok(batch_result) => {
-            let (sent_ops, excluded_ops): (Vec<_>, Vec<_>) =
-                batch.into_iter().enumerate().partition_map(|(i, op)| {
+            let (sent_ops, excluded_ops): (Vec<_>, Vec<_>) = batch
+                .clone()
+                .into_iter()
+                .enumerate()
+                .partition_map(|(i, op)| {
                     if !batch_result.failed_indexes.contains(&i) {
                         Either::Left(op)
                     } else {
@@ -1105,29 +1108,29 @@ async fn submit_kaspa_batch(
                 });
             // TODO: handle batch result
             if let Some(outcome) = batch_result.outcome {
-                for mut op in sent_ops {
+                for op in sent_ops {
                     let cost = U256::from(0); // TODO: fix
-                    op.set_operation_outcome(outcome.clone(), cost);
-                    // op.set_next_attempt_after(CONFIRM_DELAY);
-                    // TODO: do we actually want to do this... maybe we dont want to use confirm queue?
-                    // confirm_queue
-                    //     .push(
-                    //         op,
-                    //         Some(PendingOperationStatus::Confirm(
-                    //             ConfirmReason::SubmittedBySelf,
-                    //         )),
-                    //     )
-                    //     .await;
+                                              // op.set_operation_outcome(outcome.clone(), cost);
+                                              // op.set_next_attempt_after(CONFIRM_DELAY);
+                                              // TODO: do we actually want to do this... maybe we dont want to use confirm queue?
+                                              // confirm_queue
+                                              //     .push(
+                                              //         op,
+                                              //         Some(PendingOperationStatus::Confirm(
+                                              //             ConfirmReason::SubmittedBySelf,
+                                              //         )),
+                                              //     )
+                                              //     .await;
                 }
             }
-           /*
-           TODO: here, according to batch submission (https://github.com/dymensionxyz/hyperlane-monorepo/blob/a490602276d561829d0b4e1104b561e07550dba9/rust/main/agents/relayer/src/msg/op_batch.rs#L49)
-           need to handle like this (https://github.com/dymensionxyz/hyperlane-monorepo/blob/a490602276d561829d0b4e1104b561e07550dba9/rust/main/agents/relayer/src/msg/op_submitter.rs#L741-L763), however:
-           1. we never submitted singularly, so  we cant get a pendingOperationResult.
-           2. We will probably never care about reprepare, or notready
-           3. Drop we should probably deal with!
-           4. we should deal/figure out the confirmation branch(??)
-            */ 
+            /*
+            TODO: here, according to batch submission (https://github.com/dymensionxyz/hyperlane-monorepo/blob/a490602276d561829d0b4e1104b561e07550dba9/rust/main/agents/relayer/src/msg/op_batch.rs#L49)
+            need to handle like this (https://github.com/dymensionxyz/hyperlane-monorepo/blob/a490602276d561829d0b4e1104b561e07550dba9/rust/main/agents/relayer/src/msg/op_submitter.rs#L741-L763), however:
+            1. we never submitted singularly, so  we cant get a pendingOperationResult.
+            2. We will probably never care about reprepare, or notready
+            3. Drop we should probably deal with!
+            4. we should deal/figure out the confirmation branch(??)
+             */
         }
         Err(e) => {
             // shouldn't happen
