@@ -23,7 +23,7 @@ use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
     BatchResult, ChainCommunicationError, ConfirmReason, HyperlaneDomain, HyperlaneDomainProtocol,
     PendingOperation, PendingOperationResult, PendingOperationStatus, QueueOperation,
-    ReprepareReason,
+    ReprepareReason, U256,
 };
 use lander::{
     DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadId, PayloadStatus,
@@ -1105,9 +1105,11 @@ async fn submit_kaspa_batch(
                 });
             // TODO: handle batch result
             if let Some(outcome) = batch_result.outcome {
-                for op in sent_ops {
-                    op.set_operation_outcome(batch_result.outcome.clone(), total_estimated_cost);
+                for mut op in sent_ops {
+                    let cost = U256::from(0); // TODO: fix
+                    op.set_operation_outcome(outcome.clone(), cost);
                     op.set_next_attempt_after(CONFIRM_DELAY);
+                    // TODO: do we actually want to do this... maybe we dont want to use confirm queue?
                     confirm_queue
                         .push(
                             op,
