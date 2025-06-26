@@ -109,7 +109,7 @@ impl KaspaProvider {
             bundles_validators
         };
         let txs_signed = combine_all_bundles(all_bundles)?;
-        let finalized = finalize_txs(txs_signed)?;
+        let finalized = finalize_txs(txs_signed, self.escrow().pubs.clone())?;
         let res = self.submit_txs(finalized).await?;
         Ok(())
     }
@@ -226,8 +226,18 @@ fn combine_all_bundles(bundles: Vec<Bundle>) -> EyreResult<Vec<PSKT<Combiner>>> 
     Ok(ret)
 }
 
-fn finalize_txs(txs_sigs: Vec<PSKT<Combiner>>, escrow_pubs: Vec<PublicKey>) -> Result<Vec<RpcTransaction>> {
-    return Ok(txs_sigs.iter().map(|tx| finalize_pskt(tx, escrow_pubs)).collect());
+fn finalize_txs(
+    txs_sigs: Vec<PSKT<Combiner>>,
+    escrow_pubs: Vec<PublicKey>,
+) -> Result<Vec<RpcTransaction>> {
+    let transactions_result: Result<Vec<RpcTransaction>, _> = txs_sigs
+        .iter()
+        .map(|tx| finalize_pskt(tx.clone(), escrow_pubs.clone())) // TODO: avoid clones
+        .collect();
+
+    let transactions: Vec<RpcTransaction> = transactions_result.map_err(|e| eyre::eyre!(e))?;
+
+    Ok(transactions)
 }
 
 async fn get_easy_wallet(
