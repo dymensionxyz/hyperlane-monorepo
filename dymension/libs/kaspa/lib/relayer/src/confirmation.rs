@@ -21,6 +21,7 @@ use api_rs::apis::{
 };
 
 use core::confirmation::ConfirmationFXG;
+use hex;
 
 /// Prepare a progress indication and create a ConfirmationFXG for the Hub x/kas module
 /// This function traces back from a new UTXO to the old UTXO and collects
@@ -203,9 +204,11 @@ pub fn get_previous_utxo_in_lineage(
             ))?;
         if input_address == lineage_address {
             // Use the previous outpoint of this canonical input as the next UTXO
+            let prev_hash_bytes = hex::decode(&input.previous_outpoint_hash)
+                .map_err(|e| Error::Custom(format!("Invalid hex in previous_outpoint_hash: {}", e)))?;
             let next_utxo = TransactionOutpoint {
                 transaction_id: kaspa_hashes::Hash::from_bytes(
-                    input.previous_outpoint_hash.as_bytes().try_into().unwrap(),
+                    prev_hash_bytes.try_into().map_err(|_| Error::Custom("Invalid length for hash".to_string()))?
                 ),
                 index: input.previous_outpoint_index.parse().unwrap(),
             };
