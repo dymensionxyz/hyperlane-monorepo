@@ -119,7 +119,7 @@ impl KaspaProvider {
         Ok(())
     }
 
-    async fn sign_relayer_fee(&self, fxg: &WithdrawFXG) -> Result<Bundle> {
+    async fn sign_relayer_fee(&self, fxg: &WithdrawFXG) -> Result<Bundle> { // returns bundle of Signer
         let mut signed = Vec::new();
         for pskt in fxg.bundle.iter() {
             let pskt = PSKT::<Signer>::from(pskt.clone());

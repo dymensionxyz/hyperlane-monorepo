@@ -14,6 +14,7 @@ use dym_kas_validator::withdraw::sign_pskt;
 use dym_kas_validator::KaspaSecpKeypair;
 use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable, H256};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
+use kaspa_wallet_pskt::prelude::*;
 use sha3::{digest::Update, Digest, Keccak256};
 use std::{str::FromStr, sync::Arc};
 
@@ -199,16 +200,13 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
         return Err(AppError(eyre::eyre!("Invalid confirmation")));
     }
 
+    let bundle = fxg.bundle;
     let mut signed = Vec::new();
-    for pskt in fxg.bundle.iter() {
+    for pskt in bundle.iter() {
         let pskt = PSKT::<Signer>::from(pskt.clone());
-        let signed_pskt = sign_pskt(&args.kp, pskt)?;
+        let signed_pskt = sign_pskt(&args.kp, pskt).map_err(|e| AppError(e.into()))?;
         signed.push(signed_pskt);
     }
-
-    let bundle = fxg.bundle;
-
-    // TODO: sign!
 
     let stringy = bundle
         .serialize()
