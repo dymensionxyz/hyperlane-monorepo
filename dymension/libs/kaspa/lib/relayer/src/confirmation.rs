@@ -7,6 +7,7 @@ use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
 use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionId, TransactionOutpoint, UtxoEntry};
 use kaspa_rpc_core::api::rpc::RpcApi;
 use kaspa_rpc_core::RpcTransaction;
+use api_rs::models::TxModel;
 
 use kaspa_addresses::Address;
 use kaspa_wallet_core::error::Error;
@@ -49,13 +50,13 @@ pub async fn prepare_progress_indication(
         processed_withdrawals.len()
     );
 
-    let new_outpoint_indication = 
+    let new_outpoint_indication =
         hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint {
             transaction_id: new_utxo.transaction_id.as_bytes().to_vec(),
             index: new_utxo.index,
         };
 
-    let anchor_outpoint_indication = 
+    let anchor_outpoint_indication =
         hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint {
             transaction_id: anchor_utxo.transaction_id.as_bytes().to_vec(),
             index: anchor_utxo.index,
@@ -87,18 +88,18 @@ pub async fn prepare_progress_indication(
 async fn trace_transactions(
     config: &Configuration,
     new_utxo: TransactionOutpoint,
-    current_anchor_utxo: TransactionOutpoint,
+    anchor_utxo: TransactionOutpoint,
 ) -> Result<Vec<WithdrawalId>, Error> {
     println!(
         "Starting transaction trace from {:?} to {:?}",
-        new_utxo, current_anchor_utxo
+        new_utxo, anchor_utxo
     );
 
     let mut processed_withdrawals: Vec<WithdrawalId> = Vec::new();
     let mut current_utxo = new_utxo;
     let mut step = 0;
     let max_steps = 10;
-    while current_utxo != current_anchor_utxo {
+    while current_utxo != anchor_utxo {
         // Add a reasonable step limit to prevent infinite loops
         step += 1;
         if step > max_steps {
@@ -127,24 +128,8 @@ async fn trace_transactions(
             ))
         })?;
 
-        let lineage_address = transaction
-            .outputs
-            .as_ref()
-            .ok_or(Error::Custom("Transaction outputs not found".to_string()))?
-            .get(current_utxo.index as usize)
-            .ok_or(Error::Custom(format!("Output index {} not found", current_utxo.index)))?
-            .script_public_key_address
-            .as_ref()
-            .ok_or(Error::Custom("Script public key address not found".to_string()))?
-            .clone();
-
-            
-        // FIXME: validate transaction
-        // - inputs populated
-        // - payload exists
-
         // Parse the payload string to extract the message ID
-        if let Some(payload) = transaction.payload {
+        if let Some(payload) = transaction.payload.clone() {
             // FIXME: change to vector of withdrawal IDs
             let withdrawal_id = WithdrawalId {
                 message_id: payload,
@@ -154,59 +139,29 @@ async fn trace_transactions(
             return Err(Error::Custom("No payload found in transaction".to_string()));
         }
 
-        // check if we reached the anchor transaction_id
-        let mut found_anchor = false;
-        if let Some(inputs) = &transaction.inputs {
-            for input in inputs {
-                // Validate previous_outpoint_hash populated
-                if input.previous_outpoint_hash.is_empty() || input.previous_outpoint_index.is_empty() {
-                    return Err(Error::Custom("Empty previous_outpoint_hash".to_string()));
-                }
-                
-                // If this input's previous_outpoint_hash matches the anchor transaction_id, break
-                if input.previous_outpoint_hash == current_anchor_utxo.transaction_id.to_string() 
-                && input.previous_outpoint_index == current_anchor_utxo.index.to_string() {
-                    println!(
-                        "Reached anchor transaction_id in input: {}",
-                        input.previous_outpoint_hash
-                    );
-                    found_anchor = true;
-                    break;
-                }
-            }
-        }
-        
-        if found_anchor {
-            break;
-        }
-        
+        // get the lineage address of the current utxo
+        let lineage_address = transaction
+            .outputs
+            .as_ref()
+            .ok_or(Error::Custom("Transaction outputs not found".to_string()))?
+            .get(current_utxo.index as usize)
+            .ok_or(Error::Custom(format!(
+                "Output index {} not found",
+                current_utxo.index
+            )))?
+            .script_public_key_address
+            .as_ref()
+            .ok_or(Error::Custom(
+                "Script public key address not found".to_string(),
+            ))?
+            .clone();
+
         // Find the next UTXO to trace by checking all inputs
         // not supposed to happen in current design (we assume single hop between anchor and new UTXO)
-        let mut found_next_utxo = false;
-        if let Some(inputs) = transaction.inputs {
-            for input in &inputs {
-                println!("Checking input: {:?}", input.index);
-                // check if this input is canonical (part of the escrow account lineage)
-                let input_address = input.previous_outpoint_address.clone().ok_or(Error::Custom("Previous outpoint address not found".to_string()))?;
-                if input_address == lineage_address {
-                    // Use the previous outpoint of this canonical input as the next UTXO
-                    current_utxo = TransactionOutpoint {
-                        transaction_id: kaspa_hashes::Hash::from_bytes(
-                            input.previous_outpoint_hash.as_bytes().try_into().unwrap(),
-                        ),
-                        index: input.previous_outpoint_index.parse().unwrap(),
-                    };
-                    found_next_utxo = true;
-                    println!("Found next canonical UTXO: {:?}", current_utxo);
-                    break;
-                }
-            }
-        }
-
-        if !found_next_utxo {
-            let error_msg = "No next UTXO found in transaction".to_string();
-            println!("Error: {}", error_msg);
-            return Err(Error::Custom(error_msg));
+        match get_previous_utxo_in_lineage(&transaction, &lineage_address, anchor_utxo) {
+            Ok(Some(next_utxo)) => current_utxo = next_utxo,
+            Ok(None) => break, // Reached the break point
+            Err(e) => return Err(e),
         }
     }
 
@@ -218,31 +173,48 @@ async fn trace_transactions(
     Ok(processed_withdrawals)
 }
 
+pub fn get_previous_utxo_in_lineage(
+    transaction: &TxModel,
+    lineage_address: &str,
+    anchor_utxo: TransactionOutpoint,
+) -> Result<Option<TransactionOutpoint>, Error> {
+    let inputs = transaction.inputs.as_ref().ok_or(Error::Custom("Inputs not found".to_string()))?;
+    // check if we reached the anchor transaction_id
+    for input in inputs {
+        println!("Checking input: {:?}", input.index);
 
-// FIXME: AI generated tests. review and rewrite
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use kaspa_consensus_core::tx::TransactionId;
-    use kaspa_hashes::Hash;
+        // If this input's previous_outpoint_hash matches the anchor transaction_id, break
+        if input.previous_outpoint_hash == anchor_utxo.transaction_id.to_string()
+            && input.previous_outpoint_index == anchor_utxo.index.to_string()
+        {
+            println!(
+                "Reached anchor transaction_id in input: {}",
+                input.previous_outpoint_hash
+            );
+            return Ok(None);
+        }
 
-    #[test]
-    fn test_withdrawal_id_creation() {
-        // Test creating a WithdrawalId with a message ID
-        let message_id = "test_message_id_1234567890abcdef".to_string();
-        let withdrawal_id = WithdrawalId {
-            message_id: message_id.clone(),
-        };
-
-        assert_eq!(withdrawal_id.message_id, message_id);
+        // check if this input is canonical (part of the escrow account lineage)
+        let input_address = input
+            .previous_outpoint_address
+            .as_ref()
+            .ok_or(Error::Custom(
+                "Previous outpoint address not found".to_string(),
+            ))?;
+        if input_address == lineage_address {
+            // Use the previous outpoint of this canonical input as the next UTXO
+            let next_utxo = TransactionOutpoint {
+                transaction_id: kaspa_hashes::Hash::from_bytes(
+                    input.previous_outpoint_hash.as_bytes().try_into().unwrap(),
+                ),
+                index: input.previous_outpoint_index.parse().unwrap(),
+            };
+            println!("Found next lineage UTXO: {:?}", next_utxo);
+            return Ok(Some(next_utxo));
+        }
     }
 
-    #[test]
-    fn test_transaction_id_conversion() {
-        // Test that TransactionId can be converted to bytes and back
-        let original_tx_id = TransactionId::from_bytes([1u8; 32]);
-        let bytes = original_tx_id.as_bytes();
-        let converted_tx_id = TransactionId::from_bytes(*bytes);
-        assert_eq!(original_tx_id, converted_tx_id);
-    }
+    let error_msg = "No next UTXO found in transaction".to_string();
+    println!("Error: {}", error_msg);
+    return Err(Error::Custom(error_msg));
 }
