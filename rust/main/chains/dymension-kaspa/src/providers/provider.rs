@@ -86,7 +86,7 @@ impl KaspaProvider {
         &self,
         msgs: Vec<HyperlaneMessage>,
     ) -> Result<Option<WithdrawFXG>> {
-        on_new_withdrawals(msgs, self.easy_wallet.clone(), self.cosmos_rpc.clone().unwrap(), self.escrow()).await
+        on_new_withdrawals(msgs, self.easy_wallet.clone(), self.cosmos_rpc.clone().unwrap(), self.escrow()).await.map_err(|e| eyre::eyre!(e))
     }
 
     /// dococo
