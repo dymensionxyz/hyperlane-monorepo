@@ -62,7 +62,6 @@ pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(
             post(respond_validate_confirmed_withdrawals::<S>),
         )
         .route(ROUTE_SIGN_PSKTS, post(respond_sign_pskts::<S>))
-        // TODO: add  other routes: respond to PSKT sign request, and confirmation attestion request
         .with_state(Arc::new(resources))
 }
 
