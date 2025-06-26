@@ -21,7 +21,7 @@ pub struct ConnectionConf {
     pub multisig_threshold_kaspa: usize,
 
     // see https://github.com/dymensionxyz/hyperlane-monorepo/blob/c5d733804d3713e8566d6b23366f7eed4917ee2a/rust/main/chains/hyperlane-cosmos-native/src/providers/grpc.rs#L77
-    pub hub_grpc_urls : Vec<Url>,
+    pub hub_grpc_urls: Vec<Url>,
 }
 
 impl ConnectionConf {

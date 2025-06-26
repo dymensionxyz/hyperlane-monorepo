@@ -380,7 +380,7 @@ pub fn build_kaspa_connection_conf(
 
     let mut local_err = ConfigParsingError::default();
     let grpcs =
-        parse_base_and_override_urls(chain, "grpcUrls", "customGrpcUrls", "http", &mut local_err); 
+        parse_base_and_override_urls(chain, "grpcUrls", "customGrpcUrls", "http", &mut local_err);
 
     Some(ChainConnectionConf::Kaspa(
         dymension_kaspa::ConnectionConf::new(
@@ -394,7 +394,6 @@ pub fn build_kaspa_connection_conf(
             threshold_ism as usize,
             threshold_escrow as usize,
             grpcs,
-
         ),
     ))
 }
