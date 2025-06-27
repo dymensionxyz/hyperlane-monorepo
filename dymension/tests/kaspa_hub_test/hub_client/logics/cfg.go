@@ -18,11 +18,11 @@ const (
 )
 
 type Config struct {
-	NodeAddress    string                 `mapstructure:"node_address"`
-	Gas            GasConfig              `mapstructure:"gas"`
-	KeyringBackend account.KeyringBackend `mapstructure:"keyring_backend"`
-	KeyringDir     string                 `mapstructure:"keyring_dir"`
-	LogLevel       string                 `mapstructure:"log_level"`
+	NodeAddress string    `mapstructure:"node_address"`
+	Gas         GasConfig `mapstructure:"gas"`
+	// KeyringBackend account.KeyringBackend `mapstructure:"keyring_backend"`
+	KeyringDir string `mapstructure:"keyring_dir"`
+	LogLevel   string `mapstructure:"log_level"`
 }
 
 type GasConfig struct {
@@ -62,26 +62,26 @@ func InitConfig() {
 var CfgFile string
 
 type ClientConfig struct {
-	HomeDir        string
-	NodeAddress    string
-	GasFees        string
-	GasPrices      string
-	FeeGranter     string
-	KeyringBackend account.KeyringBackend
+	HomeDir     string
+	NodeAddress string
+	GasFees     string
+	GasPrices   string
+	FeeGranter  string
+	// KeyringBackend account.KeyringBackend
 }
 
-func GetCosmosClientOptions(config ClientConfig) []client.Option {
-	options := []client.Option{
-		client.WithAddressPrefix(HubAddressPrefix),
-		client.WithHome(config.HomeDir),
-		client.WithNodeAddress(config.NodeAddress),
-		client.WithFees(config.GasFees),
-		client.WithGas(client.GasAuto),
-		client.WithGasPrices(config.GasPrices),
-		client.WithGasAdjustment(1.3),
-		client.WithKeyringBackend(config.KeyringBackend),
-		client.WithKeyringDir(config.HomeDir),
-		client.WithFeeGranter(config.FeeGranter),
-	}
-	return options
-}
+// func GetCosmosClientOptions(config ClientConfig) []client.Option {
+// 	options := []client.Option{
+// 		client.WithAddressPrefix(HubAddressPrefix),
+// 		client.WithHome(config.HomeDir),
+// 		client.WithNodeAddress(config.NodeAddress),
+// 		client.WithFees(config.GasFees),
+// 		client.WithGas(client.GasAuto),
+// 		client.WithGasPrices(config.GasPrices),
+// 		client.WithGasAdjustment(1.3),
+// 		client.WithKeyringBackend(config.KeyringBackend),
+// 		client.WithKeyringDir(config.HomeDir),
+// 		client.WithFeeGranter(config.FeeGranter),
+// 	}
+// 	return options
+// }
