@@ -6,6 +6,4 @@ edition = "2021"
 [dependencies]
 core = { path = "../../lib/core" }
 validator = { path = "../../lib/validator" }
-
-
 secp256k1 = { workspace = true }
