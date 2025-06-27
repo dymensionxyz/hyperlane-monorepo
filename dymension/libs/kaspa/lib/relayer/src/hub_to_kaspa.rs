@@ -222,8 +222,8 @@ async fn internal_build_withdrawal_pskt(
                 TransactionInput::new(
                     kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint),
                     vec![],
-                    0,                                  // sequence does not matter
-                    core::consts::RELAYER_SIG_OP_COUNT, // only one signature from relayer is needed
+                    0,                                     // sequence does not matter
+                    corelib::consts::RELAYER_SIG_OP_COUNT, // only one signature from relayer is needed
                 ),
                 UtxoEntry::from(utxo.utxo_entry),
             )
@@ -268,14 +268,14 @@ async fn internal_build_withdrawal_pskt(
     //     PSKT     //
     //////////////////
 
-    let msg_ids_raw = core::payload::MessageIDs::new(msg_ids)
+    let msg_ids_raw = corelib::payload::MessageIDs::new(msg_ids)
         .into_value()
         .map_err(|e| anyhow::anyhow!("Serialize message IDs: {}", e))?;
 
     // Save msg_ids_raw in the proprietaries for later retrieval by validators
     let global = GlobalBuilder::default()
         .proprietaries(BTreeMap::from([(
-            core::consts::KEY_MESSAGE_IDS.to_string(),
+            corelib::consts::KEY_MESSAGE_IDS.to_string(),
             msg_ids_raw,
         )]))
         .build()

@@ -1068,7 +1068,6 @@ dependencies = [
 name = "core"
 version = "0.2.0"
 dependencies = [
- "anyhow",
  "bincode",
  "bytes",
  "clap",
@@ -1094,7 +1093,6 @@ dependencies = [
  "secp256k1",
  "serde",
  "serde-value",
- "serde_bytes",
  "tokio",
  "tracing",
  "url",

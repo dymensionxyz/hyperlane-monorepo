@@ -131,7 +131,7 @@ pub fn finalize_pskt(
     c: PSKT<Combiner>,
     escrow_pubs: Vec<PublicKey>,
 ) -> Result<RpcTransaction, Error> {
-    let msg_ids_bytes = core::payload::message_ids_payload_from_pskt(&c)
+    let msg_ids_bytes = corelib::payload::message_ids_payload_from_pskt(&c)
         .map_err(|e| format!("Deserialize MessageIDs: {}", e))?;
     
     let finalized_pskt = c
@@ -144,7 +144,7 @@ pub fn finalize_pskt(
                 .map(|(i, input)| -> Vec<u8> {
                     match input.sig_op_count { 
                         Some(n) => {
-                            return if n == core::consts::RELAYER_SIG_OP_COUNT {
+                            return if n == corelib::consts::RELAYER_SIG_OP_COUNT {
                                 // relayer UTXO
 
                                 let sig = input
