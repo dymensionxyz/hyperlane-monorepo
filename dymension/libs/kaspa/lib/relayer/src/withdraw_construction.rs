@@ -22,7 +22,7 @@ pub async fn on_new_withdrawals(
         &relayer.api(),
         &escrow_public,
         &relayer.account(),
-        relayer.network_id(),
+        relayer.network_info,
     )
     .await
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
