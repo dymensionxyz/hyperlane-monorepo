@@ -8,11 +8,12 @@ pub struct EthereumStyleSigner {
     pub private_key: String,
 }
 
+// Tested here: https://github.com/dymensionxyz/hyperlane-cosmos/blob/b0c2d20ccf5f8f02bfeab9ba9478e7c88d0ff91d/x/core/01_interchain_security/keeper/kas_test.go#L28-L30
 pub fn get_ethereum_style_signer() -> Result<EthereumStyleSigner, eyre::Error> {
     let wallet = LocalWallet::new(&mut thread_rng());
 
     let private_key_bytes = wallet.signer().to_bytes();
-    let private_key_hex = format!("0x{}", hex::encode(private_key_bytes));
+    let private_key_hex = format!("{}", hex::encode(private_key_bytes));
 
     let address = wallet.address();
 
