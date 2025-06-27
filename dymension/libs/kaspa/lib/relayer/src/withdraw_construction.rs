@@ -5,9 +5,7 @@ use core::withdraw::WithdrawFXG;
 use eyre::Result;
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
-use kaspa_rpc_core::api::rpc::RpcApi;
 use kaspa_wallet_pskt::prelude::Bundle;
-use kaspa_wallet_pskt::prelude::*;
 
 pub async fn on_new_withdrawals(
     messages: Vec<HyperlaneMessage>,

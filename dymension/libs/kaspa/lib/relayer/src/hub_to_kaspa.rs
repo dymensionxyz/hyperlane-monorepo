@@ -23,8 +23,10 @@ use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_wallet_core::account::Account;
 use kaspa_wallet_core::prelude::DynRpcApi;
 use kaspa_wallet_core::utxo::NetworkParams;
+use kaspa_wallet_pskt::global;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
+use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::sync::Arc;
 
@@ -220,13 +222,15 @@ async fn internal_build_withdrawal_pskt(
                 TransactionInput::new(
                     kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint),
                     vec![],
-                    0, // sequence does not matter
-                    1, // only one signature from relayer is needed
+                    0,                                  // sequence does not matter
+                    core::consts::RELAYER_SIG_OP_COUNT, // only one signature from relayer is needed
                 ),
                 UtxoEntry::from(utxo.utxo_entry),
             )
         })
         .collect();
+
+    let msg_ids: Vec<_> = withdrawal_details.iter().map(|w| w.message_id).collect();
 
     let outputs: Vec<TransactionOutput> = withdrawal_details
         .into_iter()
@@ -264,7 +268,24 @@ async fn internal_build_withdrawal_pskt(
     //     PSKT     //
     //////////////////
 
-    let mut pskt = PSKT::<Creator>::default().constructor();
+    let msg_ids_raw = core::payload::MessageIDs::new(msg_ids)
+        .into_value()
+        .map_err(|e| anyhow::anyhow!("Serialize message IDs: {}", e))?;
+
+    // Save msg_ids_raw in the proprietaries for later retrieval by validators
+    let global = GlobalBuilder::default()
+        .proprietaries(BTreeMap::from([(
+            core::consts::KEY_MESSAGE_IDS.to_string(),
+            msg_ids_raw,
+        )]))
+        .build()
+        .map_err(|e| anyhow::anyhow!("Build message IDs payload: {}", e))?;
+
+    // Create default Inner and inject global that contains message IDs
+    let mut inner: Inner = Default::default();
+    inner.global = global;
+
+    let mut pskt = PSKT::<Creator>::from(inner).constructor();
 
     // Add escrow inputs
     for (input, entry) in populated_inputs_escrow {
