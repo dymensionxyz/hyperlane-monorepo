@@ -37,11 +37,6 @@ use kaspa_wallet_core::tx::Fees;
 use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_pskt::prelude::*; // Import the prelude for easy access to traits/structs
 
-use kaspa_txscript::{
-    extract_script_pub_key_address, multisig_redeem_script, pay_to_address_script,
-    pay_to_script_hash_script,
-};
-
 use secp256k1::{rand::thread_rng, Keypair};
 
 use kaspa_rpc_core::api::rpc::RpcApi;
