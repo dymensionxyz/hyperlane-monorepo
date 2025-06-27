@@ -9,6 +9,15 @@ require (
 	github.com/spf13/viper v1.18.1
 	go.uber.org/zap v1.24.0
 	github.com/bcp-innovations/hyperlane-cosmos v1.0.0
+	cosmossdk.io/api v0.7.6
+	cosmossdk.io/client/v2 v2.0.0-beta.8
+	cosmossdk.io/collections v0.4.0
+	cosmossdk.io/core v0.11.0
+	cosmossdk.io/depinject v1.1.0
+	cosmossdk.io/errors v1.0.1
+	cosmossdk.io/log v1.4.1
+	cosmossdk.io/math v1.4.0
+	cosmossdk.io/store v1.1.1
 )
 
 replace (
