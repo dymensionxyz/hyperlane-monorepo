@@ -11,8 +11,9 @@ import (
 )
 
 type bridgeClient struct {
-	logger *zap.Logger
-	config Config
+	logger    *zap.Logger
+	config    Config
+	hubClient cosmosclient.Client
 }
 
 func NewOrderClient(cfg Config, logger *zap.Logger) (*bridgeClient, error) {
@@ -24,11 +25,10 @@ func NewOrderClient(cfg Config, logger *zap.Logger) (*bridgeClient, error) {
 		return nil, fmt.Errorf("failed to create hub client: %w", err)
 	}
 
-	_ = hubClient
-
 	return &bridgeClient{
-		logger: logger,
-		config: cfg,
+		logger:    logger,
+		config:    cfg,
+		hubClient: hubClient,
 	}, nil
 }
 
