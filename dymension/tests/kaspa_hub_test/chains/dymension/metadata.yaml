@@ -6,35 +6,37 @@ blocks:
   confirmations: 1
   estimateBlockTime: 6
   reorgPeriod: 1
-canonicalAsset: adym 
+canonicalAsset: adym
 chainId: dymension_100-1
 contractAddressBytes: 32
 deployer:
-  name: DYMENSION 
+  name: DYMENSION
   url: https://example.com # TODO
 displayName: Dymension Hub Local
-gasCurrencyCoinGeckoId: dymension 
+gasCurrencyCoinGeckoId: dymension
 # Generated from: console.log(parseInt('0x'+Buffer.from('DYMENSION').toString('hex')))
-domainId: 1260813472 
+domainId: 1260813472
 gasPrice:
   amount: "100000000000.0"
   denom: adym
 grpcUrls:
-  - http: http://127.0.0.1:8090
-index: # TODO ??
+- http: http://127.0.0.1:8090
+index:
+  # TODO ??
   from: 10 # low block start 
 isTestnet: true
-name: dymension 
+name: dymension
 nativeToken:
   decimals: 18
-  denom: adym 
-  name: ADYM  # dym or adym
+  denom: adym
+  name: ADYM # dym or adym
   symbol: ADYM # dym or adym
 protocol: cosmosnative
 restUrls:
-  - http: http://localhost:1318
-rpcUrls: # (JSON COMET ONE, e.g. /block?height)
-  - http: http://localhost:36657
+- http: http://localhost:1318
+rpcUrls:
+# (JSON COMET ONE, e.g. /block?height)
+- http: http://localhost:36657
 slip44: 118 #??
 technicalStack: other
 transactionOverrides:
