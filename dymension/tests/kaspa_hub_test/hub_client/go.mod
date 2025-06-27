@@ -21,7 +21,17 @@ require (
 	google.golang.org/grpc v1.62.1
 	gopkg.in/yaml.v3 v3.0.1
 	github.com/bcp-innovations/hyperlane-cosmos v1.0.0	
+	cosmossdk.io/api v0.7.6
+	cosmossdk.io/client/v2 v2.0.0-beta.8
+	cosmossdk.io/collections v0.4.0
+	cosmossdk.io/core v0.11.0
+	cosmossdk.io/depinject v1.1.0
+	cosmossdk.io/errors v1.0.1
+	cosmossdk.io/log v1.4.1
+	cosmossdk.io/math v1.4.0
+	cosmossdk.io/store v1.1.1
 )
+
 
 require (
 	filippo.io/edwards25519 v1.0.0-rc.1 // indirect
