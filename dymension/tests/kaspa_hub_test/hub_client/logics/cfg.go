@@ -3,8 +3,6 @@ package logics
 import (
 	"log"
 
-	"github.com/dymensionxyz/cosmosclient/cosmosclient"
-	"github.com/ignite/cli/ignite/pkg/cosmosaccount"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/viper"
 )
@@ -20,11 +18,11 @@ const (
 )
 
 type Config struct {
-	NodeAddress    string                       `mapstructure:"node_address"`
-	Gas            GasConfig                    `mapstructure:"gas"`
-	KeyringBackend cosmosaccount.KeyringBackend `mapstructure:"keyring_backend"`
-	KeyringDir     string                       `mapstructure:"keyring_dir"`
-	LogLevel       string                       `mapstructure:"log_level"`
+	NodeAddress    string                 `mapstructure:"node_address"`
+	Gas            GasConfig              `mapstructure:"gas"`
+	KeyringBackend account.KeyringBackend `mapstructure:"keyring_backend"`
+	KeyringDir     string                 `mapstructure:"keyring_dir"`
+	LogLevel       string                 `mapstructure:"log_level"`
 }
 
 type GasConfig struct {
@@ -69,21 +67,21 @@ type ClientConfig struct {
 	GasFees        string
 	GasPrices      string
 	FeeGranter     string
-	KeyringBackend cosmosaccount.KeyringBackend
+	KeyringBackend account.KeyringBackend
 }
 
-func GetCosmosClientOptions(config ClientConfig) []cosmosclient.Option {
-	options := []cosmosclient.Option{
-		cosmosclient.WithAddressPrefix(HubAddressPrefix),
-		cosmosclient.WithHome(config.HomeDir),
-		cosmosclient.WithNodeAddress(config.NodeAddress),
-		cosmosclient.WithFees(config.GasFees),
-		cosmosclient.WithGas(cosmosclient.GasAuto),
-		cosmosclient.WithGasPrices(config.GasPrices),
-		cosmosclient.WithGasAdjustment(1.3),
-		cosmosclient.WithKeyringBackend(config.KeyringBackend),
-		cosmosclient.WithKeyringDir(config.HomeDir),
-		cosmosclient.WithFeeGranter(config.FeeGranter),
+func GetCosmosClientOptions(config ClientConfig) []client.Option {
+	options := []client.Option{
+		client.WithAddressPrefix(HubAddressPrefix),
+		client.WithHome(config.HomeDir),
+		client.WithNodeAddress(config.NodeAddress),
+		client.WithFees(config.GasFees),
+		client.WithGas(client.GasAuto),
+		client.WithGasPrices(config.GasPrices),
+		client.WithGasAdjustment(1.3),
+		client.WithKeyringBackend(config.KeyringBackend),
+		client.WithKeyringDir(config.HomeDir),
+		client.WithFeeGranter(config.FeeGranter),
 	}
 	return options
 }

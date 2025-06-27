@@ -5,15 +5,15 @@ import (
 	"log"
 	"time"
 
+	"github.com/cosmos/cosmos-sdk/client"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	"github.com/dymensionxyz/cosmosclient/cosmosclient"
 	"go.uber.org/zap"
 )
 
 type bridgeClient struct {
 	logger    *zap.Logger
 	config    Config
-	hubClient cosmosclient.Client
+	hubClient client.Client
 }
 
 func NewBridgeClient(cfg Config, logger *zap.Logger) (*bridgeClient, error) {
@@ -37,7 +37,7 @@ const (
 	connectSleep    = 10 * time.Second
 )
 
-func getHubClient(cfg Config) (hubClient cosmosclient.Client, err error) {
+func getHubClient(cfg Config) (hubClient client.Client, err error) {
 	hubClientCfg := ClientConfig{
 		HomeDir:        cfg.KeyringDir,
 		NodeAddress:    cfg.NodeAddress,
@@ -48,14 +48,14 @@ func getHubClient(cfg Config) (hubClient cosmosclient.Client, err error) {
 
 	err = retry(connectAttempts, connectSleep, func() error {
 		var retryErr error
-		hubClient, retryErr = cosmosclient.New(GetCosmosClientOptions(hubClientCfg)...)
+		hubClient, retryErr = client.New(GetCosmosClientOptions(hubClientCfg)...)
 		if retryErr != nil {
 			log.Printf("failed to obtain hub client, retrying in 10 seconds: %s", retryErr.Error())
 		}
 		return retryErr
 	})
 	if err != nil {
-		return cosmosclient.Client{}, fmt.Errorf("failed to create cosmos client after retries: %w", err)
+		return client.Client{}, fmt.Errorf("failed to create cosmos client after retries: %w", err)
 	}
 
 	return hubClient, nil
