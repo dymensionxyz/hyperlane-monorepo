@@ -21,6 +21,7 @@ use hyperlane_core::{
     HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError, KnownHyperlaneDomain, TxnInfo,
     H256, H512, U256,
 };
+use serde::{Deserialize, Serialize};
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use kaspa_consensus_core::tx::Transaction;
 use kaspa_wallet_pskt::prelude::Bundle;
@@ -76,7 +77,7 @@ impl KaspaProvider {
         let kas_key = conf
             .kaspa_escrow_private_key
             .as_ref()
-            .map(|k| KaspaSecpKeypair::from_str(k).unwrap());
+            .map(|k| serde_json::from_str(k).unwrap());
 
         Ok(KaspaProvider {
             domain: domain.clone(),

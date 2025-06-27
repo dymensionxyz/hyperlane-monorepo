@@ -1631,6 +1631,8 @@ version = "0.1.0"
 dependencies = [
  "core",
  "secp256k1",
+ "serde",
+ "serde_json",
  "validator",
 ]
 
