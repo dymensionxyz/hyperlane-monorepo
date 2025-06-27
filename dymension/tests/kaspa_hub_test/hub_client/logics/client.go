@@ -24,6 +24,8 @@ func NewOrderClient(cfg Config, logger *zap.Logger) (*bridgeClient, error) {
 		return nil, fmt.Errorf("failed to create hub client: %w", err)
 	}
 
+	_ = hubClient
+
 	return &bridgeClient{
 		logger: logger,
 		config: cfg,
@@ -36,18 +38,17 @@ const (
 )
 
 func getHubClient(cfg Config) (hubClient cosmosclient.Client, err error) {
-	// init cosmos client for order fetcher
 	hubClientCfg := ClientConfig{
-		HomeDir:        cfg.Fulfillers.KeyringDir,
+		HomeDir:        cfg.KeyringDir,
 		NodeAddress:    cfg.NodeAddress,
 		GasFees:        cfg.Gas.Fees,
 		GasPrices:      cfg.Gas.Prices,
-		KeyringBackend: cfg.Fulfillers.KeyringBackend,
+		KeyringBackend: cfg.KeyringBackend,
 	}
 
 	err = retry(connectAttempts, connectSleep, func() error {
 		var retryErr error
-		hubClient, retryErr = cosmosclient.New(config.GetCosmosClientOptions(hubClientCfg)...)
+		hubClient, retryErr = cosmosclient.New(GetCosmosClientOptions(hubClientCfg)...)
 		if retryErr != nil {
 			log.Printf("failed to obtain hub client, retrying in 10 seconds: %s", retryErr.Error())
 		}
