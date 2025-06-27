@@ -1092,6 +1092,7 @@ dependencies = [
  "reqwest-ratelimit",
  "secp256k1",
  "serde",
+ "serde_json",
  "tokio",
  "tracing",
  "url",
