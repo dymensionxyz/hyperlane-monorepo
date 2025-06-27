@@ -16,6 +16,7 @@ const (
 	defaultHubDenom    = "adym"
 	defaultGasFees     = "3000000000000000" + defaultHubDenom
 	testKeyringBackend = "test"
+	PubKeyPrefix       = "pub"
 )
 
 type Config struct {

@@ -14,6 +14,36 @@ import (
 	"github.com/dymensionxyz/hub-client/version"
 )
 
+/*
+Actual business logic
+*/
+var cmdSetup = &cobra.Command{
+	Use:   "setup",
+	Short: "Run setup of Hyperlane objects on Hub",
+	Run: func(cmd *cobra.Command, args []string) {
+		viper.AutomaticEnv()
+
+		if err := viper.ReadInConfig(); err == nil {
+			fmt.Println("Using config file:", viper.ConfigFileUsed())
+		}
+
+		cfg := logics.Config{}
+		if err := viper.Unmarshal(&cfg); err != nil {
+			log.Fatalf("failed to unmarshal config: %v", err)
+		}
+
+		log.Printf("using config file: %+v", viper.ConfigFileUsed())
+
+		logger, err := buildLogger(cfg.LogLevel)
+		if err != nil {
+			log.Fatalf("failed to build logger: %v", err)
+		}
+
+		// Ensure all logs are written
+		defer logger.Sync() // nolint: errcheck
+	},
+}
+
 var RootCmd = &cobra.Command{
 	Use:   "hub-client",
 	Short: "Setup Hyperlane on the Hub for Kaspa test",
@@ -43,33 +73,6 @@ var cmdInit = &cobra.Command{
 		fmt.Printf("Config file created: %s\n", logics.CfgFile)
 		fmt.Println()
 		fmt.Println("Edit the config file to set the correct values for your environment.")
-	},
-}
-
-var cmdSetup = &cobra.Command{
-	Use:   "setup",
-	Short: "Run setup of Hyperlane objects on Hub",
-	Run: func(cmd *cobra.Command, args []string) {
-		viper.AutomaticEnv()
-
-		if err := viper.ReadInConfig(); err == nil {
-			fmt.Println("Using config file:", viper.ConfigFileUsed())
-		}
-
-		cfg := logics.Config{}
-		if err := viper.Unmarshal(&cfg); err != nil {
-			log.Fatalf("failed to unmarshal config: %v", err)
-		}
-
-		log.Printf("using config file: %+v", viper.ConfigFileUsed())
-
-		logger, err := buildLogger(cfg.LogLevel)
-		if err != nil {
-			log.Fatalf("failed to build logger: %v", err)
-		}
-
-		// Ensure all logs are written
-		defer logger.Sync() // nolint: errcheck
 	},
 }
 
