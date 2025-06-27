@@ -29,18 +29,27 @@ var cmdSetup = &cobra.Command{
 
 		cfg := logics.Config{}
 		if err := viper.Unmarshal(&cfg); err != nil {
-			log.Fatalf("failed to unmarshal config: %v", err)
+			log.Fatalf("unmarshal config: %v", err)
 		}
 
 		log.Printf("using config file: %+v", viper.ConfigFileUsed())
 
 		logger, err := buildLogger(cfg.LogLevel)
 		if err != nil {
-			log.Fatalf("failed to build logger: %v", err)
+			log.Fatalf("build logger: %v", err)
 		}
 
 		// Ensure all logs are written
 		defer logger.Sync() // nolint: errcheck
+
+		c, err := logics.NewBridgeClient(cfg, logger)
+		if err != nil {
+			log.Fatalf("create client: %v", err)
+		}
+
+		if err := c.Setup(); err != nil {
+			log.Fatalf("setup bridge: %v", err)
+		}
 	},
 }
 
@@ -51,7 +60,7 @@ var RootCmd = &cobra.Command{
 		// If no arguments are provided, print usage information
 		if len(args) == 0 {
 			if err := cmd.Usage(); err != nil {
-				log.Fatalf("Error printing usage: %v", err)
+				log.Fatalf("print usage: %v", err)
 			}
 		}
 	},
@@ -63,11 +72,11 @@ var cmdInit = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg := logics.Config{}
 		if err := viper.Unmarshal(&cfg); err != nil {
-			log.Fatalf("failed to unmarshal config: %v", err)
+			log.Fatalf("unmarshal config: %v", err)
 		}
 
 		if err := viper.WriteConfigAs(logics.CfgFile); err != nil {
-			log.Fatalf("failed to write config file: %v", err)
+			log.Fatalf("write config file: %v", err)
 		}
 
 		fmt.Printf("Config file created: %s\n", logics.CfgFile)
@@ -79,7 +88,7 @@ var cmdInit = &cobra.Command{
 func buildLogger(logLevel string) (*zap.Logger, error) {
 	var level zapcore.Level
 	if err := level.Set(logLevel); err != nil {
-		return nil, fmt.Errorf("failed to set log level: %w", err)
+		return nil, fmt.Errorf("set log level: %w", err)
 	}
 
 	encoderConfig := zap.NewProductionEncoderConfig()

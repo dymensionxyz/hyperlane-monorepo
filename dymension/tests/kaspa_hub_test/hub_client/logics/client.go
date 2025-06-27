@@ -16,7 +16,11 @@ type bridgeClient struct {
 	hubClient cosmosclient.Client
 }
 
-func NewOrderClient(cfg Config, logger *zap.Logger) (*bridgeClient, error) {
+func (c *bridgeClient) Setup() error {
+	return nil
+}
+
+func NewBridgeClient(cfg Config, logger *zap.Logger) (*bridgeClient, error) {
 	sdkcfg := sdk.GetConfig()
 	sdkcfg.SetBech32PrefixForAccount(HubAddressPrefix, PubKeyPrefix)
 
