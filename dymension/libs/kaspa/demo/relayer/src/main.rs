@@ -2,20 +2,22 @@
 
 mod x;
 
+use std::error::Error;
+use core::api::client::get_local_testnet_client;
 use core::deposit::*;
 use core::escrow::*;
 use core::util::*;
 use core::wallet::*;
-use validator::ESCROW_ADDRESS;
+use core::ESCROW_ADDRESS;
 use relayer::withdraw::*;
 use validator::withdraw::*;
 use relayer::handle_new_deposit;
+use validator::validate_deposit;
 use x::args::Args;
 use x::consts::*;
 use std::sync::Arc;
 use hyperlane_core::{Encode,Decode,H256,HyperlaneMessage,U256};
 use hyperlane_warp_route::TokenMessage;
-
 use kaspa_addresses::Address;
 use kaspa_consensus_core::{
     constants::TX_VERSION,
@@ -29,7 +31,7 @@ use kaspa_consensus_core::{
 use kaspa_core::info;
 use kaspa_grpc_client::GrpcClient;
 use kaspa_wallet_core::api::{AccountsSendRequest, WalletApi};
-use kaspa_wallet_core::error::Error;
+use kaspa_wallet_core::error::Error as KaspaError;
 use kaspa_wallet_core::tx::Fees;
 
 use kaspa_wallet_core::prelude::*;
@@ -50,7 +52,7 @@ pub async fn deposit(
     secret: &Secret,
     address: Address,
     amt: u64,
-) -> Result<TransactionId, Error> {
+) -> Result<TransactionId, KaspaError> {
     let a = w.account()?;
 
     let dst = PaymentDestination::from(PaymentOutput::new(address, amt));
@@ -79,12 +81,12 @@ pub async fn deposit(
         .await?;
 
     summary.final_transaction_id().ok_or_else(|| {
-        Error::Custom("Deposit transaction failed to generate a transaction ID".to_string())
+        KaspaError::Custom("Deposit transaction failed to generate a transaction ID".to_string())
     })
 }
 
 
-async fn demo() -> Result<(), Error> {
+async fn demo() -> Result<(), Box<dyn Error>> {
     kaspa_core::log::init_logger(None, "");
 
     let args = Args::parse();
@@ -94,26 +96,32 @@ async fn demo() -> Result<(), Error> {
 
     let rpc = w.rpc_api();
 
+    println!("address {}",&w.account()?.receive_address()?);
     println!("balance {}",&w.account()?.get_list_string()?);
-
-    println!("receive address {}",&w.account()?.receive_address()?);
-
-    //check_balance("wallet", rpc.as_ref(), &w.account()?.receive_address()?).await?;
-
-    let e = Escrow::new(2);
-    info!("Created escrow address: {}", e.public(ADDRESS_PREFIX).addr);
 
     let amt = DEPOSIT_AMOUNT;
     let escrow_address = Address::try_from(ESCROW_ADDRESS)?;
     let tx_id = deposit(&w, &s, escrow_address, amt).await?;
     info!("Sent deposit transaction: {}", tx_id);
 
-    workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
+    workflow_core::task::sleep(std::time::Duration::from_secs(10)).await;
 
-    let deposit_fxg = handle_new_deposit(tx_id.to_string()).await.unwrap();
+    let deposit_fxg = handle_new_deposit(tx_id.to_string()).await?;
 
-    println!("Deposit pulled {}", deposit_fxg.tx_id);
-    
+    println!("Deposit pulled by relay tx_id:{} block_id:{} amount:{}", deposit_fxg.tx_id, deposit_fxg.block_id,deposit_fxg.amount);
+
+
+    let client = get_local_testnet_client().await?;
+
+    let validation_result = validate_deposit(&client,deposit_fxg).await?;
+
+    if validation_result {
+        println!("Deposit validated");
+    } else {
+        println!("Failed to validate deposit");
+    }
+
+    client.stop().await?;
     w.stop().await?;
     Ok(())
 }
