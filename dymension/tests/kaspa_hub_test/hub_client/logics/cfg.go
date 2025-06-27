@@ -20,10 +20,11 @@ const (
 )
 
 type Config struct {
-	NodeAddress string    `mapstructure:"node_address"`
-	Gas         GasConfig `mapstructure:"gas"`
-
-	LogLevel string `mapstructure:"log_level"`
+	NodeAddress    string                       `mapstructure:"node_address"`
+	Gas            GasConfig                    `mapstructure:"gas"`
+	KeyringBackend cosmosaccount.KeyringBackend `mapstructure:"keyring_backend"`
+	KeyringDir     string                       `mapstructure:"keyring_dir"`
+	LogLevel       string                       `mapstructure:"log_level"`
 }
 
 type GasConfig struct {
@@ -44,6 +45,9 @@ func InitConfig() {
 
 	viper.SetDefault("log_level", defaultLogLevel)
 	viper.SetDefault("node_address", defaultNodeAddress)
+	viper.SetDefault("gas.fees", defaultGasFees)
+	viper.SetDefault("keyring_backend", testKeyringBackend)
+	viper.SetDefault("keyring_dir", defaultHomeDir)
 
 	viper.SetConfigType("yaml")
 	if CfgFile != "" {
