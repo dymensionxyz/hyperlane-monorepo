@@ -3,6 +3,7 @@ package logics
 import (
 	"log"
 
+	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/dymensionxyz/cosmosclient/cosmosclient"
 	"github.com/ignite/cli/ignite/pkg/cosmosaccount"
 	"github.com/mitchellh/go-homedir"
@@ -73,7 +74,7 @@ type ClientConfig struct {
 }
 
 func GetCosmosClientOptions(config ClientConfig) []cosmosclient.Option {
-	options := []cosmosclient.Option{
+	options := []client.Option{
 		cosmosclient.WithAddressPrefix(HubAddressPrefix),
 		cosmosclient.WithHome(config.HomeDir),
 		cosmosclient.WithNodeAddress(config.NodeAddress),
