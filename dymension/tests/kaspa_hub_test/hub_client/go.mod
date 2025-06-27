@@ -3,16 +3,19 @@ module github.com/dymensionxyz/hub-client
 go 1.23.1
 
 require (
-	github.com/cosmos/cosmos-sdk v0.46.16
-	github.com/dymensionxyz/cosmosclient v0.4.2-beta.0.20241030100014-36b8a586fdf3
-	github.com/ignite/cli v0.26.1
+	github.com/cosmos/cosmos-sdk v0.50.12
+	// github.com/cosmos/cosmos-sdk v0.46.16
+	// github.com/dymensionxyz/cosmosclient v0.4.2-beta.0.20241030100014-36b8a586fdf3
+	 github.com/ignite/cli/ignite/pkg/cosmosclient
+	// github.com/ignite/cli v0.26.1
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/viper v1.18.1
 	go.uber.org/zap v1.24.0
 // github.com/bcp-innovations/hyperlane-cosmos v1.0.0
-
 )
+
+require github.com/ignite/cli v0.26.1
 
 require (
 	cosmossdk.io/errors v1.0.1 // indirect
