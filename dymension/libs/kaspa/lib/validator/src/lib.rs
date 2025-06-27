@@ -20,6 +20,8 @@ use kaspa_wrpc_client::{
     prelude::{NetworkId, NetworkType},
     KaspaRpcClient, Resolver, WrpcEncoding,
 };
+pub mod signer;
+
 
 use hyperlane_core::Decode;
 use hyperlane_core::U256;
