@@ -1,20 +1,34 @@
-use core::escrow::EscrowPublic;
-use core::wallet::EasyKaspaWallet;
-use core::withdraw::WithdrawFXG;
+use corelib::escrow::EscrowPublic;
+use corelib::wallet::EasyKaspaWallet;
+use corelib::withdraw::WithdrawFXG;
 use eyre::Result;
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use kaspa_wallet_pskt::prelude::Bundle;
-use kaspa_wallet_pskt::prelude::*;
+
+use crate::build_withdrawal_pskts;
 
 pub async fn on_new_withdrawals(
     messages: Vec<HyperlaneMessage>,
-    w: EasyKaspaWallet,
+    relayer: EasyKaspaWallet,
     cosmos: CosmosGrpcClient,
     escrow_public: EscrowPublic,
+    hub_height: Option<u32>,
 ) -> Result<Option<WithdrawFXG>> {
-    // TODO: impl
-    let v: Vec<PSKT<Signer>> = vec![];
-    let fxg = WithdrawFXG::new(Bundle::from(v));
-    Ok(Some(fxg))
+    let pskt = build_withdrawal_pskts(
+        messages,
+        hub_height,
+        &cosmos,
+        &relayer.api(),
+        &escrow_public,
+        &relayer.account(),
+        relayer.network_info,
+    )
+    .await
+    .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
+
+    match pskt {
+        None => Ok(None), // nothing to process
+        Some(pskt) => Ok(Some(WithdrawFXG::new(Bundle::from(pskt)))),
+    }
 }
