@@ -2551,6 +2551,7 @@ dependencies = [
  "reqwest-ratelimit",
  "secp256k1 0.29.1",
  "serde",
+ "serde-value",
  "tokio",
  "tracing",
  "url",
@@ -14548,7 +14549,6 @@ dependencies = [
 name = "validator"
 version = "0.2.0"
 dependencies = [
- "anyhow",
  "axum 0.8.4",
  "core",
  "eyre",
@@ -14567,7 +14567,6 @@ dependencies = [
  "log",
  "relayer 0.2.0",
  "secp256k1 0.29.1",
- "serde",
  "tokio",
  "workflow-core",
 ]
