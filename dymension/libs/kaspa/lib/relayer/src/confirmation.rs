@@ -22,6 +22,7 @@ use api_rs::apis::{
 
 use hex;
 use corelib::confirmation::ConfirmationFXG;
+use corelib::payload::MessageID;
 
 /// Prepare a progress indication and create a ConfirmationFXG for the Hub x/kas module
 /// This function traces back from a new UTXO to the old UTXO and collects
@@ -39,16 +40,20 @@ pub async fn prepare_progress_indication(
     config: &Configuration,
     anchor_utxo: TransactionOutpoint,
     new_utxo: TransactionOutpoint,
-) -> Result<ConfirmationFXG, Error> {
+) -> Result<ConfirmationFXG> {
     println!("Preparing progress indication for new UTXO: {:?}", new_utxo);
 
     // Trace transactions from the new UTXO back to the old one.
     println!("Tracing transactions to extract withdrawal IDs...");
-    let processed_withdrawals: Vec<WithdrawalId> =
-        trace_transactions(config, new_utxo, anchor_utxo).await?;
+    let msg_ids = trace_transactions(config, new_utxo, anchor_utxo).await?;
+
+    let withdrawal_ids: Vec<WithdrawalId> = msg_ids.into_iter().map(|id| WithdrawalId {
+        message_id: id.0.to_string(),
+    }).collect();
+
     println!(
         "Extracted {} withdrawal IDs from payloads",
-        processed_withdrawals.len()
+        withdrawal_ids.len()
     );
 
     let new_outpoint_indication =
@@ -66,7 +71,7 @@ pub async fn prepare_progress_indication(
     let progress_indication = ProgressIndication {
         old_outpoint: Some(anchor_outpoint_indication),
         new_outpoint: Some(new_outpoint_indication),
-        processed_withdrawals,
+        processed_withdrawals: withdrawal_ids,
     };
 
     println!("ProgressIndication: {:?}", progress_indication);
@@ -90,13 +95,13 @@ async fn trace_transactions(
     config: &Configuration,
     new_utxo: TransactionOutpoint,
     anchor_utxo: TransactionOutpoint,
-) -> Result<Vec<WithdrawalId>, Error> {
+) -> Result<Vec<MessageID>> {
     println!(
         "Starting transaction trace from {:?} to {:?}",
         new_utxo, anchor_utxo
     );
 
-    let mut processed_withdrawals: Vec<WithdrawalId> = Vec::new();
+    let mut processed_withdrawals: Vec<MessageID> = Vec::new();
     let mut current_utxo = new_utxo;
     let mut step = 0;
     let max_steps = 10;
@@ -104,8 +109,8 @@ async fn trace_transactions(
         // Add a reasonable step limit to prevent infinite loops
         step += 1;
         if step > max_steps {
-            return Err(Error::Custom(
-                "Exceeded maximum number of steps in transaction trace".to_string(),
+            return Err(anyhow::anyhow!(
+                "Exceeded maximum number of steps in transaction trace"
             ));
         }
 
@@ -123,21 +128,22 @@ async fn trace_transactions(
         )
         .await
         .map_err(|e| {
-            Error::Custom(format!(
+            anyhow::anyhow!(
                 "Failed to get transaction {}: {}",
                 current_utxo.transaction_id, e
-            ))
+            )
         })?;
 
         // Parse the payload string to extract the message ID
         if let Some(payload) = transaction.payload.clone() {
-            // FIXME: change to vector of withdrawal IDs
-            let withdrawal_id = WithdrawalId {
-                message_id: payload,
-            };
-            processed_withdrawals.push(withdrawal_id);
+            // Deserialize the payload bytes into MessageIDs
+            let message_ids = corelib::payload::MessageIDs::from_bytes(payload.as_bytes())
+                .map_err(|e| anyhow::anyhow!("Failed to deserialize MessageIDs: {}", e))?;
+            
+            // Convert each message ID into a WithdrawalId and add to the list
+            processed_withdrawals.extend(message_ids.0);
         } else {
-            return Err(Error::Custom("No payload found in transaction".to_string()));
+            return Err(anyhow::anyhow!("No payload found in transaction"));
         }
 
         // get the lineage address of the current utxo
@@ -162,7 +168,7 @@ async fn trace_transactions(
         match get_previous_utxo_in_lineage(&transaction, &lineage_address, anchor_utxo) {
             Ok(Some(next_utxo)) => current_utxo = next_utxo,
             Ok(None) => break, // Reached the break point
-            Err(e) => return Err(e),
+            Err(e) => return Err(anyhow::anyhow!(e)),
         }
     }
 
