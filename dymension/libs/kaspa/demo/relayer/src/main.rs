@@ -89,7 +89,7 @@ async fn demo() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
     // load wallet (using kaspa wallet)
-    let s = Secret::from(args.wallet_secret.unwrap_or("".to_string()));
+    let s = Secret::from(args.wallet_secret.unwrap_or("L1cinda_14".to_string()));
     let w = get_wallet(&s, NETWORK_ID, URL.to_string()).await?;
 
 
@@ -116,10 +116,8 @@ async fn demo() -> Result<(), Box<dyn Error>> {
 
     println!("Deposit pulled by relay tx_id:{} block_id:{} amount:{}", deposit_recv.tx_id, deposit_recv.block_id,deposit_recv.amount);
 
-    // load kaspa validator rpc client 
-    let client = get_local_testnet_client().await?;
     // validate deposit using kaspa rpc (validator operation)
-    let validation_result = validate_deposit(&client,deposit_recv).await?;
+    let validation_result = validate_deposit(&w.rpc_api(),&deposit_recv).await?;
 
     if validation_result {
         println!("Deposit validated");
@@ -127,7 +125,6 @@ async fn demo() -> Result<(), Box<dyn Error>> {
         println!("Failed to validate deposit");
     }
 
-    client.stop().await?;
     w.stop().await?;
     Ok(())
 }
