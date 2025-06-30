@@ -9,6 +9,7 @@ use core::escrow::*;
 use core::util::*;
 use core::wallet::*;
 use core::ESCROW_ADDRESS;
+use bytes::Bytes;
 use relayer::withdraw::*;
 use validator::withdraw::*;
 use relayer::handle_new_deposit;
@@ -84,31 +85,41 @@ pub async fn deposit(
 async fn demo() -> Result<(), Box<dyn Error>> {
     kaspa_core::log::init_logger(None, "");
 
+    // parse demo args
     let args = Args::parse();
 
+    // load wallet (using kaspa wallet)
     let s = Secret::from(args.wallet_secret.unwrap_or("".to_string()));
     let w = get_wallet(&s, NETWORK_ID, URL.to_string()).await?;
 
-    let rpc = w.rpc_api();
 
     println!("address {}",&w.account()?.receive_address()?);
     println!("balance {}",&w.account()?.get_list_string()?);
 
+    // deposit to escrow address
     let amt = DEPOSIT_AMOUNT;
     let escrow_address = Address::try_from(ESCROW_ADDRESS)?;
     let tx_id = deposit(&w, &s, escrow_address, amt).await?;
     info!("Sent deposit transaction: {}", tx_id);
 
+    // wait (it may take some time that the deposit is available to indexer-archive rpc service)
     workflow_core::task::sleep(std::time::Duration::from_secs(10)).await;
 
+    // handle deposit (relayer operation)
     let deposit_fxg = handle_new_deposit(tx_id.to_string()).await?;
 
-    println!("Deposit pulled by relay tx_id:{} block_id:{} amount:{}", deposit_fxg.tx_id, deposit_fxg.block_id,deposit_fxg.amount);
+    // deposit encode to bytes 
+    let deposit_bytes_recv: Bytes = (&deposit_fxg).into(); 
 
+    // deposit from bytes
+    let deposit_recv  = DepositFXG::try_from(deposit_bytes_recv)?;
 
+    println!("Deposit pulled by relay tx_id:{} block_id:{} amount:{}", deposit_recv.tx_id, deposit_recv.block_id,deposit_recv.amount);
+
+    // load kaspa validator rpc client 
     let client = get_local_testnet_client().await?;
-
-    let validation_result = validate_deposit(&client,deposit_fxg).await?;
+    // validate deposit using kaspa rpc (validator operation)
+    let validation_result = validate_deposit(&client,deposit_recv).await?;
 
     if validation_result {
         println!("Deposit validated");
