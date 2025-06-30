@@ -1,6 +1,10 @@
 use core::deposit::DepositFXG;
+use std::error::Error;
 
 use eyre::Result;
+use kaspa_wrpc_client::KaspaRpcClient;
+
+use crate::validate_deposit;
 
 pub async fn validate_deposits(client: &KaspaRpcClient, deposits: Vec<DepositFXG>) -> Result<Vec<bool>, Box<dyn Error>> {
 

@@ -55,13 +55,3 @@ pub async fn validate_deposit(client: &KaspaRpcClient, deposit: DepositFXG) -> R
     Ok(true)
 }
 
-pub async fn validate_deposits(client: &KaspaRpcClient, deposits: Vec<DepositFXG>) -> Result<Vec<bool>, Box<dyn Error>> {
-
-    let mut results: Vec<bool> = vec![];
-    // iterate over all deposits and validate one by one
-    for deposit in deposits {
-        let result = validate_deposit(client,deposit).await?;
-        results.push(result);
-    }
-    Ok(results)
-}
