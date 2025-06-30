@@ -28,8 +28,12 @@ CLI_THRESHOLD="1"
 CLI_REMOTE_ROUTER_ADDRESS="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" # arbitrary
 dymd q kas setup-bridge --validators "$CLI_VALS" --threshold "$CLI_THRESHOLD" --remote-router-address "$CLI_REMOTE_ROUTER_ADDRESS" "${HUB_FLAGS[@]}"
 
-#### 2. SETUP VALIDATOR
+#### 2. START KASPA RPC NODE
 
+# start wprc node
+# https://github.com/dymensionxyz/hyperlane-monorepo/blob/ad21e8a6554999033b39949cb80c13c208bc3581/dymension/libs/kaspa/demo/multisig/README.md#L32
+
+#### 3. SETUP VALIDATOR
 
 # in libs/kaspa/demo/validator cargo run
 # THES VALUES MUST CORRESPOND WITH agent-config.json, AND the CLI commands below
@@ -38,9 +42,6 @@ dymd q kas setup-bridge --validators "$CLI_VALS" --threshold "$CLI_THRESHOLD" --
 #   "validator_escrow_secret": "\"11013bc86d1cb199a2324130c808e90ad37d07ae8f490d063b2fb9d9aa2e898f\"",
 #   "validator_escrow_pub_key": "02b1c7b586c8a0387a3c844f6a5471130bb7992346d3e906642cfd5dfce8a8129d",
 #   "multisig_escrow_addr": "kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr"
-
-# start wprc node
-# https://github.com/dymensionxyz/hyperlane-monorepo/blob/ad21e8a6554999033b39949cb80c13c208bc3581/dymension/libs/kaspa/demo/multisig/README.md#L32
 
 AGENT_TMP=/Users/danwt/Documents/dym/aaa-dym-notes/all_tasks/tasks/202505_feat_kaspa/practical/e2e/tmp
 trash $AGENT_TMP/dbs
@@ -59,8 +60,18 @@ cargo build --release --bin validator
   --reorgPeriod 1 \
   --checkpointSyncer.type localStorage \
   --checkpointSyncer.path $SIGS_VAL \
-  --validator.key 
+  --validator.key 0xc02e29cb65e55b3af3d8dee5d7a30504ed927436caf2e53e1e965cbd2639aced \
+  --chains.dymension.signer.type cosmosKey \
+  --chains.dymension.signer.prefix dym \
+  --chains.dymension.signer.key $HYP_KEY \
+  --metrics-port 9090 \
+  --log.level info 
 
-#### DEBUG TIPS 
+#### 4. SETUP RELAYER 
+
+#### 5. SUBMIT DEPOSITS/WITHDRAWALS
+
+
+#### APPENDIX: DEBUG TIPS 
 
 curl -X POST -H "Content-Type: application/json" -d '{}' http://localhost:9090/kaspa-ping
