@@ -56,12 +56,11 @@ dymd q kas setup-bridge --validators "$CLI_VALS" --threshold "$CLI_THRESHOLD" --
 AGENT_TMP=/Users/danwt/Documents/dym/aaa-dym-notes/all_tasks/tasks/202505_feat_kaspa/practical/e2e/tmp
 DB_RELAYER=$AGENT_TMP/dbs/hyperlane_db_relayer
 DB_VALIDATOR=$AGENT_TMP/dbs/hyperlane_db_validator
+export SIGS_VAL=$AGENT_TMP/signatures
+export CONFIG_FILES=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/tests/kaspa_hub_test/agent-config.json
 
 trash $AGENT_TMP/dbs
 mkdir $AGENT_TMP/dbs
-
-export SIGS_VAL=$AGENT_TMP/signatures
-export CONFIG_FILES=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/tests/kaspa_hub_test/agent-config.json
 
 cargo build --release --bin validator
 
@@ -85,6 +84,9 @@ cargo build --release --bin validator
     --chains.dymension.signer.type cosmosKey \
     --chains.dymension.signer.prefix dym \
     --chains.dymension.signer.key $HYP_KEY \
+    --chains.kaspatest10.signer.type cosmosKey \
+    --chains.kaspatest10.signer.prefix dym \
+    --chains.kaspatest10.signer.key $HYP_KEY \
     --metrics-port 9091 \
     --log.level debug 
 
