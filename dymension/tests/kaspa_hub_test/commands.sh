@@ -85,7 +85,7 @@ ISM=$(hub q hyperlane ism isms -o json | jq -r '.isms[0].id')
 MAILBOX=$(hub q hyperlane mailboxes -o json | jq -r '.mailboxes[0].id')
 ESCROW_ADDR=kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr
 
-dymd q auth module-account gov -o json | jq -r '.account.value.address'
+dymd q auth module-account gov -o json | jq -r '.account.value.address' # dym10d07y265gmmuvt4z0w9aw880jnsr700jgllrna
 
 curl -X 'GET' 'https://api-tn10.kaspa.org/addresses/kaspatest%3Apzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr/utxos' -H 'accept: application/json'
 

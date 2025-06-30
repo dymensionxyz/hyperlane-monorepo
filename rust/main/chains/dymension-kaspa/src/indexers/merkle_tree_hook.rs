@@ -116,6 +116,6 @@ impl Indexer<MerkleTreeInsertion> for KaspaMerkle {
 #[async_trait]
 impl SequenceAwareIndexer<MerkleTreeInsertion> for KaspaMerkle {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        Err(ChainCommunicationError::from_other_str("not implemented"))
+        Ok((None, 0))
     }
 }
