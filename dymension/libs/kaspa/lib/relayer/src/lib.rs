@@ -16,7 +16,7 @@ use api_rs::apis::{
         GetTransactionTransactionsTransactionIdGetParams,
     },
 };
-use corelib::{deposit::DepositFXG, is_utxo_escrow_address, ESCROW_ADDRESS};
+use corelib::{deposit::DepositFXG, ESCROW_ADDRESS};
 use eyre::Result;
 use hyperlane_core::{RawHyperlaneMessage,Encode,U256};
 use hyperlane_warp_route::TokenMessage;
