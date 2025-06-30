@@ -94,6 +94,7 @@ impl KaspaProvider {
         })
     }
 
+    /// dococo
     pub fn must_kas_key(&self) -> KaspaSecpKeypair {
         self.kas_key.unwrap()
     }

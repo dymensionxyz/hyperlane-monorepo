@@ -17,7 +17,7 @@ pub struct ConnectionConf {
     pub validator_hosts: Vec<String>,
     pub validator_pks: Vec<String>,
     pub kaspa_escrow_addr: String,
-    pub kaspa_escrow_private_key: Option<String>, // only populated if kaspa escrow validator
+    pub kaspa_escrow_private_key: Option<String>, // only populated if kaspa escrow validator, TODO: use wallet/keychain instead
 
     pub multisig_threshold_hub_ism: usize, // TODO: no need for it to be config, can actually query from dymension destination object
     pub multisig_threshold_kaspa: usize,
