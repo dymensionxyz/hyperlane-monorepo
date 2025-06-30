@@ -3,8 +3,8 @@ pub mod deposit;
 pub mod withdraw;
 pub mod withdrawal;
 
-use kaspa_wallet_core::utxo::NetworkParams;
-use kaspa_wrpc_client::{prelude::NetworkId, KaspaRpcClient};
+use kaspa_wallet_core::{prelude::DynRpcApi, utxo::NetworkParams};
+use kaspa_wrpc_client::prelude::NetworkId;
 pub use secp256k1::Keypair as KaspaSecpKeypair;
 
 use core::{is_utxo_escrow_address, parse_hyperlane_metadata};
@@ -12,12 +12,13 @@ use std::error::Error;
 use std::str::FromStr;
 
 use core::deposit::DepositFXG;
-use kaspa_rpc_core::{api::rpc::RpcApi, RpcBlock, RpcHash, RpcTransactionOutput};
+use std::sync::Arc;
+use kaspa_rpc_core::{RpcBlock, RpcHash, RpcTransactionOutput};
 
 use hyperlane_core::U256;
 use eyre::Result;
 
-async fn validate_maturity(client: &KaspaRpcClient, block: &RpcBlock) -> Result<bool>  {
+async fn validate_maturity(client: &Arc<DynRpcApi>, block: &RpcBlock) -> Result<bool>  {
     let network = client.get_current_network().await?; 
     let network_id = NetworkId::new(network);
     let params = NetworkParams::from(network_id);
@@ -31,7 +32,7 @@ async fn validate_maturity(client: &KaspaRpcClient, block: &RpcBlock) -> Result<
     
 }
 
-pub async fn validate_deposit(client: &KaspaRpcClient, deposit: &DepositFXG) -> Result<bool> {
+pub async fn validate_deposit(client: &Arc<DynRpcApi>, deposit: &DepositFXG) -> Result<bool> {
     
     let block_hash = RpcHash::from_str(&deposit.block_id)?;
     let tx_hash = RpcHash::from_str(&deposit.tx_id)?;
@@ -79,7 +80,7 @@ pub async fn validate_deposit(client: &KaspaRpcClient, deposit: &DepositFXG) -> 
 }
 
 
-pub async fn validate_deposits(client: &KaspaRpcClient, deposits: Vec<&DepositFXG>) -> Result<Vec<bool>, Box<dyn Error>> {
+pub async fn validate_deposits(client: &Arc<DynRpcApi>, deposits: Vec<&DepositFXG>) -> Result<Vec<bool>, Box<dyn Error>> {
 
     let mut results: Vec<bool> = vec![];
     // iterate over all deposits and validate one by one
