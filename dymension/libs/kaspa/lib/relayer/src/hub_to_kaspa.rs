@@ -1,9 +1,7 @@
 use anyhow::Result;
-use bytes::Bytes;
 use corelib::escrow::EscrowPublic;
-use corelib::payload::MessageIDs;
+use corelib::payload::{MessageID, MessageIDs};
 use corelib::wallet::NetworkInfo;
-use corelib::withdraw::WithdrawFXG;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
@@ -27,20 +25,16 @@ use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_wallet_core::account::Account;
 use kaspa_wallet_core::prelude::DynRpcApi;
 use kaspa_wallet_core::utxo::NetworkParams;
-use kaspa_wallet_pskt::global;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
 use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::sync::Arc;
-use corelib::wallet::NetworkInfo;
-use corelib::payload::{MessageID, MessageIDs};
 
 /// Details of a withdrawal extracted from HyperlaneMessage
 #[derive(Debug, Clone)]
-struct WithdrawalDetails {
-    #[allow(dead_code)]
-    pub message_id: H256, // MessageID from HyperlaneMessage.id() TODO: where to use it?
+pub(crate) struct WithdrawalDetails {
+    pub message_id: H256,
     pub recipient: kaspa_addresses::Address,
     pub amount_sompi: u64,
 }
@@ -78,64 +72,7 @@ struct WithdrawalDetails {
 /// Pros: Simple to handle.
 /// Cons: Potentially bigger fee because of the increased number of inputs. However, it's in
 /// relayer's interest to pay min fees and thus keep its account with as few UTXOs as possible.
-pub async fn build_withdrawal_pskts(
-    messages: Vec<HyperlaneMessage>,
-    hub_height: Option<u32>,
-    cosmos: &CosmosGrpcClient,
-    kaspa_rpc: &Arc<DynRpcApi>,
-    escrow: &EscrowPublic,
-    relayer: &Arc<dyn Account>,
-    network_info: NetworkInfo,
-) -> Result<Option<PSKT<Signer>>> {
-    let (outpoint, pending_messages) =
-        get_pending_withdrawals(messages, cosmos, hub_height).await?;
-
-    let withdrawal_details: Vec<_> = pending_messages
-        .into_iter()
-        .filter_map(|m| {
-            match TokenMessage::read_from(&mut Cursor::new(&m.body)) {
-                Ok(msg) => {
-                    let kaspa_recipient = kaspa_addresses::Address::new(
-                        network_info.address_prefix,
-                        kaspa_addresses::Version::PubKey, // should always be PubKey
-                        m.recipient.as_bytes(),
-                    );
-
-                    Some(WithdrawalDetails {
-                        message_id: m.id(),
-                        recipient: kaspa_recipient,
-                        amount_sompi: msg.amount().as_u64(),
-                    })
-                }
-                Err(e) => {
-                    eprintln!(
-                        "Failed to parse TokenMessage for message_id {:?}: {}",
-                        m.id(),
-                        e
-                    );
-                    None
-                }
-            }
-        })
-        .collect();
-
-    if withdrawal_details.is_empty() {
-        return Ok(None);
-    }
-
-    internal_build_withdrawal_pskt(
-        withdrawal_details,
-        kaspa_rpc,
-        escrow,
-        relayer,
-        &outpoint,
-        network_info.network_id,
-    )
-        .await
-        .map(Some)
-}
-
-async fn internal_build_withdrawal_pskt(
+pub async fn build_withdrawal_pskt(
     withdrawal_details: Vec<WithdrawalDetails>,
     kaspa_rpc: &Arc<DynRpcApi>,
     escrow: &EscrowPublic,
@@ -167,7 +104,7 @@ async fn internal_build_withdrawal_pskt(
         kaspa_rpc,
         network_id,
     )
-        .await?;
+    .await?;
 
     //////////////////
     //   Balances   //
@@ -275,7 +212,12 @@ async fn internal_build_withdrawal_pskt(
     //     PSKT     //
     //////////////////
 
-    let msg_ids_raw = MessageIDs::new(msg_ids.into_iter().map(MessageID).collect::<Vec<MessageID>>())
+    let msg_ids_raw = MessageIDs::new(
+        msg_ids
+            .into_iter()
+            .map(MessageID)
+            .collect::<Vec<MessageID>>(),
+    )
     .into_value()
     .map_err(|e| anyhow::anyhow!("Serialize message IDs: {}", e))?;
 
@@ -457,7 +399,7 @@ fn estimate_fee(
     mass
 }
 
-async fn get_pending_withdrawals(
+pub(crate) async fn get_pending_withdrawals(
     withdrawals: Vec<HyperlaneMessage>,
     cosmos: &CosmosGrpcClient,
     height: Option<u32>,
@@ -520,6 +462,8 @@ async fn get_pending_withdrawals(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bytes::Bytes;
+    use corelib::withdraw::WithdrawFXG;
 
     #[test]
     fn test_kaspa_address_conversion() {
@@ -554,9 +498,9 @@ mod tests {
     fn test_pskt_global_proprietaries_persistence() {
         // Step 1: Create a new Global with custom proprietaries
         let test_msg_ids = vec![
-            H256::from([1u8; 32]),
-            H256::from([2u8; 32]),
-            H256::from([3u8; 32]),
+            MessageID(H256::from([1u8; 32])),
+            MessageID(H256::from([2u8; 32])),
+            MessageID(H256::from([3u8; 32])),
         ];
 
         let message_ids = MessageIDs::new(test_msg_ids.clone());

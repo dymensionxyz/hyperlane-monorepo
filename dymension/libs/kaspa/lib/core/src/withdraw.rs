@@ -1,5 +1,6 @@
 use bytes::Bytes;
 use eyre::Error as EyreError;
+use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_wallet_pskt::prelude::Bundle;
 
 pub struct WithdrawFXG {

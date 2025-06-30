@@ -4,7 +4,7 @@ use kaspa_wallet_pskt::pskt::PSKT;
 use serde::{Deserialize, Serialize};
 use crate::consts::KEY_MESSAGE_IDS;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy)]
 pub struct MessageID(pub H256);
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -53,9 +53,9 @@ mod tests {
 
     #[test]
     fn test_message_ids_serialization_deserialization() {
-        let msg_id1 = H256::from([1u8; 32]);
-        let msg_id2 = H256::from([2u8; 32]);
-        let msg_id3 = H256::from([255u8; 32]);
+        let msg_id1 = MessageID(H256::from([1u8; 32]));
+        let msg_id2 = MessageID(H256::from([2u8; 32]));
+        let msg_id3 = MessageID(H256::from([255u8; 32]));
 
         let original_ids = vec![msg_id1, msg_id2, msg_id3];
         let message_ids = MessageIDs::new(original_ids.clone());
@@ -94,7 +94,7 @@ mod tests {
 
     #[test]
     fn test_single_message_id_serialization() {
-        let single_id = vec![H256::from([42u8; 32])];
+        let single_id = vec![MessageID(H256::from([42u8; 32]))];
         let message_ids = MessageIDs::new(single_id.clone());
 
         // Serialize single item
@@ -107,15 +107,15 @@ mod tests {
             .expect("Failed to deserialize single MessageID");
 
         assert_eq!(deserialized_message_ids.0.len(), 1);
-        assert_eq!(deserialized_message_ids.0[0], H256::from([42u8; 32]));
+        assert_eq!(deserialized_message_ids.0[0], MessageID(H256::from([42u8; 32])));
         assert_eq!(deserialized_message_ids.0, single_id);
     }
 
     #[test]
     fn test_message_ids_bincode_serialization() {
-        let msg_id1 = H256::from([1u8; 32]);
-        let msg_id2 = H256::from([2u8; 32]);
-        let msg_id3 = H256::from([255u8; 32]);
+        let msg_id1 = MessageID(H256::from([1u8; 32]));
+        let msg_id2 = MessageID(H256::from([2u8; 32]));
+        let msg_id3 = MessageID(H256::from([255u8; 32]));
 
         let original_ids = vec![msg_id1, msg_id2, msg_id3];
         let message_ids = MessageIDs::new(original_ids.clone());
@@ -154,7 +154,7 @@ mod tests {
 
     #[test]
     fn test_single_message_id_bincode_serialization() {
-        let single_id = vec![H256::from([42u8; 32])];
+        let single_id = vec![MessageID(H256::from([42u8; 32]))];
         let message_ids = MessageIDs::new(single_id.clone());
 
         // Serialize single item to bytes
@@ -167,7 +167,7 @@ mod tests {
             .expect("Failed to deserialize single MessageID from bytes");
 
         assert_eq!(deserialized_message_ids.0.len(), 1);
-        assert_eq!(deserialized_message_ids.0[0], H256::from([42u8; 32]));
+        assert_eq!(deserialized_message_ids.0[0], MessageID(H256::from([42u8; 32])));
         assert_eq!(deserialized_message_ids.0, single_id);
     }
 
@@ -175,9 +175,9 @@ mod tests {
     fn test_bincode_vs_serde_value_consistency() {
         // Test that both serialization methods work consistently
         let msg_ids = vec![
-            H256::from([10u8; 32]),
-            H256::from([20u8; 32]),
-            H256::from([30u8; 32]),
+            MessageID(H256::from([10u8; 32])),
+            MessageID(H256::from([20u8; 32])),
+            MessageID(H256::from([30u8; 32])),
         ];
 
         let message_ids_1 = MessageIDs::new(msg_ids.clone());
@@ -205,7 +205,10 @@ mod tests {
     #[test]
     fn test_bincode_serialization_deterministic() {
         // Test that serialization is deterministic (same input -> same output)
-        let msg_ids = vec![H256::from([123u8; 32]), H256::from([234u8; 32])];
+        let msg_ids = vec![
+            MessageID(H256::from([123u8; 32])),
+            MessageID(H256::from([234u8; 32])),
+        ];
 
         let message_ids_1 = MessageIDs::new(msg_ids.clone());
         let message_ids_2 = MessageIDs::new(msg_ids);

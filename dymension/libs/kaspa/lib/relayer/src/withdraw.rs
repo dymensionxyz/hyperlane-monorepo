@@ -6,7 +6,7 @@ use kaspa_addresses::Address;
 use kaspa_consensus_core::hashing::sighash_type::{
     SigHashType, SIG_HASH_ALL, SIG_HASH_ANY_ONE_CAN_PAY,
 };
-use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint, UtxoEntry};
+use kaspa_consensus_core::tx::{ScriptPublicKey, Transaction, TransactionOutpoint, UtxoEntry};
 use kaspa_core::info;
 use kaspa_wallet_core::error::Error;
 use kaspa_wallet_core::utxo::UtxoIterator;
