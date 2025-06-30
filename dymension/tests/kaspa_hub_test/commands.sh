@@ -43,13 +43,18 @@ dymd tx kas bootstrap \
 
 ##### TODO: scratch below
 
+## start wprc node
+
+cargo run --release --bin kaspad -- -C /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/libs/kaspa/demo-multisig/kaspad.toml
+
 ## Running validator
 
 AGENT_TMP=/Users/danwt/Documents/dym/aaa-dym-notes/all_tasks/tasks/202505_feat_kaspa/practical/e2e/tmp
 trash $AGENT_TMP/dbs
 mkdir $AGENT_TMP/dbs
 DB_RELAYER=$AGENT_TMP/dbs/hyperlane_db_relayer
-DB_VALIDATOR=$AGENT_TMP/dbs/hyperlane_db_validator
+DB_VALIDATOR_1=$AGENT_TMP/dbs/hyperlane_db_validator_1
+DB_VALIDATOR_2=$AGENT_TMP/dbs/hyperlane_db_validator_2
 
 export VALIDATOR_SIGNATURES_DIR=$AGENT_TMP/signatures
 
