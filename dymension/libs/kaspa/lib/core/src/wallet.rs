@@ -104,6 +104,10 @@ impl EasyKaspaWallet {
         self.wallet.rpc_api()
     }
 
+    pub fn wrpc_client(&self) -> Arc<KaspaRpcClient> {
+        self.wallet.wrpc_client()
+    }
+
     pub fn account(&self) -> Arc<dyn Account> {
         self.wallet.account().unwrap()
     }

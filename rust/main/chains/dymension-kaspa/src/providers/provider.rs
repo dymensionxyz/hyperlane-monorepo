@@ -1,7 +1,9 @@
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
 use dym_kas_relayer::PublicKey;
+use kaspa_wrpc_client::KaspaRpcClient;
 
 use core::default;
+use std::sync::Arc;
 use eyre::Result as EyreResult;
 use futures::stream::{self, StreamExt, TryStreamExt};
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
@@ -106,6 +108,10 @@ impl KaspaProvider {
     /// dococo
     pub fn hub_rpc(&self) -> &CosmosGrpcClient {
         &self.cosmos_rpc
+    }
+
+    pub fn wallet(&self) -> &EasyKaspaWallet {
+        &self.easy_wallet
     }
 
     /// dococo
