@@ -3,6 +3,7 @@ pub mod deposit;
 pub mod hub_to_kaspa;
 pub mod withdraw;
 pub mod withdraw_construction;
+pub mod confirmation_test;
 
 // Re-export the main function for easier access
 pub use hub_to_kaspa::build_withdrawal_pskts;
@@ -183,4 +184,17 @@ mod tests {
         let result: StdResult<DepositFXG, eyre::Error> = handle_new_deposit(tx.to_string()).await;
         assert!(result.is_err(), "result should fail");
     }
+}
+
+pub async fn handle_new_deposits(
+    transaction_ids: Vec<String>,
+) -> Result<Vec<DepositFXG>, Box<dyn Error>> {
+    let mut txs = Vec::new();
+
+    for transaction in transaction_ids {
+        let tx = handle_new_deposit(transaction).await?;
+        txs.push(tx);
+    }
+
+    Ok(txs)
 }
