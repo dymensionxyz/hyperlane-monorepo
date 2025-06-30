@@ -1,7 +1,7 @@
 use anyhow::Result;
 use corelib::escrow::EscrowPublic;
 use corelib::consts::KEY_MESSAGE_IDS;
-use corelib::payload::MessageIDs;
+use corelib::payload::{MessageID, MessageIDs};
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
@@ -271,9 +271,9 @@ async fn internal_build_withdrawal_pskt(
     //     PSKT     //
     //////////////////
 
-    let msg_ids_raw = MessageIDs::new(msg_ids)
-        .into_value()
-        .map_err(|e| anyhow::anyhow!("Serialize message IDs: {}", e))?;
+    let msg_ids_raw = MessageIDs::new(msg_ids.into_iter().map(MessageID).collect::<Vec<MessageID>>())
+    .into_value()
+    .map_err(|e| anyhow::anyhow!("Serialize message IDs: {}", e))?;
 
     // Save msg_ids_raw in the proprietaries for later retrieval by validators
     let global = GlobalBuilder::default()
