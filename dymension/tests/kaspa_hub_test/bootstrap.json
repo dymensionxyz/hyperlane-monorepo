@@ -2,11 +2,11 @@
     "messages": [
         {
             "@type": "/dymensionxyz.dymension.kas.MsgBootstrap",
-            "authority": "dym10d07y265gmmuvt4z0w9aw880jnsr700j6zn9kn",
-            "mailbox": "0xMAILBOX_HEX_ADDRESS",
-            "ism": "0xISM_HEX_ADDRESS",
+            "authority": "gov",
+            "mailbox": "0x68797065726c616e650000000000000000000000000000000000000000000000",
+            "ism": "0x726f757465725f69736d00000000000000000000000000ff0000000000000000",
             "outpoint": {
-                "transaction_id": "BASE64_ENCODED_KASPA_TX_ID",
+                "transactionId": "5e1cf6784e7af1808674a252eb417d8fa003135190dd4147caf98d8463a7e73a",
                 "index": 0
             }
         }

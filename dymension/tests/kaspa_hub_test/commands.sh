@@ -83,19 +83,14 @@ cargo build --release --bin validator
 
 ISM=$(hub q hyperlane ism isms -o json | jq -r '.isms[0].id')
 MAILBOX=$(hub q hyperlane mailboxes -o json | jq -r '.mailboxes[0].id')
+curl -X 'GET' \
+  'https://api-tn10.kaspa.org/addresses/kaspatest%3Apzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr/utxos' \
+  -H 'accept: application/json'
+ESCROW_ADDR=kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr
+curl -X 'GET' 'https://api-tn10.kaspa.org/addresses/kaspatest%3Apzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr/utxos' -H 'accept: application/json' | jq '.[0].outpoint' 
 
 dymd tx gov submit-proposal /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/tests/kaspa_hub_test/bootstrap.json \
-  "${HUB_FLAGS[@]}" \ 
-  -y
-
-
-dymd tx kas bootstrap \
-  --mailbox "$MAILBOX" \
-  --ism "$ISM" \
-  --outpoint '{"transaction_id": "EiIzRFVmd4iZqrvM3e7/ABEjM0RWZ3iJmqu8zd7v/AA=", "index": 0}' \
-  --from my-validator-key \
-  --chain-id dymension_1100-1 \
-  -y
+  "${HUB_FLAGS[@]}"
 
 #### 5. SETUP RELAYER 
 
