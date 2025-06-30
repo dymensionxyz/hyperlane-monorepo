@@ -2604,6 +2604,7 @@ dependencies = [
  "reqwest-ratelimit",
  "secp256k1 0.29.1",
  "serde",
+ "serde-value",
  "serde_json",
  "tokio",
  "tracing",
@@ -3793,6 +3794,7 @@ dependencies = [
  "kaspa-wallet-pskt",
  "kaspa-wrpc-client",
  "once_cell",
+ "openapi",
  "pin-project",
  "protobuf",
  "relayer 0.2.0",
@@ -6376,9 +6378,12 @@ dependencies = [
  "hyperlane-starknet",
  "hyperlane-test",
  "itertools 0.13.0",
+ "kaspa-consensus-core",
+ "kaspa-hashes",
  "maplit",
  "mockall",
  "moka",
+ "openapi",
  "paste",
  "prometheus",
  "relayer 0.2.0",
@@ -6502,7 +6507,7 @@ dependencies = [
 [[package]]
 name = "hyperlane-cosmos-dymension-rs"
 version = "0.1.4-dymension-v3.2.1"
-source = "git+https://github.com/srene/hyperlane-cosmos-rs?rev=0a64221#0a64221f15c8e10fec0268f0b9ab3ae57b23ec9a"
+source = "git+https://github.com/dymensionxyz/hyperlane-cosmos-rs?branch=main#fd1c0d3f4ece3fe1a805f0449ec20838a0dc3bf1"
 dependencies = [
  "cosmrs",
  "prost 0.13.4",
@@ -10824,6 +10829,7 @@ dependencies = [
  "log",
  "openapi",
  "prost 0.13.4",
+ "rand 0.8.5",
  "reqwest 0.12.15",
  "reqwest-middleware",
  "secp256k1 0.29.1",
