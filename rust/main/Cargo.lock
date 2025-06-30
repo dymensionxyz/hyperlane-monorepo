@@ -2580,6 +2580,7 @@ dependencies = [
 name = "core"
 version = "0.2.0"
 dependencies = [
+ "anyhow",
  "bincode",
  "bytes",
  "clap 4.5.40",
@@ -2587,6 +2588,7 @@ dependencies = [
  "governor",
  "hyperlane-core",
  "hyperlane-cosmos-dymension-rs",
+ "hyperlane-warp-route",
  "kaspa-addresses",
  "kaspa-consensus-core",
  "kaspa-core",
