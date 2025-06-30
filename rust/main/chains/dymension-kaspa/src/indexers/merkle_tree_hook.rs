@@ -22,7 +22,7 @@ pub struct KaspaMerkle {
 
 impl KaspaMerkle {
     /// New
-    pub fn new(provider: KaspaProvider, locator: &ContractLocator) -> ChainResult<Self> {
+    pub fn new(provider: KaspaProvider, locator: ContractLocator) -> ChainResult<Self> {
         Ok(Self {
             provider,
             address: locator.address,
