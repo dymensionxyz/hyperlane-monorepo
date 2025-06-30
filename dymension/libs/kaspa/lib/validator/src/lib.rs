@@ -3,7 +3,8 @@ pub mod deposit;
 pub mod withdraw;
 pub mod withdrawal;
 
-use kaspa_wrpc_client::KaspaRpcClient;
+use kaspa_wallet_core::utxo::NetworkParams;
+use kaspa_wrpc_client::{prelude::NetworkId, KaspaRpcClient};
 pub use secp256k1::Keypair as KaspaSecpKeypair;
 
 use core::{is_utxo_escrow_address, parse_hyperlane_metadata};
@@ -11,9 +12,23 @@ use std::error::Error;
 use std::str::FromStr;
 
 use core::deposit::DepositFXG;
-use kaspa_rpc_core::{api::rpc::RpcApi, RpcHash};
+use kaspa_rpc_core::{api::rpc::RpcApi, RpcBlock, RpcHash, RpcTransactionOutput};
 
 use hyperlane_core::U256;
+
+async fn validate_maturity(client: &KaspaRpcClient, block: &RpcBlock) -> Result<bool, Box<dyn Error>>  {
+    let network = client.get_current_network().await?; 
+    let network_id = NetworkId::new(network);
+    let params = NetworkParams::from(network_id);
+
+    let dag_info = client.get_block_dag_info().await?; 
+    if block.header.daa_score + params.user_transaction_maturity_period_daa() > dag_info.virtual_daa_score {
+        return Ok(true)
+    } 
+    
+    Ok(false)
+    
+}
 
 pub async fn validate_deposit(client: &KaspaRpcClient, deposit: DepositFXG) -> Result<bool, Box<dyn Error>> {
     
@@ -21,10 +36,10 @@ pub async fn validate_deposit(client: &KaspaRpcClient, deposit: DepositFXG) -> R
     let tx_hash = RpcHash::from_str(&deposit.tx_id)?;
 
     // get block from rpc
-    let block = client.get_block(block_hash, true).await?;
+    let block: RpcBlock = client.get_block(block_hash, true).await?;
 
     // find tx in block
-    let tx_index = block.verbose_data
+    let tx_index = block.verbose_data.as_ref()
         .ok_or("block data not found")?
         .transaction_ids
         .iter()
@@ -33,7 +48,7 @@ pub async fn validate_deposit(client: &KaspaRpcClient, deposit: DepositFXG) -> R
 
     println!("tx index {}",tx_index);
     // get utxo in the tx from index in deposit.
-    let utxo: &kaspa_rpc_core::RpcTransactionOutput = block.transactions[tx_index]
+    let utxo: &RpcTransactionOutput = block.transactions[tx_index]
         .outputs
         .get(deposit.utxo_index)
         .ok_or("utxo not found by index")?;
@@ -51,7 +66,10 @@ pub async fn validate_deposit(client: &KaspaRpcClient, deposit: DepositFXG) -> R
         return Ok(false);
     }
 
-    //TODO: validate tx maturity.
+    if !validate_maturity(client, &block).await? {
+        return Ok(false);
+    }
+
     Ok(true)
 }
 
