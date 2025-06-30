@@ -174,18 +174,20 @@ where
             .get_utxos_by_addresses(vec![escrow_address])
             .await?;
 
-        // check if the anchor utxo is in the utxos
+        // check if the anchor utxo is in the utxos.
+        // if it found, it's means we're synced.
         let is_synced = utxos.iter().any(|utxo| {
             utxo.outpoint.transaction_id == anchor_utxo.transaction_id
                 && utxo.outpoint.index == anchor_utxo.index
         });
         if !is_synced {
             info!("System is not synced, preparing progress indication and submitting to hub");
-            self.run_sync_flow(anchor_utxo).await?;
-        } else {
-            info!("System is synced, proceeding with other tasks");
-            return Ok(());
-        }
+            
+            // fixme: get the next escrow utxo
+            let next_utxo = anchor_utxo.clone();
+            self.run_sync_flow(anchor_utxo, next_utxo).await?;
+        } 
+        info!("System is synced, proceeding with other tasks");
         Ok(())
     }
 
@@ -203,16 +205,9 @@ where
     // https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/keeper/msg_server.go#L42-L48
     // https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/types/d.go#L76-L84
     */
-    async fn run_sync_flow(&self, anchor_utxo: TransactionOutpoint) -> Result<()> {
-        // FIXME: get latest UTXO from kaspa
-        let new_utxo = TransactionOutpoint {
-            transaction_id: TransactionId::from_bytes([1u8; 32]),
-            index: 0,
-        };
-
-        let conf = Configuration::default();
-
+    async fn run_sync_flow(&self, anchor_utxo: TransactionOutpoint, new_utxo: TransactionOutpoint) -> Result<()> {
         // Prepare progress indication
+        let conf = self.provider.rest().get_config();
         let fxg = prepare_progress_indication(&conf, anchor_utxo, new_utxo).await?;
 
         let progress_indication = &fxg.progress_indication;

@@ -184,7 +184,7 @@ pub fn get_previous_utxo_in_lineage(
     transaction: &TxModel,
     lineage_address: &str,
     anchor_utxo: TransactionOutpoint,
-) -> Result<Option<TransactionOutpoint>, Error> {
+) -> Result<Option<TransactionOutpoint>> {
     let inputs = transaction.inputs.as_ref().ok_or(Error::Custom("Inputs not found".to_string()))?;
     // check if we reached the anchor transaction_id
     for input in inputs {
@@ -223,7 +223,5 @@ pub fn get_previous_utxo_in_lineage(
         }
     }
 
-    let error_msg = "No next UTXO found in transaction".to_string();
-    println!("Error: {}", error_msg);
-    return Err(Error::Custom(error_msg));
+    Err(anyhow::anyhow!("No previous UTXO found in transaction"))
 }

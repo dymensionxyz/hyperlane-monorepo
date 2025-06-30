@@ -3740,6 +3740,7 @@ dependencies = [
  "kaspa-wallet-pskt",
  "kaspa-wrpc-client",
  "once_cell",
+ "openapi",
  "pin-project",
  "protobuf",
  "relayer 0.2.0",
