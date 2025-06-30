@@ -30,6 +30,9 @@ dymd q kas setup-bridge --validators "$CLI_VALS" --threshold "$CLI_THRESHOLD" --
 
 #### 2. SETUP VALIDATOR
 
+
+# in libs/kaspa/demo/validator cargo run
+# THES VALUES MUST CORRESPOND WITH agent-config.json, AND the CLI commands below
 #   "validator_ism_addr": "\"0xc09dddbd26fb6dcea996ba643e8c2685c03cad5a7\"",
 #   "validator_ism_priv_key": "c02e29cb65e55b3af3d8dee5d7a30504ed927436caf2e53e1e965cbd2639aced",
 #   "validator_escrow_secret": "\"11013bc86d1cb199a2324130c808e90ad37d07ae8f490d063b2fb9d9aa2e898f\"",
@@ -56,25 +59,7 @@ cargo build --release --bin validator
   --reorgPeriod 1 \
   --checkpointSyncer.type localStorage \
   --checkpointSyncer.path $SIGS_VAL \
-  --validator.key 0xc02e29cb65e55b3af3d8dee5d7a30504ed927436caf2e53e1e965cbd2639aced \
-  --chains.dymension.signer.type cosmosKey \
-  --chains.dymension.signer.prefix dym \
-  --chains.dymension.signer.key $HYP_KEY \
-  --metrics-port 9090 \
-  --log.level info 
-
-cargo build --release --bin relayer
-
-./target/release/relayer \
-    --db $DB_RELAYER \
-    --relayChains anvil0,dymension \
-    --allowLocalCheckpointSyncers true \
-    --defaultSigner.key $HYP_KEY \
-    --chains.dymension.signer.type cosmosKey \
-    --chains.dymension.signer.prefix dym \
-    --chains.dymension.signer.key $HYP_KEY \
-    --metrics-port 9091 \
-    --log.level debug 
+  --validator.key 
 
 #### DEBUG TIPS 
 

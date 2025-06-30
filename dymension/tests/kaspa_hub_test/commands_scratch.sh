@@ -52,3 +52,17 @@ dymd tx bank send hub-user $RELAYER_ADDR 1000000000000000000000adym "${HUB_FLAGS
 
 # dymd q hyperlane ism announced-storage-locations <ism> <validator>
 dymd q hyperlane ism announced-storage-locations 0x726f757465725f69736d00000000000000000000000000ff0000000000000000 0xc09dddbd26fb6dcea996ba643e8c2685c03cad57
+
+
+cargo build --release --bin relayer
+
+./target/release/relayer \
+    --db $DB_RELAYER \
+    --relayChains anvil0,dymension \
+    --allowLocalCheckpointSyncers true \
+    --defaultSigner.key $HYP_KEY \
+    --chains.dymension.signer.type cosmosKey \
+    --chains.dymension.signer.prefix dym \
+    --chains.dymension.signer.key $HYP_KEY \
+    --metrics-port 9091 \
+    --log.level debug 
