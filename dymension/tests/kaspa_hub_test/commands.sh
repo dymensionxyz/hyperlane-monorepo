@@ -72,19 +72,21 @@ export CONFIG_FILES=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/do
 #   "multisig_escrow_addr": "kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr"
 # }
 
-# ./target/release/validator \
+cargo build --release --bin validator
 
-cargo run --release --bin validator -- \
+# cargo run --release --bin validator -- \
+./target/release/validator \
   --db $DB_VALIDATOR \
   --originChainName kaspatest10 \
   --reorgPeriod 1 \
   --checkpointSyncer.type localStorage \
   --checkpointSyncer.path $SIGS_VAL \
-  --validator.key c02e29cb65e55b3af3d8dee5d7a30504ed927436caf2e53e1e965cbd2639aced \
+  --validator.key 0xc02e29cb65e55b3af3d8dee5d7a30504ed927436caf2e53e1e965cbd2639aced \
   --metrics-port 9090 \
   --log.level debug  
 
- ./target/release/relayer \
+#  ./target/release/relayer \
+ cargo run --release --bin relayer -- \
     --db $DB_RELAYER \
     --relayChains anvil0,dymension \
     --allowLocalCheckpointSyncers true \
