@@ -53,10 +53,12 @@ AGENT_TMP=/Users/danwt/Documents/dym/aaa-dym-notes/all_tasks/tasks/202505_feat_k
 trash $AGENT_TMP/dbs
 mkdir $AGENT_TMP/dbs
 DB_RELAYER=$AGENT_TMP/dbs/hyperlane_db_relayer
-DB_VALIDATOR_1=$AGENT_TMP/dbs/hyperlane_db_validator_1
-DB_VALIDATOR_2=$AGENT_TMP/dbs/hyperlane_db_validator_2
+DB_VALIDATOR=$AGENT_TMP/dbs/hyperlane_db_validator
+# DB_VALIDATOR_2=$AGENT_TMP/dbs/hyperlane_db_validator_2
 
-export VALIDATOR_SIGNATURES_DIR=$AGENT_TMP/signatures
+export VALIDATOR_SIGNATURES_DIR=$AGENT_TMP/signatures # official name
+
+export SIGS_VAL=$AGENT_TMP/signatures
 export CONFIG_FILES=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/docs/kaspa/relayer/example/config/agent-config.json
 
 # set AWS environment variables
@@ -70,12 +72,14 @@ export CONFIG_FILES=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/do
 #   "multisig_escrow_addr": "kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr"
 # }
 
-./target/release/validator \
+# ./target/release/validator \
+
+cargo run --release --bin validator -- \
   --db $DB_VALIDATOR \
   --originChainName kaspatest10 \
   --reorgPeriod 1 \
   --checkpointSyncer.type localStorage \
-  --checkpointSyncer.path $VALIDATOR_SIGNATURES_DIR \
+  --checkpointSyncer.path $SIGS_VAL \
   --validator.key c02e29cb65e55b3af3d8dee5d7a30504ed927436caf2e53e1e965cbd2639aced \
   --metrics-port 9090 \
   --log.level debug  
