@@ -1,6 +1,7 @@
 ## NOTES
 
-- [ ] Make a validator escrow
+- [ ] Launch validator and relayer
+- [ ] Create ISM
 
 ## INSTRUCTIONS
 
@@ -16,7 +17,7 @@ export HYP_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff
 
 CLI_VALS="0x9695e09597f3111b183700e06d6f1a7d50ea1aee" # has (hex) key c18908a1bbe0ec588cd6522d2b02af3076a2f2c562a09bb8bf5a40f6e9a0ef1b
 CLI_THRESHOLD="1"
-CLI_REMOTE_ROUTER_ADDRESS="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+CLI_REMOTE_ROUTER_ADDRESS="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" # arbitrary
 dymd q kas setup-bridge --validators "$CLI_VALS" --threshold "$CLI_THRESHOLD" --remote-router-address "$CLI_REMOTE_ROUTER_ADDRESS" "${HUB_FLAGS[@]}"
 
 # needed?
@@ -38,3 +39,28 @@ dymd tx kas bootstrap \
   --from my-validator-key \
   --chain-id dymension_1100-1 \
   -y
+
+
+##### TODO: scratch below
+
+## Running validator
+
+docker run \
+  -it \
+  -e AWS_ACCESS_KEY_ID=ABCDEFGHIJKLMNOP \
+  -e AWS_SECRET_ACCESS_KEY=xX-haha-nice-try-Xx \
+  --mount ... \
+  gcr.io/abacus-labs-dev/hyperlane-agent:agents-v1.4.0 \
+  ./validator \
+  --db /hyperlane_db \
+  --originChainName <your_chain_name> \
+  --reorgPeriod 1 \
+  --validator.region us-east-1 \
+  --checkpointSyncer.region us-east-1 \
+  --validator.type aws \
+  --chains.<your_chain_name>.signer.type aws \
+  --validator.id alias/hyperlane-validator-signer-<your_chain_name> \
+  --chains.<your_chain_name>.signer.id alias/hyperlane-validator-signer-<your_chain_name> \
+  --checkpointSyncer.type s3 \
+  --checkpointSyncer.bucket hyperlane-validator-signatures-<your_name> \
+  --checkpointSyncer.folder <your_chain_name> \
