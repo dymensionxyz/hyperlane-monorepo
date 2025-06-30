@@ -1,5 +1,9 @@
 use anyhow::Result;
+use bytes::Bytes;
 use corelib::escrow::EscrowPublic;
+use corelib::payload::MessageIDs;
+use corelib::wallet::NetworkInfo;
+use corelib::withdraw::WithdrawFXG;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
@@ -29,7 +33,6 @@ use kaspa_wallet_pskt::prelude::{Signer, PSKT};
 use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::sync::Arc;
-use corelib::wallet::NetworkInfo;
 
 /// Details of a withdrawal extracted from HyperlaneMessage
 #[derive(Debug, Clone)]
@@ -126,8 +129,8 @@ pub async fn build_withdrawal_pskts(
         &outpoint,
         network_info.network_id,
     )
-        .await
-        .map(Some)
+    .await
+    .map(Some)
 }
 
 async fn internal_build_withdrawal_pskt(
@@ -162,7 +165,7 @@ async fn internal_build_withdrawal_pskt(
         kaspa_rpc,
         network_id,
     )
-        .await?;
+    .await?;
 
     //////////////////
     //   Balances   //
@@ -541,5 +544,108 @@ mod tests {
 
         assert_eq!(true, kaspa_addresses::Address::validate(output.as_str()));
         assert_eq!(input, output.as_str());
+    }
+
+    /// Verify that after creating PSKT with a custom global field, these fields remain presented
+    /// after serialization and deserialization.
+    #[test]
+    fn test_pskt_global_proprietaries_persistence() {
+        // Step 1: Create a new Global with custom proprietaries
+        let test_msg_ids = vec![
+            H256::from([1u8; 32]),
+            H256::from([2u8; 32]),
+            H256::from([3u8; 32]),
+        ];
+
+        let message_ids = MessageIDs::new(test_msg_ids.clone());
+        let msg_ids_value = message_ids
+            .into_value()
+            .expect("Failed to serialize test MessageIDs");
+
+        let test_proprietaries = BTreeMap::from([(
+            corelib::consts::KEY_MESSAGE_IDS.to_string(),
+            msg_ids_value.clone(),
+        )]);
+
+        let global = GlobalBuilder::default()
+            .proprietaries(test_proprietaries.clone())
+            .build()
+            .expect("Failed to build Global");
+
+        // Step 2: Create Inner with our custom Global
+        let mut inner: Inner = Default::default();
+        inner.global = global;
+
+        // Step 3: Create PSKT::Creator, convert to constructor, then to signer
+        let pskt_creator = PSKT::<Creator>::from(inner);
+        let pskt_constructor = pskt_creator.constructor();
+        let pskt_signer = pskt_constructor.no_more_inputs().no_more_outputs().signer();
+
+        // Verify the proprietaries exist in the signer PSKT
+        assert!(pskt_signer
+            .global
+            .proprietaries
+            .contains_key(corelib::consts::KEY_MESSAGE_IDS));
+
+        // Step 4: Create WithdrawFXG using Bundle::from(pskt)
+        let bundle = Bundle::from(pskt_signer);
+        let withdraw_fxg = WithdrawFXG::new(bundle);
+
+        // Step 5: Convert WithdrawFXG to Bytes
+        let serialized_bytes =
+            Bytes::try_from(&withdraw_fxg).expect("Failed to serialize WithdrawFXG to Bytes");
+
+        // === DESERIALIZATION PROCESS STARTS ===
+
+        // Step 6: Convert Bytes back to WithdrawFXG
+        let deserialized_withdraw_fxg = WithdrawFXG::try_from(serialized_bytes)
+            .expect("Failed to deserialize WithdrawFXG from Bytes");
+
+        // Step 7: Convert WithdrawFXG to vector of Inner
+        let inners: Vec<Inner> = deserialized_withdraw_fxg.bundle.iter().cloned().collect();
+
+        // Step 8: Create PSKT::Combiner from all Inners and convert to Signer
+        // For this test, we only have one Inner, but the process should work for multiple
+        assert!(!inners.is_empty(), "Should have at least one Inner");
+
+        let first_pskt = PSKT::<Signer>::from(inners[0].clone());
+
+        // If there were multiple Inners, we would combine them here
+        let mut combiner = first_pskt.combiner();
+        for inner in inners.iter().skip(1) {
+            let pskt_signer = PSKT::<Signer>::from(inner.clone());
+            combiner = (combiner + pskt_signer).expect("Failed to combine PSKTs");
+        }
+
+        let final_pskt = combiner.signer();
+
+        // Step 9: Verify the expected values exist and are the same
+        let recovered_proprietaries = &final_pskt.global.proprietaries;
+
+        // Check that our message IDs are still there
+        assert!(
+            recovered_proprietaries.contains_key(corelib::consts::KEY_MESSAGE_IDS),
+            "MessageIDs key should be present after serialization/deserialization"
+        );
+
+        // Verify the MessageIDs value is the same
+        let recovered_msg_ids_value = recovered_proprietaries
+            .get(corelib::consts::KEY_MESSAGE_IDS)
+            .expect("MessageIDs should be present");
+
+        let recovered_message_ids = MessageIDs::from_value(recovered_msg_ids_value.clone())
+            .expect("Failed to deserialize recovered MessageIDs");
+
+        assert_eq!(
+            recovered_message_ids.0, test_msg_ids,
+            "MessageIDs should be identical after round-trip"
+        );
+
+        // Verify that the original and recovered proprietaries are equivalent
+        assert_eq!(
+            recovered_proprietaries.len(),
+            test_proprietaries.len(),
+            "Number of proprietaries should be preserved"
+        );
     }
 }
