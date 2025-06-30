@@ -60,7 +60,7 @@ impl MerkleTreeHook for KaspaMerkle {
 
     /// Gets the current leaf count of the merkle tree
     async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
-        Err(ChainCommunicationError::from_other_str("not implemented"))
+        Ok(0)
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]

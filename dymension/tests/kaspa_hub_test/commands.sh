@@ -67,7 +67,7 @@ export CONFIG_FILES=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/do
 # export AWS_ACCESS_KEY_ID=ABCDEFGHIJKLMNOP
 # export AWS_SECRET_ACCESS_KEY=xX-haha-nice-try-Xx
 # {
-#   "validator_ism_addr": "\"0xc09dddbd26fb6dcea996ba643e8c2685c03cad57\"",
+#   "validator_ism_addr": "\"0xc09dddbd26fb6dcea996ba643e8c2685c03cad5a7\"",
 #   "validator_ism_priv_key": "c02e29cb65e55b3af3d8dee5d7a30504ed927436caf2e53e1e965cbd2639aced",
 #   "validator_escrow_secret": "\"11013bc86d1cb199a2324130c808e90ad37d07ae8f490d063b2fb9d9aa2e898f\"",
 #   "validator_escrow_pub_key": "02b1c7b586c8a0387a3c844f6a5471130bb7992346d3e906642cfd5dfce8a8129d",
@@ -90,7 +90,7 @@ cargo build --release --bin validator
   --chains.dymension.signer.prefix dym \
   --chains.dymension.signer.key $HYP_KEY \
   --metrics-port 9090 \
-  --log.level debug
+  --log.level info 
 
 #  ./target/release/relayer \
  cargo run --release --bin relayer -- \
@@ -104,6 +104,11 @@ cargo build --release --bin validator
     --metrics-port 9091 \
     --log.level debug 
 
+## debug
+
+# dymd q hyperlane ism announced-storage-locations <ism> <validator>
+dymd q hyperlane ism announced-storage-locations 0x726f757465725f69736d00000000000000000000000000ff0000000000000000 0xc09dddbd26fb6dcea996ba643e8c2685c03cad57
+curl -X POST -H "Content-Type: application/json" -d '{}' http://localhost:9090/kaspa-ping
 
 # gpt etc below
 # run the Validator

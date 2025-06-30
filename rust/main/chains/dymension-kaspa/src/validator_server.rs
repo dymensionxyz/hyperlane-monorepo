@@ -7,6 +7,7 @@ use axum::{
     routing::post,
     Router,
 };
+use tracing::warn;
 use dym_kas_core::deposit::DepositFXG;
 use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use dym_kas_validator::withdraw::sign_pskt;
@@ -62,6 +63,7 @@ pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(
             post(respond_validate_confirmed_withdrawals::<S>),
         )
         .route(ROUTE_SIGN_PSKTS, post(respond_sign_pskts::<S>))
+        .route("/kaspa-ping", post(respond_kaspa_ping::<S>))
         .with_state(Arc::new(resources))
 }
 
@@ -228,4 +230,13 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
         .map_err(|e: serde_json::Error| AppError(e.into()))?;
 
     Ok(Json(j))
+}
+
+
+async fn respond_kaspa_ping<S: HyperlaneSignerExt + Send + Sync + 'static>(
+    State(resources): State<Arc<ValidatorServerResources<S>>>,
+    _body: Bytes,
+) -> HandlerResult<Json<String>> {
+    warn!("VALIDATOR SERVER, GOT KASPA PING");
+    Ok(Json("pong".to_string()))
 }
