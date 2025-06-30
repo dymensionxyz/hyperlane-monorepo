@@ -28,6 +28,11 @@ cargo run
 #   "validator_escrow_pub_key": "02b1c7b586c8a0387a3c844f6a5471130bb7992346d3e906642cfd5dfce8a8129d",
 #   "multisig_escrow_addr": "kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr"
 
+# in rusty-kaspa/wallet/native
+cargo run
+# TODO: finish cli instructions
+# seed escrow with a few kas
+
 #### 1. Setup HUB
 
 # clean slate
@@ -78,6 +83,10 @@ cargo build --release --bin validator
 
 ISM=$(hub q hyperlane ism isms -o json | jq -r '.isms[0].id')
 MAILBOX=$(hub q hyperlane mailboxes -o json | jq -r '.mailboxes[0].id')
+
+dymd tx gov submit-proposal /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/tests/kaspa_hub_test/bootstrap.json \
+  "${HUB_FLAGS[@]}" \ 
+  -y
 
 
 dymd tx kas bootstrap \

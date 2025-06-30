@@ -1,13 +1,14 @@
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
 use dym_kas_relayer::PublicKey;
 
-use std::sync::Arc;
 use eyre::Result as EyreResult;
 use kaspa_addresses::Address;
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
 use kaspa_wallet_pskt::prelude::*;
 use std::str::FromStr;
+use std::sync::Arc;
 use tonic::async_trait;
+use tracing::warn;
 use url::Url;
 
 use dym_kas_core::escrow::EscrowPublic;
@@ -16,15 +17,13 @@ use dym_kas_relayer::withdraw::{finalize_pskt, sign_pay_fee};
 use dym_kas_relayer::withdraw_construction::on_new_withdrawals;
 pub use dym_kas_validator::KaspaSecpKeypair;
 use hyperlane_core::{
-    BlockInfo, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError, KnownHyperlaneDomain, TxnInfo,
-    H256, H512, U256,
+    BlockInfo, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneMessage,
+    HyperlaneProvider, HyperlaneProviderError, KnownHyperlaneDomain, TxnInfo, H256, H512, U256,
 };
-use serde::{Deserialize, Serialize};
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
-use kaspa_wallet_pskt::prelude::Bundle;
 use kaspa_rpc_core::api::rpc::RpcApi;
-
+use kaspa_wallet_pskt::prelude::Bundle;
+use serde::{Deserialize, Serialize};
 
 use super::validators::ValidatorsClient;
 use super::RestProvider;
@@ -182,8 +181,8 @@ impl KaspaProvider {
         )
     }
 
-      /// get escrow address
-      pub fn escrow_address(&self) -> Address {
+    /// get escrow address
+    pub fn escrow_address(&self) -> Address {
         self.escrow().addr
     }
 }

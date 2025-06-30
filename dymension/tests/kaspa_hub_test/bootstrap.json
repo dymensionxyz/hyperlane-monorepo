@@ -1,0 +1,18 @@
+{
+    "messages": [
+        {
+            "@type": "/dymensionxyz.dymension.kas.MsgBootstrap",
+            "authority": "dym10d07y265gmmuvt4z0w9aw880jnsr700j6zn9kn",
+            "mailbox": "0xMAILBOX_HEX_ADDRESS",
+            "ism": "0xISM_HEX_ADDRESS",
+            "outpoint": {
+                "transaction_id": "BASE64_ENCODED_KASPA_TX_ID",
+                "index": 0
+            }
+        }
+    ],
+    "title": "Bootstrap KAS Module",
+    "summary": "This proposal initializes the Kaspa-Dymension bridge (KAS) module with its core components, enabling cross-chain operations.",
+    "metadata": "ipfs://CID",
+    "deposit": "20000000000adym"
+}
