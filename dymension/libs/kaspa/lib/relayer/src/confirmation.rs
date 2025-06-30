@@ -91,7 +91,7 @@ pub async fn prepare_progress_indication(
 ///
 /// # Returns
 /// * `Result<Vec<WithdrawalId>, Error>` - Vector of collected withdrawal IDs from the transactions
-async fn trace_transactions(
+pub async fn trace_transactions(
     config: &Configuration,
     new_utxo: TransactionOutpoint,
     anchor_utxo: TransactionOutpoint,

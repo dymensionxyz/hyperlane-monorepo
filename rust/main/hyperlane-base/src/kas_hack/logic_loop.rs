@@ -20,7 +20,7 @@ use hyperlane_cosmos_native::mailbox::CosmosNativeMailbox;
 
 // Add imports for sync methods
 use api_rs::apis::configuration::Configuration;
-use dym_kas_relayer::confirmation::prepare_progress_indication;
+use dym_kas_relayer::confirmation::{prepare_progress_indication, trace_transactions};
 use kaspa_consensus_core::tx::{TransactionId, TransactionOutpoint};
 
 pub struct Foo<C: MetadataConstructor> {
@@ -182,9 +182,19 @@ where
         });
         if !is_synced {
             info!("System is not synced, preparing progress indication and submitting to hub");
-            
-            // fixme: get the next escrow utxo
-            let next_utxo = anchor_utxo.clone();
+            // we need to iterate over the utxos and find the next utxo of the escrow address
+            let conf = self.provider.rest().get_config();
+
+            let mut next_utxo = None;
+            for utxo in utxos {
+                let utxo_to_test = TransactionOutpoint::from(utxo.outpoint);
+                let result = trace_transactions(&conf, utxo_to_test, anchor_utxo).await;
+                if result.is_ok() {
+                    next_utxo = Some(utxo_to_test);
+                    break;
+                }
+            }
+            let next_utxo = next_utxo.ok_or_else(|| anyhow::anyhow!("No suitable UTXO found"))?;
             self.run_sync_flow(anchor_utxo, next_utxo).await?;
         } 
         info!("System is synced, proceeding with other tasks");
@@ -210,7 +220,6 @@ where
         let conf = self.provider.rest().get_config();
         let fxg = prepare_progress_indication(&conf, anchor_utxo, new_utxo).await?;
 
-        let progress_indication = &fxg.progress_indication;
         let mut sigs = self
             .provider
             .validators()
@@ -223,7 +232,7 @@ where
         )?;
 
         self.hub_mailbox
-            .indicate_progress(&formatted_sigs, progress_indication)
+            .indicate_progress(&formatted_sigs, &fxg.progress_indication)
             .await
             .map(|_| ())
             .map_err(|e| anyhow::anyhow!("Indicate progress failed: {}", e))?;
