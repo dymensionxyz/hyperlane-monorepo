@@ -45,22 +45,59 @@ dymd tx kas bootstrap \
 
 ## Running validator
 
-docker run \
-  -it \
-  -e AWS_ACCESS_KEY_ID=ABCDEFGHIJKLMNOP \
-  -e AWS_SECRET_ACCESS_KEY=xX-haha-nice-try-Xx \
-  --mount ... \
-  gcr.io/abacus-labs-dev/hyperlane-agent:agents-v1.4.0 \
-  ./validator \
-  --db /hyperlane_db \
-  --originChainName <your_chain_name> \
+AGENT_TMP=/Users/danwt/Documents/dym/aaa-dym-notes/all_tasks/tasks/202505_feat_kaspa/practical/e2e/tmp
+trash $AGENT_TMP/dbs
+mkdir $AGENT_TMP/dbs
+DB_RELAYER=$AGENT_TMP/dbs/hyperlane_db_relayer
+DB_VALIDATOR=$AGENT_TMP/dbs/hyperlane_db_validator
+
+export VALIDATOR_SIGNATURES_DIR=$AGENT_TMP/signatures
+
+export CONFIG_FILES=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/docs/kaspa/relayer/example/config/agent-config.json
+
+# set AWS environment variables
+# export AWS_ACCESS_KEY_ID=ABCDEFGHIJKLMNOP
+# export AWS_SECRET_ACCESS_KEY=xX-haha-nice-try-Xx
+
+# run the Validator
+./target/release/validator \
+  --db $DB_VALIDATOR \
+  --originChainName dymension \
   --reorgPeriod 1 \
   --validator.region us-east-1 \
   --checkpointSyncer.region us-east-1 \
   --validator.type aws \
   --chains.<your_chain_name>.signer.type aws \
+  --chains.<your_chain_name>.signer.region<region_name> \
   --validator.id alias/hyperlane-validator-signer-<your_chain_name> \
   --chains.<your_chain_name>.signer.id alias/hyperlane-validator-signer-<your_chain_name> \
   --checkpointSyncer.type s3 \
-  --checkpointSyncer.bucket hyperlane-validator-signatures-<your_name> \
-  --checkpointSyncer.folder <your_chain_name> \
+  --checkpointSyncer.bucket hyperlane-validator-signatures-<your_chain_name>\
+
+ ./target/release/relayer \
+    --db $DB_RELAYER \
+    --relayChains anvil0,dymension \
+    --allowLocalCheckpointSyncers true \
+    --defaultSigner.key $HYP_KEY \
+    --metrics-port 9091 \
+    --chains.dymension.signer.type cosmosKey \
+    --chains.dymension.signer.prefix dym \
+    --chains.dymension.signer.key $HYP_KEY \
+    --log.level debug 
+
+
+# gpt below
+# run the Validator
+./target/release/validator \
+  --db $DB_VALIDATOR \
+  --originChainName dymension \
+  --reorgPeriod 1 \
+  --validator.region us-east-1 \
+  --checkpointSyncer.region us-east-1 \
+  --validator.type aws \
+  --chains.<your_chain_name>.signer.type aws \
+  --chains.<your_chain_name>.signer.region<region_name> \
+  --validator.id alias/hyperlane-validator-signer-<your_chain_name> \
+  --chains.<your_chain_name>.signer.id alias/hyperlane-validator-signer-<your_chain_name> \
+  --checkpointSyncer.type s3 \
+  --checkpointSyncer.bucket hyperlane-validator-signatures-<your_chain_name>\

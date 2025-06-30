@@ -360,6 +360,7 @@ pub fn build_kaspa_connection_conf(
         .map(|s| s.trim().to_string())
         .collect();
 
+    // TODO: can technically be derived from pub keys
     let escrow_address = chain
         .chain(err)
         .get_opt_key("escrowAddress")

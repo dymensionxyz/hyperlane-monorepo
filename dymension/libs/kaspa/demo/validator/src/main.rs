@@ -10,6 +10,7 @@ struct Validator {
     validator_ism_addr: String,
     validator_ism_priv_key: String,
     validator_escrow_secret: String,
+    validator_escrow_pub_key: String,
     multisig_escrow_addr: String,
 }
 
@@ -19,12 +20,14 @@ fn main() {
 
     let signer = get_ethereum_style_signer().unwrap();
 
-    let e = EscrowPublic::from_pubs(vec![kp.public_key()], Prefix::Testnet, 1);
+    let pub_key = kp.public_key();
+    let e = EscrowPublic::from_pubs(vec![pub_key], Prefix::Testnet, 1);
 
     let v = Validator {
         validator_escrow_secret: s,
         validator_ism_addr: signer.address,
         validator_ism_priv_key: signer.private_key,
+        validator_escrow_pub_key: pub_key.to_string(),
         multisig_escrow_addr: e.addr.to_string(),
     };
 
