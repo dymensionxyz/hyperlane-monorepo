@@ -14,6 +14,7 @@ source /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/tests/kaspa_hub
 dymd start --log_level=debug
 
 export HYP_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+              c02e29cb65e55b3af3d8dee5d7a30504ed927436caf2e53e1e965cbd2639aced
 
 CLI_VALS="0x9695e09597f3111b183700e06d6f1a7d50ea1aee" # has (hex) key c18908a1bbe0ec588cd6522d2b02af3076a2f2c562a09bb8bf5a40f6e9a0ef1b
 CLI_THRESHOLD="1"
@@ -44,8 +45,7 @@ dymd tx kas bootstrap \
 ##### TODO: scratch below
 
 ## start wprc node
-
-cargo run --release --bin kaspad -- -C /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/libs/kaspa/demo-multisig/kaspad.toml
+# https://github.com/dymensionxyz/hyperlane-monorepo/blob/ad21e8a6554999033b39949cb80c13c208bc3581/dymension/libs/kaspa/demo/multisig/README.md#L32
 
 ## Running validator
 
@@ -57,27 +57,28 @@ DB_VALIDATOR_1=$AGENT_TMP/dbs/hyperlane_db_validator_1
 DB_VALIDATOR_2=$AGENT_TMP/dbs/hyperlane_db_validator_2
 
 export VALIDATOR_SIGNATURES_DIR=$AGENT_TMP/signatures
-
 export CONFIG_FILES=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/docs/kaspa/relayer/example/config/agent-config.json
 
 # set AWS environment variables
 # export AWS_ACCESS_KEY_ID=ABCDEFGHIJKLMNOP
 # export AWS_SECRET_ACCESS_KEY=xX-haha-nice-try-Xx
+# {
+#   "validator_ism_addr": "\"0xc09dddbd26fb6dcea996ba643e8c2685c03cad57\"",
+#   "validator_ism_priv_key": "c02e29cb65e55b3af3d8dee5d7a30504ed927436caf2e53e1e965cbd2639aced",
+#   "validator_escrow_secret": "\"11013bc86d1cb199a2324130c808e90ad37d07ae8f490d063b2fb9d9aa2e898f\"",
+#   "validator_escrow_pub_key": "02b1c7b586c8a0387a3c844f6a5471130bb7992346d3e906642cfd5dfce8a8129d",
+#   "multisig_escrow_addr": "kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr"
+# }
 
-# run the Validator
 ./target/release/validator \
   --db $DB_VALIDATOR \
-  --originChainName dymension \
+  --originChainName kaspatest10 \
   --reorgPeriod 1 \
-  --validator.region us-east-1 \
-  --checkpointSyncer.region us-east-1 \
-  --validator.type aws \
-  --chains.<your_chain_name>.signer.type aws \
-  --chains.<your_chain_name>.signer.region<region_name> \
-  --validator.id alias/hyperlane-validator-signer-<your_chain_name> \
-  --chains.<your_chain_name>.signer.id alias/hyperlane-validator-signer-<your_chain_name> \
-  --checkpointSyncer.type s3 \
-  --checkpointSyncer.bucket hyperlane-validator-signatures-<your_chain_name>\
+  --checkpointSyncer.type localStorage \
+  --checkpointSyncer.path $VALIDATOR_SIGNATURES_DIR \
+  --validator.key c02e29cb65e55b3af3d8dee5d7a30504ed927436caf2e53e1e965cbd2639aced \
+  --metrics-port 9090 \
+  --log.level debug  
 
  ./target/release/relayer \
     --db $DB_RELAYER \
@@ -91,7 +92,7 @@ export CONFIG_FILES=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/do
     --log.level debug 
 
 
-# gpt below
+# gpt etc below
 # run the Validator
 ./target/release/validator \
   --db $DB_VALIDATOR \
