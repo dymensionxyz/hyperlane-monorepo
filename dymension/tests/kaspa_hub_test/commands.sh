@@ -76,6 +76,7 @@ cargo build --release --bin validator
 
 #### 4. SETUP RELAYER 
 
+# TODO: cleanups, kaspatest10.signer not actually used
 ./target/release/relayer \
     --db $DB_RELAYER \
     --relayChains kaspatest10,dymension \

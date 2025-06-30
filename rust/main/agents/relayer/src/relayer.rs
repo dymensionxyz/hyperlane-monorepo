@@ -42,7 +42,7 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneLogStore, HyperlaneMessage,
     HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, InterchainGasPayment,
     KnownHyperlaneDomain, Mailbox, MerkleTreeInsertion, QueueOperation, SubmitterType,
-    ValidatorAnnounce, H256, H512, U256,
+    ValidatorAnnounce, H256, H512, U256, HyperlaneDomainType, HyperlaneDomainTechnicalStack,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 use lander::{
@@ -1486,7 +1486,18 @@ impl Relayer {
         let kas_provider_trait = kas_mailbox_trait.provider();
         let kas_provider = kas_provider_trait.downcast::<KaspaProvider>().unwrap();
 
-        let dym_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum); // TODO: fix
+        let dym_domain = HyperlaneDomain::Unknown{
+            domain_id: 1260813472,
+            domain_name: "dymension".to_string(),
+            domain_type: HyperlaneDomainType::Unknown, // TODO: fix
+            domain_protocol: HyperlaneDomainProtocol::CosmosNative,
+            domain_technical_stack: HyperlaneDomainTechnicalStack::Other,
+        };
+
+        if !mailboxes.contains_key(&dym_domain) {
+            return Ok(None);
+        }
+
         let dym_mailbox_trait = mailboxes.get(&dym_domain).unwrap().clone(); // TODO: clone is right here? got a warning
         let dym_mailbox = dym_mailbox_trait
             .downcast_arc::<CosmosNativeMailbox>()
