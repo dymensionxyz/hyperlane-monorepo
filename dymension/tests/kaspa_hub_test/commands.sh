@@ -8,6 +8,15 @@
 
 ## INSTRUCTIONS
 
+#### PREFACE
+
+# Recommended tabs:
+# 1. dymd
+# 2. wrpc node
+# 3. validator
+# 4. relayer 
+# 5. deposit/withdraw
+
 #### 1. Setup HUB
 
 # clean slate
