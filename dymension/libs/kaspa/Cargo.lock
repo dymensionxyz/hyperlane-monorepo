@@ -1757,6 +1757,7 @@ name = "demo-validator"
 version = "0.1.0"
 dependencies = [
  "core",
+ "kaspa-addresses",
  "secp256k1",
  "serde",
  "serde_json",

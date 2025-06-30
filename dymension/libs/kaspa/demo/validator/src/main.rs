@@ -5,12 +5,12 @@ use validator::signer::get_ethereum_style_signer;
 use kaspa_addresses::Prefix;
 use core::escrow::EscrowPublic;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 struct Validator {
-    kaspa_secret: String,
-    ism_address: String,
-    ism_private_key: String,
-    escrow_address: String,
+    validator_ism_addr: String,
+    validator_ism_priv_key: String,
+    validator_escrow_secret: String,
+    multisig_escrow_addr: String,
 }
 
 fn main() {
@@ -22,12 +22,11 @@ fn main() {
     let e = EscrowPublic::from_pubs(vec![kp.public_key()], Prefix::Testnet, 1);
 
     let v = Validator {
-        kaspa_secret: s,
-        ism_address: signer.address,
-        ism_private_key: signer.private_key,
-        escrow_address: e.addr.to_string(),
+        validator_escrow_secret: s,
+        validator_ism_addr: signer.address,
+        validator_ism_priv_key: signer.private_key,
+        multisig_escrow_addr: e.addr.to_string(),
     };
 
-
-    println!("validator: {:?}", v);
+    println!("{}", serde_json::to_string_pretty(&v).unwrap());
 }
