@@ -74,7 +74,21 @@ cargo build --release --bin validator
   --metrics-port 9090 \
   --log.level info 
 
-#### 4. SETUP RELAYER 
+#### 4. BOOTSTRAP HUB
+
+ISM=$(hub q hyperlane ism isms -o json | jq -r '.isms[0].id')
+MAILBOX=$(hub q hyperlane mailboxes -o json | jq -r '.mailboxes[0].id')
+
+
+dymd tx kas bootstrap \
+  --mailbox "$MAILBOX" \
+  --ism "$ISM" \
+  --outpoint '{"transaction_id": "EiIzRFVmd4iZqrvM3e7/ABEjM0RWZ3iJmqu8zd7v/AA=", "index": 0}' \
+  --from my-validator-key \
+  --chain-id dymension_1100-1 \
+  -y
+
+#### 5. SETUP RELAYER 
 
 # TODO: cleanups, kaspatest10.signer not actually used
 ./target/release/relayer \
