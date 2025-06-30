@@ -1464,6 +1464,8 @@ impl Relayer {
         // sync relayer before starting other tasks
         b.sync_relayer_if_needed().await.unwrap();
 
+        kas_provider.set_indicate_process_callback(b.run_deposit_loop);
+
         tasks.push(b.run_deposit_loop(task_monitor.clone()));
         // it observes the local db and makes sure messages are eventually written to the destination chain
         tasks.push(self.run_message_processor(origin, send_channels.clone(), task_monitor.clone()));

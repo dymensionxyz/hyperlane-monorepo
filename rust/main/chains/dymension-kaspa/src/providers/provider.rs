@@ -3,9 +3,9 @@ use dym_kas_relayer::PublicKey;
 
 use core::default;
 use eyre::Result as EyreResult;
-use kaspa_addresses::Address;
 use futures::stream::{self, StreamExt, TryStreamExt};
-use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
+use kaspa_addresses::Address;
+use kaspa_rpc_core::model::{RpcScriptPublicKey, RpcTransaction, RpcTransactionId};
 use kaspa_wallet_pskt::prelude::*;
 use std::any::Any;
 use std::str::FromStr;
@@ -23,11 +23,12 @@ use hyperlane_core::{
     H256, H512, U256,
 };
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
-use kaspa_consensus_core::tx::Transaction;
-use kaspa_wallet_pskt::prelude::Bundle;
+use kaspa_consensus_core::tx::{
+    ScriptPublicKey, Transaction, TransactionIndexType, TransactionOutpoint,
+};
 use kaspa_rpc_core::api::rpc::RpcApi;
-use std::sync::Arc;
-
+use kaspa_wallet_pskt::prelude::Bundle;
+use std::sync::{Arc, Mutex};
 
 use super::validators::ValidatorsClient;
 use super::RestProvider;
@@ -56,6 +57,8 @@ pub struct KaspaProvider {
       TODO: this is just a quick hack to get access to a kaspa escrow private key, we should change to wallet managed
     */
     kas_key: Option<KaspaSecpKeypair>,
+
+    queue: Mutex<Vec<TransactionOutpoint>>,
 }
 
 impl KaspaProvider {
@@ -132,6 +135,13 @@ impl KaspaProvider {
         .await
     }
 
+    pub fn fetch_clear_queue(&self) -> Vec<TransactionOutpoint> {
+        let mut guard = self.queue.lock().unwrap();
+        // Take all elements and replace the vector with an empty Vec
+        std::mem::take(&mut *guard)
+
+    }
+
     /// dococo
     pub async fn process_withdrawal(&self, fxg: &WithdrawFXG) -> Result<()> {
         let all_bundles = {
@@ -141,8 +151,37 @@ impl KaspaProvider {
             bundles_validators
         };
         let txs_signed = combine_all_bundles(all_bundles)?;
-        let finalized = finalize_txs(txs_signed, self.escrow().pubs.clone())?;
-        let res = self.submit_txs(finalized).await?;
+        let n_txs = txs_signed.len();
+        let finalized = finalize_txs(txs_signed.clone(), self.escrow().pubs.clone())?;
+        let res_tx_ids = self.submit_txs(finalized).await?;
+
+        // construct outputs & inputs
+        // assumption: all transaction details live on respective vector indexes
+        for tx_idx in 0..n_txs {
+            // get previous outpoint from PSKT
+            let pskt = txs_signed.get(tx_idx).unwrap();
+            let prev = pskt.global.proprietaries.get("prev_utxo").unwrap();
+            let prev_outpoint: TransactionOutpoint = prev.clone().deserialize_into()?;
+
+            // find an expected output index
+            // we need to do when the tx is already finalized
+            let tx = finalized.get(tx_idx).unwrap();
+            let output_idx = tx
+                .outputs
+                .iter()
+                .position(|o| o.script_public_key == self.escrow().p2sh.clone().into())
+                .unwrap_or_else(|| 0);
+
+            // get transaction id and construct next outpoint
+            let tx_id = res_tx_ids.get(tx_idx).unwrap();
+            let next_outpoint = TransactionOutpoint {
+                transaction_id: tx_id.into(),
+                index: output_idx.into(),
+            };
+
+            self.queue.lock()?.push(prev_outpoint);
+        }
+
         Ok(())
     }
 
@@ -180,8 +219,8 @@ impl KaspaProvider {
         )
     }
 
-      /// get escrow address
-      pub fn escrow_address(&self) -> Address {
+    /// get escrow address
+    pub fn escrow_address(&self) -> Address {
         self.escrow().addr
     }
 }
