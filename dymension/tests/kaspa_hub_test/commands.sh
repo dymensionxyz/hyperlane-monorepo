@@ -11,12 +11,12 @@ mkdir ~/.hyperlane; cp -r /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymens
 
 # install hub binary
 source /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/tests/kaspa_hub_test/env.sh
+scripts/setup_local.sh
 dymd start --log_level=debug
 
 export HYP_KEY="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-              c02e29cb65e55b3af3d8dee5d7a30504ed927436caf2e53e1e965cbd2639aced
 
-CLI_VALS="0x9695e09597f3111b183700e06d6f1a7d50ea1aee" # has (hex) key c18908a1bbe0ec588cd6522d2b02af3076a2f2c562a09bb8bf5a40f6e9a0ef1b
+CLI_VALS="0xc09dddbd26fb6dcea996ba643e8c2685c03cad57" # has (hex) key c18908a1bbe0ec588cd6522d2b02af3076a2f2c562a09bb8bf5a40f6e9a0ef1b
 CLI_THRESHOLD="1"
 CLI_REMOTE_ROUTER_ADDRESS="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" # arbitrary
 dymd q kas setup-bridge --validators "$CLI_VALS" --threshold "$CLI_THRESHOLD" --remote-router-address "$CLI_REMOTE_ROUTER_ADDRESS" "${HUB_FLAGS[@]}"
@@ -83,7 +83,10 @@ cargo build --release --bin validator
   --checkpointSyncer.path $SIGS_VAL \
   --validator.key 0xc02e29cb65e55b3af3d8dee5d7a30504ed927436caf2e53e1e965cbd2639aced \
   --metrics-port 9090 \
-  --log.level debug  
+  --log.level debug  \
+  --chains.dymension.signer.type cosmosKey \
+  --chains.dymension.signer.prefix dym \
+  --chains.dymension.signer.key $HYP_KEY \
 
 #  ./target/release/relayer \
  cargo run --release --bin relayer -- \
