@@ -6,6 +6,7 @@
 
 use std::{collections::HashSet, path::PathBuf, time::Duration};
 
+use tracing::warn;
 use aws_config::Region;
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use eyre::{eyre, Context};
@@ -81,6 +82,8 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .get_key("originChainName")
             .parse_string()
             .end();
+
+        warn!("origin_chain_name: {:?}", origin_chain_name);
 
         let allow_public_rpcs = p
             .chain(&mut err)

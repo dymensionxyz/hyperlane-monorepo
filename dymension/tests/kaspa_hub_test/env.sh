@@ -21,3 +21,4 @@ export SETTLEMENT_EXECUTABLE=$(which dymd)
 export SETTLEMENT_LAYER="dymension" # when running a local hub or a public network use "dymension"
 export SKIP_EVM_BASE_FEE=true # optional, disables rollapp fees
 export HUB_FLAGS=(--from hub-user --fees 100000000000000adym --gas auto --gas-adjustment 3 -y)
+export RELAYER_ADDR="dym15428vq2uzwhm3taey9sr9x5vm6tk78ewtfeeth" # relayer derives from HYP_KEY

@@ -56,6 +56,8 @@ DB_RELAYER=$AGENT_TMP/dbs/hyperlane_db_relayer
 DB_VALIDATOR=$AGENT_TMP/dbs/hyperlane_db_validator
 # DB_VALIDATOR_2=$AGENT_TMP/dbs/hyperlane_db_validator_2
 
+export RELAYER_ADDR="dym15428vq2uzwhm3taey9sr9x5vm6tk78ewtfeeth" # relayer derives from HYP_KEY
+
 export VALIDATOR_SIGNATURES_DIR=$AGENT_TMP/signatures # official name
 
 export SIGS_VAL=$AGENT_TMP/signatures
@@ -72,6 +74,8 @@ export CONFIG_FILES=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/do
 #   "multisig_escrow_addr": "kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr"
 # }
 
+dymd tx bank send hub-user $RELAYER_ADDR 1000000000000000000000adym "${HUB_FLAGS[@]}"
+
 cargo build --release --bin validator
 
 # cargo run --release --bin validator -- \
@@ -82,11 +86,11 @@ cargo build --release --bin validator
   --checkpointSyncer.type localStorage \
   --checkpointSyncer.path $SIGS_VAL \
   --validator.key 0xc02e29cb65e55b3af3d8dee5d7a30504ed927436caf2e53e1e965cbd2639aced \
-  --metrics-port 9090 \
-  --log.level debug  \
   --chains.dymension.signer.type cosmosKey \
   --chains.dymension.signer.prefix dym \
   --chains.dymension.signer.key $HYP_KEY \
+  --metrics-port 9090 \
+  --log.level debug
 
 #  ./target/release/relayer \
  cargo run --release --bin relayer -- \
@@ -94,10 +98,10 @@ cargo build --release --bin validator
     --relayChains anvil0,dymension \
     --allowLocalCheckpointSyncers true \
     --defaultSigner.key $HYP_KEY \
-    --metrics-port 9091 \
     --chains.dymension.signer.type cosmosKey \
     --chains.dymension.signer.prefix dym \
     --chains.dymension.signer.key $HYP_KEY \
+    --metrics-port 9091 \
     --log.level debug 
 
 

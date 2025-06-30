@@ -93,9 +93,9 @@
   },
   "defaultRpcConsensusType": "fallback",
   "origin_chains": [
-    "kaspatest10"
+    "kaspatest10","dymension"
   ],
   "destination_chains": [
-    "kaspatest10"
+    "kaspatest10","dymension"
   ]
 }
