@@ -56,9 +56,7 @@ pub fn cli() -> Command {
                 .value_name("amount")
                 .help("Amount to send."),
         )
-         
 }
-
 
 pub struct Args {
     pub wallet_secret: Option<String>,
@@ -73,7 +71,10 @@ impl Args {
     pub fn parse() -> Self {
         let m = cli().get_matches();
         let only_deposit = m.get_flag("only-deposit");
-        let amount = m.get_one::<String>("amount").cloned().map(|s| s.parse::<u64>().unwrap());
+        let amount = m
+            .get_one::<String>("amount")
+            .cloned()
+            .map(|s| s.parse::<u64>().unwrap());
         Args {
             wallet_secret: m.get_one::<String>("wallet-secret").cloned(),
             rpc_server: m

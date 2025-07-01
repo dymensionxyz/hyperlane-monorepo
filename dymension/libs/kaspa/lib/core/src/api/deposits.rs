@@ -1,5 +1,5 @@
-use tracing::info;
 use api_rs::apis::configuration::Configuration;
+use tracing::info;
 
 use url::Url;
 
@@ -81,7 +81,7 @@ pub fn get_deposits() -> Vec<Deposit> {
 #[derive(Debug, Clone)]
 pub struct HttpClient {
     pub url: String,
-    client: ClientWithMiddleware, 
+    client: ClientWithMiddleware,
 }
 
 impl HttpClient {
@@ -125,4 +125,3 @@ impl HttpClient {
         get_config(&self.url, self.client.clone())
     }
 }
-

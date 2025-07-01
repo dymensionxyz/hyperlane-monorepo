@@ -61,7 +61,7 @@ pub async fn deposit(
 
     hl_message.body = encoded_bytes;
 
-    let payload = hl_message.to_vec(); 
+    let payload = hl_message.to_vec();
 
     deposit_impl(w, secret, address.clone(), amt, payload.clone()).await
 }
