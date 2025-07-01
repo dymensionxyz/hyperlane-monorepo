@@ -49,6 +49,13 @@ pub fn cli() -> Command {
                 .value_name("payload")
                 .help("Payload to send."),
         )
+        .arg(
+            Arg::new("escrow-address")
+                .long("escrow-address")
+                .short('e')
+                .value_name("escrow-address")
+                .help("Escrow address."),
+        )
 }
 
 
@@ -58,6 +65,7 @@ pub struct Args {
     pub rpc_server: String, // TODO: use
     pub only_deposit: bool,
     pub payload: Option<String>,
+    pub escrow_address: Option<String>,
 }
 
 impl Args {
@@ -76,6 +84,7 @@ impl Args {
                 _ => false,
             },
             payload: m.get_one::<String>("payload").cloned(),
+            escrow_address: m.get_one::<String>("escrow-address").cloned(),
         }
     }
 }

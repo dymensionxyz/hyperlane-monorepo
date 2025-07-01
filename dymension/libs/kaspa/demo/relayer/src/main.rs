@@ -54,12 +54,6 @@ pub async fn deposit(
     address: Address,
     amt: u64,
 ) -> Result<TransactionId, KaspaError> {
-    let a = w.account()?;
-
-    let dst = PaymentDestination::from(PaymentOutput::new(address.clone(), amt));
-    let fees = Fees::from(0i64);
-    let abortable = Abortable::new();
-
     let mut hl_message = HyperlaneMessage::default();
     let token_message = TokenMessage::new(H256::random(), U256::from(amt), vec![]);
 
@@ -127,8 +121,18 @@ async fn demo() -> Result<(), Box<dyn Error>> {
 
     // deposit to escrow address
     let amt = DEPOSIT_AMOUNT;
-    let escrow_address = Address::try_from(ESCROW_ADDRESS)?;
-    let tx_id = deposit(&w, &s, escrow_address, amt).await?;
+    let escrow_address = if let Some(e) = args.escrow_address {
+        Address::try_from(e)?
+    } else {
+        Address::try_from(ESCROW_ADDRESS)?
+    };
+
+    let tx_id = if let Some(payload) = args.payload {
+        deposit_impl(&w, &s, escrow_address, amt, payload.as_bytes().to_vec()).await?
+    } else {
+        deposit(&w, &s, escrow_address, amt).await?
+    };
+
     info!("Sent deposit transaction: {}", tx_id);
 
     if args.only_deposit {
