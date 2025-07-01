@@ -46,7 +46,7 @@ impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> 
         self.kas_provider.as_ref().unwrap().wallet().api()
     }
     fn must_escrow_address(&self) -> String {
-        self.kas_provider.as_ref().unwrap().escrow_address()
+        self.kas_provider.as_ref().unwrap().escrow_address().to_string()
     }
 
     pub fn default() -> Self {
