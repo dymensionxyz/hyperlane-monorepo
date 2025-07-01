@@ -6,7 +6,7 @@ use hyperlane_core::{
     Signature, SignedCheckpointWithMessageId, TxOutcome, H256,
 };
 use std::{collections::HashSet, fmt::Debug, hash::Hash, sync::Arc, time::Duration};
-use tokio::{task::JoinHandle, time};
+use tokio::{task::JoinHandle, sync::Mutex, time};
 use tokio_metrics::TaskMonitor;
 use tracing::{info, info_span, warn, Instrument};
 
@@ -53,32 +53,57 @@ where
         }
     }
 
-    pub fn run_deposit_loop(mut self, task_monitor: TaskMonitor) -> JoinHandle<()> {
-        let name = "dymension_kaspa_deposit_loop";
-        tokio::task::Builder::new()
-            .name(name)
-            .spawn(TaskMonitor::instrument(
-                &task_monitor,
-                async move {
-                    self.deposit_loop().await;
-                }
-                .instrument(info_span!("Kaspa Monitor")),
-            ))
-            .expect("Failed to spawn kaspa monitor task")
+    /// Run deposit and progress indication loops
+    pub fn run_loops(self, task_monitor: TaskMonitor) -> JoinHandle<()> {
+        // Wrap self in an `Arc` so we can share an immutable reference between the two tasks.
+        let foo = Arc::new(self);
+
+        /* -------------------------------- deposit loop ------------------------------- */
+        {
+            let foo_clone = foo.clone();
+            let name = "dymension_kaspa_deposit_loop";
+            tokio::task::Builder::new()
+                .name(name)
+                .spawn(TaskMonitor::instrument(
+                    &task_monitor,
+                    async move {
+                        foo_clone.deposit_loop().await;
+                    }
+                        .instrument(info_span!("Kaspa Monitor")),
+                ))
+                .expect("Failed to spawn kaspa monitor task");
+
+        }
+
+        /* ------------------------ progress indication loop ------------------------ */
+        {
+            let foo_clone = foo.clone();
+            let name = "dymension_kaspa_progress_indication_loop";
+            tokio::task::Builder::new()
+                .name(name)
+                .spawn(TaskMonitor::instrument(
+                    &task_monitor,
+                    async move {
+                        foo_clone.progress_indication_loop().await;
+                    }
+                        .instrument(info_span!("Kaspa Monitor")),
+                ))
+                .expect("Failed to spawn kaspa progress indication task")
+        }
     }
 
     // https://github.com/dymensionxyz/hyperlane-monorepo/blob/20b9e669afcfb7728e66b5932e85c0f7fcbd50c1/dymension/libs/kaspa/lib/relayer/note.md#L102-L119
-    async fn deposit_loop(&mut self) {
+    async fn deposit_loop(&self) {
         loop {
             let deposits = self.provider.rest().get_deposits().await.unwrap();
-            let deposits_new: Vec<Deposit> = deposits
-                .into_iter()
-                .filter(|deposit| !self.deposit_cache.has_seen(deposit))
-                .collect::<Vec<_>>();
 
-            for d in &deposits_new {
-                self.deposit_cache.mark_as_seen(d.clone());
-                info!("DYMENSION DEBUG: new deposit seen: {:?}", d);
+            let mut deposits_new = Vec::new();
+            for d in deposits.into_iter() {
+                if !self.deposit_cache.has_seen(&d).await {
+                    info!("DYMENSION DEBUG: new deposit seen: {:?}", d.clone());
+                    self.deposit_cache.mark_as_seen(d.clone()).await;
+                    deposits_new.push(d);
+                }
             }
 
             for d in &deposits_new {
@@ -98,21 +123,7 @@ where
         }
     }
 
-    pub fn run_progress_indication_loop(mut self, task_monitor: TaskMonitor) -> JoinHandle<()> {
-        let name = "dymension_kaspa_progress_indication_loop";
-        tokio::task::Builder::new()
-            .name(name)
-            .spawn(TaskMonitor::instrument(
-                &task_monitor,
-                async move {
-                    self.progress_indication_loop().await;
-                }
-                    .instrument(info_span!("Kaspa Monitor")),
-            ))
-            .expect("Failed to spawn kaspa monitor task")
-    }
-
-    async fn progress_indication_loop(&mut self) {
+    async fn progress_indication_loop(&self) {
         loop {
             // The confirmation list always looks like this:
             // ---
@@ -130,7 +141,7 @@ where
             //
             // If, for some reason, the last Hub outpoint != prev_outpoint, then the Hub went forward.
             // We clear the confirmation list, and on the next iteration we will have new confirmations
-            // with the correct outpoints. 
+            // with the correct outpoints.
             //
             // TODO: what happens if at some point no one is bridging and we have failed confirmations?
             let confirmations = self.provider.fetch_clear_indicate_progress_queue();
@@ -138,10 +149,11 @@ where
             match confirmations.last() {
                 None => {}
                 Some((prev, next)) => {
-                    self.run_sync_flow(prev.clone(), next.clone())
+                    let res = self.run_sync_flow(prev.clone(), next.clone()).await;
+                    // TODO: check result
                 }
             }
-            
+
             time::sleep(Duration::from_secs(10)).await;
         }
     }
@@ -351,22 +363,24 @@ where
 }
 
 struct DepositCache {
-    seen: HashSet<Deposit>,
+    seen: Mutex<HashSet<Deposit>>,
 }
 
 impl DepositCache {
     pub fn new() -> Self {
         Self {
-            seen: HashSet::new(),
+            seen: Mutex::new(HashSet::new()),
         }
     }
 
-    fn has_seen(&self, deposit: &Deposit) -> bool {
-        self.seen.contains(deposit)
+    async fn has_seen(&self, deposit: &Deposit) -> bool {
+        let seen_guard = self.seen.lock().await;
+        seen_guard.contains(deposit)
     }
 
-    fn mark_as_seen(&mut self, deposit: Deposit) {
-        self.seen.insert(deposit);
+    async fn mark_as_seen(&self, deposit: Deposit) {
+        let mut seen_guard = self.seen.lock().await;
+        seen_guard.insert(deposit);
     }
 }
 

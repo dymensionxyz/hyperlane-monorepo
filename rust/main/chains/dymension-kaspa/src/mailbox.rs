@@ -1,6 +1,6 @@
 use cosmrs::Any;
 use hex::ToHex;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{ProgressIndication, WithdrawalId, WithdrawalStatus};
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
 use hyperlane_cosmos_rs::prost::{Message, Name};
 use tonic::async_trait;
