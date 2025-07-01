@@ -22,7 +22,7 @@ use std::error::Error;
 pub async fn handle_new_deposit(deposit: &Deposit) -> Result<DepositFXG> {
     // decode payload into Hyperlane message
     let rawmessage: RawHyperlaneMessage =
-        hex::decode(deposit.payload.clone()).map_err(|e| eyre::eyre!(e))?;
+        hex::decode(deposit.payload.clone().unwrap()).map_err(|e| eyre::eyre!(e))?;
     let hl_message = parse_hyperlane_message(&rawmessage).map_err(|e| eyre::eyre!(e))?;
 
     // decode token message from Hyperlane message body
@@ -84,6 +84,9 @@ pub async fn handle_new_deposits(
     let mut txs = Vec::new();
 
     for deposit in deposits {
+        if deposit.payload.is_none() {
+            continue;
+        }
         let tx = handle_new_deposit(deposit).await?;
         txs.push(tx);
     }

@@ -8,7 +8,7 @@ use hyperlane_core::{
 use std::{collections::HashSet, fmt::Debug, hash::Hash, sync::Arc, time::Duration};
 use tokio::{task::JoinHandle, time};
 use tokio_metrics::TaskMonitor;
-use tracing::{info, info_span, warn, Instrument};
+use tracing::{error, info, info_span, warn, Instrument};
 
 use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG};
 use dym_kas_relayer::deposit::on_new_deposit as relayer_on_new_deposit;
@@ -75,7 +75,7 @@ where
             let deposits = match deposits_res {
                 Ok(deposits) => deposits,
                 Err(e) => {
-                    warn!("Error getting deposits: {:?}", e);
+                    error!("Query new Kaspa deposits: {:?}", e);
                     continue;
                 }
             };
@@ -86,7 +86,7 @@ where
 
             for d in &deposits_new {
                 self.deposit_cache.mark_as_seen(d.clone());
-                info!("DYMENSION DEBUG: new deposit seen: {:?}", d);
+                info!("Dymension, got new kaspa deposit:: {:?}", d);
             }
 
             for d in &deposits_new {
@@ -95,10 +95,20 @@ where
                 match new_deposit_res {
                     Ok(Some(fxg)) => {
                         let res = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
-                        // TODO: check result
+                        match res {
+                            Ok(_) => {
+                                info!("Dymension, sent new deposit to hub: {:?}", fxg);
+                            }
+                            Err(e) => {
+                                error!("Dymension, send deposit to hub: {:?}", e);
+                            }
+                        }
                     }
-                    _ => {
-                        // TODO: do somethign with error
+                    Ok(None) => {
+                        error!("Dymension, F() new deposit returned none");
+                    }
+                    Err(e) => {
+                        error!("Dymension, F() new deposit: {:?}", e);
                     }
                 }
             }
