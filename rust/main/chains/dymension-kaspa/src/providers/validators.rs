@@ -48,7 +48,7 @@ impl ValidatorsClient {
         fxg: &DepositFXG,
     ) -> ChainResult<Vec<SignedCheckpointWithMessageId>> {
         // TODO: in parallel
-        info!("Dymension, asking validators for deposit sigs");
+        info!("Dymension, asking validators for deposit sigs, number of validators: {:?}", self.conf.validator_hosts.len());
         let mut results = Vec::new();
         for (host, validator_id) in self
             .conf
@@ -63,6 +63,7 @@ impl ValidatorsClient {
                 Ok(r) => match r {
                     Some(sig) => {
                         results.push(sig);
+                        info!("Dymension, got deposit sig response ok, validator: {:?}", validator_id);
                     }
                     None => {
                         error!("Dymension, got deposit sig response None, validator: {:?}", validator_id);

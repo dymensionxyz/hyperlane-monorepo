@@ -100,10 +100,10 @@ where
                         let res = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
                         match res {
                             Ok(_) => {
-                                info!("Dymension, sent new deposit to hub: {:?}", fxg);
+                                info!("Dymension, got sigs and sent new deposit to hub: {:?}", fxg);
                             }
                             Err(e) => {
-                                error!("Dymension, send deposit to hub: {:?}", e);
+                                error!("Dymension, gather sigs and send deposit to hub: {:?}", e);
                                 // TODO: should have a retry flow
                             }
                         }
@@ -127,7 +127,7 @@ where
 
         // network calls
         let mut sigs = self.provider.validators().get_deposit_sigs(fxg).await?;
-        info!("Dymension, got deposit sigs:");
+        info!("Dymension, got deposit sigs: number of sigs: {:?}", sigs.len());
 
         let formatted_sigs = self.format_checkpoint_signatures(
             &mut sigs,
@@ -284,7 +284,7 @@ where
 
         let checkpoint = MultisigSignedCheckpoint::try_from(sigs).map_err(|_| {
             ChainCommunicationError::InvalidRequest {
-                msg: "failed to convert sigs to checkpoint".to_string(),
+                msg: "to convert sigs to checkpoint".to_string(),
             }
         })?;
         let metadata = self.metadata_constructor.metadata(&checkpoint)?;
