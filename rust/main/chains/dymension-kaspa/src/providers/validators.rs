@@ -97,14 +97,23 @@ impl ValidatorsClient {
                 Ok(r) => match r {
                     Some(sig) => {
                         results.push(sig);
-                        info!("Dymension, got confirmation sig response ok, validator: {:?}", h);
+                        info!(
+                            "Dymension, got confirmation sig response ok, validator: {:?}",
+                            h
+                        );
                     }
                     None => {
-                        error!("Dymension, got confirmation sig response None, validator: {:?}", h);
+                        error!(
+                            "Dymension, got confirmation sig response None, validator: {:?}",
+                            h
+                        );
                     }
                 },
                 Err(_e) => {
-                    error!("Dymension, got confirmation sig response Err, validator: {:?}", h);
+                    error!(
+                        "Dymension, got confirmation sig response Err, validator: {:?}",
+                        h
+                    );
                 }
             }
         }
@@ -117,12 +126,7 @@ impl ValidatorsClient {
         // map validator addr to sig(s)
         // TODO: in parallel
         let mut results = Vec::new();
-        for host in self
-            .conf
-            .validator_hosts
-            .clone()
-            .into_iter()
-        {
+        for host in self.conf.validator_hosts.clone().into_iter() {
             //         let checkpoints = futures::future::join_all(futures).await; TODO: Parallel
             let h = host.to_string();
             let res = request_sign_withdrawal_bundle(host, fxg).await;
@@ -132,14 +136,23 @@ impl ValidatorsClient {
                 Ok(r) => match r {
                     Some(sig) => {
                         results.push(sig);
-                        info!("Dymension, got withdrawal sig response ok, validator: {:?}", h);
+                        info!(
+                            "Dymension, got withdrawal sig response ok, validator: {:?}",
+                            h
+                        );
                     }
                     None => {
-                        error!("Dymension, got withdrawal sig response None, validator: {:?}", h);
+                        error!(
+                            "Dymension, got withdrawal sig response None, validator: {:?}",
+                            h
+                        );
                     }
                 },
                 Err(_e) => {
-                    error!("Dymension, got withdrawal sig response Err, validator: {:?}", h);
+                    error!(
+                        "Dymension, got withdrawal sig response Err, validator: {:?}",
+                        h
+                    );
                 }
             }
         }
@@ -170,9 +183,15 @@ pub async fn request_validate_new_deposits(
         .send()
         .await?;
 
-    let res = request_validate_new_deposits(host, &deposits).await;
-    // just check that the call does not panic and returns a result
-    let _ = res;
+
+    // TODO: need to return sigs here
+    let status = res.status();
+    if status == StatusCode::OK {
+        let body = res.json::<SignedCheckpointWithMessageId>().await?;
+        Ok(Some(body))
+    } else {
+        Err(eyre::eyre!("Failed to validate deposits: {}", status))
+    }
 }
 
 pub async fn request_validate_new_confirmation(
@@ -218,18 +237,19 @@ pub async fn request_sign_withdrawal_bundle(
     }
 }
 
-
 #[cfg(test)]
-mod tests 
+mod tests {
+    use super::*;
+    use dym_kas_core::deposit::DepositFXG;
 
-#[tokio::test]
-#[ignore]
-async fn test_txs() {
-    let host = "http://localhost:9090";
-    let deposits = DepositFXG::default();
-    let res = request_validate_new_deposits(host, &deposits).await;
-    let _ = res;
+
+    #[tokio::test]
+    // #[ignore = "Requires real validator server"]
+    async fn test_txs() {
+        let host = "http://localhost:9090"; // local validator
+        let deposits = DepositFXG::default();
+        let res = request_validate_new_deposits(host.to_string(), &deposits).await;
+        let _ = res;
+        println!("res: {:?}", res);
+    }
 }
-
-
-
