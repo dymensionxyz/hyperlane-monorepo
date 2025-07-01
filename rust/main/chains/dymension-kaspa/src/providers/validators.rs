@@ -92,7 +92,7 @@ impl ValidatorsClient {
         for host in self.conf.validator_hosts.clone().into_iter() {
             //         let checkpoints = futures::future::join_all(futures).await; TODO: Parallel
             let h = host.to_string();
-            let res = request_validate_new_confirmation(h, fxg).await;
+            let res = request_validate_new_confirmation(host, fxg).await;
             match res {
                 Ok(r) => match r {
                     Some(sig) => {
@@ -125,7 +125,7 @@ impl ValidatorsClient {
         {
             //         let checkpoints = futures::future::join_all(futures).await; TODO: Parallel
             let h = host.to_string();
-            let res = request_sign_withdrawal_bundle(h, fxg).await;
+            let res = request_sign_withdrawal_bundle(host, fxg).await;
 
             // TODO: should also check that each validator signed either all or none of the bundle
             match res {
