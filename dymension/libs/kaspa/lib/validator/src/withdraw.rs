@@ -49,7 +49,8 @@ pub fn sign_pskt(kp: &SecpKeypair, pskt: PSKT<Signer>) -> Result<PSKT<Signer>, E
         let mut tx_payload = tx.clone();
         tx_payload.tx.payload = msg_ids_bytes;
 
-        tx_payload.tx
+        tx_payload
+            .tx
             .inputs
             .iter()
             .enumerate()

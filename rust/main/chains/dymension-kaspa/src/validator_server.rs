@@ -7,7 +7,6 @@ use axum::{
     routing::post,
     Router,
 };
-use tracing::warn;
 use dym_kas_core::deposit::DepositFXG;
 use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use dym_kas_validator::withdraw::sign_pskt;
@@ -17,6 +16,7 @@ use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use kaspa_wallet_pskt::prelude::*;
 use sha3::{digest::Update, Digest, Keccak256};
 use std::sync::Arc;
+use tracing::warn;
 
 use super::providers::KaspaProvider;
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
@@ -73,9 +73,14 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
 ) -> HandlerResult<Json<String>> {
     let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
-    let client = resources.kas_provider.as_ref().expect("unable to get Kaspa provider").wallet().api();
+    let client = resources
+        .kas_provider
+        .as_ref()
+        .expect("unable to get Kaspa provider")
+        .wallet()
+        .api();
     // Call to validator.G()
-    if !validate_new_deposit(&client,&deposits)
+    if !validate_new_deposit(&client, &deposits)
         .await
         .map_err(|e| AppError(e))?
     {
@@ -232,7 +237,6 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
 
     Ok(Json(j))
 }
-
 
 async fn respond_kaspa_ping<S: HyperlaneSignerExt + Send + Sync + 'static>(
     State(resources): State<Arc<ValidatorServerResources<S>>>,

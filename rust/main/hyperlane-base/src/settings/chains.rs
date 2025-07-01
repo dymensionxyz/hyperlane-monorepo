@@ -18,7 +18,7 @@ use hyperlane_core::{
 use hyperlane_metric::prometheus_metric::ChainInfo;
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
-use dymension_kaspa::{self as dym_kaspa, KaspaProvider, KaspaMerkle};
+use dymension_kaspa::{self as dym_kaspa, KaspaMerkle, KaspaProvider};
 use hyperlane_cosmos::{
     self as h_cosmos, delivery_indexer, dispatch_indexer, rpc::CosmosWasmRpcProvider,
     CosmosProvider, Signer,

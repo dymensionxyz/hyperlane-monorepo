@@ -1,9 +1,9 @@
+use core::escrow::EscrowPublic;
 use core::escrow::{generate_escrow_priv_key, Escrow};
 use core::KaspaSecpKeypair;
+use kaspa_addresses::Prefix;
 use serde::{Deserialize, Serialize};
 use validator::signer::get_ethereum_style_signer;
-use kaspa_addresses::Prefix;
-use core::escrow::EscrowPublic;
 
 #[derive(Debug, Serialize)]
 pub struct Validator {

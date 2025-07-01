@@ -6,7 +6,6 @@
 
 use std::{collections::HashSet, path::PathBuf, time::Duration};
 
-use tracing::warn;
 use aws_config::Region;
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use eyre::{eyre, Context};
@@ -23,6 +22,7 @@ use hyperlane_core::{
 use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::Value;
+use tracing::warn;
 
 /// Settings for RPCs
 #[derive(Debug, Clone)]
