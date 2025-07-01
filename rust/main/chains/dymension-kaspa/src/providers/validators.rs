@@ -183,7 +183,6 @@ pub async fn request_validate_new_deposits(
         .send()
         .await?;
 
-
     // TODO: need to return sigs here
     let status = res.status();
     if status == StatusCode::OK {
@@ -241,7 +240,6 @@ pub async fn request_sign_withdrawal_bundle(
 mod tests {
     use super::*;
     use dym_kas_core::deposit::DepositFXG;
-
 
     #[tokio::test]
     // #[ignore = "Requires real validator server"]

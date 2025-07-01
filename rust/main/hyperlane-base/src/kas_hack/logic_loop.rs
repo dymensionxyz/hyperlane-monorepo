@@ -127,7 +127,10 @@ where
 
         // network calls
         let mut sigs = self.provider.validators().get_deposit_sigs(fxg).await?;
-        info!("Dymension, got deposit sigs: number of sigs: {:?}", sigs.len());
+        info!(
+            "Dymension, got deposit sigs: number of sigs: {:?}",
+            sigs.len()
+        );
 
         let formatted_sigs = self.format_checkpoint_signatures(
             &mut sigs,

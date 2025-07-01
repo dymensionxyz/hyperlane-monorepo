@@ -10,6 +10,7 @@ use core::escrow::*;
 use core::util::*;
 use core::wallet::*;
 use core::ESCROW_ADDRESS;
+use hex;
 use hyperlane_core::{Decode, Encode, HyperlaneMessage, H256, U256};
 use hyperlane_warp_route::TokenMessage;
 use kaspa_addresses::Address;
@@ -22,7 +23,6 @@ use kaspa_consensus_core::{
         TransactionOutput, UtxoEntry,
     },
 };
-use hex;
 use kaspa_core::info;
 use kaspa_grpc_client::GrpcClient;
 use kaspa_wallet_core::api::{AccountsSendRequest, WalletApi};
@@ -183,7 +183,8 @@ async fn demo() -> Result<(), Box<dyn Error>> {
     );
 
     // validate deposit using kaspa rpc (validator operation)
-    let validation_result = validate_deposit(&w.rpc_api(), &deposit_recv, &escrow_address.to_string()).await?;
+    let validation_result =
+        validate_deposit(&w.rpc_api(), &deposit_recv, &escrow_address.to_string()).await?;
 
     if validation_result {
         println!("Deposit validated");

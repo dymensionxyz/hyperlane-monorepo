@@ -94,7 +94,7 @@ impl HttpClient {
         info!("Dymension query kaspa deposits, url: {:?}", c.base_path);
 
         let res = transactions_page(
-            &c, 
+            &c,
             args {
                 kaspa_address: address.to_string(),
                 limit: Some(limit),
@@ -129,9 +129,9 @@ mod tests {
         // https://explorer-tn10.kaspa.org/addresses/kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr?page=1
         let client = HttpClient::new("https://api-tn10.kaspa.org".to_string());
         let address = "kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr";
-        
+
         let deposits = client.get_deposits(address).await;
-        
+
         match deposits {
             Ok(deposits) => {
                 println!("Found deposits: n = {:?}", deposits.len());

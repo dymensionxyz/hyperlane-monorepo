@@ -37,14 +37,15 @@ impl ParsedHL {
     }
 }
 
-
-
 pub async fn handle_new_deposit(escrow_address: &str, deposit: &Deposit) -> Result<DepositFXG> {
     // decode payload into Hyperlane message
 
     let payload = deposit.payload.clone().unwrap();
     let parsed = ParsedHL::parse(&payload)?;
-    info!("Dymension, parsed new deposit HL message: {:?}", parsed.hl_message);
+    info!(
+        "Dymension, parsed new deposit HL message: {:?}",
+        parsed.hl_message
+    );
 
     let hl_message = parsed.hl_message;
     let token_message = parsed.token_message;
