@@ -114,7 +114,9 @@ impl HttpClient {
     }
 
     pub fn get_config(&self) -> Configuration {
-        get_config(&self.url, self.client.clone())
+        let u = self.url.clone();
+        let url = u.strip_suffix("/").unwrap();
+        get_config(&url, self.client.clone())
     }
 }
 
