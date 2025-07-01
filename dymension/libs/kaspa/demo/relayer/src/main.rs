@@ -117,6 +117,10 @@ async fn demo() -> Result<(), Box<dyn Error>> {
     let tx_id = deposit(&w, &s, escrow_address, amt).await?;
     info!("Sent deposit transaction: {}", tx_id);
 
+    if args.only_deposit {
+        return Ok(());
+    }
+
     // wait (it may take some time that the deposit is available to indexer-archive rpc service)
     workflow_core::task::sleep(std::time::Duration::from_secs(10)).await;
 

@@ -35,12 +35,20 @@ pub fn cli() -> Command {
                 .value_name("wallet-secret")
                 .help("Wallet secret"),
         )
+        .arg(
+            Arg::new("only-deposit")
+                .long("only-deposit")
+                .short('d')
+                .value_name("only-deposit")
+                .help("Only deposit then exit."),
+        )
 }
 
 pub struct Args {
     pub private_key: Option<String>, // TODO: not used
     pub wallet_secret: Option<String>,
     pub rpc_server: String, // TODO: use
+    pub only_deposit: bool,
 }
 
 impl Args {
@@ -53,6 +61,7 @@ impl Args {
                 .get_one::<String>("rpcserver")
                 .cloned()
                 .unwrap_or("localhost:16210".to_owned()),
+            only_deposit: m.get_flag("only-deposit"),
         }
     }
 }
