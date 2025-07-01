@@ -7,6 +7,7 @@ use axum::{
     routing::post,
     Router,
 };
+use kaspa_wallet_core::prelude::DynRpcApi;
 use dym_kas_core::deposit::DepositFXG;
 use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use dym_kas_validator::withdraw::sign_pskt;
@@ -41,6 +42,10 @@ impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> 
     fn must_kas_key(&self) -> KaspaSecpKeypair {
         self.kas_provider.as_ref().unwrap().must_kas_key()
     }
+    fn must_api(&self) -> Arc<DynRpcApi> {
+        self.kas_provider.as_ref().unwrap().wallet().api()
+    }
+
     pub fn default() -> Self {
         Self {
             ism_signer: None,
@@ -74,14 +79,8 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
     info!("Validator: checking new kaspa deposit");
     let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
-    let client = resources
-        .kas_provider
-        .as_ref()
-        .expect("unable to get Kaspa provider")
-        .wallet()
-        .api();
     // Call to validator.G()
-    if !validate_new_deposit(&client, &deposits)
+    if !validate_new_deposit(&resources.must_api(), &deposits)
         .await
         .map_err(|e| AppError(e))?
     {
