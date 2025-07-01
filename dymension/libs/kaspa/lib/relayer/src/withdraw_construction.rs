@@ -10,7 +10,7 @@ use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_wallet_pskt::prelude::Bundle;
 use std::io::Cursor;
 
-/// Processes given messages and returns WithdrawFXG and the very first outpoint 
+/// Processes given messages and returns WithdrawFXG and the very first outpoint
 /// (the one preceding all the given transfers; it should be used during process indication).
 pub async fn on_new_withdrawals(
     messages: Vec<HyperlaneMessage>,
@@ -61,8 +61,5 @@ pub async fn on_new_withdrawals(
     .await
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
 
-    Ok(Some((
-        WithdrawFXG::new(Bundle::from(pskt)),
-        outpoint,
-    )))
+    Ok(Some((WithdrawFXG::new(Bundle::from(pskt)), outpoint)))
 }

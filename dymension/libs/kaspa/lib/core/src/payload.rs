@@ -107,7 +107,10 @@ mod tests {
             .expect("Failed to deserialize single MessageID");
 
         assert_eq!(deserialized_message_ids.0.len(), 1);
-        assert_eq!(deserialized_message_ids.0[0], MessageID(H256::from([42u8; 32])));
+        assert_eq!(
+            deserialized_message_ids.0[0],
+            MessageID(H256::from([42u8; 32]))
+        );
         assert_eq!(deserialized_message_ids.0, single_id);
     }
 
@@ -167,7 +170,10 @@ mod tests {
             .expect("Failed to deserialize single MessageID from bytes");
 
         assert_eq!(deserialized_message_ids.0.len(), 1);
-        assert_eq!(deserialized_message_ids.0[0], MessageID(H256::from([42u8; 32])));
+        assert_eq!(
+            deserialized_message_ids.0[0],
+            MessageID(H256::from([42u8; 32]))
+        );
         assert_eq!(deserialized_message_ids.0, single_id);
     }
 

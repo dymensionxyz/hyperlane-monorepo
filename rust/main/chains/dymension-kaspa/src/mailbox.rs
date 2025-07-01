@@ -153,7 +153,10 @@ impl Mailbox for KaspaMailbox {
         let fxg_res = self.provider.construct_withdrawal(messages).await?;
         let (fxg, prev_outpoint) = fxg_res.ok_or(ChainCommunicationError::BatchingFailed)?;
 
-        let _ = self.provider.process_withdrawal(&fxg, &prev_outpoint).await?;
+        let _ = self
+            .provider
+            .process_withdrawal(&fxg, &prev_outpoint)
+            .await?;
 
         // Note: this return value doesn't really correspond well to what we did, since we sent (possibly) multiple TXs to Kaspa
         // however, since the TXs must go in sequence, we can take the last one, knowing all the prior ones were accepted
