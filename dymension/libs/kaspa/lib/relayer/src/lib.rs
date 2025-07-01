@@ -78,7 +78,6 @@ pub async fn handle_new_deposit(deposit: &Deposit) -> Result<DepositFXG> {
     Ok(tx)
 }
 
-
 pub async fn handle_new_deposits(
     deposits: Vec<&Deposit>,
 ) -> Result<Vec<DepositFXG>, Box<dyn Error>> {
