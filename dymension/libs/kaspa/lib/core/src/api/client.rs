@@ -1,7 +1,7 @@
 use api_rs::apis::configuration::Configuration;
 
 use governor::{DefaultDirectRateLimiter, Quota, RateLimiter};
-use reqwest_middleware::ClientBuilder;
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use std::sync::Arc;
 use std::time::Duration;
 use std::{error::Error, num::NonZeroU32};
@@ -23,15 +23,21 @@ impl reqwest_ratelimit::RateLimiter for FooRateLimiter {
     }
 }
 
-pub fn get_config(url: &Url) -> Configuration {
-    // 1 req per sec
+pub fn get_client() -> ClientWithMiddleware {
+    let base = reqwest::Client::new();
     let governor_limiter = RateLimiter::direct(Quota::per_second(NonZeroU32::new(1).unwrap()));
     let rl = FooRateLimiter {
         limiter: Arc::new(governor_limiter),
     };
-    let client = ClientBuilder::new(reqwest::Client::new())
+    let client = ClientBuilder::new(base)
         .with(reqwest_ratelimit::all(rl))
         .build();
+    client
+}
+
+pub fn get_config(url: &Url, client: ClientWithMiddleware) -> Configuration {
+    // 1 req per sec
+
     // let client = ClientBuilder::new(reqwest::Client::new()).build();
     let raw_base = "https://api-tn10.kaspa.org".to_string(); // TODO: need to use passed url!
                                                              // let url_base = url.to_string();
