@@ -70,10 +70,10 @@ impl ValidatorsClient {
                         );
                     }
                 },
-                Err(_e) => {
+                Err(e) => {
                     error!(
-                        "Dymension, got deposit sig response Err, validator: {:?}",
-                        h
+                        "Dymension, got deposit sig response Err, validator: {:?}, error: {:?}",
+                        h, e
                     );
                 }
             }
@@ -170,14 +170,9 @@ pub async fn request_validate_new_deposits(
         .send()
         .await?;
 
-    // TODO: need to return sigs here
-    let status = res.status();
-    if status == StatusCode::OK {
-        let body = res.json::<SignedCheckpointWithMessageId>().await?;
-        Ok(Some(body))
-    } else {
-        Err(eyre::eyre!("Failed to validate deposits: {}", status))
-    }
+    let res = request_validate_new_deposits(host, &deposits).await;
+    // just check that the call does not panic and returns a result
+    let _ = res;
 }
 
 pub async fn request_validate_new_confirmation(
@@ -222,3 +217,19 @@ pub async fn request_sign_withdrawal_bundle(
         Err(eyre::eyre!("Failed to sign withdrawal bundle: {}", status))
     }
 }
+
+
+#[cfg(test)]
+mod tests 
+
+#[tokio::test]
+#[ignore]
+async fn test_txs() {
+    let host = "http://localhost:9090";
+    let deposits = DepositFXG::default();
+    let res = request_validate_new_deposits(host, &deposits).await;
+    let _ = res;
+}
+
+
+
