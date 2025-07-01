@@ -1,13 +1,14 @@
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
 use dym_kas_relayer::PublicKey;
 
-use std::sync::{Arc, Mutex};
 use eyre::Result as EyreResult;
 use kaspa_addresses::Address;
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
 use kaspa_wallet_pskt::prelude::*;
 use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 use tonic::async_trait;
+use tracing::warn;
 use url::Url;
 
 use dym_kas_core::escrow::EscrowPublic;
@@ -22,6 +23,7 @@ use hyperlane_core::{
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use kaspa_rpc_core::api::rpc::RpcApi;
 use kaspa_wallet_pskt::prelude::Bundle;
+use serde::{Deserialize, Serialize};
 
 use super::validators::ValidatorsClient;
 use super::RestProvider;
@@ -80,7 +82,7 @@ impl KaspaProvider {
         let kas_key = conf
             .kaspa_escrow_private_key
             .as_ref()
-            .map(|k| KaspaSecpKeypair::from_str(k).unwrap());
+            .map(|k| serde_json::from_str(k).unwrap());
 
         Ok(KaspaProvider {
             domain: domain.clone(),
@@ -94,6 +96,7 @@ impl KaspaProvider {
         })
     }
 
+    /// dococo
     pub fn must_kas_key(&self) -> KaspaSecpKeypair {
         self.kas_key.unwrap()
     }
@@ -224,7 +227,7 @@ impl KaspaProvider {
 
     fn escrow(&self) -> EscrowPublic {
         EscrowPublic::from_strs(
-            self.conf.validator_pks.clone(),
+            self.conf.validator_pub_keys.clone(),
             self.easy_wallet.address_prefix(),
             self.conf.multisig_threshold_kaspa as u8,
         )

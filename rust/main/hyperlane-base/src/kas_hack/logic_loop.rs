@@ -95,7 +95,16 @@ where
     // https://github.com/dymensionxyz/hyperlane-monorepo/blob/20b9e669afcfb7728e66b5932e85c0f7fcbd50c1/dymension/libs/kaspa/lib/relayer/note.md#L102-L119
     async fn deposit_loop(&self) {
         loop {
-            let deposits = self.provider.rest().get_deposits().await.unwrap();
+            time::sleep(Duration::from_secs(15)).await;
+
+            let deposits_res = self.provider.rest().get_deposits().await;
+            let deposits = match deposits_res {
+                Ok(deposits) => deposits,
+                Err(e) => {
+                    warn!("Error getting deposits: {:?}", e);
+                    continue;
+                }
+            };
 
             let mut deposits_new = Vec::new();
             for d in deposits.into_iter() {
@@ -119,7 +128,6 @@ where
                     }
                 }
             }
-            time::sleep(Duration::from_secs(10)).await;
         }
     }
 
@@ -256,7 +264,7 @@ where
             }
             let next_utxo = next_utxo.ok_or_else(|| anyhow::anyhow!("No suitable UTXO found"))?;
             self.run_sync_flow(anchor_utxo, next_utxo).await?;
-        } 
+        }
         info!("System is synced, proceeding with other tasks");
         Ok(())
     }
@@ -275,7 +283,11 @@ where
     // https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/keeper/msg_server.go#L42-L48
     // https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/types/d.go#L76-L84
     */
-    async fn run_sync_flow(&self, anchor_utxo: TransactionOutpoint, new_utxo: TransactionOutpoint) -> Result<()> {
+    async fn run_sync_flow(
+        &self,
+        anchor_utxo: TransactionOutpoint,
+        new_utxo: TransactionOutpoint,
+    ) -> Result<()> {
         // Prepare progress indication
         let conf = self.provider.rest().get_config();
         let fxg = prepare_progress_indication(&conf, anchor_utxo, new_utxo).await?;

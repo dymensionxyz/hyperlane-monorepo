@@ -1,4 +1,5 @@
 use anyhow::Result;
+use corelib::consts::KEY_MESSAGE_IDS;
 use corelib::escrow::EscrowPublic;
 use corelib::payload::{MessageID, MessageIDs};
 use corelib::wallet::NetworkInfo;
@@ -223,10 +224,7 @@ pub async fn build_withdrawal_pskt(
 
     // Save msg_ids_raw in the proprietaries for later retrieval by validators
     let global = GlobalBuilder::default()
-        .proprietaries(BTreeMap::from([(
-            corelib::consts::KEY_MESSAGE_IDS.to_string(),
-            msg_ids_raw,
-        )]))
+        .proprietaries(BTreeMap::from([(KEY_MESSAGE_IDS.to_string(), msg_ids_raw)]))
         .build()
         .map_err(|e| anyhow::anyhow!("Build message IDs payload: {}", e))?;
 
