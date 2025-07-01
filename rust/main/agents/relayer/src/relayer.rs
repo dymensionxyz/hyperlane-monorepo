@@ -513,6 +513,9 @@ impl BaseAgent for Relayer {
         let mut prep_queues = HashMap::with_capacity(self.destination_chains.len());
         start_entity_init = Instant::now();
         for (dest_domain, dest_conf) in &self.destination_chains {
+            if is_kas(dest_domain) {
+                continue;
+            }
             let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
             send_channels.insert(dest_domain.id(), send_channel);
 
