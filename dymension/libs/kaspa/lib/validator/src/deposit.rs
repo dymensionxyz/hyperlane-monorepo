@@ -1,4 +1,4 @@
-use core::deposit::DepositFXG;
+use corelib::deposit::DepositFXG;
 use std::sync::Arc;
 
 use eyre::Result;

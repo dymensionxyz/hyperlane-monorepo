@@ -8633,6 +8633,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-error",
+ "tracing-futures",
  "workflow-core",
 ]
 

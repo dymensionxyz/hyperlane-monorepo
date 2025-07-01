@@ -183,7 +183,7 @@ async fn demo() -> Result<(), Box<dyn Error>> {
     );
 
     // validate deposit using kaspa rpc (validator operation)
-    let validation_result = validate_deposit(&w.rpc_api(), &deposit_recv).await?;
+    let validation_result = validate_deposit(&w.rpc_api(), &deposit_recv, &escrow_address.to_string()).await?;
 
     if validation_result {
         println!("Deposit validated");

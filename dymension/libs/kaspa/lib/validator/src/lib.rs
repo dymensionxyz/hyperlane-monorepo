@@ -8,11 +8,11 @@ use tracing::{error, info, warn};
 use kaspa_wallet_core::{prelude::DynRpcApi, utxo::NetworkParams};
 pub use secp256k1::Keypair as KaspaSecpKeypair;
 
-use core::{is_utxo_escrow_address, parse_hyperlane_metadata};
+use corelib::{is_utxo_escrow_address, parse_hyperlane_metadata};
 use std::error::Error;
 use std::str::FromStr;
 
-use core::deposit::DepositFXG;
+use corelib::deposit::DepositFXG;
 use kaspa_addresses::Prefix;
 use kaspa_consensus_core::Hash;
 use kaspa_rpc_core::{api::rpc::RpcApi, RpcBlock, RpcScriptPublicKey};
@@ -94,17 +94,4 @@ pub async fn validate_deposit(client: &Arc<DynRpcApi>, deposit: &DepositFXG, esc
         return Ok(false);
     }
     Ok(true)
-}
-
-pub async fn validate_deposits(
-    client: &Arc<DynRpcApi>,
-    deposits: Vec<&DepositFXG>,
-) -> Result<Vec<bool>, Box<dyn Error>> {
-    let mut results: Vec<bool> = vec![];
-    // iterate over all deposits and validate one by one
-    for deposit in deposits {
-        let result = validate_deposit(client, deposit).await?;
-        results.push(result);
-    }
-    Ok(results)
 }
