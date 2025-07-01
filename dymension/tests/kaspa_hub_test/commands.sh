@@ -118,6 +118,8 @@ dymd tx gov submit-proposal /Users/danwt/Documents/dym/d-hyperlane-monorepo/dyme
 
 #### 5. SUBMIT DEPOSITS/WITHDRAWALS
 
+# in hyperlane-monorepo/dymension/libs/kaspa/demo/relayer
+cargo run -w lkjsdf -d true -e kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr -p "0x0000000000000000000000000000000000000000000000000000000000000000"
 
 #### APPENDIX: DEBUG TIPS 
 

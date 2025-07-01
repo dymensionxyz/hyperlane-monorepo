@@ -14,13 +14,6 @@ pub fn cli() -> Command {
         ))
         .version(env!("CARGO_PKG_VERSION"))
         .arg(
-            Arg::new("private-key")
-                .long("private-key")
-                .short('k')
-                .value_name("private-key")
-                .help("Private key in hex format"),
-        )
-        .arg(
             Arg::new("rpcserver")
                 .long("rpcserver")
                 .short('s')
@@ -60,7 +53,6 @@ pub fn cli() -> Command {
 
 
 pub struct Args {
-    pub private_key: Option<String>, // TODO: not used
     pub wallet_secret: Option<String>,
     pub rpc_server: String, // TODO: use
     pub only_deposit: bool,
@@ -73,7 +65,6 @@ impl Args {
         let m = cli().get_matches();
         let only_deposit = m.get_one::<bool>("only-deposit").cloned();
         Args {
-            private_key: m.get_one::<String>("private-key").cloned(),
             wallet_secret: m.get_one::<String>("wallet-secret").cloned(),
             rpc_server: m
                 .get_one::<String>("rpcserver")
