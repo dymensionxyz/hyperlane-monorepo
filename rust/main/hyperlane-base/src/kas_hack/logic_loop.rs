@@ -98,6 +98,54 @@ where
         }
     }
 
+    pub fn run_progress_indication_loop(mut self, task_monitor: TaskMonitor) -> JoinHandle<()> {
+        let name = "dymension_kaspa_progress_indication_loop";
+        tokio::task::Builder::new()
+            .name(name)
+            .spawn(TaskMonitor::instrument(
+                &task_monitor,
+                async move {
+                    self.progress_indication_loop().await;
+                }
+                    .instrument(info_span!("Kaspa Monitor")),
+            ))
+            .expect("Failed to spawn kaspa monitor task")
+    }
+
+    async fn progress_indication_loop(&mut self) {
+        loop {
+            // The confirmation list always looks like this:
+            // ---
+            // prev: 100
+            // next: 101
+            // ---
+            // prev: 100
+            // next: 102
+            // ---
+            // prev: 100
+            // next: 103
+            // ---
+            // It means that before IndicateProgress is called, all prev_outpoint are the same
+            // as the Hub last outpoint doesn't change. It's enough to process the last confirmation.
+            //
+            // If, for some reason, the last Hub outpoint != prev_outpoint, then the Hub went forward.
+            // We clear the confirmation list, and on the next iteration we will have new confirmations
+            // with the correct outpoints. 
+            //
+            // TODO: what happens if at some point no one is bridging and we have failed confirmations?
+            let confirmations = self.provider.fetch_clear_indicate_progress_queue();
+
+            match confirmations.last() {
+                None => {}
+                Some((prev, next)) => {
+                    self.run_sync_flow(prev.clone(), next.clone())
+                }
+            }
+            
+            time::sleep(Duration::from_secs(10)).await;
+        }
+    }
+
     async fn get_deposit_validator_sigs_and_send_to_hub(
         &self,
         fxg: &DepositFXG,
