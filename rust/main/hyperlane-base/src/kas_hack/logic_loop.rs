@@ -71,7 +71,7 @@ where
     async fn deposit_loop(&mut self) {
         info!("Dymension, starting deposit loop");
         loop {
-            time::sleep(Duration::from_secs(15)).await;
+            time::sleep(Duration::from_secs(10)).await;
             let deposits_res = self.provider.rest().get_deposits().await;
             let deposits = match deposits_res {
                 Ok(deposits) => deposits,
@@ -92,7 +92,7 @@ where
 
             for d in &deposits_new {
                 // Call to relayer.F()
-                let new_deposit_res = relayer_on_new_deposit(d).await;
+                let new_deposit_res = relayer_on_new_deposit(&self.provider.escrow_address().to_string(), d).await;
                 info!("Dymension, got new deposit FXG: {:?}", new_deposit_res);
                 match new_deposit_res {
                     Ok(Some(fxg)) => {

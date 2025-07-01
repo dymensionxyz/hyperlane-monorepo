@@ -4,13 +4,14 @@ pub mod deposit;
 pub mod hub_to_kaspa;
 pub mod withdraw;
 pub mod withdraw_construction;
+use tracing::info;
 
 // Re-export the main function for easier access
 pub use hub_to_kaspa::build_withdrawal_pskts;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
 use prost::Message;
 
-use corelib::{api::deposits::Deposit, deposit::DepositFXG, ESCROW_ADDRESS};
+use corelib::{api::deposits::Deposit, deposit::DepositFXG};
 use corelib::{parse_hyperlane_message, parse_hyperlane_metadata};
 use eyre::Result;
 use hyperlane_core::{Encode, RawHyperlaneMessage, U256};
@@ -19,15 +20,19 @@ use kaspa_consensus_core::tx::TransactionOutpoint;
 pub use secp256k1::PublicKey;
 use std::error::Error;
 
-pub async fn handle_new_deposit(deposit: &Deposit) -> Result<DepositFXG> {
+pub async fn handle_new_deposit(escrow_address: &str, deposit: &Deposit) -> Result<DepositFXG> {
     // decode payload into Hyperlane message
     let rawmessage: RawHyperlaneMessage =
         hex::decode(deposit.payload.clone().unwrap()).map_err(|e| eyre::eyre!(e))?;
     let hl_message = parse_hyperlane_message(&rawmessage).map_err(|e| eyre::eyre!(e))?;
 
+    info!("Dymension, parsed new deposit HL message: {:?}", hl_message);
+
     // decode token message from Hyperlane message body
     let token_message: TokenMessage =
         parse_hyperlane_metadata(&hl_message).map_err(|e| eyre::eyre!(e))?;
+
+    info!("Dymension, parsed new deposit HL token (warp) message: {:?}", token_message);
 
     // find the index of the utxo that satisfies the transfer amount in hl message
     let utxo_index = deposit
@@ -35,7 +40,7 @@ pub async fn handle_new_deposit(deposit: &Deposit) -> Result<DepositFXG> {
         .iter()
         .position(|utxo: &api_rs::models::TxOutput| {
             U256::from(utxo.amount) >= token_message.amount()
-                && utxo.script_public_key_address.as_ref().unwrap() == ESCROW_ADDRESS
+                && utxo.script_public_key_address.as_ref().unwrap() == escrow_address
         })
         .ok_or("no utxo found")
         .map_err(|e| eyre::eyre!(e))?;
@@ -80,6 +85,8 @@ pub async fn handle_new_deposit(deposit: &Deposit) -> Result<DepositFXG> {
 
 pub async fn handle_new_deposits(
     deposits: Vec<&Deposit>,
+    escrow_address: &str,
+
 ) -> Result<Vec<DepositFXG>, Box<dyn Error>> {
     let mut txs = Vec::new();
 
@@ -87,7 +94,7 @@ pub async fn handle_new_deposits(
         if deposit.payload.is_none() {
             continue;
         }
-        let tx = handle_new_deposit(deposit).await?;
+        let tx = handle_new_deposit(escrow_address, deposit).await?;
         txs.push(tx);
     }
 

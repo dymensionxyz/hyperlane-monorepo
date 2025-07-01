@@ -6474,6 +6474,7 @@ dependencies = [
  "secp256k1",
  "serde",
  "tokio",
+ "tracing",
  "workflow-core",
 ]
 
