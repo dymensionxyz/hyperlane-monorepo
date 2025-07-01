@@ -83,7 +83,10 @@ cargo build --release --bin validator
 
 ISM=$(hub q hyperlane ism isms -o json | jq -r '.isms[0].id')
 MAILBOX=$(hub q hyperlane mailboxes -o json | jq -r '.mailboxes[0].id')
+TOKEN_ID=$(hub q warp tokens -o json | jq -r '.tokens[0].id')
 ESCROW_ADDR=kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr
+HUB_USER_ADDR=$(dymd keys show -a hub-user) #dym139mq752delxv78jvtmwxhasyrycufsvrw4aka9
+
 
 dymd q auth module-account gov -o json | jq -r '.account.value.address' # dym10d07y265gmmuvt4z0w9aw880jnsr700jgllrna
 
@@ -118,8 +121,10 @@ dymd tx gov submit-proposal /Users/danwt/Documents/dym/d-hyperlane-monorepo/dyme
 
 #### 5. SUBMIT DEPOSITS/WITHDRAWALS
 
+# <token id> <recipient> <amt>
+dymd q forward hl-message-kaspa "0x726f757465725f61707000000000000000000000000000020000000000000000" "dym139mq752delxv78jvtmwxhasyrycufsvrw4aka9" 1000
 # in hyperlane-monorepo/dymension/libs/kaspa/demo/relayer
-cargo run -w lkjsdf -d true -e kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr -p "0x0000000000000000000000000000000000000000000000000000000000000000"
+cargo run -w lkjsdf -d true -e kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr -p "0x030000000004d10892ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff804b267ca0726f757465725f6170700000000000000000000000000002000000000000000000000000000000000000000089760f514dcfcccf1e4c5edc6bf6041931c4c18300000000000000000000000000000000000000000000000000000000000003e8"
 
 #### APPENDIX: DEBUG TIPS 
 
