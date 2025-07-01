@@ -43,6 +43,12 @@ use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_native::RawCosmosAmount;
 use hyperlane_cosmos_native::Signer as HyperlaneSigner;
 
+#[derive(Debug, Clone)]
+pub struct ProcessIndication {
+    prev_outpoint: TransactionOutpoint,
+    next_outpoint: TransactionOutpoint,
+}
+
 /// dococo
 #[derive(Debug, Clone)]
 pub struct KaspaProvider {
@@ -58,7 +64,7 @@ pub struct KaspaProvider {
     */
     kas_key: Option<KaspaSecpKeypair>,
 
-    queue: Mutex<Vec<TransactionOutpoint>>,
+    queue: Arc<Mutex<Vec<ProcessIndication>>>,
 }
 
 impl KaspaProvider {
@@ -93,6 +99,7 @@ impl KaspaProvider {
             validators,
             cosmos_rpc: cosmos_grpc_client(conf.hub_grpc_urls.clone()),
             kas_key,
+            queue: Arc::new(Mutex::new(Vec::new())),
         })
     }
 
@@ -124,7 +131,7 @@ impl KaspaProvider {
     pub async fn construct_withdrawal(
         &self,
         msgs: Vec<HyperlaneMessage>,
-    ) -> Result<Option<WithdrawFXG>> {
+    ) -> Result<Option<(WithdrawFXG, TransactionOutpoint)>> {
         on_new_withdrawals(
             msgs,
             self.easy_wallet.clone(),
@@ -135,15 +142,14 @@ impl KaspaProvider {
         .await
     }
 
-    pub fn fetch_clear_queue(&self) -> Vec<TransactionOutpoint> {
+    pub fn fetch_clear_queue(&self) -> Vec<ProcessIndication> {
         let mut guard = self.queue.lock().unwrap();
         // Take all elements and replace the vector with an empty Vec
         std::mem::take(&mut *guard)
-
     }
 
     /// dococo
-    pub async fn process_withdrawal(&self, fxg: &WithdrawFXG) -> Result<()> {
+    pub async fn process_withdrawal(&self, fxg: &WithdrawFXG, prev_outpoint: &TransactionOutpoint) -> Result<()> {
         let all_bundles = {
             let mut bundles_validators = self.validators().get_withdraw_sigs(fxg).await?;
             let bundle_relayer = self.sign_relayer_fee(fxg).await?; // TODO: can add own sig in parallel to validator network request
@@ -151,36 +157,39 @@ impl KaspaProvider {
             bundles_validators
         };
         let txs_signed = combine_all_bundles(all_bundles)?;
-        let n_txs = txs_signed.len();
-        let finalized = finalize_txs(txs_signed.clone(), self.escrow().pubs.clone())?;
+        let finalized = finalize_txs(txs_signed, self.escrow().pubs.clone())?;
         let res_tx_ids = self.submit_txs(finalized).await?;
 
-        // construct outputs & inputs
-        // assumption: all transaction details live on respective vector indexes
-        for tx_idx in 0..n_txs {
-            // get previous outpoint from PSKT
-            let pskt = txs_signed.get(tx_idx).unwrap();
-            let prev = pskt.global.proprietaries.get("prev_utxo").unwrap();
-            let prev_outpoint: TransactionOutpoint = prev.clone().deserialize_into()?;
+        // to indicate progress on the Hub, we need to know:
+        // - the first outpoint preceding the withdrawal and
+        // - the last outpoint of the withdrawal batch
 
-            // find an expected output index
-            // we need to do when the tx is already finalized
-            let tx = finalized.get(tx_idx).unwrap();
-            let output_idx = tx
-                .outputs
-                .iter()
-                .position(|o| o.script_public_key == self.escrow().p2sh.clone().into())
-                .unwrap_or_else(|| 0);
+        // assumption: all transaction details live on respective vector indices,
+        // i.e. len(txs_signed) == len(finalized) == len(res_tx_ids)
+        // and index IDX corresponds to the same transaction in each vector.
+        let last_idx = finalized.len() - 1;
 
-            // get transaction id and construct next outpoint
-            let tx_id = res_tx_ids.get(tx_idx).unwrap();
-            let next_outpoint = TransactionOutpoint {
-                transaction_id: tx_id.into(),
-                index: output_idx.into(),
-            };
+        let last_tx = finalized.get(last_idx).unwrap();
 
-            self.queue.lock()?.push(prev_outpoint);
-        }
+        // find the index of anchor.
+        // its recipient must be the escrow address.
+        let output_idx = last_tx
+            .outputs
+            .iter()
+            .position(|o| o.script_public_key == self.escrow().p2sh.clone().into())
+            .unwrap_or_else(|| 0);
+
+        let tx_id = &res_tx_ids.get(last_idx).unwrap();
+
+        let next_outpoint = TransactionOutpoint {
+            transaction_id: tx_id.into(),
+            index: output_idx.into(),
+        };
+
+        self.queue.lock()?.push(ProcessIndication {
+            prev_outpoint: prev_outpoint.clone(),
+            next_outpoint,
+        });
 
         Ok(())
     }
