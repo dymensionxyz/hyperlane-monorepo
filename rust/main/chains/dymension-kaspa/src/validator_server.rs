@@ -11,7 +11,7 @@ use dym_kas_core::deposit::DepositFXG;
 use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use dym_kas_validator::withdraw::sign_pskt;
 pub use dym_kas_validator::KaspaSecpKeypair;
-use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable, H256};
+use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable, H256, SignedCheckpointWithMessageId};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use kaspa_wallet_core::prelude::DynRpcApi;
 use kaspa_wallet_pskt::prelude::*;
@@ -82,7 +82,7 @@ pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(
 async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'static>(
     State(resources): State<Arc<ValidatorServerResources<S>>>,
     body: Bytes,
-) -> HandlerResult<Json<String>> {
+) -> HandlerResult<Json<SignedCheckpointWithMessageId>> {
     info!("Validator: checking new kaspa deposit");
     let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
@@ -121,10 +121,7 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
         .map_err(|e| AppError(e.into()))?;
     info!("Validator: signed deposit");
 
-    let j =
-        serde_json::to_string_pretty(&sig).map_err(|e: serde_json::Error| AppError(e.into()))?;
-
-    Ok(Json(j))
+    Ok(Json(sig))
 }
 
 async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + Sync + 'static>(
