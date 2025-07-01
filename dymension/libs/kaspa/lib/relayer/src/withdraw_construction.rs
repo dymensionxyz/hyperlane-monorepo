@@ -6,16 +6,19 @@ use eyre::Result;
 use hyperlane_core::{Decode, HyperlaneMessage};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_warp_route::TokenMessage;
+use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_wallet_pskt::prelude::Bundle;
 use std::io::Cursor;
 
+/// Processes given messages and returns WithdrawFXG and the very first outpoint 
+/// (the one preceding all the given transfers; it should be used during process indication).
 pub async fn on_new_withdrawals(
     messages: Vec<HyperlaneMessage>,
     relayer: EasyKaspaWallet,
     cosmos: CosmosGrpcClient,
     escrow_public: EscrowPublic,
     hub_height: Option<u32>,
-) -> Result<Option<WithdrawFXG>> {
+) -> Result<Option<(WithdrawFXG, TransactionOutpoint)>> {
     let (outpoint, pending_messages) =
         crate::hub_to_kaspa::get_pending_withdrawals(messages, &cosmos, hub_height)
             .await
@@ -58,5 +61,8 @@ pub async fn on_new_withdrawals(
     .await
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
 
-    Ok(Some(WithdrawFXG::new(Bundle::from(pskt))))
+    Ok(Some((
+        WithdrawFXG::new(Bundle::from(pskt)),
+        outpoint,
+    )))
 }
