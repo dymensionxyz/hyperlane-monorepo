@@ -124,7 +124,7 @@ async fn demo() -> Result<(), Box<dyn Error>> {
     println!("balance {}", &w.account()?.get_list_string()?);
 
     // deposit to escrow address
-    let amt = DEPOSIT_AMOUNT;
+    let amt = args.amount.unwrap_or(DEPOSIT_AMOUNT);
     let escrow_address = if let Some(e) = args.escrow_address {
         Address::try_from(e)?
     } else {

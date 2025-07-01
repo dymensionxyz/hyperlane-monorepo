@@ -1,6 +1,6 @@
 use kaspa_core::kaspad_env::version;
 
-use clap::{Arg, Command};
+use clap::{Arg, ArgAction, Command};
 
 const NAME: &str = "demo";
 
@@ -32,7 +32,7 @@ pub fn cli() -> Command {
             Arg::new("only-deposit")
                 .long("only-deposit")
                 .short('d')
-                .value_name("only-deposit")
+                .action(ArgAction::SetTrue)
                 .help("Only deposit then exit."),
         )
         .arg(
@@ -49,6 +49,14 @@ pub fn cli() -> Command {
                 .value_name("escrow-address")
                 .help("Escrow address."),
         )
+        .arg(
+            Arg::new("amount")
+                .long("amount")
+                .short('a')
+                .value_name("amount")
+                .help("Amount to send."),
+        )
+         
 }
 
 
@@ -58,24 +66,24 @@ pub struct Args {
     pub only_deposit: bool,
     pub payload: Option<String>,
     pub escrow_address: Option<String>,
+    pub amount: Option<u64>,
 }
 
 impl Args {
     pub fn parse() -> Self {
         let m = cli().get_matches();
-        let only_deposit = m.get_one::<bool>("only-deposit").cloned();
+        let only_deposit = m.get_flag("only-deposit");
+        let amount = m.get_one::<String>("amount").cloned().map(|s| s.parse::<u64>().unwrap());
         Args {
             wallet_secret: m.get_one::<String>("wallet-secret").cloned(),
             rpc_server: m
                 .get_one::<String>("rpcserver")
                 .cloned()
                 .unwrap_or("localhost:16210".to_owned()),
-            only_deposit: match only_deposit {
-                Some(true) => true,
-                _ => false,
-            },
+            only_deposit: only_deposit,
             payload: m.get_one::<String>("payload").cloned(),
             escrow_address: m.get_one::<String>("escrow-address").cloned(),
+            amount: amount,
         }
     }
 }
