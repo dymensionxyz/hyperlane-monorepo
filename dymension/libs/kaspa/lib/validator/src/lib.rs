@@ -44,7 +44,7 @@ async fn validate_maturity(client: &Arc<DynRpcApi>, block: &RpcBlock) -> Result<
     Ok(false)
 }
 
-pub async fn validate_deposit(client: &Arc<DynRpcApi>, deposit: &DepositFXG) -> Result<bool> {
+pub async fn validate_deposit(client: &Arc<DynRpcApi>, deposit: &DepositFXG, escrow_address: &str) -> Result<bool> {
     let block_hash = RpcHash::from_str(&deposit.block_id)?;
     let tx_hash = RpcHash::from_str(&deposit.tx_id)?;
 
@@ -81,15 +81,16 @@ pub async fn validate_deposit(client: &Arc<DynRpcApi>, deposit: &DepositFXG) -> 
         return Ok(false);
     }
 
-    let is_escrow = is_utxo_escrow_address(&utxo.script_public_key).map_err(|e| eyre::eyre!(e))?;
+    let is_escrow = is_utxo_escrow_address(&utxo.script_public_key, escrow_address).map_err(|e| eyre::eyre!(e))?;
 
     if !is_escrow {
-        error!("Deposit is not to escrow address,escrow: {:?}", ESCROW_ADDRESS);
+        error!("Deposit is not to escrow address,escrow: {:?}", escrow_address);
         return Ok(false);
     }
 
     let maturity_result = validate_maturity(client, &block).await?;
     if !maturity_result {
+        error!("Deposit is not mature, block daa score: {:?}", block.header.daa_score);
         return Ok(false);
     }
     Ok(true)

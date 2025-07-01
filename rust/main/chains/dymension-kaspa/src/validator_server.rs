@@ -45,6 +45,9 @@ impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> 
     fn must_api(&self) -> Arc<DynRpcApi> {
         self.kas_provider.as_ref().unwrap().wallet().api()
     }
+    fn must_escrow_address(&self) -> String {
+        self.kas_provider.as_ref().unwrap().escrow_address()
+    }
 
     pub fn default() -> Self {
         Self {
@@ -80,7 +83,7 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
     let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
     // Call to validator.G()
-    if !validate_new_deposit(&resources.must_api(), &deposits)
+    if !validate_new_deposit(&resources.must_api(), &deposits, &resources.must_escrow_address())
         .await
         .map_err(|e| AppError(e))?
     {
