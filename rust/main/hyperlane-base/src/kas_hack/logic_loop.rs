@@ -92,7 +92,8 @@ where
 
             for d in &deposits_new {
                 // Call to relayer.F()
-                let new_deposit_res = relayer_on_new_deposit(&self.provider.escrow_address().to_string(), d).await;
+                let new_deposit_res =
+                    relayer_on_new_deposit(&self.provider.escrow_address().to_string(), d).await;
                 info!("Dymension, got new deposit FXG: {:?}", new_deposit_res);
                 match new_deposit_res {
                     Ok(Some(fxg)) => {
@@ -103,14 +104,15 @@ where
                             }
                             Err(e) => {
                                 error!("Dymension, send deposit to hub: {:?}", e);
+                                // TODO: should have a retry flow
                             }
                         }
                     }
                     Ok(None) => {
-                        error!("Dymension, F() new deposit returned none");
+                        error!("Dymension, F() new deposit returned none, dropping deposit.");
                     }
                     Err(e) => {
-                        error!("Dymension, F() new deposit: {:?}", e);
+                        error!("Dymension, F() new deposit: {:?}, dropping deposit.", e);
                     }
                 }
             }

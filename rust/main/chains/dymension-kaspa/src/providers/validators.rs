@@ -8,6 +8,7 @@ use hyperlane_core::{
 use bytes::Bytes;
 use eyre::Result;
 use reqwest::StatusCode;
+use tracing::{info, error};
 
 use crate::ConnectionConf;
 
@@ -46,8 +47,8 @@ impl ValidatorsClient {
         &self,
         fxg: &DepositFXG,
     ) -> ChainResult<Vec<SignedCheckpointWithMessageId>> {
-        // map validator addr to sig(s)
         // TODO: in parallel
+        info!("Dymension, asking validators for deposit sigs");
         let mut results = Vec::new();
         for (host, validator_id) in self
             .conf
@@ -64,11 +65,11 @@ impl ValidatorsClient {
                         results.push(sig);
                     }
                     None => {
-                        // TODO: log
+                        error!("Dymension, got deposit sig response None, validator: {:?}", validator_id);
                     }
                 },
                 Err(_e) => {
-                    // TODO: log error
+                    error!("Dymension, got deposit sig response Err, validator: {:?}", validator_id);
                 }
             }
         }
@@ -154,6 +155,7 @@ pub async fn request_validate_new_deposits(
     host: String,
     deposits: &DepositFXG,
 ) -> Result<Option<SignedCheckpointWithMessageId>> {
+    info!("Dymension, requesting deposit sigs from validator: {:?}", host);
     let bz = Bytes::from(deposits);
     let c = reqwest::Client::new();
     let res = c
