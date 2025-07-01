@@ -1754,6 +1754,7 @@ dependencies = [
  "bytes",
  "clap",
  "core",
+ "hex",
  "hyperlane-core",
  "hyperlane-warp-route",
  "kaspa-addresses",
