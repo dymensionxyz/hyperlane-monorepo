@@ -42,18 +42,28 @@ pub fn cli() -> Command {
                 .value_name("only-deposit")
                 .help("Only deposit then exit."),
         )
+        .arg(
+            Arg::new("payload")
+                .long("payload")
+                .short('p')
+                .value_name("payload")
+                .help("Payload to send."),
+        )
 }
+
 
 pub struct Args {
     pub private_key: Option<String>, // TODO: not used
     pub wallet_secret: Option<String>,
     pub rpc_server: String, // TODO: use
     pub only_deposit: bool,
+    pub payload: Option<String>,
 }
 
 impl Args {
     pub fn parse() -> Self {
         let m = cli().get_matches();
+        let only_deposit = m.get_one::<bool>("only-deposit").cloned();
         Args {
             private_key: m.get_one::<String>("private-key").cloned(),
             wallet_secret: m.get_one::<String>("wallet-secret").cloned(),
@@ -61,7 +71,11 @@ impl Args {
                 .get_one::<String>("rpcserver")
                 .cloned()
                 .unwrap_or("localhost:16210".to_owned()),
-            only_deposit: m.get_flag("only-deposit"),
+            only_deposit: match only_deposit {
+                Some(true) => true,
+                _ => false,
+            },
+            payload: m.get_one::<String>("payload").cloned(),
         }
     }
 }
