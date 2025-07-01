@@ -119,6 +119,11 @@ impl HttpClient {
 
         Ok(res
             .into_iter()
+            .filter(|tx| {
+                tx.is_accepted.expect("accepted not found in tx")
+                    && is_valid_escrow_transfer(tx, &address.to_string())
+                        .expect("unable to validate txs")
+            })
             .map(Deposit::try_from)
             .collect::<Result<Vec<Deposit>>>()?)
     }
@@ -126,4 +131,18 @@ impl HttpClient {
     pub fn get_config(&self) -> Configuration {
         get_config(&self.url, self.client.clone())
     }
+}
+
+
+fn is_valid_escrow_transfer(tx: &TxModel, address: &String) -> Result<bool> {
+    if let Some(output) = &tx.outputs {
+        for utxo in output {
+            if let Some(dest) = utxo.script_public_key_address.as_ref() {
+                if dest == address {
+                    return Ok(true);
+                }
+            }
+        }
+    }
+    Ok(false)
 }
