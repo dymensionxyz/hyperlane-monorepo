@@ -84,7 +84,8 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
         .await
         .map_err(|e| AppError(e))?
     {
-        return Err(AppError(eyre::eyre!("Invalid deposit")));
+        // TODO: return reasons and use them
+        return Err(AppError(eyre::eyre!("Validator G() function rejected")));
     }
     info!("Validator: deposit is valid: id = {:?}", deposits.msg_id);
 

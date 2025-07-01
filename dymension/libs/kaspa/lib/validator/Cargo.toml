@@ -18,6 +18,8 @@ kaspa-hashes = { workspace = true }
 secp256k1 = { workspace = true }
 workflow-core = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
+tracing = { workspace = true }
+tracing-error = { workspace = true }
 log = { workspace = true }
 axum = { workspace = true }
 relayer = { path = "../relayer" }

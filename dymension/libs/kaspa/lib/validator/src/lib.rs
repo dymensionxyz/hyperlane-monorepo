@@ -3,6 +3,8 @@ pub mod deposit;
 pub mod withdraw;
 pub mod withdrawal;
 
+use tracing::{error, info, warn};
+
 use kaspa_wallet_core::{prelude::DynRpcApi, utxo::NetworkParams};
 pub use secp256k1::Keypair as KaspaSecpKeypair;
 
@@ -73,12 +75,16 @@ pub async fn validate_deposit(client: &Arc<DynRpcApi>, deposit: &DepositFXG) -> 
     let token_message = parse_hyperlane_metadata(&deposit.payload).map_err(|e| eyre::eyre!(e))?;
 
     if U256::from(utxo.value) < token_message.amount() {
+        let amt = U256::from(utxo.value);
+        let token_amt = token_message.amount();
+        error!("Deposit amount is less than token message amount, deposit: {:?}, token message: {:?}", amt, token_amt);
         return Ok(false);
     }
 
     let is_escrow = is_utxo_escrow_address(&utxo.script_public_key).map_err(|e| eyre::eyre!(e))?;
 
     if !is_escrow {
+        error!("Deposit is not to escrow address,escrow: {:?}", ESCROW_ADDRESS);
         return Ok(false);
     }
 
