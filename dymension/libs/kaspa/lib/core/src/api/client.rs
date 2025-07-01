@@ -36,11 +36,9 @@ pub fn get_client() -> ClientWithMiddleware {
     client
 }
 
-pub fn get_config(url: &Url, client: ClientWithMiddleware) -> Configuration {
-    let raw_base = "https://api-tn10.kaspa.org".to_string(); // TODO: need to use passed url!
-                                                             // let url_base = url.to_string();
+pub fn get_config(url: &str, client: ClientWithMiddleware) -> Configuration {
     Configuration {
-        base_path: raw_base,
+        base_path: url.to_string(),
         user_agent: Some("OpenAPI-Generator/a6a9569/rust".to_owned()),
         client: client,
         basic_auth: None,

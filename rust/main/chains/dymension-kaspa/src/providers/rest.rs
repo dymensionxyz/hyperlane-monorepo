@@ -44,7 +44,7 @@ impl BlockNumberGetter for KaspaHttpClient {
 impl KaspaHttpClient {
     /// Create new `KaspaHttpClient`
     pub fn new(
-        url: Url,
+        url: String,
         metrics: PrometheusClientMetrics,
         metrics_config: PrometheusConfig,
     ) -> Self {
@@ -61,7 +61,7 @@ impl KaspaHttpClient {
 
     /// Creates a KaspaHttpClient from a url
     pub fn from_url(
-        url: Url,
+        url: String,
         metrics: PrometheusClientMetrics,
         metrics_config: PrometheusConfig,
     ) -> ChainResult<Self> {

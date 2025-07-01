@@ -79,12 +79,12 @@ pub fn get_deposits() -> Vec<Deposit> {
 
 #[derive(Debug, Clone)]
 pub struct HttpClient {
-    pub url: Url,
+    pub url: String,
     client: ClientWithMiddleware, // TODO: ignored for now
 }
 
 impl HttpClient {
-    pub fn new(url: Url) -> Self {
+    pub fn new(url: String) -> Self {
         let c = get_client();
 
         Self { url, client: c }
