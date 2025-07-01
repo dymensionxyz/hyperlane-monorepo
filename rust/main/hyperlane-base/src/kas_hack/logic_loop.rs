@@ -69,6 +69,7 @@ where
 
     // https://github.com/dymensionxyz/hyperlane-monorepo/blob/20b9e669afcfb7728e66b5932e85c0f7fcbd50c1/dymension/libs/kaspa/lib/relayer/note.md#L102-L119
     async fn deposit_loop(&mut self) {
+        info!("Dymension, starting deposit loop");
         loop {
             time::sleep(Duration::from_secs(15)).await;
             let deposits_res = self.provider.rest().get_deposits().await;
@@ -92,6 +93,7 @@ where
             for d in &deposits_new {
                 // Call to relayer.F()
                 let new_deposit_res = relayer_on_new_deposit(d).await;
+                info!("Dymension, got new deposit FXG: {:?}", new_deposit_res);
                 match new_deposit_res {
                     Ok(Some(fxg)) => {
                         let res = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
@@ -123,6 +125,7 @@ where
 
         // network calls
         let mut sigs = self.provider.validators().get_deposit_sigs(fxg).await?;
+        info!("Dymension, got deposit sigs:");
 
         let formatted_sigs = self.format_checkpoint_signatures(
             &mut sigs,
