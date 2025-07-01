@@ -1,4 +1,5 @@
 use tracing::info;
+use api_rs::apis::configuration::Configuration;
 
 use url::Url;
 
@@ -80,13 +81,12 @@ pub fn get_deposits() -> Vec<Deposit> {
 #[derive(Debug, Clone)]
 pub struct HttpClient {
     pub url: String,
-    client: ClientWithMiddleware, // TODO: ignored for now
+    client: ClientWithMiddleware, 
 }
 
 impl HttpClient {
     pub fn new(url: String) -> Self {
         let c = get_client();
-
         Self { url, client: c }
     }
 
@@ -98,7 +98,7 @@ impl HttpClient {
         let resolve_previous_outpoints = None;
         let acceptance = None;
 
-        let c = get_config(&self.url, self.client.clone());
+        let c = self.get_config();
         info!("FOO|GET_DEPOSITS_CONFIG c: {:?}", c.base_path);
 
         let res = transactions_page(
@@ -120,4 +120,9 @@ impl HttpClient {
             .map(Deposit::try_from)
             .collect::<Result<Vec<Deposit>>>()?)
     }
+
+    pub fn get_config(&self) -> Configuration {
+        get_config(&self.url, self.client.clone())
+    }
 }
+

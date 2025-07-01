@@ -12,7 +12,7 @@ use hyperlane_core::{
 pub struct ConnectionConf {
     pub wallet_secret: String,
     pub kaspa_rpc_url: String, // direct connection to kaspa DAG node .e.g localhost:16210
-    pub kaspa_rest_url: String, // connection to Kaspa higher level indexer server e.g. https://api.kaspa.org
+    pub kaspa_rest_url: Url, // connection to Kaspa higher level indexer server e.g. https://api.kaspa.org
     pub validator_ids: Vec<H256>, // TODO: needed? // https://github.com/dymensionxyz/hyperlane-monorepo/blob/fe1c79156f5ef6ead5bc60f26a373d0867848532/rust/main/hyperlane-base/src/types/multisig.rs#L169
     pub validator_hosts: Vec<String>,
     pub validator_pub_keys: Vec<String>,
@@ -32,7 +32,7 @@ impl ConnectionConf {
     pub fn new(
         wallet_secret: String,
         kaspa_rpc_url: String,
-        kaspa_rest_url: String,
+        kaspa_rest_url: Url,
         validator_ids: Vec<H256>,
         validator_hosts: Vec<String>,
         validator_pub_keys: Vec<String>,

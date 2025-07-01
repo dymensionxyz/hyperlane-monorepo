@@ -331,6 +331,7 @@ pub fn build_kaspa_connection_conf(
         .parse_string()
         .end()?;
 
+    let rest_url = Url::parse(&rest_url_s).unwrap(); // TODO: avoid unwrap
 
     // let validator_ids: Vec<H256> = chain
     //     .chain(err)
@@ -398,7 +399,7 @@ pub fn build_kaspa_connection_conf(
         dymension_kaspa::ConnectionConf::new(
             wallet_secret.to_owned(),
             rpc_url_s.to_owned(),
-            rest_url_s.to_owned(),
+            rest_url,
             validator_ids,
             validator_hosts,
             validator_pubks,
