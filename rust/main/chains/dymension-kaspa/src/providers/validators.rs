@@ -61,10 +61,7 @@ impl ValidatorsClient {
                 Ok(r) => match r {
                     Some(sig) => {
                         results.push(sig);
-                        info!(
-                            "Dymension, got deposit sig response ok, validator: {:?}",
-                            h
-                        );
+                        info!("Dymension, got deposit sig response ok, validator: {:?}", h);
                     }
                     None => {
                         error!(
@@ -92,26 +89,22 @@ impl ValidatorsClient {
         // map validator addr to sig(s)
         // TODO: in parallel
         let mut results = Vec::new();
-        for (host, validator_id) in self
-            .conf
-            .validator_hosts
-            .clone()
-            .into_iter()
-            .zip(self.conf.validator_ids.clone().into_iter())
-        {
+        for host in self.conf.validator_hosts.clone().into_iter() {
             //         let checkpoints = futures::future::join_all(futures).await; TODO: Parallel
-            let res = request_validate_new_confirmation(host, fxg).await;
+            let h = host.to_string();
+            let res = request_validate_new_confirmation(h, fxg).await;
             match res {
                 Ok(r) => match r {
                     Some(sig) => {
                         results.push(sig);
+                        info!("Dymension, got confirmation sig response ok, validator: {:?}", h);
                     }
                     None => {
-                        // TODO: log
+                        error!("Dymension, got confirmation sig response None, validator: {:?}", h);
                     }
                 },
                 Err(_e) => {
-                    // TODO: log error
+                    error!("Dymension, got confirmation sig response Err, validator: {:?}", h);
                 }
             }
         }
@@ -124,28 +117,29 @@ impl ValidatorsClient {
         // map validator addr to sig(s)
         // TODO: in parallel
         let mut results = Vec::new();
-        for (host, validator_id) in self
+        for host in self
             .conf
             .validator_hosts
             .clone()
             .into_iter()
-            .zip(self.conf.validator_ids.clone().into_iter())
         {
             //         let checkpoints = futures::future::join_all(futures).await; TODO: Parallel
-            let res = request_sign_withdrawal_bundle(host, fxg).await;
+            let h = host.to_string();
+            let res = request_sign_withdrawal_bundle(h, fxg).await;
 
             // TODO: should also check that each validator signed either all or none of the bundle
             match res {
                 Ok(r) => match r {
                     Some(sig) => {
                         results.push(sig);
+                        info!("Dymension, got withdrawal sig response ok, validator: {:?}", h);
                     }
                     None => {
-                        // TODO: log
+                        error!("Dymension, got withdrawal sig response None, validator: {:?}", h);
                     }
                 },
                 Err(_e) => {
-                    // TODO: log error
+                    error!("Dymension, got withdrawal sig response Err, validator: {:?}", h);
                 }
             }
         }
