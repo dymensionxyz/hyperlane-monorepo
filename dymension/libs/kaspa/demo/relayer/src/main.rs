@@ -4,7 +4,6 @@ mod x;
 
 use api_rs::apis::configuration;
 use bytes::Bytes;
-use core::api::client::get_local_testnet_client;
 use core::api::deposits::Deposit;
 use core::deposit::*;
 use core::escrow::*;
