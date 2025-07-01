@@ -32,7 +32,7 @@ use relayer::handle_new_deposit;
 use relayer::withdraw::*;
 use std::error::Error;
 use std::sync::Arc;
-use validator::validate_deposit;
+use validator::deposit::validate_deposit;
 use validator::withdraw::*;
 use x::args::Args;
 use x::consts::*;
