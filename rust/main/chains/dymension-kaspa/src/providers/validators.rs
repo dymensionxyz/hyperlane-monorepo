@@ -8,7 +8,7 @@ use hyperlane_core::{
 use bytes::Bytes;
 use eyre::Result;
 use reqwest::StatusCode;
-use tracing::{info, error};
+use tracing::{error, info};
 
 use crate::ConnectionConf;
 
@@ -48,29 +48,36 @@ impl ValidatorsClient {
         fxg: &DepositFXG,
     ) -> ChainResult<Vec<SignedCheckpointWithMessageId>> {
         // TODO: in parallel
-        info!("Dymension, asking validators for deposit sigs, number of validators: {:?}", self.conf.validator_hosts.len());
+        info!(
+            "Dymension, asking validators for deposit sigs, number of validators: {:?}",
+            self.conf.validator_hosts.len()
+        );
         let mut results = Vec::new();
-        for (host, validator_id) in self
-            .conf
-            .validator_hosts
-            .clone()
-            .into_iter()
-            .zip(self.conf.validator_ids.clone().into_iter())
-        {
+        for host in self.conf.validator_hosts.clone().into_iter() {
             //         let checkpoints = futures::future::join_all(futures).await; TODO: Parallel
+            let h = host.to_string();
             let res = request_validate_new_deposits(host, fxg).await;
             match res {
                 Ok(r) => match r {
                     Some(sig) => {
                         results.push(sig);
-                        info!("Dymension, got deposit sig response ok, validator: {:?}", validator_id);
+                        info!(
+                            "Dymension, got deposit sig response ok, validator: {:?}",
+                            h
+                        );
                     }
                     None => {
-                        error!("Dymension, got deposit sig response None, validator: {:?}", validator_id);
+                        error!(
+                            "Dymension, got deposit sig response None, validator: {:?}",
+                            h
+                        );
                     }
                 },
                 Err(_e) => {
-                    error!("Dymension, got deposit sig response Err, validator: {:?}", validator_id);
+                    error!(
+                        "Dymension, got deposit sig response Err, validator: {:?}",
+                        h
+                    );
                 }
             }
         }
@@ -156,7 +163,10 @@ pub async fn request_validate_new_deposits(
     host: String,
     deposits: &DepositFXG,
 ) -> Result<Option<SignedCheckpointWithMessageId>> {
-    info!("Dymension, requesting deposit sigs from validator: {:?}", host);
+    info!(
+        "Dymension, requesting deposit sigs from validator: {:?}",
+        host
+    );
     let bz = Bytes::from(deposits);
     let c = reqwest::Client::new();
     let res = c
