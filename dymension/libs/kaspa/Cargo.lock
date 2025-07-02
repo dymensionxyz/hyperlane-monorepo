@@ -1185,12 +1185,13 @@ dependencies = [
 name = "core"
 version = "0.2.0"
 dependencies = [
- "anyhow",
  "bincode",
  "bytes",
  "clap",
  "eyre",
  "governor",
+ "hardcode",
+ "hex",
  "hyperlane-core",
  "hyperlane-cosmos-dymension-rs",
  "hyperlane-warp-route",
