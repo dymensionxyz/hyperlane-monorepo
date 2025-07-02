@@ -155,7 +155,7 @@ impl Mailbox for KaspaMailbox {
 
         let _ = self
             .provider
-            .process_withdrawal(&fxg, &prev_outpoint)
+            .process_withdrawal(fxg, prev_outpoint)
             .await?;
 
         // Note: this return value doesn't really correspond well to what we did, since we sent (possibly) multiple TXs to Kaspa
