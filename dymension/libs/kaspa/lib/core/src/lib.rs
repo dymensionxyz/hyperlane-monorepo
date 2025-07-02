@@ -8,6 +8,7 @@ pub mod user;
 pub mod util;
 pub mod wallet;
 pub mod withdraw;
+pub mod message;
 use std::{error::Error, io::Cursor};
 
 use eyre::Result;
