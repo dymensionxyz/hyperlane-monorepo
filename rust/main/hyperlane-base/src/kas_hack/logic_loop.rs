@@ -182,7 +182,6 @@ where
         &self,
         fxg: &DepositFXG,
     ) -> ChainResult<TxOutcome> {
-        let msg = HyperlaneMessage::default(); // TODO: from depositsfx
 
         // network calls
         let mut sigs = self.provider.validators().get_deposit_sigs(fxg).await?;
@@ -196,7 +195,7 @@ where
             self.provider.validators().multisig_threshold_hub_ism() as usize,
         )?;
 
-        self.hub_mailbox.process(&msg, &formatted_sigs, None).await
+        self.hub_mailbox.process(&fxg.payload, &formatted_sigs, None).await
     }
 
     /// TODO: unused for now because we skirt the usual DB management
