@@ -123,13 +123,18 @@ dymd tx gov submit-proposal /Users/danwt/Documents/dym/d-hyperlane-monorepo/dyme
 
 #### 5. SUBMIT DEPOSITS/WITHDRAWALS
 
+# *DEPOSITS*
+
 # <token id> <recipient> <amt>
 dymd q forward hl-message-kaspa "0x726f757465725f61707000000000000000000000000000020000000000000000" "dym139mq752delxv78jvtmwxhasyrycufsvrw4aka9" 100000000 
 
 # in hyperlane-monorepo/dymension/libs/kaspa/demo/relayer
 # (100 billion sompi = 1 TKAS)
-# TODO: add 0x prefix to hex string
+# TODO: add 0x prefix to hex string, requires a change on parser
 cargo run -- -w lkjsdf -d -e kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr -p "030000000004d10892ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff804b267ca0726f757465725f6170700000000000000000000000000002000000000000000000000000000000000000000089760f514dcfcccf1e4c5edc6bf6041931c4c18300000000000000000000000000000000000000000000000000000000000003e8" -a 100000000
+
+# *WITHDRAWALS*
+
 
 #### APPENDIX: DEBUG TIPS 
 
