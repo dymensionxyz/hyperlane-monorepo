@@ -12,7 +12,7 @@ use hyperlane_core::{
     BatchItem, BatchResult, ChainCommunicationError, ChainResult, ContractLocator,
     FixedPointNumber, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
     HyperlaneProvider, Mailbox, QueueOperation, RawHyperlaneMessage, ReorgPeriod, TxCostEstimate,
-    TxOutcome, H256, H512, U256,
+    TxOutcome, H256, H512, U256, utils::bytes_to_hex
 };
 
 use crate::KaspaProvider;
@@ -98,7 +98,7 @@ impl Mailbox for KaspaMailbox {
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
         info!("Kaspa mailbox, checkin if message is delivered already (querying hub), id: {id:?}");
         let wid = WithdrawalId {
-            message_id: id.to_string(),
+            message_id: bytes_to_hex(&id.as_ref()),
         };
         let res = self
             .provider
