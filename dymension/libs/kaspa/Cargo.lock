@@ -3213,6 +3213,9 @@ version = "0.2.0"
 dependencies = [
  "kaspa-addresses",
  "kaspa-consensus-core",
+ "openapi",
+ "reqwest 0.12.20",
+ "reqwest-middleware",
 ]
 
 [[package]]

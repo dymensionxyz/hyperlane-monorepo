@@ -7,7 +7,6 @@ use core::deposit::*;
 use core::escrow::*;
 use core::util::*;
 use core::wallet::*;
-use core::ESCROW_ADDRESS;
 use hardcode::e2e::*;
 use hex;
 use hyperlane_core::{Decode, Encode, HyperlaneMessage, H256, U256};
@@ -33,7 +32,6 @@ use std::error::Error;
 use std::sync::Arc;
 use validator::deposit::validate_deposit;
 use validator::withdraw::*;
-use x::args::Args;
 
 use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_pskt::prelude::*; // Import the prelude for easy access to traits/structs
@@ -97,24 +95,12 @@ pub async fn deposit_impl(
     })
 }
 
-fn get_tn10_config() -> configuration::Configuration {
-    configuration::Configuration {
-        base_path: "https://api-tn10.kaspa.org".to_string(),
-        user_agent: Some("OpenAPI-Generator/a6a9569/rust".to_owned()),
-        client: reqwest_middleware::ClientBuilder::new(reqwest::Client::new()).build(),
-        basic_auth: None,
-        oauth_access_token: None,
-        bearer_access_token: None,
-        api_key: None,
-    }
-}
-
 pub struct DemoArgs {
     pub amt: u64,
     pub escrow_address: Address,
     pub payload: Option<String>,
     pub only_deposit: bool,
-    pub wallet_secret: String
+    pub wallet_secret: String,
 }
 
 impl Default for DemoArgs {
@@ -132,21 +118,15 @@ impl Default for DemoArgs {
 pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
     kaspa_core::log::init_logger(None, "");
 
-
-    // load wallet (using kaspa wallet)
-    let s = Secret::from(args.wallet_secret.unwrap_or("".to_string()));
+    let s = Secret::from(args.wallet_secret);
     let w = get_wallet(&s, NETWORK_ID, URL.to_string()).await?;
 
     println!("address {}", &w.account()?.receive_address()?);
     println!("balance {}", &w.account()?.get_list_string()?);
 
     // deposit to escrow address
-    let amt = args.amount.unwrap_or(DEPOSIT_AMOUNT);
-    let escrow_address = if let Some(e) = args.escrow_address {
-        Address::try_from(e)?
-    } else {
-        Address::try_from(ESCROW_ADDRESS)?
-    };
+    let amt = args.amt;
+    let escrow_address = args.escrow_address;
 
     let tx_id = if let Some(payload) = args.payload {
         info!("Dymension, sending deposit with payload: {:?}", payload);
