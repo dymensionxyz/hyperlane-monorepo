@@ -9,12 +9,12 @@ use kaspa_wallet_pskt::prelude::*;
 use secp256k1::Keypair as SecpKeypair;
 
 use corelib::payload::MessageIDs;
+use corelib::withdraw::WithdrawFXG;
+use eyre::Result;
 use hyperlane_core::HyperlaneMessage;
 use kaspa_consensus_core::hashing::sighash::{
     calc_schnorr_signature_hash, SigHashReusedValuesUnsync,
 };
-use eyre::Result;
-use corelib::withdraw::WithdrawFXG;
 
 pub async fn validate_withdrawals(fxg: &WithdrawFXG) -> Result<bool> {
     Ok(true)

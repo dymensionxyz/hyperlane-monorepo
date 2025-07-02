@@ -4,9 +4,9 @@ pub mod withdraw;
 use tracing::info;
 
 // Re-export the main function for easier access
-pub use withdraw::on_new_withdrawals;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
 use prost::Message;
+pub use withdraw::on_new_withdrawals;
 
 use corelib::message::{parse_hyperlane_message, parse_hyperlane_metadata};
 use corelib::{api::deposits::Deposit, deposit::DepositFXG};

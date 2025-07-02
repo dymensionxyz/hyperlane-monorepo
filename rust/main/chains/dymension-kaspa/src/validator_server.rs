@@ -85,10 +85,7 @@ impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> 
     }
 
     fn must_network_params(&self) -> &NetworkParams {
-        return NetworkParams::from(self.kas_provider
-            .as_ref()
-            .unwrap()
-            .wallet().network_id());
+        return NetworkParams::from(self.kas_provider.as_ref().unwrap().wallet().network_id());
     }
 
     pub fn default() -> Self {
