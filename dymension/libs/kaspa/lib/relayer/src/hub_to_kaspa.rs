@@ -3,6 +3,7 @@ use corelib::consts::KEY_MESSAGE_IDS;
 use corelib::escrow::EscrowPublic;
 use corelib::payload::{MessageID, MessageIDs};
 use corelib::wallet::NetworkInfo;
+use hex::ToHex;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
@@ -406,7 +407,7 @@ pub(crate) async fn get_pending_withdrawals(
     let withdrawal_ids: Vec<_> = withdrawals
         .iter()
         .map(|m| WithdrawalId {
-            message_id: m.id().to_string(),
+            message_id: m.id().encode_hex(),
         })
         .collect();
 
