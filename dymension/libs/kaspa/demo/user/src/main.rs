@@ -1,6 +1,8 @@
 use clap::ArgMatches;
 mod x;
 use x::args::cli;
+use kaspa_wallet_core::prelude::*;
+use kaspa_wallet_keys::secret::Secret;
 
 fn run(matches: ArgMatches) {
     let is_verbose = matches.get_flag("verbose");
@@ -21,6 +23,10 @@ fn run(matches: ArgMatches) {
             if sub_matches.get_flag("verbose") {}
             let v = x::escrow::create_one_new_validator();
             println!("Validator infos: {}", v.to_string());
+        }
+        Some(("deposit", sub_matches)) => {
+            if sub_matches.get_flag("verbose") {}
+            let args = x::args::DepositArgs::parse();
         }
         _ => {
             unreachable!();

@@ -1,4 +1,5 @@
 use clap::{Arg, Command};
+use super::deposit::DepositArgs;
 
 pub fn common_args(cmd: Command) -> Command {
     cmd.arg(
@@ -27,4 +28,61 @@ pub fn cli() -> Command {
         .subcommand(common_args(
             Command::new("validator").about("Validator tools"),
         ))
+        .subcommand(
+            common_args(Command::new("deposit").about("Make a user deposit"))
+                /*
+                need args for:
+                wallet secret, network id, rpc url, payload string, escrow addr, amt
+                 */
+                .arg(
+                    Arg::new("wallet-secret")
+                        .help("The wallet secret")
+                        .required(true)
+                        .index(1),
+                )
+                .arg(
+                    Arg::new("amount")
+                        .help("The amount to deposit")
+                        .required(true)
+                        .index(1),
+                )
+                .arg(
+                    Arg::new("payload")
+                        .help("The payload to deposit")
+                        .required(true)
+                        .index(1),
+                )
+                .arg(
+                    Arg::new("escrow-address")
+                        .help("The escrow address")
+                        .required(true)
+                        .index(1),
+                )
+                .arg(
+                    Arg::new("network-id")
+                        .help("The network id")
+                        .required(true)
+                        .index(1),
+                )
+                .arg(
+                    Arg::new("rpc-url")
+                        .help("The rpc url")
+                        .required(true)
+                        .index(1),
+                ),
+        )
+}
+
+impl DepositArgs {
+    pub fn parse() -> Self {
+        let m = cli().get_matches();
+        DepositArgs {
+            wallet_secret: m.get_one::<String>("wallet-secret").unwrap().clone(),
+            amount: m.get_one::<String>("amount").unwrap().clone(),
+            payload: m.get_one::<String>("payload").unwrap().clone(),
+            escrow_address: m.get_one::<String>("escrow-address").unwrap().clone(),
+            network_id: m.get_one::<String>("network-id").unwrap().clone(),
+            rpc_url: m.get_one::<String>("rpc-url").unwrap().clone(),
+        }
+    }
 }
