@@ -587,7 +587,7 @@ async fn submit_classic_task(
     loop {
         let mut batch = submit_queue.pop_many(recv_limit).await;
 
-        if is_kas(&domain.clone()) {
+        if is_kas(&domain.clone())  && batch.len()  {
             /*
             We do this here rather than in OperationBatch::submit because here we have better control over error handling. The regular batch flow
             has some oddities like retrying all failed messages individually.
