@@ -23,7 +23,7 @@ pub const RELAYER_NETWORK_FEE: u64 = 5000;
 pub const ESCROW_ADDRESS: &str =
     "kaspatest:qzwyrgapjnhtjqkxdrmp7fpm3yddw296v2ajv9nmgmw5k3z0r38guevxyk7j0";
 
-fn get_tn10_config() -> configuration::Configuration {
+pub fn get_tn10_config() -> configuration::Configuration {
     configuration::Configuration {
         base_path: "https://api-tn10.kaspa.org".to_string(),
         user_agent: Some("OpenAPI-Generator/a6a9569/rust".to_owned()),

@@ -147,7 +147,7 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
     workflow_core::task::sleep(std::time::Duration::from_secs(10)).await;
 
     // rpc config
-    let config = get_tn10_config();
+    let config = hardcode::e2e::get_tn10_config();
 
     // api request
     let get_params = GetTransactionTransactionsTransactionIdGetParams {
