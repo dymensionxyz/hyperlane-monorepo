@@ -142,7 +142,7 @@ cargo run kaspatest:qr0jmjgh2sx88q9gdegl449cuygp5rh6yarn5h9fh97whprvcsp2ksjkx456
 
 # dymd tx warp transfer [token-id] [destination-domain] [recipient] [amount] [flags]
 # kastest10 domain is 80808082
-dymd tx warp transfer 0x726f757465725f61707000000000000000000000000000020000000000000000 80808082 0xdf2dc917540c7380a86e51fad4b8e1101a0efa27473a5ca9b97ceb846cc402ab 100
+dymd tx warp transfer 0x726f757465725f61707000000000000000000000000000020000000000000000 80808082 0xdf2dc917540c7380a86e51fad4b8e1101a0efa27473a5ca9b97ceb846cc402ab 100 --max-hyperlane-fee 1000adym  "${HUB_FLAGS[@]}"
 
 
 
@@ -150,3 +150,9 @@ dymd tx warp transfer 0x726f757465725f617070000000000000000000000000000200000000
 
 curl -X POST -H "Content-Type: application/json" -d '{}' http://localhost:9090/kaspa-ping
 
+
+# emergency fix for hooks
+# mailbox, default hook (e.g. IGP), required hook (e.g. merkle tree)
+dydm tx hyperlane hooks noop create "${HUB_FLAGS[@]}"
+NOOP_HOOK=$(curl -s http://localhost:1318/hyperlane/v1/noop_hooks | jq '.noop_hooks.[0].id' -r); echo $NOOP_HOOK;
+dymd tx hyperlane mailbox set $MAILBOX --default-hook $NOOP_HOOK --required-hook $NOOP_HOOK "${HUB_FLAGS[@]}"
