@@ -13,7 +13,7 @@ use dym_kas_validator::withdraw::sign_pskt;
 pub use dym_kas_validator::KaspaSecpKeypair;
 use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable, H256};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
-use kaspa_wallet_core::prelude::DynRpcApi;
+use kaspa_wallet_core::{prelude::DynRpcApi, utxo::NetworkParams};
 use kaspa_wallet_pskt::prelude::*;
 use sha3::{digest::Update, Digest, Keccak256};
 use std::sync::Arc;
@@ -53,6 +53,13 @@ impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> 
             .to_string()
     }
 
+    fn must_network_params(&self) -> &NetworkParams {
+        return NetworkParams::from(self.kas_provider
+            .as_ref()
+            .unwrap()
+            .wallet().network_id());
+    }
+
     pub fn default() -> Self {
         Self {
             ism_signer: None,
@@ -85,12 +92,12 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
 ) -> HandlerResult<Json<String>> {
     info!("Validator: checking new kaspa deposit");
     let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
-
     // Call to validator.G()
     if !validate_new_deposit(
         &resources.must_api(),
         &deposits,
         &resources.must_escrow_address(),
+        &resources.must_network_params(),
     )
     .await
     .map_err(|e| AppError(e))?
