@@ -1782,10 +1782,12 @@ dependencies = [
 name = "demo-user"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "core",
  "hex",
  "hyperlane-core",
  "kaspa-addresses",
+ "kaspa-core",
  "relayer",
  "secp256k1",
  "serde",
@@ -1799,11 +1801,6 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "core",
- "kaspa-addresses",
- "secp256k1",
- "serde",
- "serde_json",
- "validator",
 ]
 
 [[package]]
