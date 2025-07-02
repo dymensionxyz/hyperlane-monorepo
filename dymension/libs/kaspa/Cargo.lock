@@ -1781,7 +1781,9 @@ name = "demo-user"
 version = "0.1.0"
 dependencies = [
  "core",
+ "hyperlane-core",
  "kaspa-addresses",
+ "relayer",
  "secp256k1",
  "serde",
  "serde_json",
