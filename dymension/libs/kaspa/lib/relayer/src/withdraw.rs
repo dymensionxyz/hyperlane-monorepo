@@ -25,9 +25,9 @@ use kaspa_rpc_core::model::RpcTransaction;
 use corelib::payload;
 use corelib::payload::{MessageID, MessageIDs};
 use hyperlane_core::{HyperlaneMessage, HyperlaneSignerExt};
-use std::iter;
 use kaspa_consensus_core::hashing::sighash::calc_schnorr_signature_hash;
 use kaspa_wallet_core::account::pskb::PSKBSigner;
+use std::iter;
 
 pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
     rpc: &T,

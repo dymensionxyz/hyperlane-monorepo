@@ -8,11 +8,11 @@ use kaspa_wallet_core::error::Error;
 use kaspa_wallet_pskt::prelude::*;
 use secp256k1::Keypair as SecpKeypair;
 
+use corelib::payload::MessageIDs;
 use hyperlane_core::HyperlaneMessage;
 use kaspa_consensus_core::hashing::sighash::{
     calc_schnorr_signature_hash, SigHashReusedValuesUnsync,
 };
-use corelib::payload::MessageIDs;
 
 // Mimic a parallel multi-validator signing process
 pub fn sign_escrow_spend(e: &Escrow, pskt_unsigned: PSKT<Signer>) -> Result<PSKT<Combiner>, Error> {
