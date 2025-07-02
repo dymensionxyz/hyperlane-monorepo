@@ -127,7 +127,10 @@ impl ValidatorsClient {
         // map validator addr to sig(s)
         // TODO: in parallel
         let mut results = Vec::new();
-        info!("Dymension, getting withdrawal sigs, number of validators: {:?}", self.conf.validator_hosts.len());
+        info!(
+            "Dymension, getting withdrawal sigs, number of validators: {:?}",
+            self.conf.validator_hosts.len()
+        );
         for host in self.conf.validator_hosts.clone().into_iter() {
             //         let checkpoints = futures::future::join_all(futures).await; TODO: Parallel
             let h = host.to_string();
@@ -219,7 +222,10 @@ pub async fn request_sign_withdrawal_bundle(
     host: String,
     bundle: &WithdrawFXG,
 ) -> Result<Option<Bundle>> {
-    info!("Dymension, requesting withdrawal sigs from validator: {:?}", host);
+    info!(
+        "Dymension, requesting withdrawal sigs from validator: {:?}",
+        host
+    );
     let bz = Bytes::try_from(bundle)?;
     let c = reqwest::Client::new();
     let res = c

@@ -9,10 +9,10 @@ use super::consts::*;
 use tracing::info;
 
 use hyperlane_core::{
-    BatchItem, BatchResult, ChainCommunicationError, ChainResult, ContractLocator,
-    FixedPointNumber, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProvider, Mailbox, QueueOperation, RawHyperlaneMessage, ReorgPeriod, TxCostEstimate,
-    TxOutcome, H256, H512, U256, utils::bytes_to_hex
+    utils::bytes_to_hex, BatchItem, BatchResult, ChainCommunicationError, ChainResult,
+    ContractLocator, FixedPointNumber, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneMessage, HyperlaneProvider, Mailbox, QueueOperation, RawHyperlaneMessage, ReorgPeriod,
+    TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 
 use crate::KaspaProvider;
@@ -147,7 +147,10 @@ impl Mailbox for KaspaMailbox {
 
     // We hijack this https://github.com/dymensionxyz/hyperlane-monorepo/blob/4ecb864de578648e0c0ef39561f291cd7f4dfe7c/rust/main/agents/relayer/src/msg/op_submitter.rs#L1084
     async fn process_batch<'a>(&self, ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
-        info!("Kaspa mailbox, processing/submitting kaspa batch of size: {}", ops.len());
+        info!(
+            "Kaspa mailbox, processing/submitting kaspa batch of size: {}",
+            ops.len()
+        );
         let messages: Vec<HyperlaneMessage> = ops
             .iter()
             .map(|op| op.try_batch().map(|item| item.data)) // TODO: please work...

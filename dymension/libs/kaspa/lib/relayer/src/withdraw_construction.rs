@@ -60,7 +60,10 @@ pub async fn on_new_withdrawals(
         info!("Kaspa relayer, no pending withdrawals, all in batch are already processed and confirmed on hub");
         return Ok(None); // nothing to process
     }
-    info!("Kaspa relayer, got pending withdrawals, building PSKT, len: {}", withdrawal_details.len());
+    info!(
+        "Kaspa relayer, got pending withdrawals, building PSKT, len: {}",
+        withdrawal_details.len()
+    );
 
     let pskt = build_withdrawal_pskt(
         withdrawal_details,
