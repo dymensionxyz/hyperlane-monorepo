@@ -1,13 +1,10 @@
-pub mod confirmation;
-pub mod confirmation_test;
+pub mod confirm;
 pub mod deposit;
-pub mod hub_to_kaspa;
 pub mod withdraw;
-pub mod withdraw_construction;
 use tracing::info;
 
 // Re-export the main function for easier access
-pub use hub_to_kaspa::build_withdrawal_pskt;
+pub use withdraw::on_new_withdrawals;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
 use prost::Message;
 

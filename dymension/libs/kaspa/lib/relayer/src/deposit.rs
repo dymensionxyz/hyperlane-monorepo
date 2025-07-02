@@ -5,7 +5,6 @@ use eyre::Result;
 use tracing::info;
 
 // Re-export the main function for easier access
-use crate::hub_to_kaspa::build_withdrawal_pskt;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
 use prost::Message;
 
