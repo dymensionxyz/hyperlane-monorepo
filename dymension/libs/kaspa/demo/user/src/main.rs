@@ -1,7 +1,5 @@
 use clap::ArgMatches;
 mod x;
-use kaspa_wallet_core::prelude::*;
-use kaspa_wallet_keys::secret::Secret;
 use x::args::cli;
 
 async fn run(matches: ArgMatches) {

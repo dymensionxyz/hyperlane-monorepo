@@ -1,6 +1,4 @@
-use hex::{FromHex, ToHex};
-use hyperlane_core::H256;
-use kaspa_addresses::{Address, Prefix};
+use kaspa_addresses::Address;
 
 /// Convert a kaspa addr (like kaspatest:qr0jmjgh2sx88q9gdegl449cuygp5rh6yarn5h9fh97whprvcsp2ksjkx456f)
 /// to something that can be passed to Hyperlane on the hub in the transfer recipient field (like 0xdf2dc917540c7380a86e51fad4b8e1101a0efa27473a5ca9b97ceb846cc402ab)
@@ -15,6 +13,8 @@ pub fn hl_recipient(kaspa_addr: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hyperlane_core::H256;
+    use kaspa_addresses::Prefix;
     use relayer::withdraw_construction::get_recipient_address;
 
     #[test]
