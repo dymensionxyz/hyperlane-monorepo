@@ -1,10 +1,10 @@
 use clap::ArgMatches;
 mod x;
-use x::args::cli;
 use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_keys::secret::Secret;
+use x::args::cli;
 
-fn run(matches: ArgMatches) {
+async fn run(matches: ArgMatches) {
     let is_verbose = matches.get_flag("verbose");
     if is_verbose {
         println!("Verbose mode is enabled");
@@ -38,7 +38,8 @@ fn run(matches: ArgMatches) {
     }
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let matches = cli().get_matches();
-    run(matches);
+    run(matches).await;
 }

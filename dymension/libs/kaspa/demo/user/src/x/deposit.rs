@@ -19,9 +19,12 @@ pub async fn do_deposit(args: DepositArgs) -> Result<()> {
     let w = get_wallet(&s, args.network_id, args.rpc_url).await?;
     let a = Address::try_from(args.escrow_address)?;
     let amt = args.amount.parse::<u64>().unwrap();
+    // TODO: check amt and payload
     let payload = hex::decode(&args.payload)?;
 
-    let res = deposit_impl(&w, &s, a, amt, args.payload.as_bytes().to_vec());
+    let res = deposit_impl(&w, &s, a, amt, payload);
+
+    println!("Deposit sent: {:?}", res.await);
 
     Ok(())
 }

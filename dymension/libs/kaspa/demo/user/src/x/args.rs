@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
+use super::deposit::DepositArgs;
 use clap::{Arg, Command};
 use kaspa_consensus_core::network::NetworkId;
-use super::deposit::DepositArgs;
 
 pub fn common_args(cmd: Command) -> Command {
     cmd.arg(
