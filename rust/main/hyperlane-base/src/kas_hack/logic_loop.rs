@@ -182,7 +182,6 @@ where
         &self,
         fxg: &DepositFXG,
     ) -> ChainResult<TxOutcome> {
-
         // network calls
         let mut sigs = self.provider.validators().get_deposit_sigs(fxg).await?;
         info!(
@@ -195,7 +194,9 @@ where
             self.provider.validators().multisig_threshold_hub_ism() as usize,
         )?;
 
-        self.hub_mailbox.process(&fxg.payload, &formatted_sigs, None).await
+        self.hub_mailbox
+            .process(&fxg.payload, &formatted_sigs, None)
+            .await
     }
 
     /// TODO: unused for now because we skirt the usual DB management
