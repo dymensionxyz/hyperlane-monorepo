@@ -10,23 +10,17 @@ fn run(matches: ArgMatches) {
 
     match matches.subcommand() {
         Some(("recipient", sub_matches)) => {
+            if sub_matches.get_flag("verbose") {}
             let address = sub_matches
                 .get_one::<String>("ADDRESS")
                 .expect("required argument");
             let converted = x::addr::hl_recipient(address);
             println!("The recipient address is: {}", converted);
-            if sub_matches.get_flag("verbose") {
-                println!("Verbose output for recipient.");
-            }
         }
-        Some(("foo", sub_matches)) => {
-            println!("The 'foo' subcommand was used.");
-            if sub_matches.get_flag("verbose") {
-                println!("Verbose output for foo.");
-            }
-            if let Some(bar_value) = sub_matches.get_one::<String>("bar") {
-                println!("The value of --bar is: {}", bar_value);
-            }
+        Some(("validator", sub_matches)) => {
+            if sub_matches.get_flag("verbose") {}
+            let v = x::escrow::create_one_new_validator();
+            println!("{}", v.to_string());
         }
         _ => {
             unreachable!();
