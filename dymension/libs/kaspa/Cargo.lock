@@ -1795,6 +1795,7 @@ dependencies = [
 name = "demo-validator"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "core",
  "kaspa-addresses",
  "secp256k1",
@@ -3206,6 +3207,10 @@ dependencies = [
  "tokio-util",
  "tracing",
 ]
+
+[[package]]
+name = "hardcode"
+version = "0.2.0"
 
 [[package]]
 name = "hash32"
