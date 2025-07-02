@@ -1,7 +1,7 @@
-use std::env;
-use kaspa_addresses::{Address, Prefix};
-use std::str::FromStr;
 use hex::{FromHex, ToHex};
+use kaspa_addresses::{Address, Prefix};
+use std::env;
+use std::str::FromStr;
 
 use hyperlane_core::H256;
 use relayer::withdraw_construction::get_recipient_address;
