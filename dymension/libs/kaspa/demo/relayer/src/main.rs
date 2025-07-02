@@ -2,8 +2,8 @@
 
 use kaspa_addresses::Address;
 mod x;
-use hardcode::ESCROW_ADDRESS;
 use hardcode::e2e::*;
+use hardcode::ESCROW_ADDRESS;
 use x::args::Args;
 use x::deposit::{demo, DemoArgs};
 
