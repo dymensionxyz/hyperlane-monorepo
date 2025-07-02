@@ -6,6 +6,7 @@ use hyperlane_cosmos_rs::prost::{Message, Name};
 use tonic::async_trait;
 
 use super::consts::*;
+use tracing::info;
 
 use hyperlane_core::{
     BatchItem, BatchResult, ChainCommunicationError, ChainResult, ContractLocator,
@@ -95,6 +96,7 @@ impl Mailbox for KaspaMailbox {
     // not a precise answer since actually depends on subsequent confirmation step
     // so may often return false negative
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
+        info!("Kaspa mailbox, checkin if message is delivered already (querying hub), id: {id:?}");
         let wid = WithdrawalId {
             message_id: id.to_string(),
         };
