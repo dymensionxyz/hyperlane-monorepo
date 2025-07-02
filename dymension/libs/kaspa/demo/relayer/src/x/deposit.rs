@@ -2,11 +2,12 @@
 
 use api_rs::apis::configuration;
 use bytes::Bytes;
-use core::api::deposits::Deposit;
-use core::deposit::*;
-use core::escrow::*;
-use core::util::*;
-use core::wallet::*;
+use corelib::api::deposits::Deposit;
+use corelib::deposit::*;
+use corelib::escrow::*;
+use corelib::util::*;
+use corelib::wallet::*;
+use corelib::user::deposit::{deposit as do_deposit, deposit_impl};
 use hardcode::e2e::*;
 use hex;
 use hyperlane_core::{Decode, Encode, HyperlaneMessage, H256, U256};
@@ -84,7 +85,7 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
         let bz = hex::decode(payload).unwrap();
         deposit_impl(&w, &s, escrow_address.clone(), amt, bz).await?
     } else {
-        deposit(&w, &s, escrow_address.clone(), amt).await?
+        do_deposit(&w, &s, escrow_address.clone(), amt).await?
     };
 
     info!("Sent deposit transaction: {}", tx_id);
@@ -112,10 +113,10 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
     let res = get_transaction_transactions_transaction_id_get(&config, get_params).await?;
 
     // build deposit from api response
-    let deposit = Deposit::try_from(res)?;
+    let d = Deposit::try_from(res)?;
 
     // handle deposit (relayer operation)
-    let deposit_fxg = handle_new_deposit(&escrow_address.to_string(), &deposit).await?;
+    let deposit_fxg = handle_new_deposit(&escrow_address.to_string(), &d).await?;
 
     // deposit encode to bytes
     let deposit_bytes_recv: Bytes = (&deposit_fxg).into();

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-core = { path = "../../lib/core" }
+corelib = { path = "../../lib/core" , package = "core"}
 hardcode = { path = "../../lib/hardcode" }
 relayer = { path = "../../lib/relayer" }
 validator = { path = "../../lib/validator" } #TODO: remove

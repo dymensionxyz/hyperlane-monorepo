@@ -1,1 +1,1 @@
-mod deposit;
+pub mod deposit;
