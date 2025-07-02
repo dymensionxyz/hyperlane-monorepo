@@ -135,6 +135,11 @@ cargo run -- -w lkjsdf -d -e kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fm
 
 # *WITHDRAWALS*
 
+# dymd tx warp transfer [token-id] [destination-domain] [recipient] [amount] [flags]
+# kastest10 domain is 80808082
+dymd tx warp transfer 0x726f757465725f61707000000000000000000000000000020000000000000000 80808082 
+
+
 
 #### APPENDIX: DEBUG TIPS 
 
