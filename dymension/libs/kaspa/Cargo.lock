@@ -1731,6 +1731,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "core",
+ "hardcode",
  "kaspa-addresses",
  "kaspa-consensus-core",
  "kaspa-core",
@@ -1754,6 +1755,7 @@ dependencies = [
  "bytes",
  "clap",
  "core",
+ "hardcode",
  "hex",
  "hyperlane-core",
  "hyperlane-warp-route",
@@ -3211,6 +3213,10 @@ dependencies = [
 [[package]]
 name = "hardcode"
 version = "0.2.0"
+dependencies = [
+ "kaspa-addresses",
+ "kaspa-consensus-core",
+]
 
 [[package]]
 name = "hash32"

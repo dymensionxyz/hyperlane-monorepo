@@ -35,7 +35,7 @@ use std::sync::Arc;
 use validator::deposit::validate_deposit;
 use validator::withdraw::*;
 use x::args::Args;
-use x::consts::*;
+use hardcode::e2e::*;
 
 use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_pskt::prelude::*; // Import the prelude for easy access to traits/structs
