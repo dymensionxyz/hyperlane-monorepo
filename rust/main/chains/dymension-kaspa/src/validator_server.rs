@@ -183,10 +183,11 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
     info!("Validator: pskts are valid");
 
     let mut signed = Vec::new();
-    for pskt in fxg.bundle.iter() {
+    // Iterate over (PSKT; associated HL messages) pairs
+    for (pskt, messages) in fxg.bundle.iter().zip(fxg.messages.into_iter()) {
         let pskt = PSKT::<Signer>::from(pskt.clone());
         let signed_pskt =
-            sign_pskt(&resources.must_kas_key(), pskt).map_err(|e| AppError(e.into()))?;
+            sign_pskt(&resources.must_kas_key(), pskt, messages).map_err(|e| AppError(e.into()))?;
         signed.push(signed_pskt);
     }
     info!("Validator: signed pskts");
@@ -282,45 +283,3 @@ impl IntoResponse for AppError {
 
 /// Allows handler to have some state
 type HandlerResult<T> = Result<T, AppError>;
-
-async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
-    State(resources): State<Arc<ValidatorServerResources<S>>>,
-    body: Bytes,
-) -> HandlerResult<Json<String>> {
-    info!("Validator: signing pskts");
-    let fxg: WithdrawFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
-
-    // Call to validator.G()
-    if !validate_withdrawals(&fxg).await.map_err(|e| AppError(e))? {
-        return Err(AppError(eyre::eyre!("Invalid confirmation")));
-    }
-    info!("Validator: pskts are valid");
-
-    let mut signed = Vec::new();
-    // Iterate over (PSKT; associated HL messages) pairs
-    for (pskt, messages) in fxg.bundle.iter().zip(fxg.messages.into_iter()) {
-        let pskt = PSKT::<Signer>::from(pskt.clone());
-        let signed_pskt =
-            sign_pskt(&resources.must_kas_key(), pskt, messages).map_err(|e| AppError(e.into()))?;
-        signed.push(signed_pskt);
-    }
-    info!("Validator: signed pskts");
-    let bundle = Bundle::from(signed);
-
-    let stringy = bundle
-        .serialize()
-        .map_err(|e| AppError(eyre::eyre!("Oops!")))?; // TODO: better error
-
-    let j = serde_json::to_string_pretty(&stringy)
-        .map_err(|e: serde_json::Error| AppError(e.into()))?;
-
-    Ok(Json(j))
-}
-
-async fn respond_kaspa_ping<S: HyperlaneSignerExt + Send + Sync + 'static>(
-    State(resources): State<Arc<ValidatorServerResources<S>>>,
-    _body: Bytes,
-) -> HandlerResult<Json<String>> {
-    warn!("VALIDATOR SERVER, GOT KASPA PING");
-    Ok(Json("pong".to_string()))
-}
