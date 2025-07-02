@@ -153,6 +153,7 @@ curl -X POST -H "Content-Type: application/json" -d '{}' http://localhost:9090/k
 
 # emergency fix for hooks
 # mailbox, default hook (e.g. IGP), required hook (e.g. merkle tree)
-dydm tx hyperlane hooks noop create "${HUB_FLAGS[@]}"
+dymd tx hyperlane hooks noop create "${HUB_FLAGS[@]}"
 NOOP_HOOK=$(curl -s http://localhost:1318/hyperlane/v1/noop_hooks | jq '.noop_hooks.[0].id' -r); echo $NOOP_HOOK;
 dymd tx hyperlane mailbox set $MAILBOX --default-hook $NOOP_HOOK --required-hook $NOOP_HOOK "${HUB_FLAGS[@]}"
+dymd tx hyperlane mailbox set $MAILBOX --default-hook 0x726f757465725f706f73745f6469737061746368000000000000000000000002 --required-hook 0x726f757465725f706f73745f6469737061746368000000030000000000000000 "${HUB_FLAGS[@]}"
