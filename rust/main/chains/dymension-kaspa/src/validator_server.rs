@@ -11,7 +11,11 @@ use dym_kas_core::deposit::DepositFXG;
 use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use dym_kas_validator::withdraw::sign_pskt;
 pub use dym_kas_validator::KaspaSecpKeypair;
-use hyperlane_core::{Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable, H256, SignedCheckpointWithMessageId};
+use hyperlane_core::{
+    Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable,
+    SignedCheckpointWithMessageId, H256,
+    SignedType
+};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use kaspa_wallet_core::prelude::DynRpcApi;
 use kaspa_wallet_pskt::prelude::*;
@@ -127,7 +131,7 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
 async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + Sync + 'static>(
     State(resources): State<Arc<ValidatorServerResources<S>>>,
     body: Bytes,
-) -> HandlerResult<Json<String>> {
+) -> HandlerResult<Json<SignedType<SignableProgressIndication>>> {
     info!("Validator: checking confirmed kaspa withdrawal");
     let confirmation_fxg: ConfirmationFXG =
         body.try_into().map_err(|e: eyre::Report| AppError(e))?;
@@ -152,10 +156,8 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
         .map_err(|e| AppError(e.into()))?;
 
     info!("Validator: signed confirmed withdrawal");
-    let j = serde_json::to_string_pretty(&sig.signature)
-        .map_err(|e: serde_json::Error| AppError(e.into()))?;
 
-    Ok(Json(j))
+    Ok(Json(sig))
 }
 
 struct SignableProgressIndication {
@@ -249,10 +251,7 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
         .serialize()
         .map_err(|e| AppError(eyre::eyre!("Oops!")))?; // TODO: better error
 
-    let j = serde_json::to_string_pretty(&stringy)
-        .map_err(|e: serde_json::Error| AppError(e.into()))?;
-
-    Ok(Json(j))
+    Ok(Json(stringy))
 }
 
 async fn respond_kaspa_ping<S: HyperlaneSignerExt + Send + Sync + 'static>(
