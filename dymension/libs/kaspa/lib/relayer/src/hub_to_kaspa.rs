@@ -102,7 +102,7 @@ pub async fn build_withdrawal_pskt(
 
     let relayer_utxos = get_utxo_to_spend(
         // TODO: receive_address or change_address??
-        relayer.receive_address()?.clone(),
+        relayer.change_address()?.clone(),
         kaspa_rpc,
         network_id,
     )
