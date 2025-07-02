@@ -26,7 +26,11 @@ fn run(matches: ArgMatches) {
         }
         Some(("deposit", sub_matches)) => {
             if sub_matches.get_flag("verbose") {}
-            let args = x::args::DepositArgs::parse();
+            let args = x::deposit::DepositArgs::parse();
+            let res = x::deposit::do_deposit(args).await;
+            if let Err(e) = res {
+                eprintln!("Error: {}", e);
+            }
         }
         _ => {
             unreachable!();

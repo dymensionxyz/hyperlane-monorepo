@@ -1,4 +1,7 @@
+use std::str::FromStr;
+
 use clap::{Arg, Command};
+use kaspa_consensus_core::network::NetworkId;
 use super::deposit::DepositArgs;
 
 pub fn common_args(cmd: Command) -> Command {
@@ -76,12 +79,14 @@ pub fn cli() -> Command {
 impl DepositArgs {
     pub fn parse() -> Self {
         let m = cli().get_matches();
+        let network_id = m.get_one::<String>("network-id").unwrap().clone();
+        let network_id = NetworkId::from_str(&network_id).unwrap();
         DepositArgs {
             wallet_secret: m.get_one::<String>("wallet-secret").unwrap().clone(),
             amount: m.get_one::<String>("amount").unwrap().clone(),
             payload: m.get_one::<String>("payload").unwrap().clone(),
             escrow_address: m.get_one::<String>("escrow-address").unwrap().clone(),
-            network_id: m.get_one::<String>("network-id").unwrap().clone(),
+            network_id: network_id,
             rpc_url: m.get_one::<String>("rpc-url").unwrap().clone(),
         }
     }

@@ -1785,14 +1785,19 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "core",
+ "eyre",
  "hex",
  "hyperlane-core",
  "kaspa-addresses",
+ "kaspa-consensus-core",
  "kaspa-core",
+ "kaspa-wallet-core",
+ "kaspa-wallet-keys",
  "relayer",
  "secp256k1",
  "serde",
  "serde_json",
+ "tokio",
  "validator",
 ]
 
