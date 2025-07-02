@@ -11,7 +11,7 @@ use std::str::FromStr;
 
 use kaspa_rpc_core::{api::rpc::RpcApi, RpcBlock};
 use kaspa_rpc_core::{RpcHash, RpcTransactionOutput};
-use kaspa_wrpc_client::prelude::NetworkId;
+use kaspa_wrpc_client::prelude::{NetworkId, NetworkType};
 use std::sync::Arc;
 
 use eyre::Result;
@@ -28,12 +28,17 @@ pub async fn validate_new_deposit(
 
 async fn validate_maturity(client: &Arc<DynRpcApi>, block: &RpcBlock) -> Result<bool> {
     let network = client.get_current_network().await?;
-    let network_id = NetworkId::new(network);
-    let params = NetworkParams::from(network_id);
+
+    let network_id = if network == NetworkType::Mainnet {
+        NetworkId::new(network) 
+    } else {        
+        NetworkId::with_suffix(network, 10) 
+    };
+    
+    let params: &'static NetworkParams = NetworkParams::from(network_id);
 
     let dag_info = client.get_block_dag_info().await?;
-    if block.header.daa_score + params.user_transaction_maturity_period_daa()
-        > dag_info.virtual_daa_score
+    if block.header.daa_score + params.user_transaction_maturity_period_daa() < dag_info.virtual_daa_score
     {
         return Ok(true);
     }
