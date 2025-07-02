@@ -13,6 +13,12 @@ use hyperlane_core::HyperlaneMessage;
 use kaspa_consensus_core::hashing::sighash::{
     calc_schnorr_signature_hash, SigHashReusedValuesUnsync,
 };
+use eyre::Result;
+use corelib::withdraw::WithdrawFXG;
+
+pub async fn validate_withdrawals(fxg: &WithdrawFXG) -> Result<bool> {
+    Ok(true)
+}
 
 // Mimic a parallel multi-validator signing process
 pub fn sign_escrow_spend(e: &Escrow, pskt_unsigned: PSKT<Signer>) -> Result<PSKT<Combiner>, Error> {
