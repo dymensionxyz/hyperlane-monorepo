@@ -11,8 +11,8 @@ pub use hub_to_kaspa::build_withdrawal_pskt;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
 use prost::Message;
 
-use corelib::{api::deposits::Deposit, deposit::DepositFXG};
 use corelib::message::{parse_hyperlane_message, parse_hyperlane_metadata};
+use corelib::{api::deposits::Deposit, deposit::DepositFXG};
 use eyre::Result;
 use hyperlane_core::{Encode, HyperlaneMessage, RawHyperlaneMessage, U256};
 use hyperlane_warp_route::TokenMessage;
