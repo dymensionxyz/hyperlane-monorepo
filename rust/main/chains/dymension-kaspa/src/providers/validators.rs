@@ -1,8 +1,8 @@
 use tonic::async_trait;
 
 use hyperlane_core::{
-    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, Signature,
-    SignedCheckpointWithMessageId, H256,
+    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, Checkpoint,
+    CheckpointWithMessageId, Signature, SignedCheckpointWithMessageId, SignedType, H256, U256,
 };
 
 use bytes::Bytes;
@@ -13,6 +13,7 @@ use tracing::{error, info};
 use crate::ConnectionConf;
 
 use crate::endpoints::*;
+use axum::Json;
 use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG, withdraw::WithdrawFXG};
 use kaspa_wallet_pskt::prelude::Bundle;
 
@@ -126,11 +127,14 @@ impl ValidatorsClient {
         // map validator addr to sig(s)
         // TODO: in parallel
         let mut results = Vec::new();
+        info!(
+            "Dymension, getting withdrawal sigs, number of validators: {:?}",
+            self.conf.validator_hosts.len()
+        );
         for host in self.conf.validator_hosts.clone().into_iter() {
             //         let checkpoints = futures::future::join_all(futures).await; TODO: Parallel
             let h = host.to_string();
             let res = request_sign_withdrawal_bundle(host, fxg).await;
-
             // TODO: should also check that each validator signed either all or none of the bundle
             match res {
                 Ok(r) => match r {
@@ -218,6 +222,10 @@ pub async fn request_sign_withdrawal_bundle(
     host: String,
     bundle: &WithdrawFXG,
 ) -> Result<Option<Bundle>> {
+    info!(
+        "Dymension, requesting withdrawal sigs from validator: {:?}",
+        host
+    );
     let bz = Bytes::try_from(bundle)?;
     let c = reqwest::Client::new();
     let res = c
@@ -228,8 +236,7 @@ pub async fn request_sign_withdrawal_bundle(
 
     let status = res.status();
     if status == StatusCode::OK {
-        let body = res.json::<String>().await?;
-        let bundle = Bundle::deserialize(&body)?;
+        let bundle = res.json::<Bundle>().await?;
         Ok(Some(bundle))
     } else {
         Err(eyre::eyre!("Failed to sign withdrawal bundle: {}", status))
@@ -242,12 +249,33 @@ mod tests {
     use dym_kas_core::deposit::DepositFXG;
 
     #[tokio::test]
-    // #[ignore = "Requires real validator server"]
-    async fn test_txs() {
+    #[ignore = "Requires real validator server"]
+    async fn test_server_smoke() {
         let host = "http://localhost:9090"; // local validator
         let deposits = DepositFXG::default();
         let res = request_validate_new_deposits(host.to_string(), &deposits).await;
         let _ = res;
         println!("res: {:?}", res);
+    }
+
+    #[tokio::test]
+    async fn test_body_json() {
+        let sig: SignedType<CheckpointWithMessageId> = SignedType {
+            value: CheckpointWithMessageId {
+                checkpoint: Checkpoint {
+                    merkle_tree_hook_address: H256::default(),
+                    mailbox_domain: 0,
+                    root: H256::default(),
+                    index: 0,
+                },
+                message_id: H256::default(),
+            },
+            signature: Signature {
+                r: U256::default(),
+                s: U256::default(),
+                v: 0,
+            },
+        };
+        _ = sig;
     }
 }
