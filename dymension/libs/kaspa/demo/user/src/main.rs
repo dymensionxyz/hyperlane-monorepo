@@ -20,7 +20,7 @@ fn run(matches: ArgMatches) {
         Some(("validator", sub_matches)) => {
             if sub_matches.get_flag("verbose") {}
             let v = x::escrow::create_one_new_validator();
-            println!("{}", v.to_string());
+            println!("Validator infos: {}", v.to_string());
         }
         _ => {
             unreachable!();
