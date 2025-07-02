@@ -21,7 +21,7 @@
 
 # in libs/kaspa/demo/validator
 cargo run
-# THES VALUES MUST CORRESPOND WITH agent-config.json, AND the CLI commands below
+# THES VALUES MUST CORRESPOND WITH agent-config.json, AND the CLI commands below. Do NOT unescape json quotes
 #   "validator_ism_addr": "\"0xc09dddbd26fb6dcea996ba643e8c2685c03cad5a7\"",
 #   "validator_ism_priv_key": "c02e29cb65e55b3af3d8dee5d7a30504ed927436caf2e53e1e965cbd2639aced",
 #   "validator_escrow_secret": "\"11013bc86d1cb199a2324130c808e90ad37d07ae8f490d063b2fb9d9aa2e898f\"",
@@ -35,13 +35,15 @@ cargo run
 
 #### 1. Setup HUB
 
+MONODIR=/Users/danwt/Documents/dym/d-hyperlane-monorepo
+
 # clean slate
 trash ~/.hyperlane; trash ~/.dymension
-mkdir ~/.hyperlane; cp -r /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/tests/kaspa_hub_test/chains ~/.hyperlane/chains
+mkdir ~/.hyperlane; cp -r $MONODIR/dymension/tests/kaspa_hub_test/chains ~/.hyperlane/chains
 
 # install hub binary (dymension/)
 make install
-source /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/tests/kaspa_hub_test/env.sh
+source $MONODIR/dymension/tests/kaspa_hub_test/env.sh
 scripts/setup_local.sh
 dymd start --log_level=debug
 
@@ -62,7 +64,7 @@ AGENT_TMP=/Users/danwt/Documents/dym/aaa-dym-notes/all_tasks/tasks/202505_feat_k
 DB_RELAYER=$AGENT_TMP/dbs/hyperlane_db_relayer
 DB_VALIDATOR=$AGENT_TMP/dbs/hyperlane_db_validator
 export SIGS_VAL=$AGENT_TMP/signatures
-export CONFIG_FILES=/Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/tests/kaspa_hub_test/agent-config.json
+export CONFIG_FILES=$MONODIR/dymension/tests/kaspa_hub_test/agent-config.json
 
 trash $AGENT_TMP/dbs
 mkdir $AGENT_TMP/dbs
@@ -97,7 +99,7 @@ OUTPOINT="5e1cf6784e7af1808674a252eb417d8fa003135190dd4147caf98d8463a7e73a"
 
 echo "5e1cf6784e7af1808674a252eb417d8fa003135190dd4147caf98d8463a7e73a" | xxd -r -p | base64 # Xhz2eE568YCGdKJS60F9j6ADE1GQ3UFHyvmNhGOn5zo=
 
-dymd tx gov submit-proposal /Users/danwt/Documents/dym/d-hyperlane-monorepo/dymension/tests/kaspa_hub_test/bootstrap.json \
+dymd tx gov submit-proposal $MONODIR/dymension/tests/kaspa_hub_test/bootstrap.json \
   --from hub-user \
   --gas auto \
   --fees 10000000000000000adym \
@@ -123,15 +125,37 @@ dymd tx gov submit-proposal /Users/danwt/Documents/dym/d-hyperlane-monorepo/dyme
 
 #### 5. SUBMIT DEPOSITS/WITHDRAWALS
 
+# *DEPOSITS*
+
 # <token id> <recipient> <amt>
 dymd q forward hl-message-kaspa "0x726f757465725f61707000000000000000000000000000020000000000000000" "dym139mq752delxv78jvtmwxhasyrycufsvrw4aka9" 100000000 
 
 # in hyperlane-monorepo/dymension/libs/kaspa/demo/relayer
 # (100 billion sompi = 1 TKAS)
-# TODO: add 0x prefix to hex string
+# TODO: add 0x prefix to hex string, requires a change on parser
 cargo run -- -w lkjsdf -d -e kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr -p "030000000004d10892ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff804b267ca0726f757465725f6170700000000000000000000000000002000000000000000000000000000000000000000089760f514dcfcccf1e4c5edc6bf6041931c4c18300000000000000000000000000000000000000000000000000000000000003e8" -a 100000000
+
+# *WITHDRAWALS*
+
+# convert your kaspa address to something that can be interpreted by Hub CLI
+# in demos/user
+cargo run kaspatest:qr0jmjgh2sx88q9gdegl449cuygp5rh6yarn5h9fh97whprvcsp2ksjkx456f # (dan tn10 address)
+# output like 0xdf2dc917540c7380a86e51fad4b8e1101a0efa27473a5ca9b97ceb846cc402ab
+
+# dymd tx warp transfer [token-id] [destination-domain] [recipient] [amount] [flags]
+# kastest10 domain is 80808082
+dymd tx warp transfer 0x726f757465725f61707000000000000000000000000000020000000000000000 80808082 0xdf2dc917540c7380a86e51fad4b8e1101a0efa27473a5ca9b97ceb846cc402ab 100 --max-hyperlane-fee 1000adym  "${HUB_FLAGS[@]}"
+
+
 
 #### APPENDIX: DEBUG TIPS 
 
 curl -X POST -H "Content-Type: application/json" -d '{}' http://localhost:9090/kaspa-ping
 
+
+# emergency fix for hooks
+# mailbox, default hook (e.g. IGP), required hook (e.g. merkle tree)
+dymd tx hyperlane hooks noop create "${HUB_FLAGS[@]}"
+NOOP_HOOK=$(curl -s http://localhost:1318/hyperlane/v1/noop_hooks | jq '.noop_hooks.[0].id' -r); echo $NOOP_HOOK;
+dymd tx hyperlane mailbox set $MAILBOX --default-hook $NOOP_HOOK --required-hook $NOOP_HOOK "${HUB_FLAGS[@]}"
+dymd tx hyperlane mailbox set $MAILBOX --default-hook 0x726f757465725f706f73745f6469737061746368000000000000000000000002 --required-hook 0x726f757465725f706f73745f6469737061746368000000030000000000000000 "${HUB_FLAGS[@]}"
