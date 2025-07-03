@@ -96,19 +96,20 @@ pub async fn prepare_progress_indication(
 /// * `Result<Vec<WithdrawalId>, Error>` - Vector of collected withdrawal IDs from the transactions
 pub async fn trace_transactions(
     config: &Configuration,
-    new_utxo: TransactionOutpoint,
-    anchor_utxo: TransactionOutpoint,
+    new_out: TransactionOutpoint,
+    anchor_out: TransactionOutpoint,
 ) -> Result<(Vec<MessageID>, Vec<TransactionOutpoint>)> {
     println!(
         "Starting transaction trace from {:?} to {:?}",
-        new_utxo, anchor_utxo
+        new_out, anchor_out
     );
 
     let mut processed_withdrawals: Vec<MessageID> = Vec::new();
-    let mut current_utxo = new_utxo;
+    let mut outpoints: Vec<TransactionOutpoint> = Vec::new();
+    let mut curr_out = new_out;
     let mut step = 0;
     let max_steps = 10;
-    while current_utxo != anchor_utxo {
+    while curr_out != anchor_out {
         // Add a reasonable step limit to prevent infinite loops
         step += 1;
         if step > max_steps {
@@ -117,12 +118,12 @@ pub async fn trace_transactions(
             ));
         }
 
-        println!("Processing step {}: UTXO {:?}", step, current_utxo);
+        println!("Processing step {}: UTXO {:?}", step, curr_out);
 
         let transaction = get_transaction_transactions_transaction_id_get(
             config,
             GetTransactionTransactionsTransactionIdGetParams {
-                transaction_id: current_utxo.transaction_id.to_string(),
+                transaction_id: curr_out.transaction_id.to_string(),
                 block_hash: None,
                 inputs: Some(true),
                 outputs: Some(true),
@@ -133,7 +134,7 @@ pub async fn trace_transactions(
         .map_err(|e| {
             anyhow::anyhow!(
                 "Failed to get transaction {}: {}",
-                current_utxo.transaction_id,
+                curr_out.transaction_id,
                 e
             )
         })?;
@@ -155,10 +156,10 @@ pub async fn trace_transactions(
             .outputs
             .as_ref()
             .ok_or(Error::Custom("Transaction outputs not found".to_string()))?
-            .get(current_utxo.index as usize)
+            .get(curr_out.index as usize)
             .ok_or(Error::Custom(format!(
                 "Output index {} not found",
-                current_utxo.index
+                curr_out.index
             )))?
             .script_public_key_address
             .as_ref()
@@ -167,10 +168,12 @@ pub async fn trace_transactions(
             ))?
             .clone();
 
+        outpoints.push(curr_out);
+
         // Find the next UTXO to trace by checking all inputs
         // not supposed to happen in current design (we assume single hop between anchor and new UTXO)
-        match get_previous_utxo_in_lineage(&transaction, &lineage_address, anchor_utxo) {
-            Ok(Some(next_utxo)) => current_utxo = next_utxo,
+        match get_previous_utxo_in_lineage(&transaction, &lineage_address, anchor_out) {
+            Ok(Some(next_out)) => curr_out = next_out,
             Ok(None) => break, // Reached the break point
             Err(e) => return Err(anyhow::anyhow!(e)),
         }
@@ -181,7 +184,7 @@ pub async fn trace_transactions(
         processed_withdrawals.len(),
         step
     );
-    Ok(processed_withdrawals)
+    Ok((processed_withdrawals, outpoints))
 }
 
 pub fn get_previous_utxo_in_lineage(
