@@ -39,37 +39,37 @@ pub fn cli() -> Command {
                     Arg::new("escrow-address")
                         .help("The escrow address (like kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr)")
                         .required(true)
-                        .index(1),
+                        .long("escrow-address")
                 )
                 .arg(
                     Arg::new("amount")
                         .help("The amount to deposit in sompi (like 100000)")
                         .required(true)
-                        .index(2),
+                        .long("amount")
                 )
                 .arg(
                     Arg::new("payload")
                         .help("The payload to deposit (hex without 0x prefix) (like 03000...00003e8)")
                         .required(true)
-                        .index(3),
+                        .long("payload")
                 )
                 .arg(
                     Arg::new("wrpc-url")
                         .help("The rpc url (like localhost:16210)")
                         .required(true)
-                        .index(4),
+                        .long("wrpc-url")
                 )
                 .arg(
                     Arg::new("network-id")
                         .help("The kaspa network id (like testnet-10)")
                         .required(true)
-                        .index(5),
+                        .long("network-id")
                 )
                 .arg(
                     Arg::new("wallet-secret")
                         .help("Local kaspa wallet keychain secret (not private key)")
                         .required(true)
-                        .index(6),
+                        .long("wallet-secret")
                 ),
         )
 }
@@ -85,7 +85,7 @@ impl DepositArgs {
             payload: m.get_one::<String>("payload").unwrap().clone(),
             escrow_address: m.get_one::<String>("escrow-address").unwrap().clone(),
             network_id: network_id,
-            rpc_url: m.get_one::<String>("rpc-url").unwrap().clone(),
+            rpc_url: m.get_one::<String>("wrpc-url").unwrap().clone(),
         }
     }
 }
