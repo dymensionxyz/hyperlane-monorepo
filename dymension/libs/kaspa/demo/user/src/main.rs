@@ -1,4 +1,5 @@
 use x::args::{Cli, Commands};
+use clap::Parser;
 
 mod x;
 
@@ -13,8 +14,7 @@ async fn run(cli: Cli) {
             println!("Validator infos: {}", v.to_string());
         }
         Commands::Deposit(args) => {
-            
-            let res = x::deposit::do_deposit(args).await;
+            let res = x::deposit::do_deposit(args.to_deposit_args()).await;
             if let Err(e) = res {
                 eprintln!("Error: {}", e);
             }
@@ -24,6 +24,6 @@ async fn run(cli: Cli) {
 
 #[tokio::main]
 async fn main() {
-    let cli = Cli::parse();
+    let cli = Cli::try_parse().unwrap();
     run(cli).await;
 }

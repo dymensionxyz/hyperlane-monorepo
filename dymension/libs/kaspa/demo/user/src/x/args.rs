@@ -1,4 +1,7 @@
 use clap::{Args, Parser, Subcommand};
+use super::deposit::DepositArgs;
+use kaspa_consensus_core::network::NetworkId;
+use std::str::FromStr;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -23,7 +26,7 @@ pub enum Commands {
     Validator, // This subcommand takes no arguments
 
     /// Make a user deposit
-    Deposit(DepositArgs),
+    Deposit(DepositArgsCli),
 }
 
 #[derive(Args, Debug)]
@@ -34,7 +37,7 @@ pub struct RecipientArgs {
 }
 
 #[derive(Args, Debug, Clone)]
-pub struct DepositArgs {
+pub struct DepositArgsCli {
     /// The escrow address (like kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr)
     #[arg(long, required = true)]
     pub escrow_address: String,
@@ -47,7 +50,7 @@ pub struct DepositArgs {
     #[arg(long, required = true)]
     pub payload: String,
 
-    /// The wRPC url (like localhost:16210)
+    /// The wRPC url (like localhost:17210)
     #[arg(long("wrpc-url"), required = true)]
     pub rpc_url: String,
 
@@ -60,4 +63,17 @@ pub struct DepositArgs {
     /// Local kaspa wallet keychain secret (not private key)
     #[arg(long("wallet-secret"), required = true)]
     pub wallet_secret: String,
+}
+
+impl DepositArgsCli {
+    pub fn to_deposit_args(&self) -> DepositArgs {
+        DepositArgs {
+            escrow_address: self.escrow_address.clone(),
+            amount: self.amount.clone(),
+            payload: self.payload.clone(),
+            network_id: NetworkId::from_str(&self.network_id).unwrap(),
+            rpc_url: self.rpc_url.clone(),
+            wallet_secret: self.wallet_secret.clone(),
+        }
+    }
 }
