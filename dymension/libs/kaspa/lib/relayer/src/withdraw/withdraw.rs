@@ -225,36 +225,34 @@ pub async fn sign_pay_fee(
 ) -> Result<PSKT<Signer>, Error> {
     // TODO: interesting? https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/pskb.rs#L154
 
-    // let addr = w.account()?.change_address()?;
-    // let keydata = w.prv_key_data(s.clone());
-    // let signer = Arc::new(PSKBSigner::new(w.account()?.clone().as_dyn_arc(), keydata.clone(), None));
-    //
-    // pskt_unsigned
-    //         .pass_signature_sync(|tx, sighash| -> kaspa_wallet_core::result::Result<Vec<SignInputOk>, String> {
-    //             tx.tx
-    //                 .inputs
-    //                 .iter()
-    //                 .enumerate()
-    //                 .map(|(idx, _input)| {
-    //                     let hash = calc_schnorr_signature_hash(&tx.as_verifiable(), idx, sighash[idx], &reused_values);
-    //                     let msg = secp256k1::Message::from_digest_slice(hash.as_bytes().as_slice()).unwrap();
-    //
-    //                     // When address represents a locked UTXO, no private key is available.
-    //                     // Instead, use the account receive address' private key.
-    //                     let address = &addr;
-    //
-    //                     let public_key = signer.public_key(address).expect("Public key for input indexed address");
-    //
-    //                     signer.sign().await?;
-    //                     Ok(SignInputOk {
-    //                         signature: Signature::Schnorr(signer.sign_schnorr(address, msg).unwrap()),
-    //                         pub_key: public_key,
-    //                         key_source: Some(KeySource { key_fingerprint, derivation_path: derivation_path.clone() }),
-    //                     })
-    //                 })
-    //                 .collect()
-    //         })
-    //         .unwrap();
+    let addr = w.account()?.change_address()?;
+    let keydata = w.account()?.prv_key_data(s.clone()).await?;
+
+    let xprv = keydata.get_xprv(Some(s))?;
+
+    let xpub= xprv.public_key();
+
+    let kp = secp256k1::Keypair::from_secret_key(secp256k1::SECP256K1, xprv.private_key())?;
+
+    pskt_unsigned
+            .pass_signature_sync(|tx, sighash| -> kaspa_wallet_core::result::Result<Vec<SignInputOk>, String> {
+                tx.tx
+                    .inputs
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, _input)| {
+                        let hash = calc_schnorr_signature_hash(&tx.as_verifiable(), idx, sighash[idx], &reused_values);
+                        let msg = secp256k1::Message::from_digest_slice(hash.as_bytes().as_slice()).unwrap();
+
+                        Ok(SignInputOk {
+                            signature: Signature::Schnorr(kp.sign_schnorr(&addr, msg).unwrap()),
+                            pub_key: xpub.public_key,
+                            key_source: Some(KeySource { key_fingerprint, derivation_path: derivation_path.clone() }),
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap();
 
     let bundle = Bundle::from(pskt_unsigned);
     let addr = w.account()?.change_address()?;
