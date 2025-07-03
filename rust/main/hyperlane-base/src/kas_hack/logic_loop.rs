@@ -19,7 +19,7 @@ use crate::{contract_sync::cursors::Indexable, db::HyperlaneRocksDB};
 use hyperlane_cosmos_native::mailbox::CosmosNativeMailbox;
 
 use api_rs::apis::configuration::Configuration;
-use dym_kas_relayer::confirm::{prepare_progress_indication, trace_transactions};
+use dym_kas_relayer::confirm::expensive_trace_transactions;
 use kaspa_consensus_core::tx::{TransactionId, TransactionOutpoint};
 
 pub struct Foo<C: MetadataConstructor> {
@@ -168,7 +168,9 @@ where
             match confirmations.last() {
                 None => {}
                 Some((prev, next)) => {
-                    let res = self.confirm_withdrawal_on_hub(prev.clone(), next.clone()).await;
+                    let res = self
+                        .confirm_withdrawal_on_hub(prev.clone(), next.clone())
+                        .await;
                     // TODO: check result
                 }
             }
@@ -271,7 +273,8 @@ where
             for utxo in utxos {
                 let outp_to_test = TransactionOutpoint::from(utxo.outpoint);
                 let trace = trace_transactions(&conf, outp_to_test, anchor).await;
-                if trace.is_ok() { // TODO: better error handling?
+                if trace.is_ok() {
+                    // TODO: better error handling?
                     next_out = Some(outp_to_test);
                     break;
                 }
@@ -293,7 +296,9 @@ where
         new_utxo: TransactionOutpoint,
     ) -> Result<()> {
         let conf = self.provider.rest().get_config();
-        let fxg = prepare_progress_indication(&conf, anchor_utxo, new_utxo).await?;
+        let (msg_ids, outpoints) =
+            expensive_trace_transactions(&conf, new_utxo, anchor_utxo).await?;
+        let fxg = ConfirmationFXG::from_msgs_outpoints(msg_ids, outpoints);
 
         let mut sigs = self
             .provider
