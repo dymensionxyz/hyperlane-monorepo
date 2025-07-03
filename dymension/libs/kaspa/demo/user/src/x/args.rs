@@ -1,3 +1,4 @@
+use corelib::env::version;
 use std::str::FromStr;
 
 use super::deposit::DepositArgs;
@@ -5,19 +6,16 @@ use clap::{Arg, Command};
 use kaspa_consensus_core::network::NetworkId;
 
 pub fn common_args(cmd: Command) -> Command {
-    cmd.arg(
-        Arg::new("verbose")
-            .short('v')
-            .long("verbose")
-            .help("Enable verbose output")
-            .action(clap::ArgAction::SetTrue),
-    )
+    cmd
 }
 
 pub fn cli() -> Command {
     Command::new("user")
-        .about("User tools")
-        .version("1.0")
+        .about(format!(
+            "Tools for users, validator operators, developers etc (version: {})",
+            version()
+        ))
+        .version(version())
         .subcommand_required(true)
         .arg_required_else_help(true)
         .subcommand(
@@ -28,9 +26,9 @@ pub fn cli() -> Command {
                     .index(1),
             ),
         )
-        .subcommand(common_args(
-            Command::new("validator").about("Validator tools"),
-        ))
+        .subcommand(common_args(Command::new("validator").about(
+            "Generate all the info needed for a validator with a 1 of 1 multisig escrow",
+        )))
         .subcommand(
             common_args(Command::new("deposit").about("Make a user deposit"))
                 /*
@@ -38,40 +36,40 @@ pub fn cli() -> Command {
                 wallet secret, network id, rpc url, payload string, escrow addr, amt
                  */
                 .arg(
-                    Arg::new("wallet-secret")
-                        .help("The wallet secret")
+                    Arg::new("escrow-address")
+                        .help("The escrow address (like kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr)")
                         .required(true)
                         .index(1),
                 )
                 .arg(
                     Arg::new("amount")
-                        .help("The amount to deposit")
+                        .help("The amount to deposit in sompi (like 100000)")
                         .required(true)
-                        .index(1),
+                        .index(2),
                 )
                 .arg(
                     Arg::new("payload")
-                        .help("The payload to deposit")
+                        .help("The payload to deposit (hex without 0x prefix) (like 03000...00003e8)")
                         .required(true)
-                        .index(1),
+                        .index(3),
                 )
                 .arg(
-                    Arg::new("escrow-address")
-                        .help("The escrow address")
+                    Arg::new("wrpc-url")
+                        .help("The rpc url (like localhost:16210)")
                         .required(true)
-                        .index(1),
+                        .index(4),
                 )
                 .arg(
                     Arg::new("network-id")
-                        .help("The network id")
+                        .help("The kaspa network id (like testnet-10)")
                         .required(true)
-                        .index(1),
+                        .index(5),
                 )
                 .arg(
-                    Arg::new("rpc-url")
-                        .help("The rpc url")
+                    Arg::new("wallet-secret")
+                        .help("Local kaspa wallet keychain secret (not private key)")
                         .required(true)
-                        .index(1),
+                        .index(6),
                 ),
         )
 }

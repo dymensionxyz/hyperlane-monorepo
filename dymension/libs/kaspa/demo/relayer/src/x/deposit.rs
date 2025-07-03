@@ -6,7 +6,7 @@ use corelib::api::deposits::Deposit;
 use corelib::deposit::*;
 use corelib::escrow::*;
 use corelib::user::deposit::{deposit as do_deposit, deposit_impl};
-use corelib::util::*;
+use corelib::balance::*;
 use corelib::wallet::*;
 use hardcode::e2e::*;
 use hex;

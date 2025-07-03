@@ -3,7 +3,7 @@
 use crate::api::deposits::Deposit;
 use crate::deposit::*;
 use crate::escrow::*;
-use crate::util::*;
+use crate::balance::*;
 use crate::wallet::*;
 use api_rs::apis::configuration;
 use bytes::Bytes;
