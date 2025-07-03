@@ -100,6 +100,7 @@ impl KaspaProvider {
         })
     }
 
+    /// dococo
     pub fn consume_confirmation_queue(&self) -> Vec<ConfirmationFXG> {
         self.queue.consume()
     }
