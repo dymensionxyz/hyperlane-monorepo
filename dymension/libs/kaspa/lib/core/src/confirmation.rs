@@ -1,9 +1,14 @@
+use borsh::{
+    from_slice as borsh_from_slice, to_vec as borsh_to_vec, BorshDeserialize, BorshSerialize,
+};
 use bytes::Bytes;
 use eyre::Error as EyreError;
+use hex::ToHex;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use hyperlane_cosmos_rs::prost::Message;
 use kaspa_consensus_core::tx::TransactionOutpoint;
-use borsh::{BorshDeserialize, BorshSerialize, from_slice as borsh_from_slice, to_vec as borsh_to_vec};
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::WithdrawalId;
+use super::payload::MessageID;
 
 pub struct ConfirmationFXGCache {
     /// a sequence of chronological outpoints where the first is the old outpoint on the progres indication
@@ -22,6 +27,44 @@ impl ConfirmationFXG {
             progress_indication,
             cache,
         }
+    }
+
+    pub fn from_msgs_outpoints(msgs: Vec<MessageID>, outpoints: Vec<TransactionOutpoint>) -> Self {
+        let withdrawal_ids: Vec<WithdrawalId> = msgs
+            .into_iter()
+            .map(|id| WithdrawalId {
+                message_id: id.0.encode_hex()
+            })
+            .collect();
+
+        println!(
+            "Extracted {} withdrawal IDs from payloads",
+            withdrawal_ids.len()
+        );
+
+        // TODO: or is the list the other way around?
+        let old = outpoints[0];
+        let new = outpoints[outpoints.len() - 1];
+
+        let new_outpoint_indication =
+            hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint {
+                transaction_id: new.transaction_id.as_bytes().to_vec(),
+                index: new.index,
+            };
+
+        let anchor_outpoint_indication =
+            hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint {
+                transaction_id: old.transaction_id.as_bytes().to_vec(),
+                index: old.index,
+            };
+
+        let progress_indication = ProgressIndication {
+            old_outpoint: Some(anchor_outpoint_indication),
+            new_outpoint: Some(new_outpoint_indication),
+            processed_withdrawals: withdrawal_ids,
+        };
+
+        Self::new(progress_indication, ConfirmationFXGCache{outpoints})
     }
 }
 
@@ -54,7 +97,7 @@ impl TryFrom<Bytes> for ConfirmationFXGCache {
 
     fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
         let outpoints = borsh_from_slice(&bytes)?;
-        let cache = ConfirmationFXGCache{outpoints};
+        let cache = ConfirmationFXGCache { outpoints };
         Ok(cache)
     }
 }

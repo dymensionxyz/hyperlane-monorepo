@@ -1,10 +1,9 @@
 use anyhow::Result;
+use corelib::confirmation::ConfirmationFXGCache;
 use hyperlane_cosmos_native::CosmosNativeProvider;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
     ProgressIndication, QueryOutpointRequest, WithdrawalId,
 };
-use corelib::confirmation::ConfirmationFXGCache;
-
 
 use api_rs::models::TxModel;
 use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionId, TransactionOutpoint, UtxoEntry};
@@ -25,7 +24,8 @@ use api_rs::apis::{
 use corelib::{confirmation::ConfirmationFXG, payload::MessageID};
 use hex;
 
-/// Prepare a progress indication and create a ConfirmationFXG for the Hub x/kas module
+/// WARNING: ONLY FOR UNHAPPY PATH
+/// /// Prepare a progress indication and create a ConfirmationFXG for the Hub x/kas module
 /// This function traces back from a new UTXO to the old UTXO and collects
 /// all withdrawal payloads that were processed in between.
 ///
@@ -36,54 +36,7 @@ use hex;
 ///
 /// # Returns
 /// * `Result<ConfirmationFXG, Error>` - The confirmation FXG containing the progress indication with old and new outpoints
-///   and a list of processed withdrawal IDs
-pub async fn prepare_progress_indication(
-    config: &Configuration,
-    anchor_utxo: TransactionOutpoint,
-    new_utxo: TransactionOutpoint,
-) -> Result<ConfirmationFXG> {
-    println!("Preparing progress indication for new UTXO, tracing transactions: {:?}", new_utxo);
-
-    // Trace transactions from the new UTXO back to the old one.
-    let (msg_ids, outpoints) = expensive_trace_transactions(config, new_utxo, anchor_utxo).await?;
-
-    let withdrawal_ids: Vec<WithdrawalId> = msg_ids
-        .into_iter()
-        .map(|id| WithdrawalId {
-            message_id: id.0.to_string(),
-        })
-        .collect();
-
-    println!(
-        "Extracted {} withdrawal IDs from payloads",
-        withdrawal_ids.len()
-    );
-
-    let new_outpoint_indication =
-        hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint {
-            transaction_id: new_utxo.transaction_id.as_bytes().to_vec(),
-            index: new_utxo.index,
-        };
-
-    let anchor_outpoint_indication =
-        hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint {
-            transaction_id: anchor_utxo.transaction_id.as_bytes().to_vec(),
-            index: anchor_utxo.index,
-        };
-
-    let progress_indication = ProgressIndication {
-        old_outpoint: Some(anchor_outpoint_indication),
-        new_outpoint: Some(new_outpoint_indication),
-        processed_withdrawals: withdrawal_ids,
-    };
-
-    println!("Prepared progressIndication: {:?}", progress_indication);
-
-    Ok(ConfirmationFXG::new(progress_indication, ConfirmationFXGCache{outpoints}))
-}
-
-
-/// WARNING: ONLY FOR UNHAPPY PATH
+///   and a list of processed withdrawal ID
 /// Trace transactions in reverse, from a recent unspent UTXO to an already spent UTXO
 /// collecting payloads along the way.
 /// Follows the transaction lineage of the escrow address.
