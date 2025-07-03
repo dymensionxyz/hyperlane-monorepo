@@ -138,7 +138,10 @@ pub async fn expensive_trace_transactions(
         processed_withdrawals.len(),
         step
     );
-    Ok(ConfirmationFXG::from_msgs_outpoints(processed_withdrawals, outpoints))
+    Ok(ConfirmationFXG::from_msgs_outpoints(
+        processed_withdrawals,
+        outpoints,
+    ))
 }
 
 pub fn get_previous_utxo_in_lineage(

@@ -5,11 +5,11 @@ use borsh::{
 use bytes::Bytes;
 use eyre::Error as EyreError;
 use hex::ToHex;
+use hyperlane_core::H256;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::WithdrawalId;
 use hyperlane_cosmos_rs::prost::Message;
 use kaspa_consensus_core::tx::TransactionOutpoint;
-use hyperlane_core::H256;
 use std::str::FromStr;
 
 #[derive(Debug, Clone)]
