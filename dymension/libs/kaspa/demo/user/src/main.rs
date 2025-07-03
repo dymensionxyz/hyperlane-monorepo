@@ -1,5 +1,5 @@
-use x::args::{Cli, Commands};
 use clap::Parser;
+use x::args::{Cli, Commands};
 
 mod x;
 

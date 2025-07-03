@@ -2,9 +2,9 @@
 
 mod x;
 
+use corelib::balance::*;
 use corelib::deposit::*;
 use corelib::escrow::*;
-use corelib::balance::*;
 use corelib::wallet::*;
 use hardcode::e2e::*;
 use relayer::withdraw::*;

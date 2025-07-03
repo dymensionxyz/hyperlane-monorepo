@@ -1,5 +1,5 @@
-use clap::{Args, Parser, Subcommand};
 use super::deposit::DepositArgs;
+use clap::{Args, Parser, Subcommand};
 use kaspa_consensus_core::network::NetworkId;
 use std::str::FromStr;
 
