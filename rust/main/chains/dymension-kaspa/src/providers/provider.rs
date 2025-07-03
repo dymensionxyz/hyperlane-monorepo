@@ -27,10 +27,10 @@ use kaspa_wallet_pskt::prelude::Bundle;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
-use dym_kas_core::confirmation::ConfirmationFXG;
 use super::confirmation_queue::ConfirmationQueue;
 use super::validators::ValidatorsClient;
 use super::RestProvider;
+use dym_kas_core::confirmation::ConfirmationFXG;
 
 use crate::ConnectionConf;
 use eyre::Result;
@@ -100,6 +100,10 @@ impl KaspaProvider {
         })
     }
 
+    pub fn consume_confirmation_queue(&self) -> Vec<ConfirmationFXG> {
+        self.queue.consume()
+    }
+
     /// dococo
     pub fn must_kas_key(&self) -> KaspaSecpKeypair {
         self.kas_key.unwrap()
@@ -142,14 +146,6 @@ impl KaspaProvider {
             None,
         )
         .await
-    }
-
-    /// Take all elements from progress indication queue and replace the vector with an empty one
-    pub fn fetch_clear_indicate_progress_queue(
-        &self,
-    ) -> Vec<(TransactionOutpoint, TransactionOutpoint)> {
-        let mut guard = self.queue.lock().unwrap();
-        std::mem::take(&mut *guard)
     }
 
     /// dococo

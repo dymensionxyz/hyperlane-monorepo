@@ -1,6 +1,7 @@
 use dym_kas_core::confirmation::ConfirmationFXG;
 use std::sync::Mutex;
 
+#[derive(Debug, Clone)]
 pub struct ConfirmationQueue {
     mutex: Mutex<Vec<ConfirmationFXG>>,
 }

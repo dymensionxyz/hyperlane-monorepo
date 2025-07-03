@@ -12,12 +12,14 @@ use kaspa_consensus_core::tx::TransactionOutpoint;
 use hyperlane_core::H256;
 use std::str::FromStr;
 
+#[derive(Debug, Clone)]
 pub struct ConfirmationFXGCache {
     /// a sequence of chronological outpoints where the first is the old outpoint on the progres indication
     /// and the last is the new one
     pub outpoints: Vec<TransactionOutpoint>,
 }
 
+#[derive(Debug, Clone)]
 pub struct ConfirmationFXG {
     pub progress_indication: ProgressIndication,
     pub cache: ConfirmationFXGCache,

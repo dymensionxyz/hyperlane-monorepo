@@ -163,15 +163,20 @@ where
             // with the correct outpoints.
             //
             // TODO: what happens if at some point no one is bridging and we have failed confirmations?
-            let confirmations = self.provider.fetch_clear_indicate_progress_queue();
+            let confirmations = self.provider.consume_confirmation_queue();
 
             match confirmations.last() {
                 None => {}
-                Some((prev, next)) => {
-                    let res = self
-                        .confirm_withdrawal_on_hub(prev.clone(), next.clone())
-                        .await;
-                    // TODO: check result
+                Some(confirmation) => {
+                    let res = self.confirm_withdrawal_on_hub(confirmation.clone()).await;
+                    match res {
+                        Ok(_) => {
+                            info!("Dymension, confirmed withdrawal on hub: {:?}", confirmation);
+                        }
+                        Err(e) => {
+                            error!("Dymension, confirm withdrawal on hub: {:?}", e);
+                        }
+                    }
                 }
             }
 
