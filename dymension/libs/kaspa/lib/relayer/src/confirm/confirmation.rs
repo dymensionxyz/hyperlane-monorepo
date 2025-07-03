@@ -52,7 +52,7 @@ pub async fn expensive_trace_transactions(
     config: &Configuration,
     new_out: TransactionOutpoint,
     anchor_out: TransactionOutpoint,
-) -> Result<(Vec<MessageID>, Vec<TransactionOutpoint>)> {
+) -> Result<ConfirmationFXG> {
     println!(
         "Starting transaction trace from {:?} to {:?}",
         new_out, anchor_out
@@ -138,7 +138,7 @@ pub async fn expensive_trace_transactions(
         processed_withdrawals.len(),
         step
     );
-    Ok((processed_withdrawals, outpoints))
+    Ok(ConfirmationFXG::from_msgs_outpoints(processed_withdrawals, outpoints))
 }
 
 pub fn get_previous_utxo_in_lineage(

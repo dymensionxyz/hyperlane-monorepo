@@ -1,3 +1,4 @@
+use super::payload::MessageID;
 use borsh::{
     from_slice as borsh_from_slice, to_vec as borsh_to_vec, BorshDeserialize, BorshSerialize,
 };
@@ -5,10 +6,11 @@ use bytes::Bytes;
 use eyre::Error as EyreError;
 use hex::ToHex;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::WithdrawalId;
 use hyperlane_cosmos_rs::prost::Message;
 use kaspa_consensus_core::tx::TransactionOutpoint;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::WithdrawalId;
-use super::payload::MessageID;
+use hyperlane_core::H256;
+use std::str::FromStr;
 
 pub struct ConfirmationFXGCache {
     /// a sequence of chronological outpoints where the first is the old outpoint on the progres indication
@@ -33,7 +35,7 @@ impl ConfirmationFXG {
         let withdrawal_ids: Vec<WithdrawalId> = msgs
             .into_iter()
             .map(|id| WithdrawalId {
-                message_id: id.0.encode_hex()
+                message_id: id.0.encode_hex(),
             })
             .collect();
 
@@ -64,7 +66,31 @@ impl ConfirmationFXG {
             processed_withdrawals: withdrawal_ids,
         };
 
-        Self::new(progress_indication, ConfirmationFXGCache{outpoints})
+        Self::new(progress_indication, ConfirmationFXGCache { outpoints })
+    }
+
+    pub fn merge(&self, other: &Self) -> Self {
+        /*
+        Take all the points of self and all but the first of other
+        Take all the message ids of both
+        Use the first of self and the last of other as the new outpoints
+         */
+
+        let mut outpoints = self.cache.outpoints.clone();
+        outpoints.extend(other.cache.outpoints[1..].to_vec());
+
+        let mut msgs = self.msgs();
+        msgs.extend(other.msgs());
+
+        Self::from_msgs_outpoints(msgs, outpoints)
+    }
+
+    pub fn msgs(&self) -> Vec<MessageID> {
+        self.progress_indication
+            .processed_withdrawals
+            .iter()
+            .map(|id| MessageID(H256::from_str(&id.message_id).unwrap()))
+            .collect()
     }
 }
 

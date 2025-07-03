@@ -252,15 +252,15 @@ where
 
         // get all utxos from kaspa for the escrow address
         let escrow_address = self.provider.escrow_address();
-        let utxos = self
+        let all_escrow_utxos = self
             .provider
             .rpc()
-            .get_utxos_by_addresses(vec![escrow_address])
+            .get_utxos_by_addresses(vec![escrow_address]) // TODO: probably doesnt work because utxos are not spent..
             .await?;
 
         // check if the anchor utxo is in the utxos.
         // if it found, it's means we're synced.
-        let hub_is_synced = utxos.iter().any(|utxo| {
+        let hub_is_synced = all_escrow_utxos.iter().any(|utxo| {
             utxo.outpoint.transaction_id == anchor.transaction_id
                 && utxo.outpoint.index == anchor.index
         });
@@ -269,18 +269,15 @@ where
             // we need to iterate over the utxos and find the next utxo of the escrow address
             let conf = self.provider.rest().get_config();
 
-            let mut next_out = None;
-            for utxo in utxos {
+            for utxo in all_escrow_utxos {
                 let outp_to_test = TransactionOutpoint::from(utxo.outpoint);
-                let trace = trace_transactions(&conf, outp_to_test, anchor).await;
-                if trace.is_ok() {
+                let fxg = expensive_trace_transactions(&conf, outp_to_test, anchor).await;
+                if fxg.is_ok() {
                     // TODO: better error handling?
-                    next_out = Some(outp_to_test);
+                    self.confirm_withdrawal_on_hub(fxg.unwrap()).await?;
                     break;
                 }
             }
-            let next_out = next_out.ok_or_else(|| anyhow::anyhow!("No suitable UTXO found"))?;
-            self.confirm_withdrawal_on_hub(anchor, next_out).await?;
         }
         info!("System is synced, proceeding with other tasks");
         Ok(())
@@ -290,16 +287,7 @@ where
     /// needs to satisfy
     /// https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/keeper/msg_server.go#L42-L48
     /// https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/types/d.go#L76-L84
-    async fn confirm_withdrawal_on_hub(
-        &self,
-        anchor_utxo: TransactionOutpoint,
-        new_utxo: TransactionOutpoint,
-    ) -> Result<()> {
-        let conf = self.provider.rest().get_config();
-        let (msg_ids, outpoints) =
-            expensive_trace_transactions(&conf, new_utxo, anchor_utxo).await?;
-        let fxg = ConfirmationFXG::from_msgs_outpoints(msg_ids, outpoints);
-
+    async fn confirm_withdrawal_on_hub(&self, fxg: ConfirmationFXG) -> Result<()> {
         let mut sigs = self
             .provider
             .validators()
