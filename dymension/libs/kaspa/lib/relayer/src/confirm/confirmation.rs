@@ -3,6 +3,8 @@ use hyperlane_cosmos_native::CosmosNativeProvider;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
     ProgressIndication, QueryOutpointRequest, WithdrawalId,
 };
+use corelib::confirmation::ConfirmationFXGCache;
+
 
 use api_rs::models::TxModel;
 use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionId, TransactionOutpoint, UtxoEntry};
@@ -44,7 +46,7 @@ pub async fn prepare_progress_indication(
 
     // Trace transactions from the new UTXO back to the old one.
     println!("Tracing transactions to extract withdrawal IDs...");
-    let msg_ids = trace_transactions(config, new_utxo, anchor_utxo).await?;
+    let (msg_ids, outpoints) = trace_transactions(config, new_utxo, anchor_utxo).await?;
 
     let withdrawal_ids: Vec<WithdrawalId> = msg_ids
         .into_iter()
@@ -78,8 +80,7 @@ pub async fn prepare_progress_indication(
 
     println!("ProgressIndication: {:?}", progress_indication);
 
-    let confirmation_fxg = ConfirmationFXG::new(progress_indication);
-    Ok(confirmation_fxg)
+    Ok(ConfirmationFXG::new(progress_indication, ConfirmationFXGCache{outpoints}))
 }
 
 /// Trace transactions in reverse, from a recent unspent UTXO to an already spent UTXO
@@ -97,7 +98,7 @@ pub async fn trace_transactions(
     config: &Configuration,
     new_utxo: TransactionOutpoint,
     anchor_utxo: TransactionOutpoint,
-) -> Result<Vec<MessageID>> {
+) -> Result<(Vec<MessageID>, Vec<TransactionOutpoint>)> {
     println!(
         "Starting transaction trace from {:?} to {:?}",
         new_utxo, anchor_utxo
