@@ -3,6 +3,8 @@ use eyre::Error as EyreError;
 use hyperlane_core::HyperlaneMessage;
 use kaspa_wallet_pskt::prelude::Bundle;
 use serde::{Deserialize, Serialize};
+use hyperlane_core::H256;
+use super::payload::MessageID;
 
 /// WithdrawFXG resrents is sequence of PSKT transactions for batch processing and transport as
 /// a single serialized payload. Bundle has mulpible PSKT. Each PSKT is associated with
@@ -36,6 +38,10 @@ impl WithdrawFXG {
             bundle: Bundle::new(),
             messages: vec![],
         }
+    }
+
+    pub fn ids(&self) -> Vec<MessageID> {
+        self.messages.iter().flat_map(|m| m.iter().map(|m| MessageID(m.id()))).collect()
     }
 }
 

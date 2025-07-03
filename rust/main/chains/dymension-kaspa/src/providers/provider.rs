@@ -27,6 +27,8 @@ use kaspa_wallet_pskt::prelude::Bundle;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
+use dym_kas_core::confirmation::ConfirmationFXG;
+use super::confirmation_queue::ConfirmationQueue;
 use super::validators::ValidatorsClient;
 use super::RestProvider;
 
@@ -59,7 +61,7 @@ pub struct KaspaProvider {
     // It stores two values: prev_outpoint and next_outpoint, respectively.
     // Note that IndicateProgress tx and Outpoint query create a race condition over
     // the last outpoint stored on the Hub.
-    queue: Arc<Mutex<Vec<(TransactionOutpoint, TransactionOutpoint)>>>,
+    queue: Arc<ConfirmationQueue>,
 }
 
 impl KaspaProvider {
@@ -94,7 +96,7 @@ impl KaspaProvider {
             validators,
             cosmos_rpc: cosmos_grpc_client(conf.hub_grpc_urls.clone()),
             kas_key,
-            queue: Arc::new(Mutex::new(Vec::new())),
+            queue: Arc::new(ConfirmationQueue::new()),
         })
     }
 
@@ -168,7 +170,7 @@ impl KaspaProvider {
             bundles_validators
         };
         let txs_signed = combine_all_bundles(all_bundles)?;
-        let finalized = finalize_txs(txs_signed, fxg.messages, self.escrow().pubs.clone())?;
+        let finalized = finalize_txs(txs_signed, fxg.messages.clone(), self.escrow().pubs.clone())?;
         let res_tx_ids = self.submit_txs(finalized.clone()).await?;
         info!("Kaspa provider, submitted TXs, now indicating progress on the Hub");
 
@@ -198,10 +200,10 @@ impl KaspaProvider {
             index: (output_idx as u32).into(),
         };
 
-        self.queue
-            .lock()
-            .map_err(|e| eyre::eyre!("Failed to lockup progress indication queue: {}", e))?
-            .push((prev_outpoint.clone(), next_outpoint.clone()));
+        self.queue.push(ConfirmationFXG::from_msgs_outpoints(
+            fxg.ids(),
+            vec![prev_outpoint.clone(), next_outpoint.clone()], // TODO: fix
+        ));
         info!("Kaspa provider, added to progress indication work queue");
 
         Ok(())
