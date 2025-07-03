@@ -8,9 +8,17 @@ use corelib::escrow::*;
 use corelib::user::deposit::{deposit as do_deposit, deposit_impl};
 use corelib::util::*;
 use corelib::wallet::*;
+use dymension_kaspa::KaspaHttpClient;
+use dymension_kaspa::RestProvider;
 use hardcode::e2e::*;
 use hex;
+use hyperlane_core::ChainCommunicationError;
+use hyperlane_core::ChainResult;
 use hyperlane_core::{Decode, Encode, HyperlaneMessage, H256, U256};
+use hyperlane_metric::prometheus_metric::ChainInfo;
+use hyperlane_metric::prometheus_metric::ClientConnectionType;
+use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
+use hyperlane_metric::prometheus_metric::PrometheusConfig;
 use hyperlane_warp_route::TokenMessage;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::{
@@ -22,7 +30,7 @@ use kaspa_consensus_core::{
         TransactionOutput, UtxoEntry,
     },
 };
-use kaspa_core::info;
+use kaspa_core::info as KaspaInfo;
 use kaspa_grpc_client::GrpcClient;
 use kaspa_wallet_core::api::{AccountsSendRequest, WalletApi};
 use kaspa_wallet_core::error::Error as KaspaError;
@@ -30,8 +38,10 @@ use kaspa_wallet_core::tx::Fees;
 use kaspa_wallet_core::utxo::NetworkParams;
 use relayer::deposit::handle_new_deposit;
 use relayer::withdraw::*;
+use reqwest::Url;
 use std::error::Error;
 use std::sync::Arc;
+use std::time::Duration;
 use validator::deposit::validate_deposit;
 use validator::withdraw::*;
 
@@ -39,6 +49,7 @@ use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_pskt::prelude::*; // Import the prelude for easy access to traits/structs
 
 use secp256k1::{rand::thread_rng, Keypair};
+use tracing::{error, info, info_span, warn, Instrument};
 
 use api_rs::apis::kaspa_transactions_api::{
     get_transaction_transactions_transaction_id_get,
@@ -47,6 +58,8 @@ use api_rs::apis::kaspa_transactions_api::{
 use kaspa_rpc_core::api::rpc::RpcApi;
 use workflow_core::abortable::Abortable;
 
+use tokio::{sync::Mutex, task::JoinHandle, time};
+use tokio_metrics::TaskMonitor;
 pub struct DemoArgs {
     pub amt: u64,
     pub escrow_address: Address,
@@ -64,6 +77,39 @@ impl Default for DemoArgs {
             only_deposit: false,
             wallet_secret: "".to_string(),
         }
+    }
+}
+
+/// dococo
+pub async fn get_deposits(client: &KaspaHttpClient, address: String) -> ChainResult<Vec<Deposit>> {
+
+    let res = client.client.get_deposits(&address).await;
+    res.map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()))
+        .map(|deposits| {
+            deposits
+                .into_iter()
+                //.filter(|d| d.payload.is_some())
+                .collect()
+        })
+}
+
+async fn deposit_loop(client: &KaspaHttpClient, address: String) {
+    info!("Dymension, starting deposit detection loop");
+    loop {
+        let deposits_res: std::result::Result<Vec<Deposit>, ChainCommunicationError> = get_deposits(client,address.clone()).await;
+        let deposits = match deposits_res {
+            Ok(deposits) => deposits,
+            Err(e) => {
+                error!("Query new Kaspa deposits: {:?}", e);
+                continue;
+            }
+        };
+        //let mut deposits_new = Vec::new();
+        for d in deposits.into_iter() {
+            info!("Dymension, new deposit seen: {:?}", d);
+        }
+        time::sleep(Duration::from_secs(10)).await;
+
     }
 }
 
@@ -95,11 +141,20 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
-    // wait (it may take some time that the deposit is available to indexer-archive rpc service)
-    workflow_core::task::sleep(std::time::Duration::from_secs(10)).await;
+    //let chain = ChainInfo::new();
+    //let config: configuration::Configuration = hardcode::e2e::get_tn10_config();
+    let url = Url::parse("https://api-tn10.kaspa.org/").unwrap();
+    let metrics_config = PrometheusConfig::from_url( &url, ClientConnectionType::Rpc, None);
+    let metrics: PrometheusClientMetrics = PrometheusClientMetrics::default();
+    let url = "https://api-tn10.kaspa.org/";
+    let client: KaspaHttpClient = KaspaHttpClient::from_url(url.to_string(),metrics,metrics_config)?;
 
+    let handle = tokio::spawn(async move {
+                deposit_loop(&client,escrow_address.address_to_string()).await;
+    });
+    workflow_core::task::sleep(std::time::Duration::from_secs(120)).await;
+/*
     // rpc config
-    let config = hardcode::e2e::get_tn10_config();
 
     // api request
     let get_params = GetTransactionTransactionsTransactionIdGetParams {
@@ -143,7 +198,7 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
         println!("Deposit validated");
     } else {
         println!("Failed to validate deposit");
-    }
+    }*/
 
     w.stop().await?;
     Ok(())
