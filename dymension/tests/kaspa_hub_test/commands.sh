@@ -90,13 +90,12 @@ TOKEN_ID=$(hub q warp tokens -o json | jq -r '.tokens[0].id')
 ESCROW_ADDR=kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr
 HUB_USER_ADDR=$(dymd keys show -a hub-user) #dym139mq752delxv78jvtmwxhasyrycufsvrw4aka9
 
-
 dymd q auth module-account gov -o json | jq -r '.account.value.address' # dym10d07y265gmmuvt4z0w9aw880jnsr700jgllrna
 
 curl -X 'GET' 'https://api-tn10.kaspa.org/addresses/kaspatest%3Apzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr/utxos' -H 'accept: application/json'
 
 OUTPOINT="5e1cf6784e7af1808674a252eb417d8fa003135190dd4147caf98d8463a7e73a"
-
+# need to convert outpoint to base64 when passing to hub
 echo "5e1cf6784e7af1808674a252eb417d8fa003135190dd4147caf98d8463a7e73a" | xxd -r -p | base64 # Xhz2eE568YCGdKJS60F9j6ADE1GQ3UFHyvmNhGOn5zo=
 
 dymd tx gov submit-proposal $MONODIR/dymension/tests/kaspa_hub_test/bootstrap.json \
@@ -161,6 +160,7 @@ dymd tx warp transfer 0x726f757465725f617070000000000000000000000000000200000000
 ###############################################################
 #### APPENDIX: DEBUG TIPS 
 
+# check that validator server is working
 curl -X POST -H "Content-Type: application/json" -d '{}' http://localhost:9090/kaspa-ping
 
 # emergency fix for hooks
