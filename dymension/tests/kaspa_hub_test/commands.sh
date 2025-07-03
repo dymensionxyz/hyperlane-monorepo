@@ -19,8 +19,8 @@
 
 #### 0. Setup escrow
 
-# in libs/kaspa/demo/validator
-cargo run
+# in libs/kaspa/demo/user
+cargo run validator
 # THES VALUES MUST CORRESPOND WITH agent-config.json, AND the CLI commands below. Do NOT unescape json quotes
 #   "validator_ism_addr": "\"0xc09dddbd26fb6dcea996ba643e8c2685c03cad5a7\"",
 #   "validator_ism_priv_key": "c02e29cb65e55b3af3d8dee5d7a30504ed927436caf2e53e1e965cbd2639aced",
@@ -30,7 +30,7 @@ cargo run
 
 # in rusty-kaspa/wallet/native
 cargo run
-# TODO: finish cli instructions
+# TODO: finish native wallet cli instructions
 # seed escrow with a few kas
 
 #### 1. Setup HUB
@@ -133,7 +133,6 @@ dymd q forward hl-message-kaspa "0x726f757465725f6170700000000000000000000000000
 # in hyperlane-monorepo/dymension/libs/kaspa/demo/relayer
 # (100 billion sompi = 1 TKAS)
 # TODO: add 0x prefix to hex string, requires a change on parser
-
 cargo run -- deposit \
   --escrow-address kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr \
   --amount 100000000 \
@@ -142,24 +141,27 @@ cargo run -- deposit \
   --network-id testnet-10 \
   --wallet-secret lkjsdf
 
-
 cargo run 
 
 # *WITHDRAWALS*
 
 # convert your kaspa address to something that can be interpreted by Hub CLI
 # in demos/user
-cargo run kaspatest:qr0jmjgh2sx88q9gdegl449cuygp5rh6yarn5h9fh97whprvcsp2ksjkx456f # (dan tn10 address)
+cargo run recipient kaspatest:qr0jmjgh2sx88q9gdegl449cuygp5rh6yarn5h9fh97whprvcsp2ksjkx456f # (dan tn10 address)
 # output like 0xdf2dc917540c7380a86e51fad4b8e1101a0efa27473a5ca9b97ceb846cc402ab
 
 # dymd tx warp transfer [token-id] [destination-domain] [recipient] [amount] [flags]
 # kastest10 domain is 80808082
 dymd tx warp transfer 0x726f757465725f61707000000000000000000000000000020000000000000000 80808082 0xdf2dc917540c7380a86e51fad4b8e1101a0efa27473a5ca9b97ceb846cc402ab 100 --max-hyperlane-fee 1000adym  "${HUB_FLAGS[@]}"
 
+###############################################################
+###############################################################
+###############################################################
+###############################################################
+###############################################################
 #### APPENDIX: DEBUG TIPS 
 
 curl -X POST -H "Content-Type: application/json" -d '{}' http://localhost:9090/kaspa-ping
-
 
 # emergency fix for hooks
 # mailbox, default hook (e.g. IGP), required hook (e.g. merkle tree)
