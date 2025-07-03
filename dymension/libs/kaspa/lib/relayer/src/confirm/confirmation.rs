@@ -42,11 +42,10 @@ pub async fn prepare_progress_indication(
     anchor_utxo: TransactionOutpoint,
     new_utxo: TransactionOutpoint,
 ) -> Result<ConfirmationFXG> {
-    println!("Preparing progress indication for new UTXO: {:?}", new_utxo);
+    println!("Preparing progress indication for new UTXO, tracing transactions: {:?}", new_utxo);
 
     // Trace transactions from the new UTXO back to the old one.
-    println!("Tracing transactions to extract withdrawal IDs...");
-    let (msg_ids, outpoints) = trace_transactions(config, new_utxo, anchor_utxo).await?;
+    let (msg_ids, outpoints) = expensive_trace_transactions(config, new_utxo, anchor_utxo).await?;
 
     let withdrawal_ids: Vec<WithdrawalId> = msg_ids
         .into_iter()
@@ -78,11 +77,13 @@ pub async fn prepare_progress_indication(
         processed_withdrawals: withdrawal_ids,
     };
 
-    println!("ProgressIndication: {:?}", progress_indication);
+    println!("Prepared progressIndication: {:?}", progress_indication);
 
     Ok(ConfirmationFXG::new(progress_indication, ConfirmationFXGCache{outpoints}))
 }
 
+
+/// WARNING: ONLY FOR UNHAPPY PATH
 /// Trace transactions in reverse, from a recent unspent UTXO to an already spent UTXO
 /// collecting payloads along the way.
 /// Follows the transaction lineage of the escrow address.
@@ -94,7 +95,7 @@ pub async fn prepare_progress_indication(
 ///
 /// # Returns
 /// * `Result<Vec<WithdrawalId>, Error>` - Vector of collected withdrawal IDs from the transactions
-pub async fn trace_transactions(
+pub async fn expensive_trace_transactions(
     config: &Configuration,
     new_out: TransactionOutpoint,
     anchor_out: TransactionOutpoint,
