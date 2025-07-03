@@ -20,7 +20,7 @@ use hyperlane_cosmos_native::mailbox::CosmosNativeMailbox;
 
 // Add imports for sync methods
 use api_rs::apis::configuration::Configuration;
-use dym_kas_relayer::confirmation::{prepare_progress_indication, trace_transactions};
+use dym_kas_relayer::confirm::{prepare_progress_indication, trace_transactions};
 use kaspa_consensus_core::tx::{TransactionId, TransactionOutpoint};
 
 pub struct Foo<C: MetadataConstructor> {
@@ -182,8 +182,6 @@ where
         &self,
         fxg: &DepositFXG,
     ) -> ChainResult<TxOutcome> {
-        let msg = HyperlaneMessage::default(); // TODO: from depositsfx
-
         // network calls
         let mut sigs = self.provider.validators().get_deposit_sigs(fxg).await?;
         info!(
@@ -196,7 +194,9 @@ where
             self.provider.validators().multisig_threshold_hub_ism() as usize,
         )?;
 
-        self.hub_mailbox.process(&msg, &formatted_sigs, None).await
+        self.hub_mailbox
+            .process(&fxg.payload, &formatted_sigs, None)
+            .await
     }
 
     /// TODO: unused for now because we skirt the usual DB management

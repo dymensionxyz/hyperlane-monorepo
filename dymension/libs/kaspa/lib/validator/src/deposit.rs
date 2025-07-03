@@ -6,34 +6,43 @@ use tracing::error;
 
 use kaspa_wallet_core::utxo::NetworkParams;
 
-use corelib::{is_utxo_escrow_address, parse_hyperlane_metadata};
+use corelib::escrow::is_utxo_escrow_address;
+use corelib::message::parse_hyperlane_metadata;
 use std::str::FromStr;
 
 use kaspa_rpc_core::{api::rpc::RpcApi, RpcBlock};
 use kaspa_rpc_core::{RpcHash, RpcTransactionOutput};
-use kaspa_wrpc_client::prelude::NetworkId;
+use kaspa_wrpc_client::prelude::{NetworkId, NetworkType};
 use std::sync::Arc;
 
 use eyre::Result;
 use hyperlane_core::U256;
 
+use corelib::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
+
+pub async fn validate_withdrawals(fxg: &WithdrawFXG) -> Result<bool> {
+    Ok(true)
+}
+
 pub async fn validate_new_deposit(
     client: &Arc<DynRpcApi>,
     deposit: &DepositFXG,
     escrow_address: &str,
+    network_params: &NetworkParams,
 ) -> Result<bool> {
-    let validation_result = validate_deposit(client, deposit, escrow_address).await?;
+    let validation_result =
+        validate_deposit(client, deposit, escrow_address, network_params).await?;
     Ok(validation_result)
 }
 
-async fn validate_maturity(client: &Arc<DynRpcApi>, block: &RpcBlock) -> Result<bool> {
-    let network = client.get_current_network().await?;
-    let network_id = NetworkId::new(network);
-    let params = NetworkParams::from(network_id);
-
+async fn validate_maturity(
+    client: &Arc<DynRpcApi>,
+    block: &RpcBlock,
+    network_params: &NetworkParams,
+) -> Result<bool> {
     let dag_info = client.get_block_dag_info().await?;
-    if block.header.daa_score + params.user_transaction_maturity_period_daa()
-        > dag_info.virtual_daa_score
+    if block.header.daa_score + network_params.user_transaction_maturity_period_daa()
+        < dag_info.virtual_daa_score
     {
         return Ok(true);
     }
@@ -45,6 +54,7 @@ pub async fn validate_deposit(
     client: &Arc<DynRpcApi>,
     deposit: &DepositFXG,
     escrow_address: &str,
+    network_params: &NetworkParams,
 ) -> Result<bool> {
     let block_hash = RpcHash::from_str(&deposit.block_id)?;
     let tx_hash = RpcHash::from_str(&deposit.tx_id)?;
@@ -73,7 +83,7 @@ pub async fn validate_deposit(
         .map_err(|e: &'static str| eyre::eyre!(e))?;
 
     // decode Hyperlane message
-    let token_message = parse_hyperlane_metadata(&deposit.payload).map_err(|e| eyre::eyre!(e))?;
+    let token_message = parse_hyperlane_metadata(&deposit.payload)?;
 
     if U256::from(utxo.value) < token_message.amount() {
         let amt = U256::from(utxo.value);
@@ -85,9 +95,7 @@ pub async fn validate_deposit(
         return Ok(false);
     }
 
-    let is_escrow = is_utxo_escrow_address(&utxo.script_public_key, escrow_address)
-        .map_err(|e| eyre::eyre!(e))?;
-
+    let is_escrow = is_utxo_escrow_address(&utxo.script_public_key, escrow_address)?;
     if !is_escrow {
         error!(
             "Deposit is not to escrow address,escrow: {:?}",
@@ -96,7 +104,7 @@ pub async fn validate_deposit(
         return Ok(false);
     }
 
-    let maturity_result = validate_maturity(client, &block).await?;
+    let maturity_result = validate_maturity(client, &block, network_params).await?;
     if !maturity_result {
         error!(
             "Deposit is not mature, block daa score: {:?}",

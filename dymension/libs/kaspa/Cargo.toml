@@ -9,9 +9,10 @@ members = [
     "lib/relayer",
     "lib/validator",
     "lib/api",
+    "lib/hardcode",
     "demo/multisig",
     "demo/relayer",
-    "demo/validator",
+    "demo/user",
 ]
 
 [workspace.dependencies]

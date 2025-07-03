@@ -3,6 +3,7 @@ use corelib::consts::KEY_MESSAGE_IDS;
 use corelib::escrow::EscrowPublic;
 use corelib::payload::{MessageID, MessageIDs};
 use corelib::wallet::NetworkInfo;
+use hex::ToHex;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
@@ -101,7 +102,7 @@ pub async fn build_withdrawal_pskt(
 
     let relayer_utxos = get_utxo_to_spend(
         // TODO: receive_address or change_address??
-        relayer.receive_address()?.clone(),
+        relayer.change_address()?.clone(),
         kaspa_rpc,
         network_id,
     )
@@ -175,8 +176,6 @@ pub async fn build_withdrawal_pskt(
         })
         .collect();
 
-    let msg_ids: Vec<_> = withdrawal_details.iter().map(|w| w.message_id).collect();
-
     let outputs: Vec<TransactionOutput> = withdrawal_details
         .into_iter()
         .map(|w| {
@@ -212,27 +211,7 @@ pub async fn build_withdrawal_pskt(
     //////////////////
     //     PSKT     //
     //////////////////
-
-    let msg_ids_raw = MessageIDs::new(
-        msg_ids
-            .into_iter()
-            .map(MessageID)
-            .collect::<Vec<MessageID>>(),
-    )
-    .into_value()
-    .map_err(|e| anyhow::anyhow!("Serialize message IDs: {}", e))?;
-
-    // Save msg_ids_raw in the proprietaries for later retrieval by validators
-    let global = GlobalBuilder::default()
-        .proprietaries(BTreeMap::from([(KEY_MESSAGE_IDS.to_string(), msg_ids_raw)]))
-        .build()
-        .map_err(|e| anyhow::anyhow!("Build message IDs payload: {}", e))?;
-
-    // Create default Inner and inject global that contains message IDs
-    let mut inner: Inner = Default::default();
-    inner.global = global;
-
-    let mut pskt = PSKT::<Creator>::from(inner).constructor();
+    let mut pskt = PSKT::<Creator>::default().constructor();
 
     // Add escrow inputs
     for (input, entry) in populated_inputs_escrow {
@@ -406,7 +385,7 @@ pub(crate) async fn get_pending_withdrawals(
     let withdrawal_ids: Vec<_> = withdrawals
         .iter()
         .map(|m| WithdrawalId {
-            message_id: m.id().to_string(),
+            message_id: m.id().encode_hex(),
         })
         .collect();
 
