@@ -376,66 +376,6 @@ fn estimate_fee(
     mass
 }
 
-pub(crate) async fn get_pending_withdrawals(
-    withdrawals: Vec<HyperlaneMessage>,
-    cosmos: &CosmosGrpcClient,
-    height: Option<u32>,
-) -> Result<(TransactionOutpoint, Vec<HyperlaneMessage>)> {
-    // A list of withdrawal IDs to request their statuses from the Hub
-    let withdrawal_ids: Vec<_> = withdrawals
-        .iter()
-        .map(|m| WithdrawalId {
-            message_id: m.id().encode_hex(),
-        })
-        .collect();
-
-    // Request withdrawal statuses from the Hub
-    let resp = cosmos
-        .withdrawal_status(withdrawal_ids, height)
-        .await
-        .map_err(|e| anyhow::anyhow!("Query outpoint from x/kas: {}", e))?;
-
-    let outpoint_data = resp
-        .outpoint
-        .ok_or_else(|| anyhow::anyhow!("No outpoint data in response"))?;
-
-    if outpoint_data.transaction_id.len() != 32 {
-        return Err(anyhow::anyhow!(
-            "Invalid transaction ID length: expected 32 bytes, got {}",
-            outpoint_data.transaction_id.len()
-        ));
-    }
-
-    // Convert the transaction ID to kaspa transaction ID
-    let kaspa_tx_id = kaspa_hashes::Hash::from_bytes(
-        outpoint_data
-            .transaction_id
-            .as_slice()
-            .try_into()
-            .map_err(|e| anyhow::anyhow!("Convert tx ID to Kaspa tx ID: {:}", e))?,
-    );
-
-    // resp.status is a list of the same length as withdrawals. If status == WithdrawalStatus::Unprocessed,
-    // then the respective element of withdrawals is Unprocessed.
-    let pending_withdrawals: Vec<_> = resp
-        .status
-        .into_iter()
-        .enumerate()
-        .filter_map(|(idx, status)| match status.try_into() {
-            Ok(WithdrawalStatus::Unprocessed) => Some(withdrawals[idx].clone()),
-            _ => None, // Ignore other statuses
-        })
-        .collect();
-
-    Ok((
-        TransactionOutpoint {
-            transaction_id: kaspa_tx_id,
-            index: outpoint_data.index,
-        },
-        pending_withdrawals,
-    ))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

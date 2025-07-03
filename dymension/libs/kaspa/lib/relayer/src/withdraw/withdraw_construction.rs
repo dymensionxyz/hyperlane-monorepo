@@ -1,7 +1,8 @@
 use super::hub_to_kaspa::build_withdrawal_pskt;
-use super::hub_to_kaspa::get_pending_withdrawals;
+use super::hub_to_kaspa::filter_pending_withdrawals;
 use super::hub_to_kaspa::WithdrawalDetails;
 use corelib::escrow::EscrowPublic;
+use corelib::util::{filter_pending_withdrawals, get_recipient_address};
 use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::WithdrawFXG;
 use eyre::Result;
@@ -14,15 +15,6 @@ use kaspa_wallet_pskt::prelude::Bundle;
 use std::io::Cursor;
 use tracing::info;
 
-pub fn get_recipient_address(recipient: H256, prefix: Prefix) -> kaspa_addresses::Address {
-    let addr = kaspa_addresses::Address::new(
-        prefix,
-        kaspa_addresses::Version::PubKey, // should always be PubKey
-        recipient.as_bytes(),
-    );
-    addr
-}
-
 /// Processes given messages and returns WithdrawFXG and the very first outpoint
 /// (the one preceding all the given transfers; it should be used during process indication).
 pub async fn on_new_withdrawals(
@@ -33,7 +25,7 @@ pub async fn on_new_withdrawals(
     hub_height: Option<u32>,
 ) -> Result<Option<(WithdrawFXG, TransactionOutpoint)>> {
     info!("Kaspa relayer, getting pending withdrawals");
-    let (outpoint, pending_messages) = get_pending_withdrawals(messages, &cosmos, hub_height)
+    let (outpoint, pending_messages) = filter_pending_withdrawals(messages, &cosmos, hub_height)
         .await
         .map_err(|e| eyre::eyre!("Get pending withdrawals: {}", e))?;
     info!("Kaspa relayer, got pending withdrawals");
