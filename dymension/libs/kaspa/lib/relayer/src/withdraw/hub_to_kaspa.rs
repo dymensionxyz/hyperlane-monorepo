@@ -283,9 +283,7 @@ pub async fn build_withdrawal_pskt(
     // escrow_change should always be present even if it's dust
     pskt = pskt.output(escrow_change);
 
-    // if !is_transaction_output_dust(&relayer_change) {
     pskt = pskt.output(relayer_change);
-    // }
 
     Ok(pskt.no_more_inputs().no_more_outputs().signer())
 }
@@ -613,10 +611,15 @@ pub async fn sign_pay_fee(
         derivation.cosigner_index(),
     )?;
 
-    sign_pskt(pskt, key_pair, payload, Some(KeySource {
-        key_fingerprint,
-        derivation_path: derivation_path.clone(),
-    }))
+    sign_pskt(
+        pskt,
+        key_pair,
+        payload,
+        Some(KeySource {
+            key_fingerprint,
+            derivation_path: derivation_path.clone(),
+        }),
+    )
 }
 
 // TODO: similar to https://github.com/dymensionxyz/hyperlane-monorepo/blob/3c1e1c7ad21ec5e14647c7e161f984a6f2a401cd/dymension/libs/kaspa/lib/validator/src/withdraw.rs#L70
