@@ -247,9 +247,7 @@ pub async fn build_withdrawal_pskt(
         .map_err(|e| eyre::eyre!("Build pskt output for relayer change: {}", e))?;
 
     // escrow_change should always be present even if it's dust
-    if escrow_change_amt > 0 {
-        pskt = pskt.output(escrow_change);
-    }
+    pskt = pskt.output(escrow_change);
 
     pskt = pskt.output(relayer_change);
 
