@@ -379,8 +379,8 @@ pub async fn combine_bundles_with_fee(
 }
 
 async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> Result<Bundle> {
-    sign_relayer_fee_working(easy_wallet, fxg).await
-    // sign_relayer_fee_alt(easy_wallet, fxg).await
+    // sign_relayer_fee_working(easy_wallet, fxg).await
+    sign_relayer_fee_alt(easy_wallet, fxg).await
 }
 
 /// returns bundle of Signer
@@ -580,18 +580,14 @@ pub async fn sign_pay_fee(
     // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/pskb.rs#L154
     // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/mod.rs#L383
 
-    let acc = w.account()?;
-    let addr = acc.change_address()?;
+    let derivation = w.account()?.as_derivation_capable()?;
+    let keydata = w.account()?.prv_key_data(s.clone()).await?;
+    let addr = w.account()?.change_address()?;
+    let (receive, change) = derivation.derivation().addresses_indexes(&[&addr])?;
+    let pks = derivation.create_private_keys(&keydata, &None, &receive, &change)?;
 
-    // Get private and public keys for the active account
-    let keydata = acc.prv_key_data(s.clone()).await?;
-    let signer = Arc::new(PSKBSigner::new(
-        acc.clone().as_dyn_arc(),
-        keydata.clone(),
-        None,
-    ));
-
-    let derivation = acc.as_derivation_capable()?;
+    let xprv = keydata.get_xprv(None)?;
+    let key_pair = secp256k1::Keypair::from_secret_key(secp256k1::SECP256K1, xprv.private_key());
 
     // Get derivation path for the account. build_derivate_paths returns receive and change paths, respectively.
     // Use receive one as it is used in `Account.pskb_sign`.
@@ -601,11 +597,7 @@ pub async fn sign_pay_fee(
         derivation.cosigner_index(),
     )?;
 
-    let xprv = keydata.get_xprv(None)?;
     let key_fingerprint = xprv.public_key().fingerprint();
-
-    // Create keypair from the private key
-    let key_pair = secp256k1::Keypair::from_secret_key(secp256k1::SECP256K1, xprv.private_key());
 
     corelib::pskt::sign_pskt(
         pskt,
