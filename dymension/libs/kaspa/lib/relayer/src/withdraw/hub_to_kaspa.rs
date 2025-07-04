@@ -93,6 +93,10 @@ pub async fn build_withdrawal_pskt(
     //////////////////
     //     UTXO     //
     //////////////////
+    info!(
+        "Building withdrawal PSKT for {} withdrawals",
+        withdrawal_details.len()
+    );
 
     // Get all available UTXOs from multisig
     let escrow_utxos = get_utxo_to_spend(escrow.addr.clone(), kaspa_rpc, network_id).await?;
@@ -153,7 +157,7 @@ pub async fn build_withdrawal_pskt(
 
     // Multiply the fee by 1.1 to give some space for adding change UTXOs.
     // TODO: use feerate.
-    let tx_fee = 5000;
+    let tx_fee = 50000;
 
     // estimate_fee(combined_inputs, withdrawals.clone(), Vec::new(), network_id) * 11 / 10;
 
@@ -211,9 +215,11 @@ pub async fn build_withdrawal_pskt(
             .build()
             .map_err(|e| eyre::eyre!("Build pskt output for withdrawal: {}", e))?;
 
+        info!("Adding output for withdrawal: {}", w.amount_sompi);
         pskt = pskt.output(out);
     }
 
+    let escrow_change_amt = escrow_balance - withdrawal_balance;
     // escrow_balance - withdrawal_balance > 0 as checked above
     let escrow_change = OutputBuilder::default()
         .amount(escrow_balance - withdrawal_balance)
@@ -221,9 +227,19 @@ pub async fn build_withdrawal_pskt(
         .build()
         .map_err(|e| eyre::eyre!("Build pskt output for escrow change: {}", e))?;
 
+    let relayer_change_amt = relayer_balance - tx_fee;
+    if relayer_change_amt < 20_000_001 {
+        return Err(eyre::eyre!(
+            "Insufficient relayer funds to cover tx fee: {} < {}, only leaves dust {}",
+            relayer_balance,
+            tx_fee,
+            relayer_change_amt
+        ));
+    }
+
     // relayer_balance - tx_fee as checked above
     let relayer_change = OutputBuilder::default()
-        .amount(relayer_balance - tx_fee)
+        .amount(relayer_change_amt)
         .script_public_key(ScriptPublicKey::from(pay_to_address_script(
             &relayer.change_address()?,
         )))
@@ -231,7 +247,9 @@ pub async fn build_withdrawal_pskt(
         .map_err(|e| eyre::eyre!("Build pskt output for relayer change: {}", e))?;
 
     // escrow_change should always be present even if it's dust
-    pskt = pskt.output(escrow_change);
+    if escrow_change_amt > 0 {
+        pskt = pskt.output(escrow_change);
+    }
 
     pskt = pskt.output(relayer_change);
 
@@ -363,8 +381,8 @@ pub async fn combine_bundles_with_fee(
 }
 
 async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> Result<Bundle> {
-    // sign_relayer_fee_working(easy_wallet, fxg).await
-    sign_relayer_fee_alt(easy_wallet, fxg).await
+    sign_relayer_fee_working(easy_wallet, fxg).await
+    // sign_relayer_fee_alt(easy_wallet, fxg).await
 }
 
 /// returns bundle of Signer
@@ -547,7 +565,7 @@ pub fn finalize_pskt(
     let (mut tx, _) = finalize_fn(mass);
 
     // Inject the expected payload
-    tx.payload = payload;
+    // tx.payload = payload;
 
     let rpc_tx = (&tx).into();
     Ok(rpc_tx)
@@ -591,7 +609,7 @@ pub async fn sign_pay_fee(
     // Create keypair from the private key
     let key_pair = secp256k1::Keypair::from_secret_key(secp256k1::SECP256K1, xprv.private_key());
 
-    sign_pskt_alt(
+    corelib::pskt::sign_pskt(
         pskt,
         &key_pair,
         payload,
@@ -600,42 +618,6 @@ pub async fn sign_pay_fee(
             derivation_path: derivation_path.clone(),
         }),
     )
-}
-
-pub fn sign_pskt_alt(
-    pskt: PSKT<Signer>,
-    payload: Vec<u8>,
-    source: Option<KeySource>,
-    addr: kaspa_addresses::Address,
-    signer: Arc<PSKBSigner>,
-) -> Result<PSKT<Signer>> {
-    // reused_values is something copied from the `pskb_signer_for_address` funciton
-    let reused_values = SigHashReusedValuesUnsync::new();
-    pskt.pass_signature_sync(|tx, sighash| {
-        // let mut with_payload = tx.clone();
-        // with_payload.tx.payload = payload;
-
-        tx.tx
-            .inputs
-            .iter()
-            .enumerate()
-            .map(|(idx, _input)| {
-                let hash = calc_schnorr_signature_hash(
-                    &tx.as_verifiable(),
-                    idx,
-                    sighash[idx],
-                    &reused_values,
-                );
-                let msg = secp256k1::Message::from_digest_slice(&hash.as_bytes())
-                    .map_err(|e| eyre::eyre!("Failed to convert hash to message: {}", e))?;
-                Ok(SignInputOk {
-                    signature: Signature::Schnorr(signer.sign_schnorr(&addr, msg).unwrap()),
-                    pub_key: signer.public_key(&addr).unwrap(),
-                    key_source: source.clone(),
-                })
-            })
-            .collect()
-    })
 }
 
 #[cfg(test)]

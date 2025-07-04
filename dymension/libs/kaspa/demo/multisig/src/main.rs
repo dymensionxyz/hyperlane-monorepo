@@ -147,6 +147,12 @@ async fn demo() -> Result<()> {
 
     info!("Signed relayer fee and finalized withdrawal RPC TX");
 
+    finalized.iter().for_each(|tx| {
+        tx.outputs.iter().for_each(|o| {
+            info!("Output: {}", o.value);
+        });
+    });
+
     let res = rpc
         .submit_transaction(finalized.first().unwrap().clone(), false)
         .await?;
