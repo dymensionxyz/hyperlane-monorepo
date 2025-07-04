@@ -166,7 +166,7 @@ impl KaspaProvider {
             bundles_validators,
             &fxg,
             self.conf.multisig_threshold_kaspa as usize,
-            self.escrow().pubs.clone(),
+            &self.escrow(),
             &self.easy_wallet,
         )
         .await?;
