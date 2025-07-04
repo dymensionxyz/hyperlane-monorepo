@@ -96,6 +96,29 @@ pub async fn validate_withdrawals(
         return Err(ValidationError::MessagesNotUnprocessed);
     }
 
+    validate_pskt_structure(
+        pskt,
+        hub_outpoint,
+        pending_messages,
+        network,
+        escrow_public,
+    )?;
+
+    info!(
+        "Withdrawal validation completed successfully for {} withdrawals",
+        num_msg
+    );
+
+    Ok(())
+}
+
+pub fn validate_pskt_structure(
+    pskt: PSKT<Signer>,
+    hub_outpoint: TransactionOutpoint,
+    pending_messages: Vec<HyperlaneMessage>,
+    network: &NetworkInfo,
+    escrow_public: EscrowPublic,
+) -> Result<(), ValidationError> {
     // Step 3: Check that PSKT contains the Hub outpoint as input
     let hub_outpoint_found = pskt.inputs.iter().any(|input| {
         input.previous_outpoint.transaction_id == hub_outpoint.transaction_id
@@ -108,6 +131,7 @@ pub async fn validate_withdrawals(
         });
     }
 
+    // Step 4: Check that UTXO outputs align with withdrawals
     // Find escrow input amount
     let escrow_input_amount = pskt.inputs.iter().fold(0, |acc, i| {
         // redeem_script is None for relayer input
@@ -119,9 +143,6 @@ pub async fn validate_withdrawals(
         };
     });
 
-    debug!("Hub outpoint found in PSKT inputs");
-
-    // Step 4: Check that UTXO outputs align with withdrawals
     // Construct a multiset of expected outputs from HL messages.
     // Key:   recipiend + amount
     // Value: number of entries
@@ -174,11 +195,6 @@ pub async fn validate_withdrawals(
             output_amount: escrow_output_amount,
         });
     }
-
-    info!(
-        "Withdrawal validation completed successfully for {} withdrawals",
-        num_msg
-    );
 
     Ok(())
 }

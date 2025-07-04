@@ -29,7 +29,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WithdrawFXG {
     pub bundle: Bundle,
-    pub messages: Vec<Vec<HyperlaneMessage>>, // TODO: not used any more, should remove
+    pub messages: Vec<Vec<HyperlaneMessage>>, // used in validation
+    // TODO: add new/old anchors?
 }
 
 impl WithdrawFXG {
