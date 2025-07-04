@@ -481,11 +481,11 @@ fn finalize_txs(
     let transactions_result: Result<Vec<RpcTransaction>, _> = txs_sigs
         .into_iter()
         .zip(messages.into_iter())
-        .map(|(tx, messages)| {
-            let msg_ids_bytes = MessageIDs::from(messages)
+        .map(|(tx, hl_messages)| {
+            let payload = MessageIDs::from(hl_messages)
                 .to_bytes()
                 .map_err(|e| eyre::eyre!("Deserialize MessageIDs: {}", e))?;
-            finalize_pskt(tx, msg_ids_bytes, escrow_pubs.clone())
+            finalize_pskt(tx, payload, escrow_pubs.clone())
         })
         .collect();
 
