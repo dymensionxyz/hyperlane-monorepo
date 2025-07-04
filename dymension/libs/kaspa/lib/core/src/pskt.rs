@@ -24,11 +24,10 @@ pub fn sign_pskt(
     // reused_values is something copied from the `pskb_signer_for_address` funciton
     let reused_values = SigHashReusedValuesUnsync::new();
     pskt.pass_signature_sync(|tx, sighash| {
-        // let mut with_payload = tx.clone();
-        // with_payload.tx.payload = payload;
+        let mut tx = tx.clone();
+        tx.tx.payload = payload;
 
-       tx 
-            .tx
+        tx.tx
             .inputs
             .iter()
             .enumerate()

@@ -540,7 +540,7 @@ pub fn finalize_pskt(
     let (mut tx, _) = finalize_fn(mass);
 
     // Inject the expected payload
-    // tx.payload = payload;
+    tx.payload = payload;
 
     let rpc_tx = (&tx).into();
     Ok(rpc_tx)
