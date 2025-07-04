@@ -111,7 +111,7 @@ async fn demo() -> Result<()> {
 
     let details = WithdrawalDetails {
         message_id: H256::random(),
-        recipient: user_addr,
+        recipient: user_addr.clone(),
         amount_sompi: amt,
     };
 
@@ -141,7 +141,7 @@ async fn demo() -> Result<()> {
     )
     .await?;
 
-    let bundle_val = sign_withdrawal_fxg(fxg, e.keys.first().unwrap())?;
+    let bundle_val = sign_withdrawal_fxg(fxg.clone(), e.keys.first().unwrap())?;
 
     let finalized = combine_bundles_with_fee(
         vec![bundle_val],
