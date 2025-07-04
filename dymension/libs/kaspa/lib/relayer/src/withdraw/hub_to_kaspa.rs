@@ -366,6 +366,20 @@ async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> R
     let wallet = easy_wallet.wallet.clone();
     let secret = easy_wallet.secret.clone();
 
+    let addr = wallet.account()?.change_address()?;
+    let sign_for_address = Some(&addr);
+    let bundle_signed = wallet
+        .account()?
+        .pskb_sign(&fxg.bundle, secret.clone(), None, sign_for_address)
+        .await?;
+
+    Ok(bundle_signed)
+}
+
+async fn sign_relayer_fee_alt(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> Result<Bundle> {
+    let wallet = easy_wallet.wallet.clone();
+    let secret = easy_wallet.secret.clone();
+
     let mut signed = Vec::new();
     // Iterate over (PSKT; associated HL messages) pairs
     for (pskt, messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
