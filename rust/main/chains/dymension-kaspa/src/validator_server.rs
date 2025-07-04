@@ -23,7 +23,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha3::{digest::Update, Digest, Keccak256};
 use std::sync::Arc;
 use tracing::{info, warn};
-
+use dym_kas_core::wallet::{EasyKaspaWallet, NetworkInfo};
 use super::providers::KaspaProvider;
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
 use dym_kas_validator::deposit::validate_new_deposit;
@@ -85,7 +85,11 @@ impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> 
     }
 
     fn must_network_params(&self) -> &NetworkParams {
-        return NetworkParams::from(self.kas_provider.as_ref().unwrap().wallet().network_id());
+        NetworkParams::from(self.kas_provider.as_ref().unwrap().wallet().network_id())
+    }
+
+    fn must_wallet(&self) -> &EasyKaspaWallet {
+        self.kas_provider.as_ref().unwrap().wallet()
     }
 
     pub fn default() -> Self {

@@ -27,13 +27,16 @@ use kaspa_hashes;
 use kaspa_txscript::pay_to_address_script;
 use std::collections::HashMap;
 use std::io::Cursor;
+use kaspa_wallet_core::utxo::NetworkParams;
 use tracing::{debug, error, info, warn};
+use corelib::wallet::NetworkInfo;
 
 pub async fn validate_withdrawals(
     pskt: PSKT<Signer>,
     messages: Vec<HyperlaneMessage>,
     cosmos_client: &CosmosGrpcClient,
     mailbox_id: String,
+    network: &NetworkInfo,
 ) -> Result<bool> {
     debug!(
         "Starting withdrawal validation for {} messages",
@@ -95,10 +98,9 @@ pub async fn validate_withdrawals(
         let token_message = TokenMessage::read_from(&mut Cursor::new(&message.body))
             .map_err(|e| eyre::eyre!("Failed to parse TokenMessage from message body: {}", e))?;
 
-        let address_prefix = Testnet; // TODO: use real address prefix
         let recipient = ScriptPublicKey::from(pay_to_address_script(&get_recipient_address(
             token_message.recipient(),
-            address_prefix,
+            network.address_prefix,
         )));
 
         let key = (recipient, token_message.amount());
@@ -117,7 +119,7 @@ pub async fn validate_withdrawals(
     for output in &pskt.outputs {
         let key = (output.script_public_key.clone(), U256::from(output.amount));
 
-        let e = expected_outputs.entry(key).and_modify(|v| *v -= 1);
+        let e = expected_outputs.entry(key).and_modify(|v| *v -= 1).or;
         match e {
             Entry::Occupied(e) => {
                 if *e.get() == 0 {
