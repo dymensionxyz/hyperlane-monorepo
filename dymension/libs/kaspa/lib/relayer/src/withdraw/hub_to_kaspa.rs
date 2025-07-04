@@ -611,7 +611,7 @@ pub async fn sign_pay_fee(
         derivation.cosigner_index(),
     )?;
 
-    sign_pskt(
+    corelib::pskt::sign_pskt(
         pskt,
         key_pair,
         payload,
@@ -622,42 +622,6 @@ pub async fn sign_pay_fee(
     )
 }
 
-// TODO: similar to https://github.com/dymensionxyz/hyperlane-monorepo/blob/3c1e1c7ad21ec5e14647c7e161f984a6f2a401cd/dymension/libs/kaspa/lib/validator/src/withdraw.rs#L70
-fn sign_pskt(
-    pskt: PSKT<Signer>,
-    key_pair: secp256k1::Keypair,
-    payload: Vec<u8>,
-    source: Option<KeySource>,
-) -> Result<PSKT<Signer>> {
-    // reused_values is something copied from the `pskb_signer_for_address` funciton
-    let reused_values = SigHashReusedValuesUnsync::new();
-    pskt.pass_signature_sync(|tx, sighash| {
-        let mut with_payload = tx.clone();
-        with_payload.tx.payload = payload;
-
-        with_payload
-            .tx
-            .inputs
-            .iter()
-            .enumerate()
-            .map(|(idx, _input)| {
-                let hash = calc_schnorr_signature_hash(
-                    &with_payload.as_verifiable(),
-                    idx,
-                    sighash[idx],
-                    &reused_values,
-                );
-                let msg = secp256k1::Message::from_digest_slice(&hash.as_bytes())
-                    .map_err(|e| eyre::eyre!("Failed to convert hash to message: {}", e))?;
-                Ok(SignInputOk {
-                    signature: Signature::Schnorr(key_pair.sign_schnorr(msg)),
-                    pub_key: key_pair.public_key(),
-                    key_source: source.clone(),
-                })
-            })
-            .collect()
-    })
-}
 
 #[cfg(test)]
 mod tests {

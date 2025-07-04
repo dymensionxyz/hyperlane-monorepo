@@ -10,6 +10,7 @@ pub mod payload;
 pub mod user;
 pub mod wallet;
 pub mod withdraw;
+pub mod pskt;
 use std::{error::Error, io::Cursor};
 
 use eyre::Result;

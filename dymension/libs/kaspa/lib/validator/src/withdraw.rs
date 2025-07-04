@@ -56,48 +56,11 @@ pub fn sign_withdrawal_fxg(fxg: &WithdrawFXG, keypair: &SecpKeypair) -> Result<B
             .to_bytes()
             .map_err(|e| eyre::eyre!("Deserialize MessageIDs: {}", e))?;
 
-        let signed_pskt = sign_pskt(keypair, pskt, payload)?;
+        let signed_pskt = corelib::pskt::sign_pskt(pskt, keypair, payload, None)?;
 
         signed.push(signed_pskt);
     }
     info!("Validator: signed pskts");
     let bundle = Bundle::from(signed);
     Ok(bundle)
-}
-
-// TODO: use wallet instead of raw keypair
-// TODO: similar to https://github.com/dymensionxyz/hyperlane-monorepo/blob/3c1e1c7ad21ec5e14647c7e161f984a6f2a401cd/dymension/libs/kaspa/lib/relayer/src/withdraw/hub_to_kaspa.rs#L622
-pub fn sign_pskt(
-    keypair: &SecpKeypair,
-    pskt: PSKT<Signer>,
-    payload: Vec<u8>,
-) -> Result<PSKT<Signer>, Error> {
-    let reused_values = SigHashReusedValuesUnsync::new();
-
-    pskt.pass_signature_sync(|tx, sighashes| {
-        let mut with_payload = tx.clone();
-        with_payload.tx.payload = payload;
-
-        with_payload
-            .tx
-            .inputs
-            .iter()
-            .enumerate()
-            .map(|(idx, _input)| {
-                let hash = calc_schnorr_signature_hash(
-                    &with_payload.as_verifiable(),
-                    idx,
-                    sighashes[idx], // TODO: don't forget need to verify it's what's expected
-                    &reused_values,
-                );
-                let msg = secp256k1::Message::from_digest_slice(&hash.as_bytes())
-                    .map_err(|e| e.to_string())?;
-                Ok(SignInputOk {
-                    signature: Signature::Schnorr(keypair.sign_schnorr(msg)),
-                    pub_key: keypair.public_key(),
-                    key_source: None,
-                })
-            })
-            .collect()
-    })
 }
