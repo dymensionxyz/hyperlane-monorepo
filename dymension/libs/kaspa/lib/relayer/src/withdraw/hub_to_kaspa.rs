@@ -361,8 +361,13 @@ pub async fn combine_bundles_with_fee(
     Ok(finalized)
 }
 
-/// returns bundle of Signer
 async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> Result<Bundle> {
+    // sign_relayer_fee_working(easy_wallet, fxg).await
+    sign_relayer_fee_alt(easy_wallet, fxg).await
+}
+
+/// returns bundle of Signer
+async fn sign_relayer_fee_working(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> Result<Bundle> {
     let wallet = easy_wallet.wallet.clone();
     let secret = easy_wallet.secret.clone();
 
@@ -560,20 +565,25 @@ pub async fn sign_pay_fee(
 
     // Get private and public keys for the active account
     let keydata = acc.prv_key_data(s.clone()).await?;
-    let xprv = keydata.get_xprv(Some(s))?;
-    let key_fingerprint = xprv.public_key().fingerprint();
 
-    // Create keypair from the private key
-    let key_pair = secp256k1::Keypair::from_secret_key(secp256k1::SECP256K1, xprv.private_key());
+    let derivation = acc.as_derivation_capable()?;
 
     // Get derivation path for the account. build_derivate_paths returns receive and change paths, respectively.
     // Use receive one as it is used in `Account.pskb_sign`.
-    let derivation = acc.as_derivation_capable()?;
     let (derivation_path, _) = build_derivate_paths(
         &derivation.account_kind(),
         derivation.account_index(),
         derivation.cosigner_index(),
     )?;
+
+    let xprv = keydata.get_xprv(
+        // Some(s)
+       None, 
+    )?;
+    let key_fingerprint = xprv.public_key().fingerprint();
+
+    // Create keypair from the private key
+    let key_pair = secp256k1::Keypair::from_secret_key(secp256k1::SECP256K1, xprv.private_key());
 
     corelib::pskt::sign_pskt(
         pskt,
