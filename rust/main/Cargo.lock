@@ -15211,6 +15211,7 @@ dependencies = [
  "secp256k1 0.29.1",
  "serde",
  "serde_json",
+ "thiserror 1.0.63",
  "tokio",
  "tracing",
  "tracing-error",

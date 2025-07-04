@@ -1,7 +1,7 @@
 // We call the signers 'validators'
 
-use std::collections::hash_map::Entry;
 use corelib::escrow::*;
+use std::collections::hash_map::Entry;
 
 use kaspa_core;
 use kaspa_wallet_core::error::Error;
@@ -9,8 +9,11 @@ use kaspa_wallet_core::error::Error;
 use kaspa_wallet_pskt::prelude::*;
 use secp256k1::Keypair as SecpKeypair;
 
+use crate::error::ValidationError;
 use corelib::payload::MessageIDs;
-use corelib::util::{filter_pending_withdrawals, get_recipient_address};
+use corelib::util::get_recipient_address;
+use corelib::wallet::{EasyKaspaWallet, NetworkInfo};
+use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use eyre::Result;
 use hex::ToHex;
 use hyperlane_core::{Decode, HyperlaneMessage, H256, U256};
@@ -25,11 +28,31 @@ use kaspa_consensus_core::hashing::sighash::{
 use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint};
 use kaspa_hashes;
 use kaspa_txscript::pay_to_address_script;
+use kaspa_wallet_core::utxo::NetworkParams;
 use std::collections::HashMap;
 use std::io::Cursor;
-use kaspa_wallet_core::utxo::NetworkParams;
 use tracing::{debug, error, info, warn};
-use corelib::wallet::NetworkInfo;
+
+pub async fn validate_withdrawal_batch(
+    fxg: &WithdrawFXG,
+    cosmos_client: &CosmosGrpcClient,
+    mailbox_id: String,
+    network: &NetworkInfo,
+    escrow_public: EscrowPublic,
+) -> Result<(), ValidationError> {
+    for (pskt, messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
+        validate_withdrawals(
+            PSKT::<Signer>::from(pskt.clone()),
+            messages,
+            cosmos_client,
+            mailbox_id.clone(),
+            network,
+            escrow_public.clone(),
+        )
+        .await?;
+    }
+    Ok(())
+}
 
 pub async fn validate_withdrawals(
     pskt: PSKT<Signer>,
@@ -37,11 +60,14 @@ pub async fn validate_withdrawals(
     cosmos_client: &CosmosGrpcClient,
     mailbox_id: String,
     network: &NetworkInfo,
-) -> Result<bool> {
+    escrow_public: EscrowPublic,
+) -> Result<(), ValidationError> {
     debug!(
         "Starting withdrawal validation for {} messages",
         messages.len()
     );
+
+    let num_msg = messages.len();
 
     // Step 1: Check that all messages are delivered
     for message in &messages {
@@ -51,8 +77,8 @@ pub async fn validate_withdrawals(
             .map_err(|e| eyre::eyre!("Failed to check message delivery status: {}", e))?;
 
         if !delivered_response.delivered {
-            warn!("Message {} is not delivered", message.id().encode_hex());
-            return Ok(false);
+            let message_id = message.id().encode_hex();
+            return Err(ValidationError::MessageNotDelivered { message_id });
         }
     }
 
@@ -60,16 +86,14 @@ pub async fn validate_withdrawals(
 
     // Step 2: All messages should be not processed on the Hub
     // Filter out non-pending messages
-    let num_messages_initial = messages.len();
     let (hub_outpoint, pending_messages) =
-        filter_pending_withdrawals(messages, cosmos_client, None)
+        filter_pending_withdrawals(messages.clone(), cosmos_client, None)
             .await
             .map_err(|e| eyre::eyre!("Get pending withdrawals: {}", e))?;
 
     // All given messages should be pending!
-    if num_messages_initial != pending_messages.len() {
-        warn!("Some of the messages are not in the unprocessed status on the Hub");
-        return Ok(false);
+    if num_msg != pending_messages.len() {
+        return Err(ValidationError::MessagesNotUnprocessed);
     }
 
     // Step 3: Check that PSKT contains the Hub outpoint as input
@@ -79,9 +103,21 @@ pub async fn validate_withdrawals(
     });
 
     if !hub_outpoint_found {
-        warn!("Hub outpoint {:?} not found in PSKT inputs", hub_outpoint);
-        return Ok(false);
+        return Err(ValidationError::HubOutpointNotFound {
+            outpoint: hub_outpoint,
+        });
     }
+
+    // Find escrow input amount
+    let escrow_input_amount = pskt.inputs.iter().fold(0, |acc, i| {
+        // redeem_script is None for relayer input
+        let rs = i.redeem_script.clone().unwrap_or_default();
+        return if rs == escrow_public.redeem_script {
+            acc + i.utxo_entry.as_ref().unwrap().amount
+        } else {
+            acc
+        };
+    });
 
     debug!("Hub outpoint found in PSKT inputs");
 
@@ -92,7 +128,7 @@ pub async fn validate_withdrawals(
     //
     // Such structure accounts for cases where one address might send several transfers
     // with the same amount.
-    let mut expected_outputs: HashMap<(ScriptPublicKey, U256), usize> = HashMap::new();
+    let mut expected_outputs: HashMap<(ScriptPublicKey, U256), i32> = HashMap::new();
 
     for message in pending_messages {
         let token_message = TokenMessage::read_from(&mut Cursor::new(&message.body))
@@ -104,126 +140,47 @@ pub async fn validate_withdrawals(
         )));
 
         let key = (recipient, token_message.amount());
-        expected_outputs
-            .entry(key)
-            .and_modify(|v| *v += 1)
-            .or_insert(0);
+        *expected_outputs.entry(key).or_default() += 1;
     }
 
-    // Check PSKT outputs against expected outputs
-    let mut actual_outputs: HashMap<String, u64> = HashMap::new();
-    let mut escrow_change_count = 0;
-    let mut relayer_change_count = 0;
-
-    let mut extra_outputs = 0;
+    // Ensure that all HL messages have outputs.
+    // Also, calculate the total output amount of withdrawals + escrow change,
+    // it should match the input escrow amount.
+    let mut escrow_output_amount = 0;
     for output in &pskt.outputs {
         let key = (output.script_public_key.clone(), U256::from(output.amount));
 
-        let e = expected_outputs.entry(key).and_modify(|v| *v -= 1).or;
-        match e {
-            Entry::Occupied(e) => {
-                if *e.get() == 0 {
-                    e.remove();
-                }
-            },
-            Entry::Vacant(_) => {
-                // We expect to have exactly two extra outputs: relayer and escrow change
-                extra_outputs += 1;
+        let e = expected_outputs.entry(key).and_modify(|v| *v -= 1);
+        if let Entry::Occupied(e) = e {
+            escrow_output_amount += output.amount;
+            if *e.get() == 0 {
+                e.remove();
             }
+            continue;
         }
 
-
-
-        let script_bytes = output.script_public_key.script();
-
-        // Try to extract address from script - this is a simplified check
-        // In practice, we'd need to properly decode the script to get the address
-        // For now, we'll group by script hash for validation
-        let script_key = hex::encode(script_bytes);
-
-        // Check if this looks like escrow change (P2SH script pattern)
-        // or relayer change (P2PKH script pattern)
-        if script_bytes.len() == 23 && script_bytes[0] == 0xa9 && script_bytes[22] == 0x87 {
-            // This looks like a P2SH script (escrow change)
-            escrow_change_count += 1;
-        } else if script_bytes.len() == 25 && script_bytes[0] == 0x76 && script_bytes[1] == 0xa9 {
-            // This looks like a P2PKH script (could be relayer change or withdrawal)
-            if actual_outputs.contains_key(&script_key) {
-                // If we've seen this script before, it might be relayer change
-                relayer_change_count += 1;
-            } else {
-                // New script, count as withdrawal output
-                *actual_outputs.entry(script_key).or_insert(0) += output.value;
-            }
-        } else {
-            // Unknown script type, assume it's a withdrawal
-            *actual_outputs.entry(script_key).or_insert(0) += output.value;
+        if output.script_public_key == escrow_public.p2sh {
+            escrow_output_amount += output.amount;
         }
     }
 
-    // Validate that we have the right number of outputs
-    if actual_outputs.len() != expected_outputs.len() {
-        warn!("Output count mismatch: expected {} withdrawal outputs, found {} actual outputs (excluding {} escrow change and {} relayer change)", 
-              expected_outputs.len(), actual_outputs.len(), escrow_change_count, relayer_change_count);
-        return Ok(false);
+    if !expected_outputs.is_empty() {
+        return Err(ValidationError::MissingOutputs);
     }
 
-    // We should have exactly one escrow change output
-    if escrow_change_count != 1 {
-        warn!(
-            "Expected exactly 1 escrow change output, found {}",
-            escrow_change_count
-        );
-        return Ok(false);
+    if escrow_input_amount != escrow_output_amount {
+        return Err(ValidationError::EscrowAmountMismatch {
+            input_amount: escrow_input_amount,
+            output_amount: escrow_output_amount,
+        });
     }
 
-    // We should have at most one relayer change output
-    if relayer_change_count > 1 {
-        warn!(
-            "Expected at most 1 relayer change output, found {}",
-            relayer_change_count
-        );
-        return Ok(false);
-    }
+    info!(
+        "Withdrawal validation completed successfully for {} withdrawals",
+        num_msg
+    );
 
-    // Now validate that the actual outputs match the expected outputs
-    // Since we're using simplified script pattern matching, we need to validate amounts
-    let total_expected_amount: u64 = expected_outputs.values().sum();
-    let total_actual_amount: u64 = actual_outputs.values().sum();
-
-    if total_expected_amount != total_actual_amount {
-        warn!(
-            "Amount mismatch: expected total {} KAS, found total {} KAS in withdrawal outputs",
-            total_expected_amount, total_actual_amount
-        );
-        return Ok(false);
-    }
-
-    // For a more precise validation, we should match recipients to script addresses
-    // This is a simplified validation that checks amounts are consistent
-    // TODO: Implement precise address-to-script matching for full validation
-
-    // Validate that each expected amount appears in the actual outputs
-    // This is not perfect since multiple recipients could have the same amount,
-    // but it's a reasonable check for the current simplified implementation
-    let mut expected_amounts: Vec<u64> = expected_outputs.values().cloned().collect();
-    let mut actual_amounts: Vec<u64> = actual_outputs.values().cloned().collect();
-    expected_amounts.sort();
-    actual_amounts.sort();
-
-    if expected_amounts != actual_amounts {
-        warn!(
-            "Amount distribution mismatch: expected amounts {:?}, found amounts {:?}",
-            expected_amounts, actual_amounts
-        );
-        return Ok(false);
-    }
-
-    debug!("Output validation passed: {} withdrawal outputs with correct amounts, {} escrow change, {} relayer change", 
-           actual_outputs.len(), escrow_change_count, relayer_change_count);
-
-    info!("Withdrawal validation completed successfully");
-    Ok(true)
+    Ok(())
 }
 
 // Mimic a parallel multi-validator signing process
