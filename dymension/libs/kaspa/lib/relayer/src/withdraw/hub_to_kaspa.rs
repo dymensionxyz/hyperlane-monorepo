@@ -183,7 +183,7 @@ pub async fn build_withdrawal_pskt(
         })
         .collect();
 
-    let outputs: Vec<TransactionOutput> = withdrawal_details
+    let withdrawals: Vec<TransactionOutput> = withdrawal_details
         .into_iter()
         .map(|w| {
             TransactionOutput::new(
@@ -205,7 +205,7 @@ pub async fn build_withdrawal_pskt(
 
     // Multiply the fee by 1.1 to give some space for adding change UTXOs.
     // TODO: use feerate.
-    let tx_fee = estimate_fee(combined_inputs, outputs.clone(), Vec::new(), network_id) * 11 / 10;
+    let tx_fee = estimate_fee(combined_inputs, withdrawals.clone(), Vec::new(), network_id) * 11 / 10;
 
     if relayer_balance < tx_fee {
         return Err(eyre::eyre!(
@@ -221,11 +221,11 @@ pub async fn build_withdrawal_pskt(
     let mut pskt = PSKT::<Creator>::default().constructor();
 
     // Add escrow inputs
-    for (input, entry) in populated_inputs_escrow {
-        let pskt_input = InputBuilder::default()
-            .utxo_entry(entry)
-            .previous_outpoint(input.previous_outpoint)
-            .sig_op_count(input.sig_op_count)
+    for (inp, e) in populated_inputs_escrow {
+        let i = InputBuilder::default()
+            .utxo_entry(e)
+            .previous_outpoint(inp.previous_outpoint)
+            .sig_op_count(inp.sig_op_count)
             .redeem_script(escrow.redeem_script.clone())
             .sighash_type(
                 SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8())
@@ -234,14 +234,14 @@ pub async fn build_withdrawal_pskt(
             .build()
             .map_err(|e| eyre::eyre!("Build pskt input for escrow: {}", e))?;
 
-        pskt = pskt.input(pskt_input);
+        pskt = pskt.input(i);
     }
 
     // Add relayer inputs
-    for (input, entry) in populated_inputs_relayer {
-        let pskt_input = InputBuilder::default()
-            .utxo_entry(entry)
-            .previous_outpoint(input.previous_outpoint)
+    for (inp, e) in populated_inputs_relayer {
+        let i = InputBuilder::default()
+            .utxo_entry(e)
+            .previous_outpoint(inp.previous_outpoint)
             .sig_op_count(1) // TODO: needed if using p2pk?
             .sighash_type(
                 SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8())
@@ -250,18 +250,18 @@ pub async fn build_withdrawal_pskt(
             .build()
             .map_err(|e| eyre::eyre!("Build pskt input for relayer: {}", e))?;
 
-        pskt = pskt.input(pskt_input);
+        pskt = pskt.input(i);
     }
 
     // Add outputs
-    for output in outputs {
-        let pskt_output = OutputBuilder::default()
-            .amount(output.value)
-            .script_public_key(output.script_public_key)
+    for w in withdrawals {
+        let out = OutputBuilder::default()
+            .amount(w.value)
+            .script_public_key(w.script_public_key)
             .build()
             .map_err(|e| eyre::eyre!("Build pskt output for withdrawal: {}", e))?;
 
-        pskt = pskt.output(pskt_output);
+        pskt = pskt.output(out);
     }
 
     // escrow_balance - withdrawal_balance > 0 as checked above
@@ -507,61 +507,57 @@ pub fn finalize_pskt(
                 .enumerate()
                 .map(|(i, input)| -> Vec<u8> {
                     match &input.redeem_script {
-                        Some(redeem_script) => {
-                            return if redeem_script != &escrow.redeem_script {
-                                // relayer UTXO
-
-                                let sig = input
-                                    .partial_sigs
-                                    .iter()
-                                    .filter(|(pk, _sig)| !escrow.has_pub(pk))
-                                    .next()
-                                    .unwrap()
-                                    .1
-                                    .into_bytes();
-
-                                std::iter::once(65u8)
-                                    .chain(sig)
-                                    .chain([input.sighash_type.to_u8()])
-                                    .collect()
-                            } else {
-                                // escrow UTXO
-
-                                // Return the full script
-
-                                // ORIGINAL COMMENT: todo actually required count can be retrieved from redeem_script, sigs can be taken from partial sigs according to required count
-                                // ORIGINAL COMMENT: considering xpubs sorted order
-
-                                // For each escrow pubkey return <op code, sig, sighash type> and then concat these triples
-                                let sigs: Vec<_> = escrow
-                                    .pubs
-                                    .iter()
-                                    .flat_map(|kp| {
-                                        let sig = input.partial_sigs.get(&kp).unwrap().into_bytes();
-                                        std::iter::once(OpData65)
-                                            .chain(sig)
-                                            .chain([input.sighash_type.to_u8()])
-                                    })
-                                    .collect();
-
-                                // Then add the multisig redeem script to the end
-                                sigs.into_iter()
-                                    .chain(
-                                        ScriptBuilder::new()
-                                            .add_data(
-                                                input.redeem_script.as_ref().unwrap().as_slice(),
-                                            )
-                                            .unwrap()
-                                            .drain()
-                                            .iter()
-                                            .cloned(),
-                                    )
-                                    .collect()
-                            };
-                        }
                         None => {
-                            panic!("No redeem script found for input");
-                            vec![]
+                            // relayer UTXO
+
+                            let sig = input
+                                .partial_sigs
+                                .iter()
+                                .filter(|(pk, _sig)| !escrow.has_pub(pk))
+                                .next()
+                                .unwrap()
+                                .1
+                                .into_bytes();
+
+                            std::iter::once(65u8)
+                                .chain(sig)
+                                .chain([input.sighash_type.to_u8()])
+                                .collect()
+                        }
+                        Some(redeem_script) => {
+                            if redeem_script != &escrow.redeem_script {
+                                panic!("Redeem script mismatch");
+                            }
+                            // escrow UTXO
+
+                            // Return the full script
+
+                            // ORIGINAL COMMENT: todo actually required count can be retrieved from redeem_script, sigs can be taken from partial sigs according to required count
+                            // ORIGINAL COMMENT: considering xpubs sorted order
+
+                            // For each escrow pubkey return <op code, sig, sighash type> and then concat these triples
+                            let sigs: Vec<_> = escrow
+                                .pubs
+                                .iter()
+                                .flat_map(|kp| {
+                                    let sig = input.partial_sigs.get(&kp).unwrap().into_bytes();
+                                    std::iter::once(OpData65)
+                                        .chain(sig)
+                                        .chain([input.sighash_type.to_u8()])
+                                })
+                                .collect();
+
+                            // Then add the multisig redeem script to the end
+                            sigs.into_iter()
+                                .chain(
+                                    ScriptBuilder::new()
+                                        .add_data(input.redeem_script.as_ref().unwrap().as_slice())
+                                        .unwrap()
+                                        .drain()
+                                        .iter()
+                                        .cloned(),
+                                )
+                                .collect()
                         }
                     }
                 })
@@ -574,7 +570,7 @@ pub fn finalize_pskt(
         .extractor()
         .unwrap()
         .extract_tx()
-        .map_err(|e: ExtractError| eyre::eyre!("Extract tx: {:?}", e))?;
+        .map_err(|e: ExtractError| eyre::eyre!("Extract kaspa tx: {:?}", e))?;
     let (mut tx, _) = finalize_fn(mass);
 
     // Inject the expected payload
