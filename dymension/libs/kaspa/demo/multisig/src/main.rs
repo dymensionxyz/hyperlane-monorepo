@@ -14,8 +14,10 @@ use hardcode::e2e::{
     RELAYER_NETWORK_FEE as e2e_relayer_network_fee, URL as e2e_url,
 };
 use relayer::withdraw::demo::*;
-use relayer::withdraw::hub_to_kaspa::{combine_bundles_with_fee as relayer_combine_bundles_and_pay_fee, build_withdrawal_pskt};
-use validator::withdraw::{sign_withdrawal_fxg as validator_sign_withdrawal_fxg};
+use relayer::withdraw::hub_to_kaspa::{
+    build_withdrawal_pskt, combine_bundles_with_fee as relayer_combine_bundles_and_pay_fee,
+};
+use validator::withdraw::sign_withdrawal_fxg as validator_sign_withdrawal_fxg;
 use x::args::Args;
 
 use std::sync::Arc;
@@ -138,7 +140,7 @@ async fn demo() -> Result<()> {
         vec![bundle_val],
         &fxg,
         e.m(),
-        e.public(e2e_address_prefix).pubs.clone(),
+        &e.public(e2e_address_prefix),
         &w,
     )
     .await?;

@@ -385,7 +385,7 @@ pub async fn combine_bundles_with_fee(
     bundles_validators: Vec<Bundle>,
     fxg: &WithdrawFXG,
     multisig_threshold: usize,
-    escrow: EscrowPublic,
+    escrow: &EscrowPublic,
     easy_wallet: &EasyKaspaWallet,
 ) -> Result<Vec<RpcTransaction>> {
     info!("Kaspa provider, got withdrawal FXG, now gathering sigs and signing relayer fee");
@@ -474,7 +474,7 @@ fn combine_all_bundles(bundles: Vec<Bundle>) -> Result<Vec<PSKT<Combiner>>> {
 fn finalize_txs(
     txs_sigs: Vec<PSKT<Combiner>>,
     messages: Vec<Vec<HyperlaneMessage>>,
-    escrow: EscrowPublic,
+    escrow: &EscrowPublic,
 ) -> Result<Vec<RpcTransaction>> {
     let transactions_result: Result<Vec<RpcTransaction>, _> = txs_sigs
         .into_iter()
@@ -496,7 +496,7 @@ fn finalize_txs(
 pub fn finalize_pskt(
     c: PSKT<Combiner>,
     payload: Vec<u8>,
-    escrow: EscrowPublic,
+    escrow: &EscrowPublic,
 ) -> Result<RpcTransaction> {
     let finalized_pskt = c
         .finalizer()
@@ -506,9 +506,9 @@ pub fn finalize_pskt(
                 .iter()
                 .enumerate()
                 .map(|(i, input)| -> Vec<u8> {
-                    match input.sig_op_count {
-                        Some(n) => {
-                            return if n == corelib::consts::RELAYER_SIG_OP_COUNT {
+                    match &input.redeem_script {
+                        Some(redeem_script) => {
+                            return if redeem_script != &escrow.redeem_script {
                                 // relayer UTXO
 
                                 let sig = input
@@ -559,7 +559,10 @@ pub fn finalize_pskt(
                                     .collect()
                             };
                         }
-                        None => vec![], // Should not happen
+                        None => {
+                            panic!("No redeem script found for input");
+                            vec![]
+                        }
                     }
                 })
                 .collect())
