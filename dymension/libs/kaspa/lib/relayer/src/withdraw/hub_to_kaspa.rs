@@ -484,7 +484,7 @@ fn finalize_txs(
         .map(|(tx, messages)| {
             let msg_ids_bytes = MessageIDs::from(messages)
                 .to_bytes()
-                .map_err(|e| format!("Deserialize MessageIDs: {}", e))?;
+                .map_err(|e| eyre::eyre!("Deserialize MessageIDs: {}", e))?;
             finalize_pskt(tx, msg_ids_bytes, escrow_pubs.clone())
         })
         .collect();
@@ -499,7 +499,7 @@ pub fn finalize_pskt(
     c: PSKT<Combiner>,
     payload: Vec<u8>,
     escrow_pubs: Vec<PublicKey>,
-) -> Result<RpcTransaction, Error> {
+) -> Result<RpcTransaction> {
     let finalized_pskt = c
         .finalizer()
         .finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
@@ -568,7 +568,12 @@ pub fn finalize_pskt(
         .unwrap();
 
     let mass = 10_000; // TODO: why? is it okay to keep this value?
-    let (mut tx, _) = finalized_pskt.extractor().unwrap().extract_tx().unwrap()(mass);
+    let finalize_fn = finalized_pskt
+        .extractor()
+        .unwrap()
+        .extract_tx()
+        .map_err(|e: ExtractError| eyre::eyre!("Extract tx: {:?}", e))?;
+    let (mut tx, _) = finalize_fn(mass);
 
     // Inject the expected payload
     tx.payload = payload;
