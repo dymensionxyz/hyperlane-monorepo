@@ -10830,6 +10830,7 @@ dependencies = [
  "bytes",
  "core",
  "eyre",
+ "hardcode",
  "hex 0.4.3",
  "hyperlane-core",
  "hyperlane-cosmos-dymension-rs",
