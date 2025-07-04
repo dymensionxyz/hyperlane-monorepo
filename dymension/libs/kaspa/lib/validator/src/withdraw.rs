@@ -46,10 +46,10 @@ pub fn sign_escrow_spend(e: &Escrow, pskt_unsigned: PSKT<Signer>) -> Result<PSKT
     Ok(combined)
 }
 
-pub fn sign_withdrawal_fxg(fxg: WithdrawFXG, kp: &SecpKeypair) -> Result<Bundle> {
+pub fn sign_withdrawal_fxg(fxg: &WithdrawFXG, kp: &SecpKeypair) -> Result<Bundle> {
     let mut signed = Vec::new();
     // Iterate over (PSKT; associated HL messages) pairs
-    for (pskt, messages) in fxg.bundle.iter().zip(fxg.messages.into_iter()) {
+    for (pskt, messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
         let pskt = PSKT::<Signer>::from(pskt.clone());
 
         let payload_msg_ids = MessageIDs::from(messages)
