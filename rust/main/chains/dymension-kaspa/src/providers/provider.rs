@@ -1,7 +1,7 @@
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
 use dym_kas_relayer::PublicKey;
 
-use eyre::Result as EyreResult;
+use eyre::{eyre, Result as EyreResult};
 use kaspa_addresses::Address;
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
 use kaspa_wallet_core::prelude::DynRpcApi;
@@ -14,8 +14,8 @@ use url::Url;
 
 use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::withdraw::WithdrawFXG;
-use dym_kas_relayer::withdraw::on_new_withdrawals;
-use dym_kas_relayer::withdraw::{finalize_pskt, sign_pay_fee};
+use dym_kas_relayer::withdraw::hub_to_kaspa::combine_bundles_with_fee;
+use dym_kas_relayer::withdraw::messages::on_new_withdrawals;
 pub use dym_kas_validator::KaspaSecpKeypair;
 use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneMessage,
@@ -27,10 +27,13 @@ use kaspa_wallet_pskt::prelude::Bundle;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
+use super::confirmation_queue::ConfirmationQueue;
 use super::validators::ValidatorsClient;
 use super::RestProvider;
+use dym_kas_core::confirmation::ConfirmationFXG;
 
 use crate::ConnectionConf;
+use dym_kas_core::payload::MessageIDs;
 use eyre::Result;
 use hyperlane_core::config::OpSubmissionConfig;
 use hyperlane_core::NativeToken;
@@ -59,7 +62,7 @@ pub struct KaspaProvider {
     // It stores two values: prev_outpoint and next_outpoint, respectively.
     // Note that IndicateProgress tx and Outpoint query create a race condition over
     // the last outpoint stored on the Hub.
-    queue: Arc<Mutex<Vec<(TransactionOutpoint, TransactionOutpoint)>>>,
+    queue: Arc<ConfirmationQueue>,
 }
 
 impl KaspaProvider {
@@ -94,8 +97,13 @@ impl KaspaProvider {
             validators,
             cosmos_rpc: cosmos_grpc_client(conf.hub_grpc_urls.clone()),
             kas_key,
-            queue: Arc::new(Mutex::new(Vec::new())),
+            queue: Arc::new(ConfirmationQueue::new()),
         })
+    }
+
+    /// dococo
+    pub fn consume_confirmation_queue(&self) -> Vec<ConfirmationFXG> {
+        self.queue.consume()
     }
 
     /// dococo
@@ -128,47 +136,37 @@ impl KaspaProvider {
     }
 
     /// dococo
-    pub async fn construct_withdrawal(
-        &self,
-        msgs: Vec<HyperlaneMessage>,
-    ) -> Result<Option<(WithdrawFXG, TransactionOutpoint)>> {
-        on_new_withdrawals(
+    /// Returns next outpoint
+    pub async fn process_withdrawal_messages(&self, msgs: Vec<HyperlaneMessage>) -> Result<()> {
+        let res = on_new_withdrawals(
             msgs,
             self.easy_wallet.clone(),
             self.cosmos_rpc.clone(),
             self.escrow(),
             None,
         )
-        .await
-    }
+        .await?;
+        info!("Kaspa mailbox, constructed withdrawal TXs");
 
-    /// Take all elements from progress indication queue and replace the vector with an empty one
-    pub fn fetch_clear_indicate_progress_queue(
-        &self,
-    ) -> Vec<(TransactionOutpoint, TransactionOutpoint)> {
-        let mut guard = self.queue.lock().unwrap();
-        std::mem::take(&mut *guard)
-    }
+        if res.is_none() {
+            info!("On new withdrawals decided not to handle withdrawal messages");
+            return Ok(());
+        }
 
-    /// dococo
-    /// Returns next outpoint
-    pub async fn process_withdrawal(
-        &self,
-        fxg: WithdrawFXG,
-        prev_outpoint: TransactionOutpoint,
-    ) -> Result<()> {
-        info!("Kaspa provider, got withdrawal FXG, now gathering and signing");
-        let all_bundles = {
-            let mut bundles_validators = self.validators().get_withdraw_sigs(&fxg).await?;
-            info!("Kaspa provider, got validator bundles, now signing relayer fee");
+        let (fxg, prev_outpoint) = res.unwrap();
 
-            let bundle_relayer = self.sign_relayer_fee(&fxg).await?; // TODO: can add own sig in parallel to validator network request
-            info!("Kaspa provider, got relayer fee bundle, now combining all bundles");
-            bundles_validators.push(bundle_relayer);
-            bundles_validators
-        };
-        let txs_signed = combine_all_bundles(all_bundles)?;
-        let finalized = finalize_txs(txs_signed, fxg.messages, self.escrow().pubs.clone())?;
+        info!("Kaspa provider, got withdrawal FXG, now gathering sigs and signing relayer fee");
+        let bundles_validators = self.validators().get_withdraw_sigs(&fxg).await?;
+
+        let finalized = combine_bundles_with_fee(
+            bundles_validators,
+            &fxg,
+            self.conf.multisig_threshold_kaspa as usize,
+            self.escrow().pubs.clone(),
+            &self.easy_wallet,
+        )
+        .await?;
+
         let res_tx_ids = self.submit_txs(finalized.clone()).await?;
         info!("Kaspa provider, submitted TXs, now indicating progress on the Hub");
 
@@ -198,26 +196,17 @@ impl KaspaProvider {
             index: (output_idx as u32).into(),
         };
 
-        self.queue
-            .lock()
-            .map_err(|e| eyre::eyre!("Failed to lockup progress indication queue: {}", e))?
-            .push((prev_outpoint.clone(), next_outpoint.clone()));
+        self.queue.push(ConfirmationFXG::from_msgs_outpoints(
+            fxg.ids().clone(),
+            vec![
+                prev_outpoint.clone(),
+                // TODO: it also needs to include any outpoints in-between
+                next_outpoint.clone(),
+            ],
+        ));
         info!("Kaspa provider, added to progress indication work queue");
 
         Ok(())
-    }
-
-    async fn sign_relayer_fee(&self, fxg: &WithdrawFXG) -> Result<Bundle> {
-        // returns bundle of Signer
-        let wallet = self.easy_wallet.wallet.clone();
-        let secret = self.easy_wallet.secret.clone();
-
-        let mut signed = Vec::new();
-        for pskt in fxg.bundle.iter() {
-            let pskt = PSKT::<Signer>::from(pskt.clone());
-            signed.push(sign_pay_fee(pskt, &wallet, &secret).await?);
-        }
-        Ok(Bundle::from(signed))
     }
 
     async fn submit_txs(&self, txs: Vec<RpcTransaction>) -> Result<Vec<RpcTransactionId>> {
@@ -285,62 +274,6 @@ impl HyperlaneProvider for KaspaProvider {
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
         return Ok(None);
     }
-}
-
-/// accepts bundle of signer
-fn combine_all_bundles(bundles: Vec<Bundle>) -> EyreResult<Vec<PSKT<Combiner>>> {
-    // each bundle is from a different actor (validator or releayer), and is a vector of pskt
-    // therefore index i of each vector corresponds to the same TX i
-
-    // make a list of lists, each top level element is a vector of pskt from a different actor
-    let actor_pskts = bundles
-        .iter()
-        .map(|b| {
-            b.iter()
-                .map(|inner| PSKT::<Signer>::from(inner.clone()))
-                .collect::<Vec<PSKT<Signer>>>()
-        })
-        .collect::<Vec<Vec<PSKT<Signer>>>>();
-
-    let n_txs = actor_pskts.first().unwrap().len();
-
-    // need to walk across each tx, and for each tx walk across each actor, and combine all for that tx, so all the sigs
-    // for each tx are grouped together in one vector
-    let mut tx_sigs: Vec<Vec<PSKT<Signer>>> = Vec::new();
-    for tx_i in 0..n_txs {
-        let mut all_sigs_for_tx = Vec::new();
-        for tx_sigs_from_actor_j in actor_pskts.iter() {
-            all_sigs_for_tx.push(tx_sigs_from_actor_j[tx_i].clone());
-        }
-        tx_sigs.push(all_sigs_for_tx);
-    }
-
-    // walk across each tx and combine all the sigs for that tx into one combiner
-    let mut ret = Vec::new();
-    for all_actor_sigs_for_tx in tx_sigs.iter() {
-        let mut combiner = all_actor_sigs_for_tx.first().unwrap().clone().combiner();
-        for tx_sig in all_actor_sigs_for_tx.iter().skip(1) {
-            combiner = (combiner + tx_sig.clone())?;
-        }
-        ret.push(combiner);
-    }
-    Ok(ret)
-}
-
-fn finalize_txs(
-    txs_sigs: Vec<PSKT<Combiner>>,
-    messages: Vec<Vec<HyperlaneMessage>>,
-    escrow_pubs: Vec<PublicKey>,
-) -> Result<Vec<RpcTransaction>> {
-    let transactions_result: Result<Vec<RpcTransaction>, _> = txs_sigs
-        .into_iter()
-        .zip(messages.into_iter())
-        .map(|(tx, messages)| finalize_pskt(tx, messages, escrow_pubs.clone()))
-        .collect();
-
-    let transactions: Vec<RpcTransaction> = transactions_result?;
-
-    Ok(transactions)
 }
 
 async fn get_easy_wallet(

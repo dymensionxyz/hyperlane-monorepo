@@ -2581,6 +2581,7 @@ name = "core"
 version = "0.2.0"
 dependencies = [
  "bincode",
+ "borsh 1.5.1",
  "bytes",
  "clap 4.5.40",
  "eyre",
@@ -2604,6 +2605,7 @@ dependencies = [
  "kaspa-wrpc-client",
  "log",
  "openapi",
+ "postcard",
  "reqwest 0.12.15",
  "reqwest-middleware",
  "reqwest-ratelimit",
