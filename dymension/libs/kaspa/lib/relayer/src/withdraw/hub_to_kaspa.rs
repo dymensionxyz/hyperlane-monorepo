@@ -155,9 +155,11 @@ pub async fn build_withdrawal_pskt(
     //     Fee      //
     //////////////////
 
+    // TODO: bring back the old fee estimate (see 1464c8443caaac05d15674249687ea006b8d4a96)
+    
     // Multiply the fee by 1.1 to give some space for adding change UTXOs.
     // TODO: use feerate.
-    let tx_fee = 50000;
+    let tx_fee = 5000; // TODO: do not hard code 
 
     // estimate_fee(combined_inputs, withdrawals.clone(), Vec::new(), network_id) * 11 / 10;
 
