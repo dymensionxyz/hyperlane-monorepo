@@ -7,8 +7,8 @@ use kaspa_wallet_core::derivation::build_derivate_paths;
 
 use corelib::consts::KEY_MESSAGE_IDS;
 use corelib::escrow::EscrowPublic;
+use corelib::payload::MessageID;
 use corelib::payload::MessageIDs;
-use corelib::payload::{MessageID};
 use hex::ToHex;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
@@ -403,11 +403,7 @@ async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> R
     for (pskt, messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
         let pskt = PSKT::<Signer>::from(pskt.clone());
 
-        let payload = MessageIDs::from(messages)
-            .to_bytes()
-            .map_err(|e| eyre::eyre!("Deserialize MessageIDs: {}", e))?;
-
-        signed.push(sign_pay_fee(pskt, &wallet, &secret, payload).await?);
+        signed.push(sign_pay_fee(pskt, &wallet, &secret).await?);
     }
     Ok(Bundle::from(signed))
 }
@@ -555,19 +551,11 @@ pub fn finalize_pskt(
         .map_err(|e: ExtractError| eyre::eyre!("Extract kaspa tx: {:?}", e))?;
     let (mut tx, _) = finalize_fn(mass);
 
-    // Inject the expected payload
-    // tx.payload = payload;
-
     let rpc_tx = (&tx).into();
     Ok(rpc_tx)
 }
 
-pub async fn sign_pay_fee(
-    pskt: PSKT<Signer>,
-    w: &Arc<Wallet>,
-    s: &Secret,
-    payload: Vec<u8>,
-) -> Result<PSKT<Signer>> {
+pub async fn sign_pay_fee(pskt: PSKT<Signer>, w: &Arc<Wallet>, s: &Secret) -> Result<PSKT<Signer>> {
     // The code above combines `Account.pskb_sign` and `pskb_signer_for_address` functions.
     // It's a hack allowing to sign PSKT with a custom payload.
     // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/pskb.rs#L154
@@ -596,7 +584,6 @@ pub async fn sign_pay_fee(
     corelib::pskt::sign_pskt(
         pskt,
         &key_pair,
-        payload,
         Some(KeySource {
             key_fingerprint,
             derivation_path: derivation_path.clone(),
