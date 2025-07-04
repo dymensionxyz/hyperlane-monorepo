@@ -101,7 +101,7 @@ async fn demo() -> Result<()> {
 
     let amt = e2e_deposit_amount;
     let escrow_addr = e.public(e2e_address_prefix).addr;
-    let tx_id = deposit(&w.wallet, &w.secret, escrow_addr, 2*amt, vec![]).await?;
+    let tx_id = deposit(&w.wallet, &w.secret, escrow_addr, 2 * amt, vec![]).await?;
     info!("Sent deposit transaction: {}", tx_id);
 
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
