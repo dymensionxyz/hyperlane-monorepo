@@ -94,10 +94,6 @@ pub async fn build_withdrawal_pskt(
     //////////////////
     //     UTXO     //
     //////////////////
-    info!(
-        "Building withdrawal PSKT for {} withdrawals",
-        withdrawal_details.len()
-    );
 
     // Get all available UTXOs from multisig
     let escrow_utxos = get_utxo_to_spend(escrow.addr.clone(), kaspa_rpc, network_id).await?;
@@ -152,17 +148,67 @@ pub async fn build_withdrawal_pskt(
         .iter()
         .fold(0, |acc, u| acc + u.utxo_entry.amount);
 
+    ////////////////////
+    // Input & Output //
+    ////////////////////
+
+    // Iterate through escrow and relayer UTXO – they would be transaction inputs.
+    // Create a vector of "populated" inputs: TransactionInput and UtxoEntry.
+
+    let populated_inputs_escrow: Vec<(TransactionInput, UtxoEntry)> = escrow_utxos
+        .into_iter()
+        .map(|utxo| {
+            (
+                TransactionInput::new(
+                    kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint),
+                    escrow.redeem_script.clone(),
+                    0, // sequence does not matter
+                    escrow.n() as u8,
+                ),
+                UtxoEntry::from(utxo.utxo_entry),
+            )
+        })
+        .collect();
+
+    let populated_inputs_relayer: Vec<(TransactionInput, UtxoEntry)> = relayer_utxos
+        .into_iter()
+        .map(|utxo| {
+            (
+                TransactionInput::new(
+                    kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint),
+                    vec![],
+                    0,                                     // sequence does not matter
+                    corelib::consts::RELAYER_SIG_OP_COUNT, // only one signature from relayer is needed
+                ),
+                UtxoEntry::from(utxo.utxo_entry),
+            )
+        })
+        .collect();
+
+    let outputs: Vec<TransactionOutput> = withdrawal_details
+        .clone()
+        .into_iter()
+        .map(|w| {
+            TransactionOutput::new(
+                w.amount_sompi,
+                ScriptPublicKey::from(pay_to_address_script(&w.recipient)),
+            )
+        })
+        .collect();
+
     //////////////////
     //     Fee      //
     //////////////////
 
-    // TODO: bring back the old fee estimate (see 1464c8443caaac05d15674249687ea006b8d4a96)
+    let combined_inputs: Vec<(TransactionInput, UtxoEntry)> = populated_inputs_escrow
+        .iter()
+        .cloned()
+        .chain(populated_inputs_relayer.iter().cloned())
+        .collect();
 
     // Multiply the fee by 1.1 to give some space for adding change UTXOs.
     // TODO: use feerate.
-    let tx_fee = 5000; // TODO: do not hard code
-
-    // estimate_fee(combined_inputs, withdrawals.clone(), Vec::new(), network_id) * 11 / 10;
+    let tx_fee = estimate_fee(combined_inputs, outputs.clone(), Vec::new(), network_id) * 11 / 10;
 
     if relayer_balance < tx_fee {
         return Err(eyre::eyre!(
@@ -178,12 +224,12 @@ pub async fn build_withdrawal_pskt(
     let mut pskt = PSKT::<Creator>::default().constructor();
 
     // Add escrow inputs
-    for u in escrow_utxos {
-        let i = InputBuilder::default()
-            .utxo_entry(UtxoEntry::from(u.utxo_entry))
-            .previous_outpoint(TransactionOutpoint::from(u.outpoint))
-            .sig_op_count(escrow.n() as u8)
-            .redeem_script(escrow.redeem_script.clone())
+    for (input, entry) in populated_inputs_escrow {
+        let pskt_input = InputBuilder::default()
+            .utxo_entry(entry)
+            .previous_outpoint(input.previous_outpoint)
+            .sig_op_count(input.sig_op_count)
+            .redeem_script(input.signature_script)
             .sighash_type(
                 SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8())
                     .unwrap(),
@@ -191,14 +237,14 @@ pub async fn build_withdrawal_pskt(
             .build()
             .map_err(|e| eyre::eyre!("Build pskt input for escrow: {}", e))?;
 
-        pskt = pskt.input(i);
+        pskt = pskt.input(pskt_input);
     }
 
     // Add relayer inputs
-    for u in relayer_utxos {
-        let i = InputBuilder::default()
-            .utxo_entry(UtxoEntry::from(u.utxo_entry))
-            .previous_outpoint(TransactionOutpoint::from(u.outpoint))
+    for (input, entry) in populated_inputs_relayer {
+        let pskt_input = InputBuilder::default()
+            .utxo_entry(entry)
+            .previous_outpoint(input.previous_outpoint)
             .sig_op_count(1) // TODO: needed if using p2pk?
             .sighash_type(
                 SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8())
@@ -207,22 +253,20 @@ pub async fn build_withdrawal_pskt(
             .build()
             .map_err(|e| eyre::eyre!("Build pskt input for relayer: {}", e))?;
 
-        pskt = pskt.input(i);
+        pskt = pskt.input(pskt_input);
     }
 
     // Add outputs
-    for w in withdrawal_details.clone() {
-        let out = OutputBuilder::default()
-            .amount(w.amount_sompi)
-            .script_public_key(ScriptPublicKey::from(pay_to_address_script(&w.recipient)))
+    for output in outputs {
+        let pskt_output = OutputBuilder::default()
+            .amount(output.value)
+            .script_public_key(output.script_public_key)
             .build()
             .map_err(|e| eyre::eyre!("Build pskt output for withdrawal: {}", e))?;
 
-        info!("Adding output for withdrawal: {}", w.amount_sompi);
-        pskt = pskt.output(out);
+        pskt = pskt.output(pskt_output);
     }
 
-    let escrow_change_amt = escrow_balance - withdrawal_balance;
     // escrow_balance - withdrawal_balance > 0 as checked above
     let escrow_change = OutputBuilder::default()
         .amount(escrow_balance - withdrawal_balance)
@@ -230,19 +274,9 @@ pub async fn build_withdrawal_pskt(
         .build()
         .map_err(|e| eyre::eyre!("Build pskt output for escrow change: {}", e))?;
 
-    let relayer_change_amt = relayer_balance - tx_fee;
-    if relayer_change_amt < 20_000_001 {
-        return Err(eyre::eyre!(
-            "Insufficient relayer funds to cover tx fee: {} < {}, only leaves dust {}",
-            relayer_balance,
-            tx_fee,
-            relayer_change_amt
-        ));
-    }
-
     // relayer_balance - tx_fee as checked above
     let relayer_change = OutputBuilder::default()
-        .amount(relayer_change_amt)
+        .amount(relayer_balance - tx_fee)
         .script_public_key(ScriptPublicKey::from(pay_to_address_script(
             &relayer.change_address()?,
         )))
@@ -252,8 +286,9 @@ pub async fn build_withdrawal_pskt(
     // escrow_change should always be present even if it's dust
     pskt = pskt.output(escrow_change);
 
+    // if !is_transaction_output_dust(&relayer_change) {
     pskt = pskt.output(relayer_change);
-
+    // }
     let payload = MessageIDs::new(
         withdrawal_details
             .iter()

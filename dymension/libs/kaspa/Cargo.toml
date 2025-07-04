@@ -11,7 +11,6 @@ members = [
     "lib/api",
     "lib/hardcode",
     "demo/multisig",
-    "demo/multisig-working",
     "demo/relayer",
     "demo/user",
 ]
