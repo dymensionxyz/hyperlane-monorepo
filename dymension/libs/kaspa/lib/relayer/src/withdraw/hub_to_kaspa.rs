@@ -602,8 +602,7 @@ pub async fn sign_pay_fee(
     let key_fingerprint = xprv.public_key().fingerprint();
 
     // Create keypair from the private key
-    let kp = secp256k1::Keypair::from_secret_key(secp256k1::SECP256K1, xprv.private_key());
-    let pk = kp.public_key();
+    let key_pair = secp256k1::Keypair::from_secret_key(secp256k1::SECP256K1, xprv.private_key());
 
     // Get derivation path for the account. build_derivate_paths returns receive and change paths, respectively.
     // Use receive one as it is used in `Account.pskb_sign`.
@@ -614,9 +613,20 @@ pub async fn sign_pay_fee(
         derivation.cosigner_index(),
     )?;
 
+    sign_pskt(pskt, key_pair, payload, Some(KeySource {
+        key_fingerprint,
+        derivation_path: derivation_path.clone(),
+    }))
+}
+
+fn sign_pskt(
+    pskt: PSKT<Signer>,
+    key_pair: secp256k1::Keypair,
+    payload: Vec<u8>,
+    source: Option<KeySource>,
+) -> Result<PSKT<Signer>> {
     // reused_values is something copied from the `pskb_signer_for_address` funciton
     let reused_values = SigHashReusedValuesUnsync::new();
-
     pskt.pass_signature_sync(|tx, sighash| {
         let mut with_payload = tx.clone();
         with_payload.tx.payload = payload;
@@ -627,17 +637,18 @@ pub async fn sign_pay_fee(
             .iter()
             .enumerate()
             .map(|(idx, _input)| {
-                let hash =
-                    calc_schnorr_signature_hash(&with_payload.as_verifiable(), idx, sighash[idx], &reused_values);
+                let hash = calc_schnorr_signature_hash(
+                    &with_payload.as_verifiable(),
+                    idx,
+                    sighash[idx],
+                    &reused_values,
+                );
                 let msg = secp256k1::Message::from_digest_slice(&hash.as_bytes())
                     .map_err(|e| eyre::eyre!("Failed to convert hash to message: {}", e))?;
                 Ok(SignInputOk {
-                    signature: Signature::Schnorr(kp.sign_schnorr(msg)),
-                    pub_key: pk,
-                    key_source: Some(KeySource {
-                        key_fingerprint,
-                        derivation_path: derivation_path.clone(),
-                    }),
+                    signature: Signature::Schnorr(key_pair.sign_schnorr(msg)),
+                    pub_key: key_pair.public_key(),
+                    key_source: source.clone(),
                 })
             })
             .collect()
