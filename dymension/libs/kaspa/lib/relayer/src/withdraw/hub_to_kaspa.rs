@@ -8,7 +8,6 @@ use kaspa_wallet_core::derivation::build_derivate_paths;
 use corelib::consts::KEY_MESSAGE_IDS;
 use corelib::escrow::EscrowPublic;
 use corelib::payload::{MessageID, MessageIDs};
-use kaspa_wallet_core::account::pskb::PSKBSigner;
 use hex::ToHex;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
@@ -30,6 +29,7 @@ use kaspa_hashes;
 use kaspa_rpc_core::{RpcTransaction, RpcUtxoEntry, RpcUtxosByAddressesEntry};
 use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_txscript::{opcodes::codes::OpData65, script_builder::ScriptBuilder};
+use kaspa_wallet_core::account::pskb::PSKBSigner;
 use kaspa_wallet_core::account::Account;
 use kaspa_wallet_core::prelude::DynRpcApi;
 use kaspa_wallet_core::prelude::*;
@@ -565,10 +565,15 @@ pub async fn sign_pay_fee(
     // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/mod.rs#L383
 
     let acc = w.account()?;
+    let addr = acc.change_address()?;
 
     // Get private and public keys for the active account
     let keydata = acc.prv_key_data(s.clone()).await?;
-    let signer = Arc::new(PSKBSigner::new(acc.clone().as_dyn_arc(), keydata.clone(),None));
+    let signer = Arc::new(PSKBSigner::new(
+        acc.clone().as_dyn_arc(),
+        keydata.clone(),
+        None,
+    ));
 
     let derivation = acc.as_derivation_capable()?;
 
@@ -586,7 +591,7 @@ pub async fn sign_pay_fee(
     // Create keypair from the private key
     let key_pair = secp256k1::Keypair::from_secret_key(secp256k1::SECP256K1, xprv.private_key());
 
-    corelib::pskt::sign_pskt(
+    sign_pskt_alt(
         pskt,
         &key_pair,
         payload,
@@ -595,6 +600,42 @@ pub async fn sign_pay_fee(
             derivation_path: derivation_path.clone(),
         }),
     )
+}
+
+pub fn sign_pskt_alt(
+    pskt: PSKT<Signer>,
+    payload: Vec<u8>,
+    source: Option<KeySource>,
+    addr: kaspa_addresses::Address,
+    signer: Arc<PSKBSigner>,
+) -> Result<PSKT<Signer>> {
+    // reused_values is something copied from the `pskb_signer_for_address` funciton
+    let reused_values = SigHashReusedValuesUnsync::new();
+    pskt.pass_signature_sync(|tx, sighash| {
+        // let mut with_payload = tx.clone();
+        // with_payload.tx.payload = payload;
+
+        tx.tx
+            .inputs
+            .iter()
+            .enumerate()
+            .map(|(idx, _input)| {
+                let hash = calc_schnorr_signature_hash(
+                    &tx.as_verifiable(),
+                    idx,
+                    sighash[idx],
+                    &reused_values,
+                );
+                let msg = secp256k1::Message::from_digest_slice(&hash.as_bytes())
+                    .map_err(|e| eyre::eyre!("Failed to convert hash to message: {}", e))?;
+                Ok(SignInputOk {
+                    signature: Signature::Schnorr(signer.sign_schnorr(&addr, msg).unwrap()),
+                    pub_key: signer.public_key(&addr).unwrap(),
+                    key_source: source.clone(),
+                })
+            })
+            .collect()
+    })
 }
 
 #[cfg(test)]
