@@ -619,6 +619,7 @@ pub async fn sign_pay_fee(
     }))
 }
 
+// TODO: similar to https://github.com/dymensionxyz/hyperlane-monorepo/blob/3c1e1c7ad21ec5e14647c7e161f984a6f2a401cd/dymension/libs/kaspa/lib/validator/src/withdraw.rs#L70
 fn sign_pskt(
     pskt: PSKT<Signer>,
     key_pair: secp256k1::Keypair,

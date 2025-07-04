@@ -66,6 +66,7 @@ pub fn sign_withdrawal_fxg(fxg: &WithdrawFXG, keypair: &SecpKeypair) -> Result<B
 }
 
 // TODO: use wallet instead of raw keypair
+// TODO: similar to https://github.com/dymensionxyz/hyperlane-monorepo/blob/3c1e1c7ad21ec5e14647c7e161f984a6f2a401cd/dymension/libs/kaspa/lib/relayer/src/withdraw/hub_to_kaspa.rs#L622
 pub fn sign_pskt(
     keypair: &SecpKeypair,
     pskt: PSKT<Signer>,
