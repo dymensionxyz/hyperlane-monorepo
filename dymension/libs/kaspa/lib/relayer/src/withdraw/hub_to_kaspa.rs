@@ -385,7 +385,7 @@ pub async fn combine_bundles_with_fee(
     bundles_validators: Vec<Bundle>,
     fxg: &WithdrawFXG,
     multisig_threshold: usize,
-    pub_keys: Vec<PublicKey>,
+    escrow: EscrowPublic,
     easy_wallet: &EasyKaspaWallet,
 ) -> Result<Vec<RpcTransaction>> {
     info!("Kaspa provider, got withdrawal FXG, now gathering sigs and signing relayer fee");
@@ -408,7 +408,7 @@ pub async fn combine_bundles_with_fee(
         bundles_validators
     };
     let txs_signed = combine_all_bundles(all_bundles)?;
-    let finalized = finalize_txs(txs_signed, fxg.messages.clone(), pub_keys)?;
+    let finalized = finalize_txs(txs_signed, fxg.messages.clone(), escrow)?;
     Ok(finalized)
 }
 
@@ -474,7 +474,7 @@ fn combine_all_bundles(bundles: Vec<Bundle>) -> Result<Vec<PSKT<Combiner>>> {
 fn finalize_txs(
     txs_sigs: Vec<PSKT<Combiner>>,
     messages: Vec<Vec<HyperlaneMessage>>,
-    escrow_pubs: Vec<PublicKey>,
+    escrow: EscrowPublic,
 ) -> Result<Vec<RpcTransaction>> {
     let transactions_result: Result<Vec<RpcTransaction>, _> = txs_sigs
         .into_iter()
@@ -483,7 +483,7 @@ fn finalize_txs(
             let payload = MessageIDs::from(hl_messages)
                 .to_bytes()
                 .map_err(|e| eyre::eyre!("Deserialize MessageIDs: {}", e))?;
-            finalize_pskt(tx, payload, escrow_pubs.clone())
+            finalize_pskt(tx, payload, escrow)
         })
         .collect();
 
@@ -496,7 +496,7 @@ fn finalize_txs(
 pub fn finalize_pskt(
     c: PSKT<Combiner>,
     payload: Vec<u8>,
-    escrow_pubs: Vec<PublicKey>,
+    escrow: EscrowPublic,
 ) -> Result<RpcTransaction> {
     let finalized_pskt = c
         .finalizer()
@@ -514,7 +514,7 @@ pub fn finalize_pskt(
                                 let sig = input
                                     .partial_sigs
                                     .iter()
-                                    .filter(|(pk, _sig)| !escrow_pubs.contains(pk))
+                                    .filter(|(pk, _sig)| !escrow.has_pub(pk))
                                     .next()
                                     .unwrap()
                                     .1
@@ -533,7 +533,8 @@ pub fn finalize_pskt(
                                 // ORIGINAL COMMENT: considering xpubs sorted order
 
                                 // For each escrow pubkey return <op code, sig, sighash type> and then concat these triples
-                                let sigs: Vec<_> = escrow_pubs
+                                let sigs: Vec<_> = escrow
+                                    .pubs
                                     .iter()
                                     .flat_map(|kp| {
                                         let sig = input.partial_sigs.get(&kp).unwrap().into_bytes();
