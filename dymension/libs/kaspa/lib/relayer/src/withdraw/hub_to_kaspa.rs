@@ -613,7 +613,7 @@ pub async fn sign_pay_fee(
 
     corelib::pskt::sign_pskt(
         pskt,
-        key_pair,
+        &key_pair,
         payload,
         Some(KeySource {
             key_fingerprint,

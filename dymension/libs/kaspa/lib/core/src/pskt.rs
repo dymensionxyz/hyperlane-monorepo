@@ -3,54 +3,21 @@ use eyre::Result;
 use kaspa_consensus_core::hashing::sighash::{
     calc_schnorr_signature_hash, SigHashReusedValuesUnsync,
 };
-use kaspa_wallet_core::derivation::build_derivate_paths;
 
-use corelib::consts::KEY_MESSAGE_IDS;
-use corelib::escrow::EscrowPublic;
-use corelib::payload::{MessageID, MessageIDs};
-use hex::ToHex;
-use hyperlane_core::{Decode, HyperlaneMessage, H256};
+use super::consts::KEY_MESSAGE_IDS;
+use super::escrow::EscrowPublic;
+use super::payload::{MessageID, MessageIDs};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
-use hyperlane_warp_route::TokenMessage;
-use kaspa_consensus_core::config::params::Params;
-use kaspa_consensus_core::constants::TX_VERSION;
-use kaspa_consensus_core::hashing::sighash_type::{
-    SigHashType, SIG_HASH_ALL, SIG_HASH_ANY_ONE_CAN_PAY,
-};
-use kaspa_consensus_core::mass;
-use kaspa_consensus_core::network::NetworkId;
-use kaspa_consensus_core::subnets::SUBNETWORK_ID_NATIVE;
-use kaspa_consensus_core::tx::{PopulatedTransaction, ScriptPublicKey, UtxoEntry};
-use kaspa_consensus_core::tx::{
-    Transaction, TransactionInput, TransactionOutpoint, TransactionOutput,
-};
-use kaspa_hashes;
-use kaspa_rpc_core::{RpcTransaction, RpcUtxoEntry, RpcUtxosByAddressesEntry};
-use kaspa_txscript::standard::pay_to_address_script;
-use kaspa_txscript::{opcodes::codes::OpData65, script_builder::ScriptBuilder};
-use kaspa_wallet_core::account::Account;
-use kaspa_wallet_core::prelude::DynRpcApi;
-use kaspa_wallet_core::prelude::*;
-use kaspa_wallet_core::utxo::NetworkParams;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
-use secp256k1::PublicKey;
-use std::io::Cursor;
-use std::sync::Arc;
 
-use super::messages::WithdrawalDetails;
-use corelib::wallet::EasyKaspaWallet;
-use corelib::withdraw::WithdrawFXG;
+use super::wallet::EasyKaspaWallet;
+use super::withdraw::WithdrawFXG;
 use eyre::eyre;
-use kaspa_addresses::Prefix;
-use kaspa_rpc_core::model::RpcTransactionId;
-use kaspa_wallet_pskt::prelude::Bundle;
-use tracing::info;
 
 pub fn sign_pskt(
     pskt: PSKT<Signer>,
-    key_pair: secp256k1::Keypair,
+    key_pair: &secp256k1::Keypair,
     payload: Vec<u8>,
     source: Option<KeySource>,
 ) -> Result<PSKT<Signer>> {
