@@ -7,7 +7,8 @@ use kaspa_wallet_core::derivation::build_derivate_paths;
 
 use corelib::consts::KEY_MESSAGE_IDS;
 use corelib::escrow::EscrowPublic;
-use corelib::payload::{MessageID, MessageIDs};
+use corelib::payload::MessageIDs;
+use corelib::payload::{MessageID};
 use hex::ToHex;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
@@ -156,10 +157,10 @@ pub async fn build_withdrawal_pskt(
     //////////////////
 
     // TODO: bring back the old fee estimate (see 1464c8443caaac05d15674249687ea006b8d4a96)
-    
+
     // Multiply the fee by 1.1 to give some space for adding change UTXOs.
     // TODO: use feerate.
-    let tx_fee = 5000; // TODO: do not hard code 
+    let tx_fee = 5000; // TODO: do not hard code
 
     // estimate_fee(combined_inputs, withdrawals.clone(), Vec::new(), network_id) * 11 / 10;
 
@@ -210,7 +211,7 @@ pub async fn build_withdrawal_pskt(
     }
 
     // Add outputs
-    for w in withdrawal_details {
+    for w in withdrawal_details.clone() {
         let out = OutputBuilder::default()
             .amount(w.amount_sompi)
             .script_public_key(ScriptPublicKey::from(pay_to_address_script(&w.recipient)))
@@ -253,7 +254,20 @@ pub async fn build_withdrawal_pskt(
 
     pskt = pskt.output(relayer_change);
 
-    Ok(pskt.no_more_inputs().no_more_outputs().signer())
+    let payload = MessageIDs::new(
+        withdrawal_details
+            .iter()
+            .map(|w| MessageID(w.message_id))
+            .collect::<Vec<_>>(),
+    )
+    .to_bytes()
+    .map_err(|e| eyre::eyre!("Deserialize MessageIDs: {}", e))?;
+
+    Ok(pskt
+        .no_more_inputs()
+        .no_more_outputs()
+        .payload(payload)
+        .signer())
 }
 
 async fn get_utxo_to_spend(
@@ -542,7 +556,7 @@ pub fn finalize_pskt(
     let (mut tx, _) = finalize_fn(mass);
 
     // Inject the expected payload
-    tx.payload = payload;
+    // tx.payload = payload;
 
     let rpc_tx = (&tx).into();
     Ok(rpc_tx)
