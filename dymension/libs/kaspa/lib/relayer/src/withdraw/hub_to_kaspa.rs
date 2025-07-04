@@ -8,6 +8,7 @@ use kaspa_wallet_core::derivation::build_derivate_paths;
 use corelib::consts::KEY_MESSAGE_IDS;
 use corelib::escrow::EscrowPublic;
 use corelib::payload::{MessageID, MessageIDs};
+use kaspa_wallet_core::account::pskb::PSKBSigner;
 use hex::ToHex;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
@@ -367,7 +368,10 @@ async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> R
 }
 
 /// returns bundle of Signer
-async fn sign_relayer_fee_working(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> Result<Bundle> {
+async fn sign_relayer_fee_working(
+    easy_wallet: &EasyKaspaWallet,
+    fxg: &WithdrawFXG,
+) -> Result<Bundle> {
     let wallet = easy_wallet.wallet.clone();
     let secret = easy_wallet.secret.clone();
 
@@ -560,11 +564,11 @@ pub async fn sign_pay_fee(
     // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/pskb.rs#L154
     // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/mod.rs#L383
 
-    // Get the active account from the wallet and its address
     let acc = w.account()?;
 
     // Get private and public keys for the active account
     let keydata = acc.prv_key_data(s.clone()).await?;
+    let signer = Arc::new(PSKBSigner::new(acc.clone().as_dyn_arc(), keydata.clone(),None));
 
     let derivation = acc.as_derivation_capable()?;
 
@@ -576,10 +580,7 @@ pub async fn sign_pay_fee(
         derivation.cosigner_index(),
     )?;
 
-    let xprv = keydata.get_xprv(
-        // Some(s)
-       None, 
-    )?;
+    let xprv = keydata.get_xprv(None)?;
     let key_fingerprint = xprv.public_key().fingerprint();
 
     // Create keypair from the private key
