@@ -226,7 +226,7 @@ pub async fn build_withdrawal_pskt(
             .utxo_entry(entry)
             .previous_outpoint(input.previous_outpoint)
             .sig_op_count(input.sig_op_count)
-            .redeem_script(input.signature_script)
+            .redeem_script(escrow.redeem_script.clone())
             .sighash_type(
                 SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8())
                     .unwrap(),
