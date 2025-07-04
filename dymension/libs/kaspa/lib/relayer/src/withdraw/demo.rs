@@ -1,5 +1,5 @@
 use corelib::escrow::*;
-use eyre::{Result, eyre};
+use eyre::{eyre, Result};
 
 use std::sync::Arc;
 
@@ -15,14 +15,11 @@ use kaspa_wallet_core::utxo::UtxoIterator;
 use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_pskt::prelude::*;
 
-use kaspa_txscript::
-    standard::pay_to_address_script
-;
 use super::hub_to_kaspa::finalize_pskt;
 use super::hub_to_kaspa::sign_pay_fee;
+use kaspa_txscript::standard::pay_to_address_script;
 
 use kaspa_rpc_core::api::rpc::RpcApi;
-
 
 // used by multisig demo
 pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(

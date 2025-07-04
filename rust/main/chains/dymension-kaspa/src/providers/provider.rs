@@ -137,10 +137,7 @@ impl KaspaProvider {
 
     /// dococo
     /// Returns next outpoint
-    pub async fn process_withdrawal_messages(
-        &self,
-        msgs: Vec<HyperlaneMessage>,
-    ) -> Result<()> {
+    pub async fn process_withdrawal_messages(&self, msgs: Vec<HyperlaneMessage>) -> Result<()> {
         let res = on_new_withdrawals(
             msgs,
             self.easy_wallet.clone(),

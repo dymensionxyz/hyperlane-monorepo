@@ -40,12 +40,12 @@ use secp256k1::PublicKey;
 use std::io::Cursor;
 use std::sync::Arc;
 
+use super::hub_to_kaspa::build_withdrawal_pskt;
 use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::WithdrawFXG;
 use kaspa_addresses::Prefix;
 use kaspa_wallet_pskt::prelude::Bundle;
 use tracing::info;
-use super::hub_to_kaspa::build_withdrawal_pskt;
 
 pub fn get_recipient_address(recipient: H256, prefix: Prefix) -> kaspa_addresses::Address {
     let addr = kaspa_addresses::Address::new(
