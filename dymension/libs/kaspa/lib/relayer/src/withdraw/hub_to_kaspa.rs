@@ -146,66 +146,15 @@ pub async fn build_withdrawal_pskt(
         .iter()
         .fold(0, |acc, u| acc + u.utxo_entry.amount);
 
-    ////////////////////
-    // Input & Output //
-    ////////////////////
-
-    // Iterate through escrow and relayer UTXO – they would be transaction inputs.
-    // Create a vector of "populated" inputs: TransactionInput and UtxoEntry.
-
-    let populated_inputs_escrow: Vec<(TransactionInput, UtxoEntry)> = escrow_utxos
-        .into_iter()
-        .map(|utxo| {
-            (
-                TransactionInput::new(
-                    kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint),
-                    escrow.redeem_script.clone(),
-                    0, // sequence does not matter
-                    escrow.n() as u8,
-                ),
-                UtxoEntry::from(utxo.utxo_entry),
-            )
-        })
-        .collect();
-
-    let populated_inputs_relayer: Vec<(TransactionInput, UtxoEntry)> = relayer_utxos
-        .into_iter()
-        .map(|utxo| {
-            (
-                TransactionInput::new(
-                    kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint),
-                    vec![],
-                    0,                                     // sequence does not matter
-                    corelib::consts::RELAYER_SIG_OP_COUNT, // only one signature from relayer is needed
-                ),
-                UtxoEntry::from(utxo.utxo_entry),
-            )
-        })
-        .collect();
-
-    let withdrawals: Vec<TransactionOutput> = withdrawal_details
-        .into_iter()
-        .map(|w| {
-            TransactionOutput::new(
-                w.amount_sompi,
-                ScriptPublicKey::from(pay_to_address_script(&w.recipient)),
-            )
-        })
-        .collect();
-
     //////////////////
     //     Fee      //
     //////////////////
 
-    let combined_inputs: Vec<(TransactionInput, UtxoEntry)> = populated_inputs_escrow
-        .iter()
-        .cloned()
-        .chain(populated_inputs_relayer.iter().cloned())
-        .collect();
-
     // Multiply the fee by 1.1 to give some space for adding change UTXOs.
     // TODO: use feerate.
-    let tx_fee = estimate_fee(combined_inputs, withdrawals.clone(), Vec::new(), network_id) * 11 / 10;
+    let tx_fee = 5000;
+
+    // estimate_fee(combined_inputs, withdrawals.clone(), Vec::new(), network_id) * 11 / 10;
 
     if relayer_balance < tx_fee {
         return Err(eyre::eyre!(
@@ -221,11 +170,11 @@ pub async fn build_withdrawal_pskt(
     let mut pskt = PSKT::<Creator>::default().constructor();
 
     // Add escrow inputs
-    for (inp, e) in populated_inputs_escrow {
+    for u in escrow_utxos {
         let i = InputBuilder::default()
-            .utxo_entry(e)
-            .previous_outpoint(inp.previous_outpoint)
-            .sig_op_count(inp.sig_op_count)
+            .utxo_entry(UtxoEntry::from(u.utxo_entry))
+            .previous_outpoint(TransactionOutpoint::from(u.outpoint))
+            .sig_op_count(escrow.n() as u8)
             .redeem_script(escrow.redeem_script.clone())
             .sighash_type(
                 SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8())
@@ -238,10 +187,10 @@ pub async fn build_withdrawal_pskt(
     }
 
     // Add relayer inputs
-    for (inp, e) in populated_inputs_relayer {
+    for u in relayer_utxos {
         let i = InputBuilder::default()
-            .utxo_entry(e)
-            .previous_outpoint(inp.previous_outpoint)
+            .utxo_entry(UtxoEntry::from(u.utxo_entry))
+            .previous_outpoint(TransactionOutpoint::from(u.outpoint))
             .sig_op_count(1) // TODO: needed if using p2pk?
             .sighash_type(
                 SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8())
@@ -254,10 +203,10 @@ pub async fn build_withdrawal_pskt(
     }
 
     // Add outputs
-    for w in withdrawals {
+    for w in withdrawal_details {
         let out = OutputBuilder::default()
-            .amount(w.value)
-            .script_public_key(w.script_public_key)
+            .amount(w.amount_sompi)
+            .script_public_key(ScriptPublicKey::from(pay_to_address_script(&w.recipient)))
             .build()
             .map_err(|e| eyre::eyre!("Build pskt output for withdrawal: {}", e))?;
 
@@ -464,6 +413,7 @@ fn combine_all_bundles(bundles: Vec<Bundle>) -> Result<Vec<PSKT<Combiner>>> {
     for all_actor_sigs_for_tx in tx_sigs.iter() {
         let mut combiner = all_actor_sigs_for_tx.first().unwrap().clone().combiner();
         for tx_sig in all_actor_sigs_for_tx.iter().skip(1) {
+            info!("Combining PSKT");
             combiner = (combiner + tx_sig.clone())?;
         }
         ret.push(combiner);
@@ -621,7 +571,6 @@ pub async fn sign_pay_fee(
         }),
     )
 }
-
 
 #[cfg(test)]
 mod tests {
