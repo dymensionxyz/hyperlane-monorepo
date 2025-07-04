@@ -379,29 +379,6 @@ pub async fn combine_bundles_with_fee(
 }
 
 async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> Result<Bundle> {
-    // sign_relayer_fee_working(easy_wallet, fxg).await
-    sign_relayer_fee_alt(easy_wallet, fxg).await
-}
-
-/// returns bundle of Signer
-async fn sign_relayer_fee_working(
-    easy_wallet: &EasyKaspaWallet,
-    fxg: &WithdrawFXG,
-) -> Result<Bundle> {
-    let wallet = easy_wallet.wallet.clone();
-    let secret = easy_wallet.secret.clone();
-
-    let addr = wallet.account()?.change_address()?;
-    let sign_for_address = Some(&addr);
-    let bundle_signed = wallet
-        .account()?
-        .pskb_sign(&fxg.bundle, secret.clone(), None, sign_for_address)
-        .await?;
-
-    Ok(bundle_signed)
-}
-
-async fn sign_relayer_fee_alt(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> Result<Bundle> {
     let wallet = easy_wallet.wallet.clone();
     let secret = easy_wallet.secret.clone();
 
@@ -585,9 +562,10 @@ pub async fn sign_pay_fee(
     let addr = w.account()?.change_address()?;
     let (receive, change) = derivation.derivation().addresses_indexes(&[&addr])?;
     let pks = derivation.create_private_keys(&keydata, &None, &receive, &change)?;
+    let (_, priv_key) = pks.first().unwrap();
 
     let xprv = keydata.get_xprv(None)?;
-    let key_pair = secp256k1::Keypair::from_secret_key(secp256k1::SECP256K1, xprv.private_key());
+    let key_pair = secp256k1::Keypair::from_secret_key(secp256k1::SECP256K1, priv_key);
 
     // Get derivation path for the account. build_derivate_paths returns receive and change paths, respectively.
     // Use receive one as it is used in `Account.pskb_sign`.
