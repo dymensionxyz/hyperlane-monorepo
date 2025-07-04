@@ -80,12 +80,16 @@ async fn demo() -> Result<()> {
 
     let args = Args::parse();
 
-    let s = Secret::from(args.wallet_secret.unwrap_or("".to_string()));
-    let w = get_wallet(&s, e2e_network_id, e2e_url.to_string()).await?;
+    let w = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
+        wallet_secret: args.wallet_secret.unwrap(),
+        rpc_url: e2e_url.to_string(),
+        network: Network::KaspaTest10,
+    })
+    .await?;
 
-    let rpc = w.rpc_api();
+    let rpc = w.api();
 
-    check_balance("wallet", rpc.as_ref(), &w.account()?.receive_address()?).await?;
+    check_balance("wallet", rpc.as_ref(), &w.account().receive_address()?).await?;
 
     let e = Escrow::new(1);
     info!(
@@ -95,15 +99,15 @@ async fn demo() -> Result<()> {
 
     let amt = e2e_deposit_amount;
     let addr = e.public(e2e_address_prefix).addr;
-    let tx_id = deposit(&w, &s, addr, amt, vec![]).await?;
+    let tx_id = deposit(&w.wallet, &w.secret, addr, amt, vec![]).await?;
     info!("Sent deposit transaction: {}", tx_id);
 
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 
-    check_balance("wallet", rpc.as_ref(), &w.account()?.receive_address()?).await?;
+    check_balance("wallet", rpc.as_ref(), &w.account().receive_address()?).await?;
     check_balance("escrow", rpc.as_ref(), &e.public(e2e_address_prefix).addr).await?;
 
-    let user_addr = w.account()?.receive_address()?;
+    let user_addr = w.account().receive_address()?;
 
     let details = WithdrawalDetails {
         message_id: H256::random(),
@@ -117,7 +121,7 @@ async fn demo() -> Result<()> {
         vec![details],
         &rpc,
         &e.public(e2e_address_prefix),
-        &w.account()?,
+        &w.account(),
         &outpoint,
         e2e_network_id,
     )
@@ -130,8 +134,8 @@ async fn demo() -> Result<()> {
     let pskt_unsigned = build_withdrawal_tx(
         rpc.as_ref(),
         &e.public(e2e_address_prefix),
-        user_addr,
-        &w.account()?,
+        user_addr.clone(),
+        &w.account(),
         amt,
         e2e_relayer_network_fee,
     )
@@ -144,7 +148,7 @@ async fn demo() -> Result<()> {
         &fxg,
         e.m(),
         e.public(e2e_address_prefix).pubs.clone(),
-        &w, // TODO: instead of using wallet directly, need to create easy wallet object
+        &w,
     )
     .await?;
 
@@ -154,10 +158,10 @@ async fn demo() -> Result<()> {
 
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 
-    check_balance("wallet", rpc.as_ref(), &w.account()?.receive_address()?).await?;
+    check_balance("wallet", rpc.as_ref(), &w.account().receive_address()?).await?;
     check_balance("escrow", rpc.as_ref(), &e.public(e2e_address_prefix).addr).await?;
 
-    w.stop().await?;
+    w.wallet.stop().await?;
     Ok(())
 }
 
