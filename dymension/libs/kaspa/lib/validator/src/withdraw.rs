@@ -46,17 +46,17 @@ pub fn sign_escrow_spend(e: &Escrow, pskt_unsigned: PSKT<Signer>) -> Result<PSKT
     Ok(combined)
 }
 
-pub fn sign_withdrawal_fxg(fxg: &WithdrawFXG, kp: &SecpKeypair) -> Result<Bundle> {
+pub fn sign_withdrawal_fxg(fxg: &WithdrawFXG, keypair: &SecpKeypair) -> Result<Bundle> {
     let mut signed = Vec::new();
     // Iterate over (PSKT; associated HL messages) pairs
-    for (pskt, messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
+    for (pskt, hl_messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
         let pskt = PSKT::<Signer>::from(pskt.clone());
 
-        let payload_msg_ids = MessageIDs::from(messages)
+        let payload = MessageIDs::from(hl_messages)
             .to_bytes()
             .map_err(|e| eyre::eyre!("Deserialize MessageIDs: {}", e))?;
 
-        let signed_pskt = sign_pskt(kp, pskt, payload_msg_ids)?;
+        let signed_pskt = sign_pskt(keypair, pskt, payload)?;
 
         signed.push(signed_pskt);
     }
@@ -67,27 +67,24 @@ pub fn sign_withdrawal_fxg(fxg: &WithdrawFXG, kp: &SecpKeypair) -> Result<Bundle
 
 // TODO: use wallet instead of raw keypair
 pub fn sign_pskt(
-    kp: &SecpKeypair,
+    keypair: &SecpKeypair,
     pskt: PSKT<Signer>,
     payload: Vec<u8>,
 ) -> Result<PSKT<Signer>, Error> {
     let reused_values = SigHashReusedValuesUnsync::new();
-    let pk = kp.public_key();
 
     pskt.pass_signature_sync(|tx, sighashes| {
-        // Sign tx as if it had a payload
-        let mut tx_payload = tx.clone();
-        tx_payload.tx.payload = payload;
-        let tx_verifiable = tx_payload.as_verifiable();
+        let mut with_payload = tx.clone();
+        with_payload.tx.payload = payload;
 
-        tx_payload
+        with_payload
             .tx
             .inputs
             .iter()
             .enumerate()
             .map(|(idx, _input)| {
                 let hash = calc_schnorr_signature_hash(
-                    &tx_verifiable,
+                    &with_payload.as_verifiable(),
                     idx,
                     sighashes[idx], // TODO: don't forget need to verify it's what's expected
                     &reused_values,
@@ -95,8 +92,8 @@ pub fn sign_pskt(
                 let msg = secp256k1::Message::from_digest_slice(&hash.as_bytes())
                     .map_err(|e| e.to_string())?;
                 Ok(SignInputOk {
-                    signature: Signature::Schnorr(kp.sign_schnorr(msg)),
-                    pub_key: pk,
+                    signature: Signature::Schnorr(keypair.sign_schnorr(msg)),
+                    pub_key: keypair.public_key(),
                     key_source: None,
                 })
             })

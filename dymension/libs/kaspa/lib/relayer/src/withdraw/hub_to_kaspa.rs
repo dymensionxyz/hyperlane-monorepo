@@ -424,11 +424,11 @@ async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> R
     for (pskt, messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
         let pskt = PSKT::<Signer>::from(pskt.clone());
 
-        let payload_msg_ids = MessageIDs::from(messages)
+        let payload = MessageIDs::from(messages)
             .to_bytes()
             .map_err(|e| eyre::eyre!("Deserialize MessageIDs: {}", e))?;
 
-        signed.push(sign_pay_fee(pskt, &wallet, &secret, payload_msg_ids).await?);
+        signed.push(sign_pay_fee(pskt, &wallet, &secret, payload).await?);
     }
     Ok(Bundle::from(signed))
 }
@@ -618,19 +618,17 @@ pub async fn sign_pay_fee(
     let reused_values = SigHashReusedValuesUnsync::new();
 
     pskt.pass_signature_sync(|tx, sighash| {
-        // Sign tx as if it had a payload
-        let mut tx_payload = tx.clone();
-        tx_payload.tx.payload = payload;
-        let tx_verifiable = tx_payload.as_verifiable();
+        let mut with_payload = tx.clone();
+        with_payload.tx.payload = payload;
 
-        tx_payload
+        with_payload
             .tx
             .inputs
             .iter()
             .enumerate()
             .map(|(idx, _input)| {
                 let hash =
-                    calc_schnorr_signature_hash(&tx_verifiable, idx, sighash[idx], &reused_values);
+                    calc_schnorr_signature_hash(&with_payload.as_verifiable(), idx, sighash[idx], &reused_values);
                 let msg = secp256k1::Message::from_digest_slice(&hash.as_bytes())
                     .map_err(|e| eyre::eyre!("Failed to convert hash to message: {}", e))?;
                 Ok(SignInputOk {
