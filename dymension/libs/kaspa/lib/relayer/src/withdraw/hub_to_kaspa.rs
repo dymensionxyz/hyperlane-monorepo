@@ -85,8 +85,12 @@ use tracing::info;
 /// Pros: Simple to handle.
 /// Cons: Potentially bigger fee because of the increased number of inputs. However, it's in
 /// relayer's interest to pay min fees and thus keep its account with as few UTXOs as possible.
+///
+/// CONTRACT:
+/// Escrow change is always the last output.
 pub async fn build_withdrawal_pskt(
-    withdrawal_details: Vec<WithdrawalDetails>,
+    outputs: Vec<TransactionOutput>,
+    payload: Vec<u8>,
     kaspa_rpc: &Arc<DynRpcApi>,
     escrow: &EscrowPublic,
     relayer: &Arc<dyn Account>,
@@ -134,9 +138,7 @@ pub async fn build_withdrawal_pskt(
         .iter()
         .fold(0, |acc, u| acc + u.utxo_entry.amount);
 
-    let withdrawal_balance = withdrawal_details
-        .iter()
-        .fold(0, |acc, w| acc + w.amount_sompi);
+    let withdrawal_balance = outputs.iter().fold(0, |acc, w| acc + w.value);
 
     if escrow_balance < withdrawal_balance {
         return Err(eyre::eyre!(
@@ -150,9 +152,9 @@ pub async fn build_withdrawal_pskt(
         .iter()
         .fold(0, |acc, u| acc + u.utxo_entry.amount);
 
-    ////////////////////
-    // Input & Output //
-    ////////////////////
+    ////////////////
+    //   Inputs   //
+    ////////////////
 
     // Iterate through escrow and relayer UTXO – they would be transaction inputs.
     // Create a vector of "populated" inputs: TransactionInput and UtxoEntry.
@@ -187,17 +189,6 @@ pub async fn build_withdrawal_pskt(
         })
         .collect();
 
-    let outputs: Vec<TransactionOutput> = withdrawal_details
-        .clone()
-        .into_iter()
-        .map(|w| {
-            TransactionOutput::new(
-                w.amount_sompi,
-                ScriptPublicKey::from(pay_to_address_script(&w.recipient)),
-            )
-        })
-        .collect();
-
     //////////////////
     //     Fee      //
     //////////////////
@@ -210,15 +201,6 @@ pub async fn build_withdrawal_pskt(
 
     // Multiply the fee by 1.1 to give some space for adding change UTXOs.
     // TODO: use feerate.
-
-    let payload = MessageIDs::new(
-        withdrawal_details
-            .iter()
-            .map(|w| MessageID(w.message_id))
-            .collect::<Vec<_>>(),
-    )
-    .to_bytes()
-    .map_err(|e| eyre::eyre!("Deserialize MessageIDs: {}", e))?;
 
     let tx_fee = estimate_fee(
         combined_inputs,
@@ -284,6 +266,8 @@ pub async fn build_withdrawal_pskt(
     )
 }
 
+/// CONTRACT:
+/// Escrow change is always the last output.
 fn create_withdrawal_pskt(
     populated_inputs_escrow: Vec<(TransactionInput, UtxoEntry)>,
     populated_inputs_relayer: Vec<(TransactionInput, UtxoEntry)>,
@@ -338,20 +322,21 @@ fn create_withdrawal_pskt(
         pskt = pskt.output(pskt_output);
     }
 
-    let ec = OutputBuilder::default()
-        .amount(escrow_change.value)
-        .script_public_key(escrow_change.script_public_key)
-        .build()
-        .map_err(|e| eyre::eyre!("Build pskt output for escrow change: {}", e))?;
-
     let rc = OutputBuilder::default()
         .amount(relayer_change.value)
         .script_public_key(relayer_change.script_public_key)
         .build()
         .map_err(|e| eyre::eyre!("Build pskt output for relayer change: {}", e))?;
 
-    pskt = pskt.output(ec);
+    let ec = OutputBuilder::default()
+        .amount(escrow_change.value)
+        .script_public_key(escrow_change.script_public_key)
+        .build()
+        .map_err(|e| eyre::eyre!("Build pskt output for escrow change: {}", e))?;
+
     pskt = pskt.output(rc);
+    // Escrow change (new anchor) is always the last element
+    pskt = pskt.output(ec);
 
     Ok(pskt
         .no_more_inputs()
@@ -758,7 +743,14 @@ mod tests {
 
         // Step 4: Create WithdrawFXG using Bundle::from(pskt)
         let bundle = Bundle::from(pskt_signer);
-        let withdraw_fxg = WithdrawFXG::new(bundle, vec![]);
+        let withdraw_fxg = WithdrawFXG::new(
+            bundle,
+            vec![],
+            vec![
+                TransactionOutpoint::default(),
+                TransactionOutpoint::default(),
+            ],
+        );
 
         // Step 5: Convert WithdrawFXG to Bytes
         let serialized_bytes =

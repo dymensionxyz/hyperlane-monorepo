@@ -50,10 +50,11 @@ use kaspa_txscript::{
 
 use secp256k1::{rand::thread_rng, Keypair};
 
+use corelib::payload::MessageIDs;
+use corelib::util::get_recipient_script_pubkey_address;
 use kaspa_rpc_core::api::rpc::RpcApi;
 use relayer::withdraw::messages::WithdrawalDetails;
 use workflow_core::abortable::Abortable;
-
 /*
 Demo:
 The purpose is to test out using a multisig for securing an escrow address.
@@ -113,12 +114,14 @@ async fn demo() -> Result<()> {
 
     let hl_msg = HyperlaneMessage::default();
 
+    let payload = MessageIDs::from(vec![hl_msg.id()]).to_bytes()?;
+
     let pskt = build_withdrawal_pskt(
-        vec![WithdrawalDetails {
-            message_id: hl_msg.id(),
-            recipient: user_addr.clone(),
-            amount_sompi: amt,
-        }],
+        vec![TransactionOutput::new(
+            amt,
+            get_recipient_script_pubkey_address(user_addr),
+        )],
+        payload,
         &rpc,
         &e.public(e2e_address_prefix),
         &w.account(),
