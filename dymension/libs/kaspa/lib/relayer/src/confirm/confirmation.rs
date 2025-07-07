@@ -71,14 +71,7 @@ pub async fn expensive_trace_transactions(
         info!("Processing step {}: UTXO {:?}", step, curr_out);
 
         let transaction = client.get_tx_by_id(&curr_out.transaction_id.to_string())
-        .await
-        .map_err(|e| {
-            eyre::eyre!(
-                "Fail to query kaspa tx: {:?}",
-                curr_out.transaction_id,
-                e
-            )
-        })?;
+        .await?;
 
         // Parse the payload string to extract the message ID
         if let Some(payload) = transaction.payload.clone() {

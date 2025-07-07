@@ -300,7 +300,7 @@ where
             for utxo in all_escrow_utxos {
                 let candidate_new_anchor = TransactionOutpoint::from(utxo.outpoint);
                 let fxg =
-                    expensive_trace_transactions(&self.provider.rest().client, candidate_new_anchor, old_anchor).await;
+                    expensive_trace_transactions(&self.provider.rest().client.client, candidate_new_anchor, old_anchor).await;
                     if !fxg.is_ok() {
                         error!(
                             "Dymension, error tracing sequence of kaspa withdrawals for syncing: {:?}",

@@ -16,8 +16,8 @@ use url::Url;
 
 use dym_kas_api::apis::configuration::Configuration;
 use dym_kas_api::models::TxModel;
-pub use dym_kas_core::api::client::get_config;
-pub use dym_kas_core::api::deposits::*;
+pub use dym_kas_core::api::base::get_config;
+pub use dym_kas_core::api::client::*;
 
 use crate::{ConnectionConf, HyperlaneKaspaError};
 use hyperlane_cosmos_native::Signer;
@@ -151,6 +151,7 @@ impl RestProvider {
         res.map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()))
             .map(|deposits| deposits.into_iter().collect())
     }
+
 }
 
 #[cfg(test)]
