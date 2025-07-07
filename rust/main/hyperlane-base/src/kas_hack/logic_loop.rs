@@ -1,5 +1,4 @@
-use anyhow::Result;
-use eyre::Result as EyreResult;
+use eyre::Result;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, CheckpointWithMessageId, HyperlaneDomain,
     HyperlaneLogStore, HyperlaneMessage, Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint,
@@ -259,6 +258,7 @@ where
     /// Checks if the outpoint committed on the hub is already spent on Kaspa
     /// If not synced, prepares progress indication and submits to hub
     pub async fn sync_hub_if_needed(&self) -> Result<()> {
+        info!("Checking if hub is out of sync with Kaspa escrow account.");
         // get anchor utxo from hub
         let resp = self.hub_mailbox.provider().grpc().outpoint(None).await?;
         let old_anchor = resp
@@ -269,21 +269,27 @@ where
                 ),
                 index: o.index,
             })
-            .ok_or_else(|| anyhow::anyhow!("No outpoint found"))?;
+            .ok_or_else(|| eyre::eyre!("No outpoint found"))?;
+
+        info!("Dymension, current anchor: {:?}", old_anchor);
 
         // get all utxos from kaspa for the escrow address
         let escrow_address = self.provider.escrow_address();
         let all_escrow_utxos = self
             .provider
             .rpc()
-            .get_utxos_by_addresses(vec![escrow_address]) // TODO: probably doesnt work because utxos are not spent..
+            .get_utxos_by_addresses(vec![escrow_address]) 
             .await?;
 
         // check if the anchor utxo is in the utxos.
         // if it found, it's means we're synced.
         let hub_is_synced = all_escrow_utxos.iter().any(|utxo| {
-            utxo.outpoint.transaction_id == old_anchor.transaction_id
-                && utxo.outpoint.index == old_anchor.index
+            let ok = utxo.outpoint.transaction_id == old_anchor.transaction_id
+                && utxo.outpoint.index == old_anchor.index;
+            if ok {
+                info!("Dymension, found utxo matching current anchor: {:?}", utxo);
+            }
+            ok
         });
         if !hub_is_synced {
             info!("Dymension is not synced, preparing progress indication and submitting to hub");
@@ -301,7 +307,7 @@ where
                 }
             }
         }
-        info!("System is synced, proceeding with other tasks");
+        info!("Dymension hub is synced, proceeding with other tasks");
         Ok(())
     }
 
@@ -325,7 +331,7 @@ where
             .indicate_progress(&formatted_sigs, &fxg.progress_indication)
             .await
             .map(|_| ())
-            .map_err(|e| anyhow::anyhow!("Indicate progress failed: {}", e))?;
+            .map_err(|e| eyre::eyre!("Indicate progress failed: {}", e))?;
 
         Ok(())
     }
@@ -415,5 +421,5 @@ impl DepositCache {
 }
 
 pub trait MetadataConstructor {
-    fn metadata(&self, checkpoint: &MultisigSignedCheckpoint) -> EyreResult<Vec<u8>>;
+    fn metadata(&self, checkpoint: &MultisigSignedCheckpoint) -> Result<Vec<u8>>;
 }
