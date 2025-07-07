@@ -15,9 +15,7 @@ use kaspa_hashes::Hash as KaspaHash;
 
 use api_rs::apis::kaspa_addresses_api::{
     get_full_transactions_for_address_page_addresses_kaspa_address_full_transactions_page_get as transactions_page,
-    get_transaction_transactions_transaction_id_get as get_transaction_by_id,
     GetFullTransactionsForAddressPageAddressesKaspaAddressFullTransactionsPageGetParams as args,
-    GetTransactionTransactionsTransactionIdGetParams as get_transaction_by_id_params,
 };
 use api_rs::models::{TxModel, TxOutput};
 
@@ -148,21 +146,6 @@ impl HttpClient {
         let u = self.url.clone();
         let url = u.strip_suffix("/").unwrap();
         get_config(&url, self.client.clone())
-    }
-
-    pub fn get_full_transaction(&self, tx_id: &str) -> Result<TxModel> {
-        let c = self.get_config();
-        let tx = get_transaction_by_id(
-            &c,
-            get_transaction_by_id_params {
-                transaction_id: tx_id.to_string(),
-                block_hash: None,
-                inputs: Some(true),
-                outputs: Some(true),
-                resolve_previous_outpoints: Some("light".to_string()),
-            },
-        )?;
-        Ok(tx)
     }
 }
 

@@ -43,7 +43,7 @@ use hex;
 /// # Returns
 /// * `Result<Vec<WithdrawalId>, Error>` - Vector of collected withdrawal IDs from the transactions
 pub async fn expensive_trace_transactions(
-    client: &HttpClient,
+    config: &Configuration,
     new_out: TransactionOutpoint,
     old_out: TransactionOutpoint,
 ) -> Result<ConfirmationFXG> {
