@@ -94,17 +94,22 @@ where
     // https://github.com/dymensionxyz/hyperlane-monorepo/blob/20b9e669afcfb7728e66b5932e85c0f7fcbd50c1/dymension/libs/kaspa/lib/relayer/note.md#L102-L119
     async fn deposit_loop(&self) {
         info!("Dymension, starting deposit loop");
-        let mut start_relay_time: i64;
-        if let Some(offset) = self.provider.rest().conf.offset_relay_time_hours {
-            let total_seconds = offset * 3600;
-            let duration = Duration::new(total_seconds, 0);
-            start_relay_time = unix_now() as i64 - duration.as_millis() as i64;
-        } else {
-            start_relay_time = unix_now() as i64;
-        }
+        let lower_bound_unix_time: Option<i64> =
+            match self.provider.rest().conf.deposit_look_back_mins {
+                Some(offset) => {
+                    let secs = offset * 60;
+                    let d = Duration::new(secs, 0);
+                    Some(unix_now() as i64 - d.as_millis() as i64)
+                }
+                None => None, // unbounded
+            };
         loop {
-            time::sleep(Duration::from_secs(10)).await;
-            let deposits_res = self.provider.rest().get_deposits(start_relay_time).await;
+            time::sleep(Duration::from_secs(20)).await;
+            let deposits_res = self
+                .provider
+                .rest()
+                .get_deposits(lower_bound_unix_time)
+                .await;
             let deposits = match deposits_res {
                 Ok(deposits) => deposits,
                 Err(e) => {
@@ -113,13 +118,11 @@ where
                 }
             };
 
+            info!("Dymension, queried kaspa deposits, n: {:?}", deposits.len());
+
             let mut deposits_new = Vec::new();
             for d in deposits.into_iter() {
                 if !self.deposit_cache.has_seen(&d).await {
-                    if start_relay_time < d.time - Duration::new(10, 0).as_millis() as i64 {
-                        // we add 10 seconds gap to avoid reorg issues
-                        start_relay_time = d.time - Duration::new(10, 0).as_millis() as i64;
-                    }
                     info!("Dymension, new deposit seen: {:?}", d.clone());
                     self.deposit_cache.mark_as_seen(d.clone()).await;
                     deposits_new.push(d);
@@ -130,7 +133,7 @@ where
                 // Call to relayer.F()
                 let new_deposit_res =
                     relayer_on_new_deposit(&self.provider.escrow_address().to_string(), d).await;
-                info!("Dymension, got new deposit FXG: {:?}", new_deposit_res);
+                info!("Dymension, built new deposit FXG: {:?}", new_deposit_res);
                 match new_deposit_res {
                     Ok(Some(fxg)) => {
                         let res = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
@@ -152,7 +155,6 @@ where
                     }
                 }
             }
-            start_relay_time = unix_now() as i64;
         }
     }
 

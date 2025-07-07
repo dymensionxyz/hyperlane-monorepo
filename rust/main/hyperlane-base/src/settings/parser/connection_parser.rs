@@ -398,7 +398,7 @@ pub fn build_kaspa_connection_conf(
 
     let offset_relay_time_hours = chain
         .chain(err)
-        .get_opt_key("offsetStartTimeHours")
+        .get_opt_key("depositLookBackMins")
         .parse_u64()
         .end();
 

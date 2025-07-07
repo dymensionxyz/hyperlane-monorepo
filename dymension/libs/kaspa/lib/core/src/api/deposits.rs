@@ -8,6 +8,7 @@ use eyre::{Error, Result};
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use std::hash::{BuildHasher, Hash, Hasher, RandomState};
 use std::str::FromStr;
+use std::time::Duration;
 
 use kaspa_consensus_core::tx::TransactionId;
 use kaspa_hashes::Hash as KaspaHash;
@@ -87,26 +88,31 @@ impl HttpClient {
 
     pub async fn get_deposits_by_address(
         &self,
-        start_time: i64,
+        lower_bound_unix_time: Option<i64>,
         address: &str,
     ) -> Result<Vec<Deposit>> {
-        let limit: i64 = 500;
-        let mut to = 0i64;
-        let from = start_time;
+        let n: i64 = 500;
+        let mut lower_bound_t = lower_bound_unix_time.unwrap_or(0);
+        let upper_bound_t = std::time::SystemTime::now()
+            .checked_sub(Duration::from_secs(10))
+            .unwrap()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as i64;
 
         let c = self.get_config();
         info!("Dymension query kaspa deposits, url: {:?}", c.base_path);
 
         let mut txs: Vec<TxModel> = Vec::new();
 
-        loop {
+        while lower_bound_t < upper_bound_t {
             let mut res = transactions_page(
                 &c,
                 args {
                     kaspa_address: address.to_string(),
-                    limit: Some(limit),
-                    before: Some(to),
-                    after: Some(from),
+                    limit: Some(n),
+                    after: Some(lower_bound_t),
+                    before: Some(upper_bound_t),
                     fields: None,
                     resolve_previous_outpoints: None,
                     acceptance: None,
@@ -114,13 +120,13 @@ impl HttpClient {
             )
             .await?;
             txs.append(&mut res);
-            if res.len() < limit as usize {
+            if res.len() < n as usize {
                 break;
             }
             // txs should be in descendent order, so we save last returned tx time and we continue from there
             if let Some(last_val) = res.last() {
-                if let Some(block_time) = last_val.block_time {
-                    to = block_time + 1;
+                if let Some(t) = last_val.block_time {
+                    lower_bound_t = t + 1;
                 }
             }
         }
