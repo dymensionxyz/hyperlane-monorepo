@@ -189,7 +189,7 @@ where
         fxg: &DepositFXG,
     ) -> ChainResult<TxOutcome> {
         // network calls
-        let mut sigs = get_deposit_sigs(&self.provider.validators().conf, fxg).await?;
+        let mut sigs = self.provider.validators().get_deposit_sigs(fxg).await?;
         info!(
             "Dymension, got deposit sigs: number of sigs: {:?}",
             sigs.len()
@@ -294,7 +294,11 @@ where
     /// https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/keeper/msg_server.go#L42-L48
     /// https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/types/d.go#L76-L84
     async fn confirm_withdrawal_on_hub(&self, fxg: ConfirmationFXG) -> Result<()> {
-        let mut sigs = get_confirmation_sigs(&self.provider.validators().conf, &fxg).await?;
+        let mut sigs = self
+            .provider
+            .validators()
+            .get_confirmation_sigs(&fxg)
+            .await?;
 
         let formatted_sigs = self.format_ad_hoc_signatures(
             &mut sigs,
