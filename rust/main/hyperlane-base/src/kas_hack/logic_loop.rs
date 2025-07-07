@@ -17,6 +17,7 @@ use dymension_kaspa::{Deposit, KaspaProvider};
 use crate::{contract_sync::cursors::Indexable, db::HyperlaneRocksDB};
 
 use hyperlane_cosmos_native::mailbox::CosmosNativeMailbox;
+use kaspa_core::time::unix_now;
 
 use api_rs::apis::configuration::Configuration;
 use dym_kas_relayer::confirm::expensive_trace_transactions;
@@ -93,9 +94,17 @@ where
     // https://github.com/dymensionxyz/hyperlane-monorepo/blob/20b9e669afcfb7728e66b5932e85c0f7fcbd50c1/dymension/libs/kaspa/lib/relayer/note.md#L102-L119
     async fn deposit_loop(&self) {
         info!("Dymension, starting deposit loop");
+        let mut start_relay_time: i64;
+        if let Some(offset) =  self.provider.rest().conf.offset_relay_time_hours {
+            let total_seconds = offset * 3600;
+            let duration = Duration::new(total_seconds, 0);
+            start_relay_time = unix_now() as i64 - duration.as_millis() as i64;
+        } else {
+            start_relay_time = unix_now() as i64;
+        }
         loop {
             time::sleep(Duration::from_secs(10)).await;
-            let deposits_res = self.provider.rest().get_deposits().await;
+            let deposits_res = self.provider.rest().get_deposits(start_relay_time).await;
             let deposits = match deposits_res {
                 Ok(deposits) => deposits,
                 Err(e) => {
@@ -107,6 +116,9 @@ where
             let mut deposits_new = Vec::new();
             for d in deposits.into_iter() {
                 if !self.deposit_cache.has_seen(&d).await {
+                    if start_relay_time < d.time - Duration::new(10, 0).as_millis() as i64 { // we add 10 seconds gap to avoid reorg issues
+                        start_relay_time = d.time - Duration::new(10, 0).as_millis() as i64;
+                    }
                     info!("Dymension, new deposit seen: {:?}", d.clone());
                     self.deposit_cache.mark_as_seen(d.clone()).await;
                     deposits_new.push(d);
@@ -139,6 +151,7 @@ where
                     }
                 }
             }
+            start_relay_time = unix_now() as i64;
         }
     }
 

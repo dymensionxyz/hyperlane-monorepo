@@ -16,7 +16,7 @@ use api_rs::apis::kaspa_addresses_api::{
     get_full_transactions_for_address_page_addresses_kaspa_address_full_transactions_page_get as transactions_page,
     GetFullTransactionsForAddressPageAddressesKaspaAddressFullTransactionsPageGetParams as args,
 };
-use api_rs::models::{AcceptanceMode, TxModel, TxOutput};
+use api_rs::models::{TxModel, TxOutput};
 
 use super::client::{get_client, get_config};
 
@@ -26,7 +26,8 @@ pub struct Deposit {
     pub payload: Option<String>,
     // #[serde(with = "serde_bytes_fixed_ref")] // TODO: need?
     pub id: TransactionId,
-    accepted: bool,
+    pub time: i64,
+    pub accepted: bool,
     pub outputs: Vec<TxOutput>,
     pub block_hash: Vec<String>,
 }
@@ -59,12 +60,14 @@ impl TryFrom<TxModel> for Deposit {
         let tx_hash = KaspaHash::from_str(&tx_id)?;
         let outputs = tx.outputs.ok_or(eyre::eyre!("Outputs are missing"))?; // TODO: outputs may be missing!
         let block_hash = tx.block_hash.ok_or(eyre::eyre!("Block hash is missing"))?;
+        let time = tx.block_time.ok_or(eyre::eyre!("Block time not set"))?;
 
         Ok(Deposit {
             id: tx_hash,
             payload: tx.payload,
             accepted: accepted,
             outputs: outputs,
+            time: time,
             block_hash: block_hash,
         })
     }
@@ -82,10 +85,14 @@ impl HttpClient {
         Self { url, client: c }
     }
 
-    pub async fn get_deposits_by_address(&self,start_time: i64,address: &str) -> Result<Vec<Deposit>> {
-        let limit: i64 = 100;
-        let mut upper_bound = 0i64;
-        let lower_bound = start_time;
+    pub async fn get_deposits_by_address(
+        &self,
+        start_time: i64,
+        address: &str,
+    ) -> Result<Vec<Deposit>> {
+        let limit: i64 = 500;
+        let mut to = 0i64;
+        let from = start_time;
 
         let c = self.get_config();
         info!("Dymension query kaspa deposits, url: {:?}", c.base_path);
@@ -98,8 +105,8 @@ impl HttpClient {
                 args {
                     kaspa_address: address.to_string(),
                     limit: Some(limit),
-                    before: Some(upper_bound),
-                    after: Some(lower_bound),
+                    before: Some(to),
+                    after: Some(from),
                     fields: None,
                     resolve_previous_outpoints: None,
                     acceptance: None,
@@ -113,10 +120,9 @@ impl HttpClient {
             // txs should be in descendent order, so we save last returned tx time and we continue from there
             if let Some(last_val) = res.last() {
                 if let Some(block_time) = last_val.block_time {
-                    upper_bound = block_time + 1;
+                    to = block_time + 1;
                 }
             }
-
         }
 
         // return txs filtered by txs that include utxos with destination escrow address and including a payload
@@ -124,7 +130,7 @@ impl HttpClient {
             .into_iter()
             .filter(|tx| {
                 is_valid_escrow_transfer(tx, &address.to_string()).expect("unable to validate txs")
-                && tx.payload.is_some()
+                    && tx.payload.is_some()
             })
             .map(Deposit::try_from)
             .collect::<Result<Vec<Deposit>>>()?)
@@ -159,10 +165,10 @@ mod tests {
     #[tokio::test]
     async fn test_get_deposits() {
         // https://explorer-tn10.kaspa.org/addresses/kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr?page=1
-        let client = HttpClient::new("https://api-tn10.kaspa.org".to_string());
+        let client = HttpClient::new("https://api-tn10.kaspa.org/".to_string());
         let address = "kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr";
 
-        let deposits = client.get_deposits(1751299515650,address).await;
+        let deposits = client.get_deposits_by_address(1751299515650, address).await;
 
         match deposits {
             Ok(deposits) => {

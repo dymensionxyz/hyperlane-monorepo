@@ -1,6 +1,5 @@
 #![allow(unused)] // TODO: remove
 
-use url::Url;
 use api_rs::apis::configuration;
 use bytes::Bytes;
 use corelib::api::deposits::Deposit;
@@ -28,6 +27,7 @@ use kaspa_consensus_core::{
     },
 };
 use kaspa_core::info;
+use kaspa_core::time::unix_now;
 use kaspa_grpc_client::GrpcClient;
 use kaspa_wallet_core::api::{AccountsSendRequest, WalletApi};
 use kaspa_wallet_core::error::Error as KaspaError;
@@ -40,9 +40,9 @@ use std::error::Error;
 use std::os::unix;
 use std::sync::Arc;
 use std::time::Duration;
+use url::Url;
 use validator::deposit::validate_deposit;
 use validator::withdraw::*;
-use kaspa_core::time::unix_now;
 
 use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_pskt::prelude::*; // Import the prelude for easy access to traits/structs
@@ -53,11 +53,11 @@ use api_rs::apis::kaspa_transactions_api::{
     get_transaction_transactions_transaction_id_get,
     GetTransactionTransactionsTransactionIdGetParams,
 };
-use kaspa_rpc_core::api::rpc::RpcApi;
-use workflow_core::abortable::Abortable;
-use tokio::{sync::Mutex, task::JoinHandle, time};
 use hyperlane_metric::prometheus_metric::{PrometheusClientMetrics, PrometheusConfig};
+use kaspa_rpc_core::api::rpc::RpcApi;
+use tokio::{sync::Mutex, task::JoinHandle, time};
 use tracing::error;
+use workflow_core::abortable::Abortable;
 
 pub struct DepositCache {
     seen: Mutex<HashSet<Deposit>>,
@@ -101,20 +101,31 @@ impl Default for DemoArgs {
     }
 }
 
-pub async fn get_deposits(start_time: i64,client: &KaspaHttpClient, address: &str) -> ChainResult<Vec<Deposit>> {
-    let res = client.client.get_deposits_by_address(start_time,address).await;
+pub async fn get_deposits(
+    start_time: i64,
+    client: &KaspaHttpClient,
+    address: &str,
+) -> ChainResult<Vec<Deposit>> {
+    let res = client
+        .client
+        .get_deposits_by_address(start_time, address)
+        .await;
     res.map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()))
-        .map(|deposits| {
-            deposits
-                .into_iter()
-                .collect()
-        })
+        .map(|deposits| deposits.into_iter().collect())
 }
 
-async fn deposit_loop(start_time: i64,cache: &DepositCache,client: &KaspaHttpClient, address: String, tx: TransactionId) -> ChainResult<Deposit> {
+async fn deposit_loop(
+    cache: &DepositCache,
+    client: &KaspaHttpClient,
+    address: String,
+    tx: TransactionId,
+) -> ChainResult<Deposit> {
     info!("Dymension, starting deposit detection loop");
+    let mut start_relay_time= unix_now() as i64;
+
     loop {
-        let deposits_res: std::result::Result<Vec<Deposit>, ChainCommunicationError> = get_deposits(start_time,client,&address).await;
+        let deposits_res: std::result::Result<Vec<Deposit>, ChainCommunicationError> =
+            get_deposits(start_relay_time, client, &address).await;
         let deposits = match deposits_res {
             Ok(deposits) => deposits,
             Err(e) => {
@@ -125,12 +136,14 @@ async fn deposit_loop(start_time: i64,cache: &DepositCache,client: &KaspaHttpCli
         let mut deposits_new = Vec::new();
         for d in deposits.into_iter() {
             if !cache.has_seen(&d).await {
+                if d.time > start_relay_time {
+                    start_relay_time = d.time
+                }
                 if d.id == tx {
                     return Ok(d);
                 }
                 cache.mark_as_seen(d.clone()).await;
                 deposits_new.push(d);
-
             }
         }
 
@@ -169,18 +182,26 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
     }
 
     let url = Url::parse("https://api-tn10.kaspa.org/").unwrap();
-    let metrics_config = PrometheusConfig::from_url( &url, ClientConnectionType::Rpc, None);
+    let metrics_config = PrometheusConfig::from_url(&url, ClientConnectionType::Rpc, None);
     let metrics: PrometheusClientMetrics = PrometheusClientMetrics::default();
     let url = "https://api-tn10.kaspa.org/";
-    let client: KaspaHttpClient = KaspaHttpClient::from_url(url.to_string(),metrics,metrics_config)?;
+    let client: KaspaHttpClient =
+        KaspaHttpClient::from_url(url.to_string(), metrics, metrics_config)?;
 
     let deposit_cache = DepositCache::new();
     let address = escrow_address.clone();
 
-    let handle: JoinHandle<Deposit> = tokio::spawn(async move{
-        return deposit_loop(now,&deposit_cache,&client,address.address_to_string(),tx_id).await.expect("deposit loop");
+    let handle: JoinHandle<Deposit> = tokio::spawn(async move {
+        return deposit_loop(
+            &deposit_cache,
+            &client,
+            address.address_to_string(),
+            tx_id,
+        )
+        .await
+        .expect("deposit loop");
     });
-    
+
     let result: Deposit = handle.await?;
 
     let escrow = escrow_address.clone();

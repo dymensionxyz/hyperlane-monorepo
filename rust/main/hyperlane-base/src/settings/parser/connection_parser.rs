@@ -396,10 +396,10 @@ pub fn build_kaspa_connection_conf(
     let grpcs =
         parse_base_and_override_urls(chain, "grpcUrls", "customGrpcUrls", "http", &mut local_err);
 
-    let start_relay_time = chain    
+    let offset_relay_time_hours = chain    
         .chain(err)
-        .get_opt_key("startRelayTime")
-        .parse_i64()
+        .get_opt_key("offsetStartTimeHours")
+        .parse_u64()
         .end();
 
 
@@ -415,7 +415,7 @@ pub fn build_kaspa_connection_conf(
             threshold_ism as usize,
             threshold_escrow as usize,
             grpcs,
-            start_relay_time,
+            offset_relay_time_hours,
             String::new(), // TODO: fill hub_mailbox_id
         ),
     ))
