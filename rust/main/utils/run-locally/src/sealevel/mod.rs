@@ -113,7 +113,6 @@ fn run_locally() {
         )
         .arg("defaultSigner.key", RELAYER_KEYS[0])
         .arg("relayChains", "sealeveltest1,sealeveltest2");
-        
 
     let base_validator_env = common_agent_env
         .clone()
