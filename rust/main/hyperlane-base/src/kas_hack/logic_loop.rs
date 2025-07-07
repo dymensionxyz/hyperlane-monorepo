@@ -296,7 +296,7 @@ where
             // we need to iterate over the utxos and find the next utxo of the escrow address
             let conf = self.provider.rest().get_config();
             
-            let good = false;
+            let mut good = false;
             for utxo in all_escrow_utxos {
                 let candidate_new_anchor = TransactionOutpoint::from(utxo.outpoint);
                 let fxg =
