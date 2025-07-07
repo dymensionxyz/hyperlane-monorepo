@@ -151,6 +151,10 @@ impl RestProvider {
         res.map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()))
             .map(|deposits| deposits.into_iter().collect())
     }
+
+    pub async fn get_full_transaction(&self, tx_id: &str) -> Result<TxModel> {
+        self.client.client.get_full_transaction(tx_id).await.map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()))
+    }
 }
 
 #[cfg(test)]
