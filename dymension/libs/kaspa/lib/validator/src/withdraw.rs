@@ -96,13 +96,7 @@ pub async fn validate_withdrawals(
         return Err(ValidationError::MessagesNotUnprocessed);
     }
 
-    validate_pskt_structure(
-        pskt,
-        hub_outpoint,
-        pending_messages,
-        network,
-        escrow_public,
-    )?;
+    validate_pskt_structure(pskt, hub_outpoint, pending_messages, network, escrow_public)?;
 
     info!(
         "Withdrawal validation completed successfully for {} withdrawals",

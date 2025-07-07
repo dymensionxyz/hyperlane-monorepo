@@ -40,7 +40,7 @@ impl ConnectionConf {
         multisig_threshold_hub_ism: usize,
         multisig_threshold_kaspa_schnorr: usize,
         hub_grpc_urls: Vec<Url>,
-        hub_mailbox_id: String
+        hub_mailbox_id: String,
     ) -> Self {
         Self {
             wallet_secret,

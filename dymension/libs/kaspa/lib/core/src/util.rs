@@ -1,5 +1,5 @@
-use kaspa_addresses::{Address, Prefix, Version};
 use hyperlane_core::H256;
+use kaspa_addresses::{Address, Prefix, Version};
 
 pub fn get_recipient_address(recipient: H256, prefix: Prefix) -> Address {
     Address::new(

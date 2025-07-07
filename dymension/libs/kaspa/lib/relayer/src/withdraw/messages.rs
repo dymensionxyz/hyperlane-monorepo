@@ -4,7 +4,7 @@ use super::hub_to_kaspa::build_withdrawal_pskt;
 use base64;
 use corelib::escrow::EscrowPublic;
 use corelib::wallet::EasyKaspaWallet;
-use corelib::withdraw::{WithdrawFXG, filter_pending_withdrawals};
+use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use hardcode::tx::DUST_AMOUNT;
 use hex::ToHex;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};

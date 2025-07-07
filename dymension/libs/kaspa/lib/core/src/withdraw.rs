@@ -2,11 +2,11 @@ use super::payload::MessageID;
 use bytes::Bytes;
 use eyre::Error as EyreError;
 use hex::ToHex;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
-use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
-use kaspa_consensus_core::tx::TransactionOutpoint;
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::H256;
+use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
+use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_wallet_pskt::prelude::Bundle;
 use serde::{Deserialize, Serialize};
 
@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 pub struct WithdrawFXG {
     pub bundle: Bundle,
     pub messages: Vec<Vec<HyperlaneMessage>>, // used in validation
-    // TODO: add new/old anchors?
+                                              // TODO: add new/old anchors?
 }
 
 impl WithdrawFXG {
