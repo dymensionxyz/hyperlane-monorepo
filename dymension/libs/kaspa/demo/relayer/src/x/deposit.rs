@@ -121,7 +121,7 @@ async fn deposit_loop(
     tx: TransactionId,
 ) -> ChainResult<Deposit> {
     info!("Dymension, starting deposit detection loop");
-    let mut start_relay_time= unix_now() as i64;
+    let mut start_relay_time = unix_now() as i64;
 
     loop {
         let deposits_res: std::result::Result<Vec<Deposit>, ChainCommunicationError> =
@@ -192,14 +192,9 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
     let address = escrow_address.clone();
 
     let handle: JoinHandle<Deposit> = tokio::spawn(async move {
-        return deposit_loop(
-            &deposit_cache,
-            &client,
-            address.address_to_string(),
-            tx_id,
-        )
-        .await
-        .expect("deposit loop");
+        return deposit_loop(&deposit_cache, &client, address.address_to_string(), tx_id)
+            .await
+            .expect("deposit loop");
     });
 
     let result: Deposit = handle.await?;

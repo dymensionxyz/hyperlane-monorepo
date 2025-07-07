@@ -95,7 +95,7 @@ where
     async fn deposit_loop(&self) {
         info!("Dymension, starting deposit loop");
         let mut start_relay_time: i64;
-        if let Some(offset) =  self.provider.rest().conf.offset_relay_time_hours {
+        if let Some(offset) = self.provider.rest().conf.offset_relay_time_hours {
             let total_seconds = offset * 3600;
             let duration = Duration::new(total_seconds, 0);
             start_relay_time = unix_now() as i64 - duration.as_millis() as i64;
@@ -116,7 +116,8 @@ where
             let mut deposits_new = Vec::new();
             for d in deposits.into_iter() {
                 if !self.deposit_cache.has_seen(&d).await {
-                    if start_relay_time < d.time - Duration::new(10, 0).as_millis() as i64 { // we add 10 seconds gap to avoid reorg issues
+                    if start_relay_time < d.time - Duration::new(10, 0).as_millis() as i64 {
+                        // we add 10 seconds gap to avoid reorg issues
                         start_relay_time = d.time - Duration::new(10, 0).as_millis() as i64;
                     }
                     info!("Dymension, new deposit seen: {:?}", d.clone());

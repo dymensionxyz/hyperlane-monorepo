@@ -43,7 +43,7 @@ impl ConnectionConf {
         hub_grpc_urls: Vec<Url>,
         offset_relay_time_hours: Option<u64>,
         hub_mailbox_id: String,
-        ) -> Self {
+    ) -> Self {
         Self {
             wallet_secret,
             kaspa_rpc_url,
