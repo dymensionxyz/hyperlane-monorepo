@@ -189,6 +189,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore = "avoid api abuse"]
     async fn test_get_deposits() {
         // https://explorer-tn10.kaspa.org/addresses/kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr?page=1
         let client = HttpClient::new("https://api-tn10.kaspa.org/".to_string());
@@ -209,5 +210,13 @@ mod tests {
                 println!("Query deposits: {:?}", e);
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_get_tx_by_id() {
+        let client = HttpClient::new("https://api-tn10.kaspa.org/".to_string());
+        let tx_id = "1ffa672605af17906d99ba9506dd49406a2e8a3faa2969ab0c8929373aca51d1";
+        let tx = client.get_tx_by_id(tx_id).await;
+        println!("Tx: {:?}", tx);
     }
 }
