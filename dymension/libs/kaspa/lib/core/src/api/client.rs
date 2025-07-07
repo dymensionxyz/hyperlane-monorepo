@@ -15,13 +15,15 @@ use kaspa_hashes::Hash as KaspaHash;
 
 use api_rs::apis::kaspa_addresses_api::{
     get_full_transactions_for_address_page_addresses_kaspa_address_full_transactions_page_get as transactions_page,
-    get_transaction_transactions_transaction_id_get as get_tx_by_id,
     GetFullTransactionsForAddressPageAddressesKaspaAddressFullTransactionsPageGetParams as args,
+};
+use api_rs::apis::kaspa_transactions_api::{
+    get_transaction_transactions_transaction_id_get as get_tx_by_id,
     GetTransactionTransactionsTransactionIdGetParams as get_tx_by_id_params,
 };
 use api_rs::models::{TxModel, TxOutput};
 
-use super::client::{get_client, get_config};
+use super::base::{get_client, get_config};
 
 #[derive(Debug, Clone)]
 pub struct Deposit {
