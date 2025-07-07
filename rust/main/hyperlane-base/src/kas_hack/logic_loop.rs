@@ -278,7 +278,7 @@ where
         let all_escrow_utxos = self
             .provider
             .rpc()
-            .get_utxos_by_addresses(vec![escrow_address]) 
+            .get_utxos_by_addresses(vec![escrow_address])
             .await?;
 
         // check if the anchor utxo is in the utxos.
@@ -295,18 +295,23 @@ where
             info!("Dymension is not synced, preparing progress indication and submitting to hub");
             // we need to iterate over the utxos and find the next utxo of the escrow address
             let conf = self.provider.rest().get_config();
-            
+
             let mut good = false;
             for utxo in all_escrow_utxos {
                 let candidate_new_anchor = TransactionOutpoint::from(utxo.outpoint);
                 let fxg =
                     expensive_trace_transactions(&conf, candidate_new_anchor, old_anchor).await;
                 info!("Traced sequence of kaspa withdrawals for syncing");
-                if fxg.is_ok() {
-                    self.confirm_withdrawal_on_hub(fxg.unwrap()).await?;
-                    good = true;
-                    break;
+                if !fxg.is_ok() {
+                    error!(
+                        "Dymension, error tracing sequence of kaspa withdrawals for syncing: {:?}",
+                        fxg.err()
+                    );
+                    continue;
                 }
+                self.confirm_withdrawal_on_hub(fxg.unwrap()).await?;
+                good = true;
+                break;
             }
             if !good {
                 return Err(eyre::eyre!("Dymension, no good utxo found for syncing"));
@@ -333,14 +338,21 @@ where
             self.provider.validators().multisig_threshold_hub_ism() as usize,
         )?;
 
-        info!("Dymension, formatted confirmation sigs: {:?}", formatted_sigs);
+        info!(
+            "Dymension, formatted confirmation sigs: {:?}",
+            formatted_sigs
+        );
 
-        let outcome = self.hub_mailbox
+        let outcome = self
+            .hub_mailbox
             .indicate_progress(&formatted_sigs, &fxg.progress_indication)
             .await
             .map_err(|e| eyre::eyre!("Indicate progress failed: {}", e))?;
 
-        info!("Dymension, indicated progress on hub: {:?}, outcome: {:?}", fxg.progress_indication, outcome);
+        info!(
+            "Dymension, indicated progress on hub: {:?}, outcome: {:?}",
+            fxg.progress_indication, outcome
+        );
 
         Ok(())
     }
