@@ -28,7 +28,7 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use super::confirmation_queue::PendingConfirmation;
-use super::validators::ValidatorsClient;
+use super::validators::{api::get_withdraw_sigs, ValidatorsClient};
 use super::RestProvider;
 use dym_kas_core::confirmation::ConfirmationFXG;
 
@@ -158,7 +158,7 @@ impl KaspaProvider {
         let (fxg, prev_outpoint) = res.unwrap();
 
         info!("Kaspa provider, got withdrawal FXG, now gathering sigs and signing relayer fee");
-        let bundles_validators = self.validators().get_withdraw_sigs(&fxg).await?;
+        let bundles_validators = get_withdraw_sigs(&self.validators().conf, &fxg).await?;
 
         let finalized = combine_bundles_with_fee(
             bundles_validators,
