@@ -151,7 +151,6 @@ impl RestProvider {
         res.map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()))
             .map(|deposits| deposits.into_iter().collect())
     }
-
 }
 
 #[cfg(test)]

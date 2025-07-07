@@ -299,15 +299,19 @@ where
             let mut good = false;
             for utxo in all_escrow_utxos {
                 let candidate_new_anchor = TransactionOutpoint::from(utxo.outpoint);
-                let fxg =
-                    expensive_trace_transactions(&self.provider.rest().client.client, candidate_new_anchor, old_anchor).await;
-                    if !fxg.is_ok() {
-                        error!(
-                            "Dymension, error tracing sequence of kaspa withdrawals for syncing: {:?}",
-                            fxg.err()
-                        );
-                        continue;
-                    }
+                let fxg = expensive_trace_transactions(
+                    &self.provider.rest().client.client,
+                    candidate_new_anchor,
+                    old_anchor,
+                )
+                .await;
+                if !fxg.is_ok() {
+                    error!(
+                        "Dymension, error tracing sequence of kaspa withdrawals for syncing: {:?}",
+                        fxg.err()
+                    );
+                    continue;
+                }
                 info!("Traced sequence of kaspa withdrawals for syncing");
                 self.confirm_withdrawal_on_hub(fxg.unwrap()).await?;
                 good = true;

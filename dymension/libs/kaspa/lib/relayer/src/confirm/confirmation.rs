@@ -1,5 +1,5 @@
-use eyre::Result;
 use eyre::eyre;
+use eyre::Result;
 use tracing::info;
 
 use api_rs::models::TxModel;
@@ -70,8 +70,9 @@ pub async fn expensive_trace_transactions(
 
         info!("Processing step {}: UTXO {:?}", step, curr_out);
 
-        let transaction = client.get_tx_by_id(&curr_out.transaction_id.to_string())
-        .await?;
+        let transaction = client
+            .get_tx_by_id(&curr_out.transaction_id.to_string())
+            .await?;
 
         // Parse the payload string to extract the message ID
         if let Some(payload) = transaction.payload.clone() {

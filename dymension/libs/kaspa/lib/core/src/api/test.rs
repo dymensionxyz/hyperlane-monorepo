@@ -107,13 +107,18 @@ mod tests {
     async fn test_tx_by_id() {
         let config = t_config();
         let tx_id = "1ffa672605af17906d99ba9506dd49406a2e8a3faa2969ab0c8929373aca51d1";
-        let tx = get_transaction_transactions_transaction_id_get(&config, GetTransactionTransactionsTransactionIdGetParams {
-            transaction_id: tx_id.to_string(),
-            block_hash: None,
-            inputs: Some(true),
-            outputs: Some(true),
-            resolve_previous_outpoints: Some("light".to_string()),
-        }).await.unwrap();
+        let tx = get_transaction_transactions_transaction_id_get(
+            &config,
+            GetTransactionTransactionsTransactionIdGetParams {
+                transaction_id: tx_id.to_string(),
+                block_hash: None,
+                inputs: Some(true),
+                outputs: Some(true),
+                resolve_previous_outpoints: Some("light".to_string()),
+            },
+        )
+        .await
+        .unwrap();
         println!("tx: {:?}", tx);
     }
 }
