@@ -1,5 +1,4 @@
-use anyhow::Result;
-use eyre::Result as EyreResult;
+use eyre::Result;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, CheckpointWithMessageId, HyperlaneDomain,
     HyperlaneLogStore, HyperlaneMessage, Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint,
@@ -17,6 +16,7 @@ use dymension_kaspa::{Deposit, KaspaProvider};
 use crate::{contract_sync::cursors::Indexable, db::HyperlaneRocksDB};
 
 use hyperlane_cosmos_native::mailbox::CosmosNativeMailbox;
+use kaspa_core::time::unix_now;
 
 use api_rs::apis::configuration::Configuration;
 use dym_kas_relayer::confirm::expensive_trace_transactions;
@@ -93,9 +93,22 @@ where
     // https://github.com/dymensionxyz/hyperlane-monorepo/blob/20b9e669afcfb7728e66b5932e85c0f7fcbd50c1/dymension/libs/kaspa/lib/relayer/note.md#L102-L119
     async fn deposit_loop(&self) {
         info!("Dymension, starting deposit loop");
+        let lower_bound_unix_time: Option<i64> =
+            match self.provider.rest().conf.deposit_look_back_mins {
+                Some(offset) => {
+                    let secs = offset * 60;
+                    let d = Duration::new(secs, 0);
+                    Some(unix_now() as i64 - d.as_millis() as i64)
+                }
+                None => None, // unbounded
+            };
         loop {
-            time::sleep(Duration::from_secs(10)).await;
-            let deposits_res = self.provider.rest().get_deposits().await;
+            time::sleep(Duration::from_secs(20)).await;
+            let deposits_res = self
+                .provider
+                .rest()
+                .get_deposits(lower_bound_unix_time)
+                .await;
             let deposits = match deposits_res {
                 Ok(deposits) => deposits,
                 Err(e) => {
@@ -103,6 +116,8 @@ where
                     continue;
                 }
             };
+
+            info!("Dymension, queried kaspa deposits, n: {:?}", deposits.len());
 
             let mut deposits_new = Vec::new();
             for d in deposits.into_iter() {
@@ -117,7 +132,7 @@ where
                 // Call to relayer.F()
                 let new_deposit_res =
                     relayer_on_new_deposit(&self.provider.escrow_address().to_string(), d).await;
-                info!("Dymension, got new deposit FXG: {:?}", new_deposit_res);
+                info!("Dymension, built new deposit FXG: {:?}", new_deposit_res);
                 match new_deposit_res {
                     Ok(Some(fxg)) => {
                         let res = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
@@ -163,10 +178,9 @@ where
             // with the correct outpoints.
             //
             // TODO: what happens if at some point no one is bridging and we have failed confirmations?
-            let confirmations = self.provider.consume_confirmation_queue();
+            let confirmation = self.provider.consume_pending_confirmation();
 
-            match confirmations.last() {
-                None => {}
+            match confirmation {
                 Some(confirmation) => {
                     let res = self.confirm_withdrawal_on_hub(confirmation.clone()).await;
                     match res {
@@ -178,6 +192,7 @@ where
                         }
                     }
                 }
+                None => {}
             }
 
             time::sleep(Duration::from_secs(10)).await;
@@ -243,6 +258,7 @@ where
     /// Checks if the outpoint committed on the hub is already spent on Kaspa
     /// If not synced, prepares progress indication and submits to hub
     pub async fn sync_hub_if_needed(&self) -> Result<()> {
+        info!("Checking if hub is out of sync with Kaspa escrow account.");
         // get anchor utxo from hub
         let resp = self.hub_mailbox.provider().grpc().outpoint(None).await?;
         let old_anchor = resp
@@ -253,39 +269,59 @@ where
                 ),
                 index: o.index,
             })
-            .ok_or_else(|| anyhow::anyhow!("No outpoint found"))?;
+            .ok_or_else(|| eyre::eyre!("No outpoint found"))?;
+
+        info!("Dymension, current anchor: {:?}", old_anchor);
 
         // get all utxos from kaspa for the escrow address
         let escrow_address = self.provider.escrow_address();
         let all_escrow_utxos = self
             .provider
             .rpc()
-            .get_utxos_by_addresses(vec![escrow_address]) // TODO: probably doesnt work because utxos are not spent..
+            .get_utxos_by_addresses(vec![escrow_address])
             .await?;
 
         // check if the anchor utxo is in the utxos.
         // if it found, it's means we're synced.
         let hub_is_synced = all_escrow_utxos.iter().any(|utxo| {
-            utxo.outpoint.transaction_id == old_anchor.transaction_id
-                && utxo.outpoint.index == old_anchor.index
+            let ok = utxo.outpoint.transaction_id == old_anchor.transaction_id
+                && utxo.outpoint.index == old_anchor.index;
+            if ok {
+                info!("Dymension, found utxo matching current anchor: {:?}", utxo);
+            }
+            ok
         });
         if !hub_is_synced {
             info!("Dymension is not synced, preparing progress indication and submitting to hub");
             // we need to iterate over the utxos and find the next utxo of the escrow address
             let conf = self.provider.rest().get_config();
 
+            let mut good = false;
             for utxo in all_escrow_utxos {
                 let candidate_new_anchor = TransactionOutpoint::from(utxo.outpoint);
-                let fxg =
-                    expensive_trace_transactions(&conf, candidate_new_anchor, old_anchor).await;
-                if fxg.is_ok() {
-                    // TODO: better error handling?
-                    self.confirm_withdrawal_on_hub(fxg.unwrap()).await?;
-                    break;
+                let fxg = expensive_trace_transactions(
+                    &self.provider.rest().client.client,
+                    candidate_new_anchor,
+                    old_anchor,
+                )
+                .await;
+                if !fxg.is_ok() {
+                    error!(
+                        "Dymension, error tracing sequence of kaspa withdrawals for syncing: {:?}",
+                        fxg.err()
+                    );
+                    continue;
                 }
+                info!("Traced sequence of kaspa withdrawals for syncing");
+                self.confirm_withdrawal_on_hub(fxg.unwrap()).await?;
+                good = true;
+                break;
+            }
+            if !good {
+                return Err(eyre::eyre!("Dymension, no good utxo found for syncing"));
             }
         }
-        info!("System is synced, proceeding with other tasks");
+        info!("Dymension hub is synced, proceeding with other tasks");
         Ok(())
     }
 
@@ -300,16 +336,27 @@ where
             .get_confirmation_sigs(&fxg)
             .await?;
 
+        info!("Dymension, got confirmation sigs: {:?}", sigs);
         let formatted_sigs = self.format_ad_hoc_signatures(
             &mut sigs,
             self.provider.validators().multisig_threshold_hub_ism() as usize,
         )?;
 
-        self.hub_mailbox
+        info!(
+            "Dymension, formatted confirmation sigs: {:?}",
+            formatted_sigs
+        );
+
+        let outcome = self
+            .hub_mailbox
             .indicate_progress(&formatted_sigs, &fxg.progress_indication)
             .await
-            .map(|_| ())
-            .map_err(|e| anyhow::anyhow!("Indicate progress failed: {}", e))?;
+            .map_err(|e| eyre::eyre!("Indicate progress failed: {}", e))?;
+
+        info!(
+            "Dymension, indicated progress on hub: {:?}, outcome: {:?}",
+            fxg.progress_indication, outcome
+        );
 
         Ok(())
     }
@@ -376,7 +423,7 @@ where
     }
 }
 
-struct DepositCache {
+pub struct DepositCache {
     seen: Mutex<HashSet<Deposit>>,
 }
 
@@ -399,5 +446,5 @@ impl DepositCache {
 }
 
 pub trait MetadataConstructor {
-    fn metadata(&self, checkpoint: &MultisigSignedCheckpoint) -> EyreResult<Vec<u8>>;
+    fn metadata(&self, checkpoint: &MultisigSignedCheckpoint) -> Result<Vec<u8>>;
 }

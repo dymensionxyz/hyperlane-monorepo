@@ -1,6 +1,8 @@
 use std::future::Future;
 use std::time::Instant;
 
+use std::time::Duration;
+
 use tonic::async_trait;
 
 use hyperlane_core::{
@@ -14,14 +16,14 @@ use url::Url;
 
 use dym_kas_api::apis::configuration::Configuration;
 use dym_kas_api::models::TxModel;
-pub use dym_kas_core::api::client::get_config;
-pub use dym_kas_core::api::deposits::*;
+pub use dym_kas_core::api::base::get_config;
+pub use dym_kas_core::api::client::*;
 
 use crate::{ConnectionConf, HyperlaneKaspaError};
 use hyperlane_cosmos_native::Signer;
 
 #[derive(Debug)]
-struct KaspaHttpClient {
+pub struct KaspaHttpClient {
     pub client: HttpClient,
     metrics: PrometheusClientMetrics,
     metrics_config: PrometheusConfig,
@@ -29,7 +31,7 @@ struct KaspaHttpClient {
 
 #[derive(Debug, Clone)]
 pub struct RestProvider {
-    client: KaspaHttpClient,
+    pub client: KaspaHttpClient,
     pub conf: ConnectionConf,
     signer: Option<Signer>,
 }
@@ -136,17 +138,18 @@ impl RestProvider {
     }
 
     /// dococo
-    pub async fn get_deposits(&self) -> ChainResult<Vec<Deposit>> {
-        // TODO: need to do appropriate filtering down
+    pub async fn get_deposits(
+        &self,
+        lower_bound_unix_time: Option<i64>,
+    ) -> ChainResult<Vec<Deposit>> {
         let address = self.conf.kaspa_escrow_addr.clone();
-        let res = self.client.client.get_deposits(&address).await;
+        let res = self
+            .client
+            .client
+            .get_deposits_by_address(lower_bound_unix_time, &address)
+            .await;
         res.map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()))
-            .map(|deposits| {
-                deposits
-                    .into_iter()
-                    .filter(|d| d.payload.is_some())
-                    .collect()
-            })
+            .map(|deposits| deposits.into_iter().collect())
     }
 }
 
