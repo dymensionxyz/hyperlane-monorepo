@@ -24,6 +24,7 @@ pub struct ConnectionConf {
     // see https://github.com/dymensionxyz/hyperlane-monorepo/blob/c5d733804d3713e8566d6b23366f7eed4917ee2a/rust/main/chains/hyperlane-cosmos-native/src/providers/grpc.rs#L77
     pub hub_grpc_urls: Vec<Url>,
     pub start_relay_time: Option<i64>,
+    pub hub_mailbox_id: String, // TODO: populate it
 }
 
 impl ConnectionConf {
@@ -41,7 +42,8 @@ impl ConnectionConf {
         multisig_threshold_kaspa_schnorr: usize,
         hub_grpc_urls: Vec<Url>,
         start_relay_time: Option<i64>,
-    ) -> Self {
+        hub_mailbox_id: String,
+        ) -> Self {
         Self {
             wallet_secret,
             kaspa_rpc_url,
@@ -54,6 +56,7 @@ impl ConnectionConf {
             multisig_threshold_kaspa: multisig_threshold_kaspa_schnorr,
             hub_grpc_urls,
             start_relay_time,
+            hub_mailbox_id,
         }
     }
 }
