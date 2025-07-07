@@ -7,7 +7,6 @@ use kaspa_consensus_core::tx::TransactionOutpoint;
 
 use kaspa_wallet_core::error::Error;
 
-use tracing::info;
 use api_rs::apis::{
     configuration::Configuration,
     kaspa_transactions_api::{
