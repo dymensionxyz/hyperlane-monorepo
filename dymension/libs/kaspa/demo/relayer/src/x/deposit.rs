@@ -102,12 +102,11 @@ impl Default for DemoArgs {
 }
 
 pub async fn get_deposits(start_time: i64,client: &KaspaHttpClient, address: &str) -> ChainResult<Vec<Deposit>> {
-    let res = client.client.get_deposits(start_time,address).await;
+    let res = client.client.get_deposits_by_address(start_time,address).await;
     res.map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()))
         .map(|deposits| {
             deposits
                 .into_iter()
-                //.filter(|d| d.payload.is_some())
                 .collect()
         })
 }

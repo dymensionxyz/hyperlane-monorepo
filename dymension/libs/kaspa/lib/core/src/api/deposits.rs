@@ -16,7 +16,7 @@ use api_rs::apis::kaspa_addresses_api::{
     get_full_transactions_for_address_page_addresses_kaspa_address_full_transactions_page_get as transactions_page,
     GetFullTransactionsForAddressPageAddressesKaspaAddressFullTransactionsPageGetParams as args,
 };
-use api_rs::models::{TxModel, TxOutput};
+use api_rs::models::{AcceptanceMode, TxModel, TxOutput};
 
 use super::client::{get_client, get_config};
 
@@ -82,36 +82,40 @@ impl HttpClient {
         Self { url, client: c }
     }
 
-    pub async fn get_deposits(&self,start_time: i64,address: &str) -> Result<Vec<Deposit>> {
-        let limit = 20;
-        let lower_bound = Some(0i64);
-        let upper_bound = Some(start_time);
-        let field = None;
-        let resolve_previous_outpoints = None;
-        let acceptance = None;
+    pub async fn get_deposits_by_address(&self,start_time: i64,address: &str) -> Result<Vec<Deposit>> {
+        let limit: i64 = 100;
+        let upper_bound = Some(0i64);
+        let lower_bound = Some(start_time);
 
         let c = self.get_config();
         info!("Dymension query kaspa deposits, url: {:?}", c.base_path);
 
-        let res = transactions_page(
-            &c,
-            args {
-                kaspa_address: address.to_string(),
-                limit: Some(limit),
-                before: lower_bound,
-                after: upper_bound,
-                fields: field,
-                resolve_previous_outpoints: resolve_previous_outpoints,
-                acceptance: acceptance,
-            },
-        )
-        .await?;
+        let mut txs: Vec<TxModel> = Vec::new();
 
-        Ok(res
+        loop {
+            let mut res = transactions_page(
+                &c,
+                args {
+                    kaspa_address: address.to_string(),
+                    limit: Some(limit),
+                    before: upper_bound,
+                    after: lower_bound,
+                    fields: None,
+                    resolve_previous_outpoints: None,
+                    acceptance: Some(AcceptanceMode::Accepted),
+                },
+            )
+            .await?;
+            txs.append(&mut res);
+            if res.len() < limit as usize {
+                break;
+            }
+        }
+
+        Ok(txs
             .into_iter()
             .filter(|tx| {
-                tx.is_accepted.expect("accepted not found in tx")
-                && is_valid_escrow_transfer(tx, &address.to_string()).expect("unable to validate txs")
+                is_valid_escrow_transfer(tx, &address.to_string()).expect("unable to validate txs")
                 && tx.payload.is_some()
             })
             .map(Deposit::try_from)
