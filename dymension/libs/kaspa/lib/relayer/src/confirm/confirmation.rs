@@ -15,6 +15,8 @@ use api_rs::apis::{
     },
 };
 
+use corelib::api::client::HttpClient;
+
 use corelib::{confirmation::ConfirmationFXG, payload::MessageID};
 use hex;
 
@@ -43,7 +45,7 @@ use hex;
 /// # Returns
 /// * `Result<Vec<WithdrawalId>, Error>` - Vector of collected withdrawal IDs from the transactions
 pub async fn expensive_trace_transactions(
-    config: &Configuration,
+    client: &HttpClient,
     new_out: TransactionOutpoint,
     old_out: TransactionOutpoint,
 ) -> Result<ConfirmationFXG> {
@@ -68,20 +70,11 @@ pub async fn expensive_trace_transactions(
 
         info!("Processing step {}: UTXO {:?}", step, curr_out);
 
-        let transaction = get_transaction_transactions_transaction_id_get(
-            config,
-            GetTransactionTransactionsTransactionIdGetParams {
-                transaction_id: curr_out.transaction_id.to_string(),
-                block_hash: None,
-                inputs: Some(true),
-                outputs: Some(true),
-                resolve_previous_outpoints: Some("light".to_string()),
-            },
-        )
+        let transaction = client.get_tx_by_id(&curr_out.transaction_id.to_string())
         .await
         .map_err(|e| {
             eyre::eyre!(
-                "Failed to get transaction {}: {}",
+                "Fail to query kaspa tx: {:?}",
                 curr_out.transaction_id,
                 e
             )

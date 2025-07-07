@@ -31,7 +31,7 @@ pub struct KaspaHttpClient {
 
 #[derive(Debug, Clone)]
 pub struct RestProvider {
-    client: KaspaHttpClient,
+    pub client: KaspaHttpClient,
     pub conf: ConnectionConf,
     signer: Option<Signer>,
 }

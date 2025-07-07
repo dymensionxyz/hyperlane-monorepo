@@ -1,5 +1,5 @@
 pub mod client;
-pub mod deposits;
+pub mod base;
 
 #[cfg(test)]
 mod test;
