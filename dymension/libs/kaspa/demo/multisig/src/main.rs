@@ -53,7 +53,6 @@ use secp256k1::{rand::thread_rng, Keypair};
 use corelib::payload::MessageIDs;
 use corelib::util::get_recipient_script_pubkey_address;
 use kaspa_rpc_core::api::rpc::RpcApi;
-use relayer::withdraw::messages::WithdrawalDetails;
 use workflow_core::abortable::Abortable;
 /*
 Demo:

@@ -42,7 +42,6 @@ use secp256k1::PublicKey;
 use std::io::Cursor;
 use std::sync::Arc;
 
-use super::messages::WithdrawalDetails;
 use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::WithdrawFXG;
 use eyre::eyre;

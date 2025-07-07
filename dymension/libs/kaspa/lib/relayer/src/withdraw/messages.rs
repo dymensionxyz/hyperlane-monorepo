@@ -93,14 +93,6 @@ pub async fn on_new_withdrawals(
     )))
 }
 
-/// Details of a withdrawal extracted from HyperlaneMessage
-#[derive(Debug, Clone)]
-pub struct WithdrawalDetails {
-    pub message_id: H256,
-    pub recipient: Address,
-    pub amount_sompi: u64,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
