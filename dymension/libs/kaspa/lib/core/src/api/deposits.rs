@@ -84,8 +84,8 @@ impl HttpClient {
 
     pub async fn get_deposits_by_address(&self,start_time: i64,address: &str) -> Result<Vec<Deposit>> {
         let limit: i64 = 100;
-        let upper_bound = Some(0i64);
-        let lower_bound = Some(start_time);
+        let mut upper_bound = 0i64;
+        let lower_bound = start_time;
 
         let c = self.get_config();
         info!("Dymension query kaspa deposits, url: {:?}", c.base_path);
@@ -98,8 +98,8 @@ impl HttpClient {
                 args {
                     kaspa_address: address.to_string(),
                     limit: Some(limit),
-                    before: upper_bound,
-                    after: lower_bound,
+                    before: Some(upper_bound),
+                    after: Some(lower_bound),
                     fields: None,
                     resolve_previous_outpoints: None,
                     acceptance: Some(AcceptanceMode::Accepted),
@@ -110,6 +110,13 @@ impl HttpClient {
             if res.len() < limit as usize {
                 break;
             }
+            // txs should be in descendent order, so we save last returned tx time and we continue from there
+            if let Some(last_val) = res.last() {
+                if let Some(block_time) = last_val.block_time {
+                    upper_bound = block_time + 1;
+                }
+            }
+
         }
 
         // return txs filtered by txs that include utxos with destination escrow address and including a payload
