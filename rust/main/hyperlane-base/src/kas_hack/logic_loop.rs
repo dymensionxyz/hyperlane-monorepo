@@ -30,7 +30,6 @@ pub struct Foo<C: MetadataConstructor> {
     hub_mailbox: Arc<CosmosNativeMailbox>,
     metadata_constructor: C,
     deposit_cache: DepositCache,
-    start_relay_time: i64,
 }
 
 impl<C: MetadataConstructor> Foo<C>
@@ -43,7 +42,6 @@ where
         provider: Box<KaspaProvider>,
         hub_mailbox: Arc<CosmosNativeMailbox>,
         metadata_constructor: C,
-        start_relay_time: i64,
     ) -> Self {
         Self {
             domain,
@@ -52,7 +50,6 @@ where
             hub_mailbox,
             metadata_constructor,
             deposit_cache: DepositCache::new(),
-            start_relay_time,
         }
     }
 
@@ -98,7 +95,7 @@ where
     async fn deposit_loop(&self) {
         info!("Dymension, starting deposit loop");
         loop {
-            let deposits_res = self.provider.rest().get_deposits(self.start_relay_time).await;
+            let deposits_res = self.provider.rest().get_deposits().await;
             let deposits = match deposits_res {
                 Ok(deposits) => deposits,
                 Err(e) => {

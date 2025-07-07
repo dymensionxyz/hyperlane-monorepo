@@ -1,6 +1,7 @@
 use std::future::Future;
 use std::time::Instant;
 
+use kaspa_core::time::unix_now;
 use tonic::async_trait;
 
 use hyperlane_core::{
@@ -136,8 +137,14 @@ impl RestProvider {
     }
 
     /// dococo
-    pub async fn get_deposits(&self, start_relay_time: i64) -> ChainResult<Vec<Deposit>> {
+    pub async fn get_deposits(&self) -> ChainResult<Vec<Deposit>> {
         let address = self.conf.kaspa_escrow_addr.clone();
+        let start_relay_time: i64;
+        if let Some(conf_start_relay_time) =  self.conf.start_relay_time {
+            start_relay_time = conf_start_relay_time;
+        } else {
+            start_relay_time = unix_now() as i64;
+        }
         let res = self.client.client.get_deposits_by_address(start_relay_time,&address).await;
         res.map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()))
             .map(|deposits| {
