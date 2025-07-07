@@ -295,16 +295,21 @@ where
             info!("Dymension is not synced, preparing progress indication and submitting to hub");
             // we need to iterate over the utxos and find the next utxo of the escrow address
             let conf = self.provider.rest().get_config();
-
+            
+            let good = false;
             for utxo in all_escrow_utxos {
                 let candidate_new_anchor = TransactionOutpoint::from(utxo.outpoint);
                 let fxg =
                     expensive_trace_transactions(&conf, candidate_new_anchor, old_anchor).await;
+                info!("Traced sequence of kaspa withdrawals for syncing");
                 if fxg.is_ok() {
-                    // TODO: better error handling?
                     self.confirm_withdrawal_on_hub(fxg.unwrap()).await?;
+                    good = true;
                     break;
                 }
+            }
+            if !good {
+                return Err(eyre::eyre!("Dymension, no good utxo found for syncing"));
             }
         }
         info!("Dymension hub is synced, proceeding with other tasks");
@@ -322,16 +327,20 @@ where
             .get_confirmation_sigs(&fxg)
             .await?;
 
+        info!("Dymension, got confirmation sigs: {:?}", sigs);
         let formatted_sigs = self.format_ad_hoc_signatures(
             &mut sigs,
             self.provider.validators().multisig_threshold_hub_ism() as usize,
         )?;
 
-        self.hub_mailbox
+        info!("Dymension, formatted confirmation sigs: {:?}", formatted_sigs);
+
+        let outcome = self.hub_mailbox
             .indicate_progress(&formatted_sigs, &fxg.progress_indication)
             .await
-            .map(|_| ())
             .map_err(|e| eyre::eyre!("Indicate progress failed: {}", e))?;
+
+        info!("Dymension, indicated progress on hub: {:?}, outcome: {:?}", fxg.progress_indication, outcome);
 
         Ok(())
     }
