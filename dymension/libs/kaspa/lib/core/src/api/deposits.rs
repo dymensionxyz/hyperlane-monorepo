@@ -102,7 +102,7 @@ impl HttpClient {
                     after: Some(lower_bound),
                     fields: None,
                     resolve_previous_outpoints: None,
-                    acceptance: Some(AcceptanceMode::Accepted),
+                    acceptance: None,
                 },
             )
             .await?;
