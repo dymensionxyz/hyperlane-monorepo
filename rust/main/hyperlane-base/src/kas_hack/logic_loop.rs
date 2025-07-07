@@ -301,14 +301,14 @@ where
                 let candidate_new_anchor = TransactionOutpoint::from(utxo.outpoint);
                 let fxg =
                     expensive_trace_transactions(&conf, candidate_new_anchor, old_anchor).await;
+                    if !fxg.is_ok() {
+                        error!(
+                            "Dymension, error tracing sequence of kaspa withdrawals for syncing: {:?}",
+                            fxg.err()
+                        );
+                        continue;
+                    }
                 info!("Traced sequence of kaspa withdrawals for syncing");
-                if !fxg.is_ok() {
-                    error!(
-                        "Dymension, error tracing sequence of kaspa withdrawals for syncing: {:?}",
-                        fxg.err()
-                    );
-                    continue;
-                }
                 self.confirm_withdrawal_on_hub(fxg.unwrap()).await?;
                 good = true;
                 break;
