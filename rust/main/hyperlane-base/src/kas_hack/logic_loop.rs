@@ -98,7 +98,6 @@ where
     async fn deposit_loop(&self) {
         info!("Dymension, starting deposit loop");
         loop {
-            time::sleep(Duration::from_secs(10)).await;
             let deposits_res = self.provider.rest().get_deposits(self.start_relay_time).await;
             let deposits = match deposits_res {
                 Ok(deposits) => deposits,
@@ -143,6 +142,7 @@ where
                     }
                 }
             }
+            time::sleep(Duration::from_secs(10)).await;
         }
     }
 

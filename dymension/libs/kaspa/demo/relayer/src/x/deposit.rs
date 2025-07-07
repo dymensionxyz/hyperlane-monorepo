@@ -175,16 +175,17 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
     let client: KaspaHttpClient = KaspaHttpClient::from_url(url.to_string(),metrics,metrics_config)?;
 
     let deposit_cache = DepositCache::new();
-    let value = escrow_address.clone();
-    let value2 = escrow_address.clone();
+    let address = escrow_address.clone();
+
     let handle: JoinHandle<Deposit> = tokio::spawn(async move{
-        return deposit_loop(now,&deposit_cache,&client,escrow_address.clone().address_to_string(),tx_id).await.expect("deposit loop");
+        return deposit_loop(now,&deposit_cache,&client,address.address_to_string(),tx_id).await.expect("deposit loop");
     });
     
     let result: Deposit = handle.await?;
 
+    let escrow = escrow_address.clone();
     // handle deposit (relayer operation)
-    let deposit_fxg = handle_new_deposit(&value.address_to_string(), &result).await?;
+    let deposit_fxg = handle_new_deposit(&escrow.address_to_string(), &result).await?;
 
     // deposit encode to bytes
     let deposit_bytes_recv: Bytes = (&deposit_fxg).into();
@@ -201,7 +202,7 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
     let validation_result = validate_deposit(
         &w.rpc_api(),
         &deposit_recv,
-        &value2.clone().to_string(),
+        &escrow_address.clone().to_string(),
         NetworkParams::from(w.network_id()?),
     )
     .await?;

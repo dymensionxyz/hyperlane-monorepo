@@ -112,6 +112,7 @@ impl HttpClient {
             }
         }
 
+        // return txs filtered by txs that include utxos with destination escrow address and including a payload
         Ok(txs
             .into_iter()
             .filter(|tx| {

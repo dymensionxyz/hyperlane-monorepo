@@ -137,7 +137,6 @@ impl RestProvider {
 
     /// dococo
     pub async fn get_deposits(&self, start_relay_time: i64) -> ChainResult<Vec<Deposit>> {
-        // TODO: need to do appropriate filtering down
         let address = self.conf.kaspa_escrow_addr.clone();
         let res = self.client.client.get_deposits_by_address(start_relay_time,&address).await;
         res.map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()))
