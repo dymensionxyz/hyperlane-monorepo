@@ -136,15 +136,14 @@ impl RestProvider {
     }
 
     /// dococo
-    pub async fn get_deposits(&self, start_time: i64) -> ChainResult<Vec<Deposit>> {
+    pub async fn get_deposits(&self, start_relay_time: i64) -> ChainResult<Vec<Deposit>> {
         // TODO: need to do appropriate filtering down
         let address = self.conf.kaspa_escrow_addr.clone();
-        let res = self.client.client.get_deposits(start_time,&address).await;
+        let res = self.client.client.get_deposits(start_relay_time,&address).await;
         res.map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()))
             .map(|deposits| {
                 deposits
                     .into_iter()
-                    .filter(|d: &Deposit| d.payload.is_some())
                     .collect()
             })
     }

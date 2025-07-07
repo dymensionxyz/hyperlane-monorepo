@@ -3,7 +3,7 @@ use std::{
     fmt::{Debug, Formatter},
     hash::Hash,
     sync::Arc,
-    time::Instant,
+    time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
 use eyre::eyre;
@@ -1454,12 +1454,14 @@ impl Relayer {
 
         let metadata_getter = PendingMessageMetadataGetter::new();
 
+        let start_relay_time =   SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as i64; //TODO: Add start time as configurable parameter
         let b = KaspaBridgeFoo::new(
             origin.clone(),
             kas_db.clone().to_owned(),
             kas_provider.clone(),
             hub_mailbox.clone(),
             metadata_getter,
+            start_relay_time,
         );
 
         // sync relayer before starting other tasks

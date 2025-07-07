@@ -101,8 +101,8 @@ impl Default for DemoArgs {
     }
 }
 
-pub async fn get_deposits(start_time: i64,client: &KaspaHttpClient, address: String) -> ChainResult<Vec<Deposit>> {
-    let res = client.client.get_deposits(start_time,&address).await;
+pub async fn get_deposits(start_time: i64,client: &KaspaHttpClient, address: &str) -> ChainResult<Vec<Deposit>> {
+    let res = client.client.get_deposits(start_time,address).await;
     res.map_err(|e| ChainCommunicationError::from_other_str(&e.to_string()))
         .map(|deposits| {
             deposits
@@ -115,7 +115,7 @@ pub async fn get_deposits(start_time: i64,client: &KaspaHttpClient, address: Str
 async fn deposit_loop(start_time: i64,cache: &DepositCache,client: &KaspaHttpClient, address: String, tx: TransactionId) -> ChainResult<Deposit> {
     info!("Dymension, starting deposit detection loop");
     loop {
-        let deposits_res: std::result::Result<Vec<Deposit>, ChainCommunicationError> = get_deposits(start_time,client,address.clone()).await;
+        let deposits_res: std::result::Result<Vec<Deposit>, ChainCommunicationError> = get_deposits(start_time,client,&address).await;
         let deposits = match deposits_res {
             Ok(deposits) => deposits,
             Err(e) => {
@@ -133,9 +133,6 @@ async fn deposit_loop(start_time: i64,cache: &DepositCache,client: &KaspaHttpCli
                 deposits_new.push(d);
 
             }
-        }
-        for d in &deposits_new {
-            info!("Dymension, got new deposit FXG: {:?}", d.id);
         }
 
         time::sleep(Duration::from_secs(10)).await;
@@ -179,14 +176,16 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
     let client: KaspaHttpClient = KaspaHttpClient::from_url(url.to_string(),metrics,metrics_config)?;
 
     let deposit_cache = DepositCache::new();
-    let handle: JoinHandle<Deposit> = tokio::spawn(async move {
-                deposit_loop(now,&deposit_cache,&client,escrow_address.address_to_string(),tx_id).await.expect("deposit_loop failed");
+    let value = escrow_address.clone();
+    let value2 = escrow_address.clone();
+    let handle: JoinHandle<Deposit> = tokio::spawn(async move{
+        return deposit_loop(now,&deposit_cache,&client,escrow_address.clone().address_to_string(),tx_id).await.expect("deposit loop");
     });
     
-    let result = handle.await?;
+    let result: Deposit = handle.await?;
 
     // handle deposit (relayer operation)
-    let deposit_fxg = handle_new_deposit(&escrow_address.to_string(), &result).await?;
+    let deposit_fxg = handle_new_deposit(&value.address_to_string(), &result).await?;
 
     // deposit encode to bytes
     let deposit_bytes_recv: Bytes = (&deposit_fxg).into();
@@ -203,7 +202,7 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
     let validation_result = validate_deposit(
         &w.rpc_api(),
         &deposit_recv,
-        &escrow_address.to_string(),
+        &value2.clone().to_string(),
         NetworkParams::from(w.network_id()?),
     )
     .await?;
