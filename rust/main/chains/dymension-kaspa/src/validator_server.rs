@@ -59,12 +59,14 @@ async fn respond_kaspa_ping<S: HyperlaneSignerExt + Send + Sync + 'static>(
     Ok(Json("pong".to_string()))
 }
 
+/// dococo
 #[derive(Clone)]
 pub struct ValidatorServerResources<S: HyperlaneSignerExt + Send + Sync + 'static> {
     ism_signer: Option<Arc<S>>,
     kas_provider: Option<Box<KaspaProvider>>, // TODO: box, need multithread object? need to lock when signing?
 }
 impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> {
+    /// dococo
     pub fn new(signer: Arc<S>, kas_provider: Box<KaspaProvider>) -> Self {
         Self {
             ism_signer: Some(signer),
@@ -105,10 +107,12 @@ impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> 
         self.kas_provider.as_ref().unwrap().hub_rpc()
     }
 
+    /// dococo
     pub fn must_hub_mailbox_id(&self) -> String {
         self.kas_provider.as_ref().unwrap().hub_mailbox_id()
     }
 
+    /// dococo
     pub fn default() -> Self {
         Self {
             ism_signer: None,

@@ -55,10 +55,9 @@ impl ValidatorsClient {
         );
 
         let futures = self.conf.validator_hosts.clone().into_iter().map(|host| {
-            let fxg_clone = fxg.clone();
             async move {
                 let h = host.to_string();
-                match request_validate_new_deposits(host, &fxg_clone).await {
+                match request_validate_new_deposits(host, fxg).await {
                     Ok(Some(sig)) => {
                         info!("Dymension, got deposit sig response ok, validator: {:?}", h);
                         Ok(sig)
@@ -98,10 +97,9 @@ impl ValidatorsClient {
         .clone()
         .into_iter()
         .map(|host| {
-            let fxg_clone = fxg.clone();
             async move {
                 let h = host.to_string();
-                match request_validate_new_confirmation(host, &fxg_clone).await {
+                match request_validate_new_confirmation(host, fxg).await {
                     Ok(Some(sig)) => {
                         info!("Dymension, got confirmation sig response ok, validator: {:?}", h);
                         Ok(sig)
@@ -136,10 +134,9 @@ impl ValidatorsClient {
         .clone()
         .into_iter()
         .map(|host| {
-            let fxg_clone = fxg.clone();
             async move {
                 let h = host.to_string();
-                match request_sign_withdrawal_bundle(host, &fxg_clone).await {
+                match request_sign_withdrawal_bundle(host, fxg).await {
                     Ok(Some(bundle)) => {
                         info!("Dymension, got withdrawal sig response ok, validator: {:?}", h);
                         Ok(bundle)
@@ -161,13 +158,14 @@ impl ValidatorsClient {
         Ok(successful_bundles)
     }
 
+    /// multisig threshold required
     pub fn multisig_threshold_hub_ism(&self) -> usize {
         // TODO: clearly distinguish with kaspa multisig
         self.conf.multisig_threshold_hub_ism
     }
 }
 
-// see https://github.com/dymensionxyz/hyperlane-monorepo/blob/fe1c79156f5ef6ead5bc60f26a373d0867848532/rust/main/hyperlane-base/src/types/local_storage.rs#L80
+/// see https://github.com/dymensionxyz/hyperlane-monorepo/blob/fe1c79156f5ef6ead5bc60f26a373d0867848532/rust/main/hyperlane-base/src/types/local_storage.rs#L80
 pub async fn request_validate_new_deposits(
     host: String,
     deposits: &DepositFXG,
@@ -216,6 +214,7 @@ pub async fn request_validate_new_confirmation(
     }
 }
 
+/// request_sign_withdrawal_bundle
 pub async fn request_sign_withdrawal_bundle(
     host: String,
     bundle: &WithdrawFXG,

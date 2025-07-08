@@ -1,15 +1,8 @@
 use eyre::Result;
-use hex::ToHex;
-use hyperlane_core::{HyperlaneMessage, H256};
-use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
-use kaspa_addresses::{Address, Prefix, Version};
-use kaspa_consensus_core::tx::TransactionOutpoint;
+use kaspa_addresses::Address;
 use kaspa_core::info;
 use kaspa_rpc_core::api::rpc::RpcApi;
 use kaspa_wallet_core::error::Error;
-use kaspa_wallet_core::prelude::*;
-use std::sync::Arc;
 
 pub async fn check_balance<T: RpcApi + ?Sized>(
     source: &str,
@@ -23,26 +16,4 @@ pub async fn check_balance<T: RpcApi + ?Sized>(
 
     info!("{} balance: {}", source, balance);
     Ok(balance)
-}
-
-// TODO: needed?
-pub async fn check_balance_wallet(w: Arc<Wallet>) -> Result<(), Error> {
-    let a = w.account()?;
-    for _ in 0..10 {
-        if a.balance().is_some() {
-            break;
-        }
-        workflow_core::task::sleep(std::time::Duration::from_millis(200)).await;
-    }
-
-    if let Some(b) = a.balance() {
-        info!("Wallet account balance:");
-        info!("  Mature:   {} KAS", sompi_to_kaspa_string(b.mature));
-        info!("  Pending:  {} KAS", sompi_to_kaspa_string(b.pending));
-        info!("  Outgoing: {} KAS", sompi_to_kaspa_string(b.outgoing));
-    } else {
-        info!("Wallet account has no balance or is still syncing.");
-    }
-
-    Ok(())
 }

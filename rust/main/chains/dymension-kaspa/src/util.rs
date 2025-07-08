@@ -1,5 +1,6 @@
 use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain};
 
+/// existing Kaspa network domains
 pub fn kas_domains() -> Vec<HyperlaneDomain> {
     vec![
         HyperlaneDomain::Known(KnownHyperlaneDomain::Kaspa),
