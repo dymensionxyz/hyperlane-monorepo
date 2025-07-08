@@ -124,9 +124,12 @@ dymd tx gov submit-proposal $MONODIR/dymension/tests/kaspa_hub_test/bootstrap.js
 
 dymd tx gov vote 1 yes "${HUB_FLAGS[@]}" 
 
-#### Step 5. SETUP RELAYER 
 
-# TODO: cleanups, kaspatest10.signer not actually used
+###################################
+#### Step 5. SETUP RELAYER 
+#### It will monitor kaspa and hub for deposits and withdrawals and make http calls direct to the validator
+
+# TODO: remove unused/unnecessary things (i.e. I think kaspatest10.signer not actually used)
 
 ./target/release/relayer \
     --db $DB_RELAYER \
@@ -142,7 +145,9 @@ dymd tx gov vote 1 yes "${HUB_FLAGS[@]}"
     --metrics-port 9091 \
     --log.level debug 
 
-#### Step 6. SUBMIT DEPOSITS/WITHDRAWALS
+###################################
+#### Step 6. TEST DEPOSITS/WITHDRAWALS
+#### Phase 1, deposit: generate a HL message using Hub CLI tool and pass this in kaspa deposit tool
 
 # *DEPOSITS*
 
@@ -151,32 +156,33 @@ HUB_USER_ADDR=$(dymd keys show -a hub-user) #dym139mq752delxv78jvtmwxhasyrycufsv
 
 DEPOSIT_AMT=100000000 # 100 million sompi = 1 TKAS
 
+# get the HL message
 # <token id> <recipient> <amt>
 dymd q forward hl-message-kaspa $TOKEN_ID $HUB_USER_ADDR $DEPOSIT_AMT 
 
 # in hyperlane-monorepo/dymension/libs/kaspa/demo/relayer
-# (100 million sompi = 1 TKAS)
-# TODO: add 0x prefix to hex string, requires a change on parser
+# NOTE: payload should not have 0x prefix
+# manual put payload here (TODO: use env var)
 cargo run -- deposit \
-  --escrow-address kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr \
+  --escrow-address $ESCROW_ADDR \
   --amount $DEPOSIT_AMT \
   --payload 030000000004d10892ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff804b267ca0726f757465725f6170700000000000000000000000000002000000000000000000000000000000000000000089760f514dcfcccf1e4c5edc6bf6041931c4c1830000000000000000000000000000000000000000000000000000000005f5e100 \
   --wrpc-url localhost:17210 \
   --network-id testnet-10 \
   --wallet-secret lkjsdf
 
-cargo run 
-
 # *WITHDRAWALS*
 
 # convert your kaspa address to something that can be interpreted by Hub CLI
 # in demos/user
-cargo run recipient kaspatest:qr0jmjgh2sx88q9gdegl449cuygp5rh6yarn5h9fh97whprvcsp2ksjkx456f # (dan tn10 address)
+KASPA_RECIPIENT=$(cargo run recipient kaspatest:qr0jmjgh2sx88q9gdegl449cuygp5rh6yarn5h9fh97whprvcsp2ksjkx456f) # (Dan's tn10 address, put your own address here)
 # output like 0xdf2dc917540c7380a86e51fad4b8e1101a0efa27473a5ca9b97ceb846cc402ab
 
+# initiate the transfer
 # dymd tx warp transfer [token-id] [destination-domain] [recipient] [amount] [flags]
 # kastest10 domain is 80808082
-dymd tx warp transfer 0x726f757465725f61707000000000000000000000000000020000000000000000 80808082 0xdf2dc917540c7380a86e51fad4b8e1101a0efa27473a5ca9b97ceb846cc402ab 20000002 --max-hyperlane-fee 1000adym  "${HUB_FLAGS[@]}"
+WITHDRAW_AMT=20000002 # just enough to not be dust
+dymd tx warp transfer $TOKEN_ID $KASTEST_DOMAIN $KASPA_RECIPIENT $WITHDRAW_AMT --max-hyperlane-fee 1000adym  "${HUB_FLAGS[@]}"
 
 ###############################################################
 ###############################################################
