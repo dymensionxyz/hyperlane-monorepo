@@ -1,29 +1,27 @@
 // see terminal output
 // cargo test -- --nocapture
 
-use super::base::get_config;
-
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::api::client::HttpClient;
+
     use api_rs::apis::configuration;
     use api_rs::apis::kaspa_addresses_api::*;
     use api_rs::apis::kaspa_transactions_api::*;
     use url::Url;
 
-    fn t_config() -> configuration::Configuration {
-        let url = "https://api-tn10.kaspa.org";
-        let c = reqwest_middleware::ClientBuilder::new(reqwest::Client::new()).build();
-        get_config(&url, c)
-    }
-
     const DAN_TESTNET_ADDR: &str =
         "kaspatest:qq3r5cj2r3a7kfne7wwwcf0n8kc8e5y3cy2xgm2tcuqygs4lrktswcc3d9l3p";
+
+    fn t_client() -> HttpClient {
+        HttpClient::new("https://api-tn10.kaspa.org/".to_string())
+    }
 
     #[tokio::test]
     #[ignore]
     async fn test_balance() {
-        let config = t_config();
+        let client = t_client();
+        let config = client.get_config();
         let addr = DAN_TESTNET_ADDR;
         let res = get_balance_from_kaspa_address_addresses_kaspa_address_balance_get(
             &config,
@@ -39,7 +37,8 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn test_txs() {
-        let config = t_config();
+        let client = t_client();
+        let config = client.get_config();
         let addr = DAN_TESTNET_ADDR;
         let limit = Some(10);
         let field = None;
@@ -103,9 +102,10 @@ mod tests {
     }
 
     #[tokio::test]
-    // #[ignore]
+    #[ignore]
     async fn test_tx_by_id() {
-        let config = t_config();
+        let client = t_client();
+        let config = client.get_config();
         let tx_id = "1ffa672605af17906d99ba9506dd49406a2e8a3faa2969ab0c8929373aca51d1";
         let tx = get_transaction_transactions_transaction_id_get(
             &config,

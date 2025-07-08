@@ -26,12 +26,12 @@ impl reqwest_ratelimit::RateLimiter for FooRateLimiter {
 pub fn get_client() -> ClientWithMiddleware {
     let base = reqwest::Client::new();
     // 1 req per sec
-    // let governor_limiter = RateLimiter::direct(Quota::per_second(NonZeroU32::new(1).unwrap()));
-    // let rl = FooRateLimiter {
-    //     limiter: Arc::new(governor_limiter),
-    // };
+    let governor_limiter = RateLimiter::direct(Quota::per_second(NonZeroU32::new(1).unwrap()));
+    let rl = FooRateLimiter {
+        limiter: Arc::new(governor_limiter),
+    };
     let client = ClientBuilder::new(base)
-        // .with(reqwest_ratelimit::all(rl))
+        .with(reqwest_ratelimit::all(rl))
         .build();
     client
 }
