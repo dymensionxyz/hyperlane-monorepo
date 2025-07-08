@@ -6,7 +6,7 @@ use corelib::api::client::Deposit;
 use corelib::balance::*;
 use corelib::deposit::*;
 use corelib::escrow::*;
-use corelib::user::deposit::{deposit_with_default_hl_Message as do_deposit, deposit_with_payload};
+use corelib::user::deposit::deposit_with_payload;
 use corelib::wallet::*;
 use dymension_kaspa::KaspaHttpClient;
 use hardcode::e2e::*;
@@ -101,6 +101,26 @@ impl Default for DemoArgs {
     }
 }
 
+
+async fn deposit_with_default_hl_message(
+    w: &Arc<Wallet>,
+    secret: &Secret,
+    address: Address,
+    amt: u64,
+) -> Result<TransactionId, KaspaError> {
+    let mut hl_message = HyperlaneMessage::default();
+    let token_message = TokenMessage::new(H256::random(), U256::from(amt), vec![]);
+
+    let encoded_bytes = token_message.to_vec();
+
+    hl_message.body = encoded_bytes;
+
+    let payload = hl_message.to_vec();
+
+    deposit_with_payload(w, secret, address.clone(), amt, payload.clone()).await
+}
+
+
 pub async fn get_deposits(
     lower_bound_unix_time: i64,
     client: &KaspaHttpClient,
@@ -172,7 +192,7 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
         let bz = hex::decode(payload).unwrap();
         deposit_with_payload(&w, &s, escrow_address.clone(), amt, bz).await?
     } else {
-        do_deposit(&w, &s, escrow_address.clone(), amt).await?
+        deposit_with_default_hl_message(&w, &s, escrow_address.clone(), amt).await?
     };
 
     info!("Sent deposit transaction: {}", tx_id);
