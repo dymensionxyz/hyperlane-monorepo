@@ -25,7 +25,7 @@ pub struct ConnectionConf {
     pub hub_grpc_urls: Vec<Url>,
     pub deposit_look_back_mins: Option<u64>,
     pub hub_mailbox_id: String, // TODO: populate it
-    pub op_submission_config: OpSubmissionConfig, 
+    pub op_submission_config: OpSubmissionConfig,
 }
 
 impl ConnectionConf {
