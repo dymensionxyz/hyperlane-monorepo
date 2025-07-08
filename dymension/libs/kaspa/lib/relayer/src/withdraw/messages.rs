@@ -1,6 +1,6 @@
 use eyre::Result;
 
-use super::hub_to_kaspa::build_withdrawal_pskt;
+use super::hub_to_kaspa::{build_withdrawal_pskt, fetch_input_utxos, filter_outputs_from_msgs};
 use base64;
 use corelib::escrow::EscrowPublic;
 use corelib::payload::{MessageID, MessageIDs};
@@ -9,7 +9,7 @@ use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use hardcode::tx::DUST_AMOUNT;
 use hex::ToHex;
-use hyperlane_core::{Decode, HyperlaneMessage, H256};
+use hyperlane_core::{Decode, HyperlaneContract, HyperlaneMessage, H256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use hyperlane_warp_route::TokenMessage;
@@ -39,23 +39,7 @@ pub async fn on_new_withdrawals(
         .map_err(|e| eyre::eyre!("Get pending withdrawals: {}", e))?;
     info!("Kaspa relayer, got pending withdrawals");
 
-    let mut outputs: Vec<TransactionOutput> = Vec::new();
-    for m in &pending_msgs {
-        let tm = TokenMessage::read_from(&mut Cursor::new(&m.body))
-            .map_err(|e| eyre::eyre!("Failed to parse TokenMessage from message body: {}", e))?;
-
-        let recipient =
-            get_recipient_script_pubkey(m.recipient, relayer.network_info.address_prefix);
-
-        let o = TransactionOutput::new(tm.amount().as_u64(), recipient);
-
-        if is_transaction_output_dust(&o) {
-            info!("Kaspa relayer, withdrawal amount is less than dust amount, skipping");
-            continue;
-        }
-
-        outputs.push(o);
-    }
+    let (valid_msgs, outputs) = filter_outputs_from_msgs(pending_msgs, relayer.address_prefix());
 
     if outputs.is_empty() {
         info!("Kaspa relayer, no pending withdrawals, all in batch are already processed and confirmed on hub");
@@ -66,21 +50,30 @@ pub async fn on_new_withdrawals(
         outputs.len()
     );
 
-    let msg_ids: Vec<H256> = pending_msgs.iter().map(|m| m.id()).collect();
-    let payload = MessageIDs::from(msg_ids)
+    let relayer_address = relayer.account().change_address()?;
+
+    let inputs = fetch_input_utxos(
+        &relayer.api(),
+        &escrow_public,
+        &relayer_address,
+        &current_anchor,
+        relayer.network_id(),
+    )
+    .await
+    .map_err(|e| eyre::eyre!("Fetch input UTXOs: {}", e))?;
+
+    let payload = MessageIDs(valid_msgs.iter().map(|m| MessageID(m.id())).collect())
         .to_bytes()
         .map_err(|e| eyre::eyre!("Failed to serialize MessageIDs: {}", e))?;
 
     let pskt = build_withdrawal_pskt(
+        inputs,
         outputs,
         payload,
-        &relayer.api(),
         &escrow_public,
-        &relayer.account(),
-        &current_anchor,
-        relayer.network_info.network_id,
+        &relayer_address,
+        relayer.network_id(),
     )
-    .await
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
 
     let new_anchor = TransactionOutpoint::new(pskt.calculate_id(), (pskt.outputs.len() - 1) as u32);
@@ -88,7 +81,7 @@ pub async fn on_new_withdrawals(
     // We have a bundle with one PSKT which covers all the HL messages.
     Ok(Some(WithdrawFXG::new(
         Bundle::from(pskt),
-        vec![pending_msgs],
+        vec![valid_msgs],
         vec![current_anchor, new_anchor],
     )))
 }

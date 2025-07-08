@@ -11,6 +11,9 @@ pub enum ValidationError {
     #[error("Hub outpoint {o:?} not found in PSKT inputs")]
     HubOutpointNotFound { o: TransactionOutpoint },
 
+    #[error("PSKT payload doesn't match inteded HL messages")]
+    PayloadMismatch,
+
     #[error("Outpoint {o:?} not found in PSKT chain")]
     AnchorMismatch { o: TransactionOutpoint },
 

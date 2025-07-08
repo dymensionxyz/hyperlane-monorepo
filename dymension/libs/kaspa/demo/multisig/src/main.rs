@@ -16,6 +16,7 @@ use hardcode::e2e::{
 use relayer::withdraw::demo::*;
 use relayer::withdraw::hub_to_kaspa::{
     build_withdrawal_pskt, combine_bundles_with_fee as relayer_combine_bundles_and_pay_fee,
+    fetch_input_utxos,
 };
 use validator::withdraw::sign_withdrawal_fxg as validator_sign_withdrawal_fxg;
 use x::args::Args;
@@ -115,12 +116,7 @@ async fn demo() -> Result<()> {
 
     let payload = MessageIDs::from(vec![hl_msg.id()]).to_bytes()?;
 
-    let pskt = build_withdrawal_pskt(
-        vec![TransactionOutput::new(
-            amt,
-            get_recipient_script_pubkey_address(user_addr),
-        )],
-        payload,
+    let inputs = fetch_input_utxos(
         &rpc,
         &e.public(e2e_address_prefix),
         &w.account(),
@@ -128,6 +124,19 @@ async fn demo() -> Result<()> {
         e2e_network_id,
     )
     .await
+    .map_err(|e| eyre::eyre!("Fetch input utxos: {}", e))?;
+
+    let pskt = build_withdrawal_pskt(
+        inputs,
+        vec![TransactionOutput::new(
+            amt,
+            get_recipient_script_pubkey_address(&user_addr),
+        )],
+        payload,
+        &e.public(e2e_address_prefix),
+        &w.account().change_address().unwrap(),
+        e2e_network_id,
+    )
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
 
     info!("Constructed withdrawal PSKT");

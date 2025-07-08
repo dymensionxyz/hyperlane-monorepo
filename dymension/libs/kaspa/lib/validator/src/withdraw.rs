@@ -10,7 +10,7 @@ use kaspa_wallet_pskt::prelude::*;
 use secp256k1::Keypair as SecpKeypair;
 
 use crate::error::ValidationError;
-use corelib::payload::MessageIDs;
+use corelib::payload::{MessageID, MessageIDs};
 use corelib::util::{get_recipient_address, get_recipient_script_pubkey};
 use corelib::wallet::{EasyKaspaWallet, NetworkInfo};
 use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
@@ -20,7 +20,7 @@ use hyperlane_core::{Decode, HyperlaneMessage, H256, U256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use hyperlane_warp_route::TokenMessage;
-use kaspa_addresses::Address as KaspaAddress;
+use kaspa_addresses::{Address as KaspaAddress, Prefix};
 use kaspa_addresses::Prefix::Testnet;
 use kaspa_consensus_core::hashing::sighash::{
     calc_schnorr_signature_hash, SigHashReusedValuesUnsync,
@@ -38,7 +38,7 @@ pub async fn validate_withdrawal_batch(
     fxg: &WithdrawFXG,
     cosmos_client: &CosmosGrpcClient,
     mailbox_id: String,
-    network: &NetworkInfo,
+    address_prefix: Prefix,
     escrow_public: EscrowPublic,
 ) -> Result<(), ValidationError> {
     let messages: Vec<HyperlaneMessage> = fxg.messages.clone().into_iter().flatten().collect();
@@ -76,7 +76,7 @@ pub async fn validate_withdrawal_batch(
         return Err(ValidationError::MessagesNotUnprocessed);
     }
 
-    validate_pskts(fxg, hub_outpoint, network, escrow_public)
+    validate_pskts(fxg, hub_outpoint, address_prefix, escrow_public)
         .map_err(|e| eyre::eyre!("PSKT validation failed: {}", e))?;
 
     info!(
@@ -90,7 +90,7 @@ pub async fn validate_withdrawal_batch(
 pub fn validate_pskts(
     fxg: &WithdrawFXG,
     hub_outpoint: TransactionOutpoint,
-    network: &NetworkInfo,
+    address_prefix: Prefix,
     escrow_public: EscrowPublic,
 ) -> Result<(), ValidationError> {
     let relayer_hub_outpoint = fxg.anchors.first().unwrap();
@@ -111,7 +111,7 @@ pub fn validate_pskts(
             PSKT::<Signer>::from(pskt.clone()),
             prev_outpoint,
             messages,
-            network,
+            address_prefix,
             escrow_public.clone(),
         )?;
 
@@ -133,10 +133,23 @@ pub fn validate_pskt(
     pskt: PSKT<Signer>,
     hub_outpoint: TransactionOutpoint,
     pending_messages: &Vec<HyperlaneMessage>,
-    network: &NetworkInfo,
+    address_prefix: Prefix,
     escrow_public: EscrowPublic,
 ) -> Result<TransactionOutpoint, ValidationError> {
-    // Step 3: Check that PSKT contains the Hub outpoint as input
+    // Step 3: Check PSKT payload
+    let payload = MessageIDs(pending_messages.iter().map(|m| MessageID(m.id())).collect())
+        .to_bytes()
+        .map_err(|e| {
+            ValidationError::SystemError(eyre::eyre!("Failed to serialize MessageIDs: {}", e))
+        })?;
+
+    let pskt_payload = pskt.global.payload.clone().unwrap_or(vec![]);
+
+    if pskt_payload != payload {
+        return Err(ValidationError::PayloadMismatch);
+    }
+
+    // Step 4: Check that PSKT contains the Hub outpoint as input
     let hub_outpoint_found = pskt.inputs.iter().any(|input| {
         input.previous_outpoint.transaction_id == hub_outpoint.transaction_id
             && input.previous_outpoint.index == hub_outpoint.index
@@ -146,7 +159,7 @@ pub fn validate_pskt(
         return Err(ValidationError::HubOutpointNotFound { o: hub_outpoint });
     }
 
-    // Step 4: Check that UTXO outputs align with withdrawals
+    // Step 5: Check that UTXO outputs align with withdrawals
     // Find escrow input amount
     let escrow_input_amount = pskt.inputs.iter().fold(0, |acc, i| {
         // redeem_script is None for relayer input
@@ -164,15 +177,15 @@ pub fn validate_pskt(
     //
     // Such structure accounts for cases where one address might send several transfers
     // with the same amount.
-    let mut expected_outputs: HashMap<(ScriptPublicKey, U256), i32> = HashMap::new();
+    let mut expected_outputs: HashMap<(u64, ScriptPublicKey), i32> = HashMap::new();
 
     for m in pending_messages {
         let tm = TokenMessage::read_from(&mut Cursor::new(&m.body))
             .map_err(|e| eyre::eyre!("Failed to parse TokenMessage from message body: {}", e))?;
 
-        let recipient = get_recipient_script_pubkey(tm.recipient(), network.address_prefix);
+        let recipient = get_recipient_script_pubkey(tm.recipient(), address_prefix);
 
-        let key = (recipient, tm.amount());
+        let key = (tm.amount().as_u64(), recipient);
         *expected_outputs.entry(key).or_default() += 1;
     }
 
@@ -182,7 +195,7 @@ pub fn validate_pskt(
     let mut escrow_output_amount = 0;
     let mut next_outpoint_idx: u32 = 0;
     for (idx, output) in pskt.outputs.iter().enumerate() {
-        let key = (output.script_public_key.clone(), U256::from(output.amount));
+        let key = (output.amount, output.script_public_key.clone());
 
         let e = expected_outputs.entry(key).and_modify(|v| *v -= 1);
         if let Entry::Occupied(e) = e {
