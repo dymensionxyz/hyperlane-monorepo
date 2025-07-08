@@ -31,12 +31,15 @@ VALIDATOR_ISM_ADDR="0xc09dddbd26fb6dcea996ba643e8c2685c03cad5a7"
 VALIDATOR_ISM_PRIV_KEY="c02e29cb65e55b3af3d8dee5d7a30504ed927436caf2e53e1e965cbd2639aced"
 VALIDATOR_ESCROW_SECRET="\"11013bc86d1cb199a2324130c808e90ad37d07ae8f490d063b2fb9d9aa2e898f\""
 VALIDATOR_ESCROW_PUB_KEY="02b1c7b586c8a0387a3c844f6a5471130bb7992346d3e906642cfd5dfce8a8129d"
-VALIDATOR_ESCROW_ADDR="kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr"
+ESCROW_ADDR="kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr"
 
 # in rusty-kaspa/wallet/native
 cargo run
-# TODO: finish native wallet cli instructions
-# seed escrow with a few kas
+open
+connect
+select
+send 1 $ESCROW_ADDR
+# seed escrow with a few kas 
 
 #### 1. Setup HUB
 
@@ -53,8 +56,7 @@ scripts/setup_local.sh
 dymd start --log_level=debug
 
 # setup bridge objects on hub
-
-REMOTE_ROUTER_ADDRESS="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" 
+REMOTE_ROUTER_ADDRESS="0x0000000000000000000000000000000000000000000000000000000000000000" # no smart contracts on kaspa 
 dymd q kas setup-bridge --validators "$VALIDATOR_ISM_ADDR" --threshold 1 --remote-router-address "$REMOTE_ROUTER_ADDRESS" "${HUB_FLAGS[@]}"
 
 #### 2. START KASPA RPC NODE
@@ -82,7 +84,7 @@ RUST_BACKTRACE=1 cargo run --release --bin validator -- \
   --reorgPeriod 1 \
   --checkpointSyncer.type localStorage \
   --checkpointSyncer.path $SIGS_VAL \
-  --validator.key 0xc02e29cb65e55b3af3d8dee5d7a30504ed927436caf2e53e1e965cbd2639aced \
+  --validator.key $VALIDATOR_ISM_PRIV_KEY \
   --metrics-port 9090 \
   --log.level info 
 
@@ -91,16 +93,14 @@ RUST_BACKTRACE=1 cargo run --release --bin validator -- \
 ISM=$(hub q hyperlane ism isms -o json | jq -r '.isms[0].id')
 MAILBOX=$(hub q hyperlane mailboxes -o json | jq -r '.mailboxes[0].id')
 TOKEN_ID=$(hub q warp tokens -o json | jq -r '.tokens[0].id')
-ESCROW_ADDR="kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr"
 HUB_USER_ADDR=$(dymd keys show -a hub-user) #dym139mq752delxv78jvtmwxhasyrycufsvrw4aka9
 
 dymd q auth module-account gov -o json | jq -r '.account.value.address' # dym10d07y265gmmuvt4z0w9aw880jnsr700jgllrna
 
 curl -X 'GET' 'https://api-tn10.kaspa.org/addresses/kaspatest%3Apzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr/utxos' -H 'accept: application/json' # TODO: query escrow address (fix url encoding)
-
 OUTPOINT="5e1cf6784e7af1808674a252eb417d8fa003135190dd4147caf98d8463a7e73a"
-# need to convert outpoint to base64 when passing to hub
-echo "5e1cf6784e7af1808674a252eb417d8fa003135190dd4147caf98d8463a7e73a" | xxd -r -p | base64 # Xhz2eE568YCGdKJS60F9j6ADE1GQ3UFHyvmNhGOn5zo=
+# need to convert outpoint to base64 when passing to hub (note, zero index does not render)
+echo $OUTPOINT | xxd -r -p | base64 # Xhz2eE568YCGdKJS60F9j6ADE1GQ3UFHyvmNhGOn5zo=
 # note, reverse id echo $base64 | base64 -D | xxd -p
 
 dymd tx gov submit-proposal $MONODIR/dymension/tests/kaspa_hub_test/bootstrap.json \
