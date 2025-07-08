@@ -76,10 +76,17 @@ pub async fn expensive_trace_transactions(
 
         // Parse the payload string to extract the message ID
         if let Some(payload) = transaction.payload.clone() {
-            let unhexed_payload = hex::decode(&payload).map_err(|e| eyre::eyre!("Failed to decode payload: {}", e))?;
+            let unhexed_payload = hex::decode(&payload)
+                .map_err(|e| eyre::eyre!("Failed to decode payload: {}", e))?;
             // Deserialize the payload bytes into MessageIDs
-            let message_ids = corelib::payload::MessageIDs::from_bytes(&unhexed_payload)
-                .map_err(|e| eyre::eyre!("Failed to deserialize MessageIDs: Payload: {} Err: {}", payload, e))?;
+            let message_ids =
+                corelib::payload::MessageIDs::from_bytes(&unhexed_payload).map_err(|e| {
+                    eyre::eyre!(
+                        "Failed to deserialize MessageIDs: Payload: {} Err: {}",
+                        payload,
+                        e
+                    )
+                })?;
 
             // Convert each message ID into a WithdrawalId and add to the list
             processed_withdrawals.extend(message_ids.0);

@@ -163,7 +163,6 @@ mod tests {
 
     #[test]
     fn message_ids_from_payload() {
-
         let payload = "01000000000000004200000000000000307832376232303463653064656162396638636436303262313165396239323938643964666364323830363237323533353236303937346632616333353637383265";
         let decoded_payload = hex::decode(payload).unwrap();
         let message_ids = corelib::payload::MessageIDs::from_bytes(&decoded_payload).unwrap();
