@@ -10,7 +10,7 @@
 
 #### PREFACE
 
-# Recommended tabs:
+# Recommended terminal tabs:
 # 1. dymd
 # 2. wrpc node
 # 3. validator
@@ -90,9 +90,9 @@ RUST_BACKTRACE=1 cargo run --release --bin validator -- \
 
 #### 4. BOOTSTRAP HUB
 
-ISM=$(hub q hyperlane ism isms -o json | jq -r '.isms[0].id')
-MAILBOX=$(hub q hyperlane mailboxes -o json | jq -r '.mailboxes[0].id')
-TOKEN_ID=$(hub q warp tokens -o json | jq -r '.tokens[0].id')
+ISM=$(dymd q hyperlane ism isms -o json | jq -r '.isms[0].id')
+MAILBOX=$(dymd q hyperlane mailboxes -o json | jq -r '.mailboxes[0].id')
+TOKEN_ID=$(dymd q warp tokens -o json | jq -r '.tokens[0].id')
 HUB_USER_ADDR=$(dymd keys show -a hub-user) #dym139mq752delxv78jvtmwxhasyrycufsvrw4aka9
 
 dymd q auth module-account gov -o json | jq -r '.account.value.address' # dym10d07y265gmmuvt4z0w9aw880jnsr700jgllrna
@@ -108,6 +108,8 @@ dymd tx gov submit-proposal $MONODIR/dymension/tests/kaspa_hub_test/bootstrap.js
   --gas auto \
   --fees 10000000000000000adym \
   -y 
+
+dymd tx gov vote 1 yes "${HUB_FLAGS[@]}" 
 
 #### 5. SETUP RELAYER 
 
