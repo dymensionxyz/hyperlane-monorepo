@@ -27,6 +27,11 @@ cargo run validator-with-escrow
 #   "validator_escrow_secret": "\"11013bc86d1cb199a2324130c808e90ad37d07ae8f490d063b2fb9d9aa2e898f\"",
 #   "validator_escrow_pub_key": "02b1c7b586c8a0387a3c844f6a5471130bb7992346d3e906642cfd5dfce8a8129d",
 #   "multisig_escrow_addr": "kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr"
+VALIDATOR_ISM_ADDR="0xc09dddbd26fb6dcea996ba643e8c2685c03cad5a7"
+VALIDATOR_ISM_PRIV_KEY="c02e29cb65e55b3af3d8dee5d7a30504ed927436caf2e53e1e965cbd2639aced"
+VALIDATOR_ESCROW_SECRET="\"11013bc86d1cb199a2324130c808e90ad37d07ae8f490d063b2fb9d9aa2e898f\""
+VALIDATOR_ESCROW_PUB_KEY="02b1c7b586c8a0387a3c844f6a5471130bb7992346d3e906642cfd5dfce8a8129d"
+VALIDATOR_ESCROW_ADDR="kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr"
 
 # in rusty-kaspa/wallet/native
 cargo run
@@ -48,10 +53,9 @@ scripts/setup_local.sh
 dymd start --log_level=debug
 
 # setup bridge objects on hub
-CLI_VALS="0xc09dddbd26fb6dcea996ba643e8c2685c03cad57" # has (hex) key c18908a1bbe0ec588cd6522d2b02af3076a2f2c562a09bb8bf5a40f6e9a0ef1b
-CLI_THRESHOLD="1"
-CLI_REMOTE_ROUTER_ADDRESS="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" # arbitrary // TODO: refine, this is the 'contract' on kaspa
-dymd q kas setup-bridge --validators "$CLI_VALS" --threshold "$CLI_THRESHOLD" --remote-router-address "$CLI_REMOTE_ROUTER_ADDRESS" "${HUB_FLAGS[@]}"
+
+REMOTE_ROUTER_ADDRESS="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" 
+dymd q kas setup-bridge --validators "$VALIDATOR_ISM_ADDR" --threshold 1 --remote-router-address "$REMOTE_ROUTER_ADDRESS" "${HUB_FLAGS[@]}"
 
 #### 2. START KASPA RPC NODE
 
