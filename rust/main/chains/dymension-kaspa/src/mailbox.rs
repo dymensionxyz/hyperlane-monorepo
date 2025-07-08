@@ -9,7 +9,7 @@ use super::consts::*;
 use tracing::info;
 
 use hyperlane_core::{
-    utils::bytes_to_hex, BatchItem, BatchResult, ChainCommunicationError, ChainResult,
+    utils::bytes_to_hex, BatchResult, ChainResult,
     ContractLocator, FixedPointNumber, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, Mailbox, QueueOperation, RawHyperlaneMessage, ReorgPeriod,
     TxCostEstimate, TxOutcome, H256, H512, U256,

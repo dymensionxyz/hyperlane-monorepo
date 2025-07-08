@@ -1,8 +1,7 @@
 use tonic::async_trait;
 
 use hyperlane_core::{
-    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, Checkpoint,
-    CheckpointWithMessageId, Signature, SignedCheckpointWithMessageId, SignedType, H256, U256,
+    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, Signature, SignedCheckpointWithMessageId,
 };
 
 use bytes::Bytes;
@@ -14,7 +13,6 @@ use tracing::{error, info};
 use crate::ConnectionConf;
 
 use crate::endpoints::*;
-use axum::Json;
 use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG, withdraw::WithdrawFXG};
 use futures::future::join_all;
 use kaspa_wallet_pskt::prelude::Bundle;

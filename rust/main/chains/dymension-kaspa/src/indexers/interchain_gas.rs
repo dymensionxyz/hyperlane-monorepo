@@ -1,6 +1,5 @@
 use std::ops::RangeInclusive;
 
-use hyperlane_cosmos_rs::{hyperlane::core::post_dispatch::v1::EventGasPayment, prost::Name};
 use tonic::async_trait;
 
 use hyperlane_core::{
@@ -9,7 +8,7 @@ use hyperlane_core::{
     InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, H512,
 };
 
-use crate::{ConnectionConf, HyperlaneKaspaError, KaspaEventIndexer, KaspaProvider, RestProvider};
+use crate::{ConnectionConf, KaspaEventIndexer, KaspaProvider, RestProvider};
 
 /// delivery indexer to check if a message was delivered
 #[derive(Debug, Clone)]

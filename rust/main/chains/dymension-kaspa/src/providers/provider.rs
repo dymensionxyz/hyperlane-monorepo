@@ -1,19 +1,13 @@
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
-use dym_kas_relayer::PublicKey;
 
-use eyre::{eyre, Result as EyreResult};
 use kaspa_addresses::Address;
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
 use kaspa_wallet_core::prelude::DynRpcApi;
-use kaspa_wallet_pskt::prelude::*;
-use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tonic::async_trait;
-use tracing::warn;
 use url::Url;
 
 use dym_kas_core::escrow::EscrowPublic;
-use dym_kas_core::withdraw::WithdrawFXG;
 use dym_kas_relayer::withdraw::hub_to_kaspa::combine_bundles_with_fee;
 use dym_kas_relayer::withdraw::messages::on_new_withdrawals;
 pub use dym_kas_validator::KaspaSecpKeypair;
@@ -23,8 +17,6 @@ use hyperlane_core::{
 };
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use kaspa_rpc_core::api::rpc::RpcApi;
-use kaspa_wallet_pskt::prelude::Bundle;
-use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use super::confirmation_queue::PendingConfirmation;
@@ -33,7 +25,6 @@ use super::RestProvider;
 use dym_kas_core::confirmation::ConfirmationFXG;
 
 use crate::ConnectionConf;
-use dym_kas_core::payload::MessageIDs;
 use eyre::Result;
 use hyperlane_core::config::OpSubmissionConfig;
 use hyperlane_core::NativeToken;

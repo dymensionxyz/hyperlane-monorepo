@@ -1,6 +1,5 @@
 use std::ops::RangeInclusive;
 
-use hyperlane_cosmos_rs::{hyperlane::core::v1::EventProcess, prost::Name};
 use tonic::async_trait;
 use tracing::instrument;
 
@@ -9,7 +8,7 @@ use hyperlane_core::{
     SequenceAwareIndexer, H256, H512,
 };
 
-use crate::{HyperlaneKaspaError, KaspaProvider, RestProvider};
+use crate::{KaspaProvider, RestProvider};
 
 use super::KaspaEventIndexer;
 

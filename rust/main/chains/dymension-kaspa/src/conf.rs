@@ -4,7 +4,7 @@ use derive_new::new;
 use url::Url;
 
 use hyperlane_core::{
-    config::OpSubmissionConfig, ChainCommunicationError, FixedPointNumber, NativeToken, H256,
+    config::OpSubmissionConfig, ChainCommunicationError, FixedPointNumber,
 };
 
 /// Kaspa connection configuration
