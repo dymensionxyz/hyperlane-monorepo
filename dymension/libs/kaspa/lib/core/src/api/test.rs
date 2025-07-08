@@ -10,11 +10,16 @@ mod tests {
     use api_rs::apis::kaspa_transactions_api::*;
     use url::Url;
 
+    use crate::api::base::RateLimitConfig;
+
     const DAN_TESTNET_ADDR: &str =
         "kaspatest:qq3r5cj2r3a7kfne7wwwcf0n8kc8e5y3cy2xgm2tcuqygs4lrktswcc3d9l3p";
 
     fn t_client() -> HttpClient {
-        HttpClient::new("https://api-tn10.kaspa.org/".to_string())
+        HttpClient::new(
+            "https://api-tn10.kaspa.org/".to_string(),
+            RateLimitConfig::default(),
+        )
     }
 
     #[tokio::test]
@@ -120,5 +125,39 @@ mod tests {
         .await
         .unwrap();
         println!("tx: {:?}", tx);
+    }
+
+    #[tokio::test]
+    #[ignore = "avoid api abuse"]
+    async fn test_get_deposits() {
+        // https://explorer-tn10.kaspa.org/addresses/kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr?page=1
+        let client = t_client();
+        let address = "kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr";
+
+        let deposits = client
+            .get_deposits_by_address(Some(1751299515650), address)
+            .await;
+
+        match deposits {
+            Ok(deposits) => {
+                println!("Found deposits: n = {:?}", deposits.len());
+                for deposit in deposits {
+                    println!("Deposit: {:?}", deposit);
+                }
+            }
+            Err(e) => {
+                println!("Query deposits: {:?}", e);
+            }
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "avoid api abuse"]
+    async fn test_get_tx_by_id() {
+        let client = t_client();
+
+        let tx_id = "1ffa672605af17906d99ba9506dd49406a2e8a3faa2969ab0c8929373aca51d1";
+        let tx = client.get_tx_by_id(tx_id).await;
+        println!("Tx: {:?}", tx);
     }
 }

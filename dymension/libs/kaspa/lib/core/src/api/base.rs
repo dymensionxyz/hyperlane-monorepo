@@ -23,10 +23,22 @@ impl reqwest_ratelimit::RateLimiter for FooRateLimiter {
     }
 }
 
-pub fn get_client() -> ClientWithMiddleware {
+pub struct RateLimitConfig {
+    pub max_req_per_second: u32,
+}
+
+impl RateLimitConfig {
+    pub fn new(max_req_per_minute: u32) -> Self {
+        Self { max_req_per_second: max_req_per_minute }
+    }
+    pub fn default() -> Self {
+        Self::new(10)
+    }
+}
+
+pub fn get_client(config: RateLimitConfig) -> ClientWithMiddleware {
     let base = reqwest::Client::new();
-    // 1 req per sec
-    let governor_limiter = RateLimiter::direct(Quota::per_second(NonZeroU32::new(1).unwrap()));
+    let governor_limiter = RateLimiter::direct(Quota::per_second(NonZeroU32::new(config.max_req_per_second).unwrap()));
     let rl = FooRateLimiter {
         limiter: Arc::new(governor_limiter),
     };
