@@ -41,10 +41,6 @@ impl ConfirmationFXG {
             })
             .collect();
 
-        println!(
-            "Extracted {} withdrawal IDs from payloads",
-            withdrawal_ids.len()
-        );
 
         // TODO: or is the list the other way around?
         let old = outpoints[0];

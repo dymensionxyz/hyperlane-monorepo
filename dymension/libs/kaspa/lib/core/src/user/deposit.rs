@@ -34,10 +34,6 @@ use kaspa_wallet_pskt::prelude::*; // Import the prelude for easy access to trai
 
 use secp256k1::{rand::thread_rng, Keypair};
 
-use api_rs::apis::kaspa_transactions_api::{
-    get_transaction_transactions_transaction_id_get,
-    GetTransactionTransactionsTransactionIdGetParams,
-};
 use kaspa_rpc_core::api::rpc::RpcApi;
 use workflow_core::abortable::Abortable;
 

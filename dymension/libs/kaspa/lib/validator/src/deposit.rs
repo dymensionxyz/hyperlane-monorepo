@@ -12,13 +12,12 @@ use std::str::FromStr;
 
 use kaspa_rpc_core::{api::rpc::RpcApi, RpcBlock};
 use kaspa_rpc_core::{RpcHash, RpcTransactionOutput};
-use kaspa_wrpc_client::prelude::{NetworkId, NetworkType};
 use std::sync::Arc;
 
 use eyre::Result;
 use hyperlane_core::U256;
 
-use corelib::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
+use corelib::withdraw::WithdrawFXG;
 
 pub async fn validate_new_deposit(
     client: &Arc<DynRpcApi>,

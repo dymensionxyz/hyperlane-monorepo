@@ -108,6 +108,10 @@ impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> 
         self.kas_provider.as_ref().unwrap().hub_mailbox_id()
     }
 
+    fn must_rest_config(&self) -> api_rs::apis::configuration::Configuration {
+        self.kas_provider.as_ref().unwrap().rest().get_config()
+    }
+
     pub fn default() -> Self {
         Self {
             ism_signer: None,
@@ -170,7 +174,8 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
         body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
     // Call to validator.G()
-    if !validate_confirmed_withdrawals(&confirmation_fxg)
+    let config = resources.must_rest_config();
+    if !validate_confirmed_withdrawals(&confirmation_fxg, &config)
         .await
         .map_err(|e| AppError(e))?
     {
