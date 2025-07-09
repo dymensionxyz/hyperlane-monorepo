@@ -254,7 +254,7 @@ async fn get_easy_wallet(
     let args = EasyKaspaWalletArgs {
         wallet_secret,
         rpc_url,
-        network: match domain {
+        net: match domain {
             HyperlaneDomain::Known(KnownHyperlaneDomain::KaspaTest10) => Network::KaspaTest10,
             _ => todo!("only tn10 supported"),
         },
