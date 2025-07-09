@@ -157,7 +157,12 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
     let now: i64 = unix_now() as i64;
 
     let s = Secret::from(args.wallet_secret);
-    let w = get_wallet(&s, NETWORK_ID, URL.to_string()).await?;
+    let w = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
+        wallet_secret: args.wallet_secret,
+        rpc_url: URL.to_string(),
+        net: Network::KaspaTest10,
+    })
+    .await?;
 
     println!("address {}", &w.account()?.receive_address()?);
     println!("balance {}", &w.account()?.get_list_string()?);
@@ -215,13 +220,8 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
     );
 
     // validate deposit using kaspa rpc (validator operation)
-    let validation_result = validate_new_deposit(
-        &w.rpc_api(),
-        &deposit_recv,
-        &escrow_address,
-        NetworkParams::from(w.net.network_id),
-    )
-    .await?;
+    let validation_result =
+        validate_new_deposit(&w.rpc_api(), &deposit_recv, w.net, &escrow_address).await?;
 
     if validation_result {
         println!("Deposit validated");

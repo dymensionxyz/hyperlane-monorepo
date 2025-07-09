@@ -53,7 +53,6 @@ pub async fn validate_new_deposit(
     deposit: &DepositFXG,
     net: &NetworkInfo,
     escrow_address: &Address,
-    network_params: &NetworkParams,
 ) -> Result<bool> {
     // convert block and tx id strings to hashes
     let block_hash = RpcHash::from_str(&deposit.block_id)?;
@@ -120,7 +119,7 @@ pub async fn validate_new_deposit(
     }
 
     // validation of the Kaspa tx maturity (old enough to be accepted)
-    let maturity_result = validate_maturity(client, &block, network_params).await?;
+    let maturity_result = validate_maturity(client, &block, net.network_params()).await?;
     if !maturity_result {
         error!(
             "Deposit is not mature, block daa score: {:?}",
