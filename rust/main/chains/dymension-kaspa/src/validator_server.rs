@@ -173,13 +173,10 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
     let confirmation_fxg: ConfirmationFXG =
         body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
-    // Call to validator.G()
-    if !validate_confirmed_withdrawals(resources.must_rest_client(), &confirmation_fxg)
+    // Call to validator
+    validate_confirmed_withdrawals(resources.must_rest_client(), &confirmation_fxg)
         .await
-        .map_err(|e| AppError(e))?
-    {
-        return Err(AppError(eyre::eyre!("Invalid confirmation")));
-    }
+        .map_err(|e| AppError(Report::from(e)))?;
     info!("Validator: confirmed withdrawal is valid");
 
     let progress_indication = &confirmation_fxg.progress_indication;
