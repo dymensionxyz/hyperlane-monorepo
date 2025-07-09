@@ -16,7 +16,6 @@ use hyperlane_core::{
     HyperlaneProvider, HyperlaneProviderError, KnownHyperlaneDomain, TxnInfo, H256, H512, U256,
 };
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
-use kaspa_rpc_core::api::rpc::RpcApi;
 use tracing::info;
 
 use super::confirmation_queue::PendingConfirmation;

@@ -196,7 +196,7 @@ pub fn validate_pskt_structure(
 pub fn sign_withdrawal_fxg(fxg: &WithdrawFXG, keypair: &SecpKeypair) -> Result<Bundle> {
     let mut signed = Vec::new();
     // Iterate over (PSKT; associated HL messages) pairs
-    for (pskt, hl_messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
+    for (pskt, _hl_messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
         let pskt = PSKT::<Signer>::from(pskt.clone());
 
         let signed_pskt = corelib::pskt::sign_pskt(pskt, keypair, None)?;

@@ -1,8 +1,4 @@
-use cosmrs::Any;
-use hex::ToHex;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
-use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
-use hyperlane_cosmos_rs::prost::{Message, Name};
 use tonic::async_trait;
 
 use super::consts::*;
@@ -11,7 +7,7 @@ use tracing::info;
 use hyperlane_core::{
     utils::bytes_to_hex, BatchResult, ChainResult,
     ContractLocator, FixedPointNumber, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, Mailbox, QueueOperation, RawHyperlaneMessage, ReorgPeriod,
+    HyperlaneMessage, HyperlaneProvider, Mailbox, QueueOperation, ReorgPeriod,
     TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 
