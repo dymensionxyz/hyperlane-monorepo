@@ -204,7 +204,7 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
         &fxg,
         resources.must_hub_rpc(),
         resources.must_hub_mailbox_id(),
-        &resources.must_wallet().network_info,
+        resources.must_wallet().address_prefix(),
         resources.must_escrow(),
     )
     .await
