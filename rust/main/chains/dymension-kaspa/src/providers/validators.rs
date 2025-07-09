@@ -242,6 +242,7 @@ pub async fn request_sign_withdrawal_bundle(
 mod tests {
     use super::*;
     use dym_kas_core::deposit::DepositFXG;
+    use hyperlane_core::{Checkpoint, CheckpointWithMessageId, SignedType, H256, U256};
 
     #[tokio::test]
     #[ignore = "Requires real validator server"]
