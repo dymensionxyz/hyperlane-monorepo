@@ -3,35 +3,24 @@
 use corelib::escrow::*;
 use std::collections::hash_map::Entry;
 
-use kaspa_core;
-use kaspa_wallet_core::error::Error;
 
 use kaspa_wallet_pskt::prelude::*;
 use secp256k1::Keypair as SecpKeypair;
 
 use crate::error::ValidationError;
-use corelib::payload::MessageIDs;
 use corelib::util::get_recipient_address;
-use corelib::wallet::{EasyKaspaWallet, NetworkInfo};
+use corelib::wallet::NetworkInfo;
 use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use eyre::Result;
 use hex::ToHex;
-use hyperlane_core::{Decode, HyperlaneMessage, H256, U256};
+use hyperlane_core::{Decode, HyperlaneMessage, U256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use hyperlane_warp_route::TokenMessage;
-use kaspa_addresses::Address as KaspaAddress;
-use kaspa_addresses::Prefix::Testnet;
-use kaspa_consensus_core::hashing::sighash::{
-    calc_schnorr_signature_hash, SigHashReusedValuesUnsync,
-};
 use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint};
-use kaspa_hashes;
 use kaspa_txscript::pay_to_address_script;
-use kaspa_wallet_core::utxo::NetworkParams;
 use std::collections::HashMap;
 use std::io::Cursor;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 
 pub async fn validate_withdrawal_batch(
     fxg: &WithdrawFXG,
