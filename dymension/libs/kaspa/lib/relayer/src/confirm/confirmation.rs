@@ -12,29 +12,20 @@ use corelib::{confirmation::ConfirmationFXG, payload::MessageID};
 use hex;
 
 /// WARNING: ONLY FOR UNHAPPY PATH
-/// /// Prepare a progress indication and create a ConfirmationFXG for the Hub x/kas module
-/// This function traces back from a new UTXO to the old UTXO and collects
-/// all withdrawal payloads that were processed in between.
+///
+/// Traces transactions in reverse from a new UTXO to an old anchor UTXO, collecting
+/// all withdrawal payloads that were processed in between. This follows the transaction
+/// lineage of the escrow address to create a confirmation progress indication.
 ///
 /// # Arguments
-/// * `config` - The Kaspa API client configuration for querying transactions
-/// * `anchor_utxo` - The anchor UTXO to trace to
-/// * `new_utxo` - The new UTXO to trace from
+/// * `client` - The HTTP client for querying Kaspa API transactions
+/// * `escrow_addresses` - The escrow address to trace transactions for
+/// * `new_out` - The new transaction outpoint to start tracing from
+/// * `old_out` - The old anchor transaction outpoint to trace to
 ///
 /// # Returns
-/// * `Result<ConfirmationFXG, Error>` - The confirmation FXG containing the progress indication with old and new outpoints
-///   and a list of processed withdrawal ID
-/// Trace transactions in reverse, from a recent unspent UTXO to an already spent UTXO
-/// collecting payloads along the way.
-/// Follows the transaction lineage of the escrow address.
-///
-/// # Arguments
-/// * `config` - The Kaspa API client configuration for querying transactions
-/// * `new_utxo` - The transaction ID to start tracing from
-/// * `current_anchor_utxo` - The transaction ID to trace to
-///
-/// # Returns
-/// * `Result<Vec<WithdrawalId>, Error>` - Vector of collected withdrawal IDs from the transactions
+/// * `Result<ConfirmationFXG>` - The confirmation FXG containing the progress indication
+///   with old and new outpoints and a list of processed withdrawal message IDs
 pub async fn expensive_trace_transactions(
     client: &HttpClient,
     escrow_addresses: &str,
@@ -50,7 +41,6 @@ pub async fn expensive_trace_transactions(
     let mut lineage_utxos = Vec::new();
 
     // get the lineage utxos
-
     let res = recursive_trace_transactions(
         client,
         escrow_addresses,
@@ -87,7 +77,7 @@ pub async fn recursive_trace_transactions(
     lineage_utxos: &mut Vec<TransactionOutpoint>,
     processed_withdrawals: &mut Vec<MessageID>,
 ) -> Result<()> {
-    // if curr_utxo is the anchor_utxo, return
+    // if curr_utxo is the anchor_utxo, add it to the lineage and return
     // this will wrap up the recursive call
     if curr_utxo == anchor_utxo {
         lineage_utxos.push(curr_utxo);
@@ -108,10 +98,11 @@ pub async fn recursive_trace_transactions(
         .ok_or(Error::Custom("Inputs not found".to_string()))?;
 
     // follow inputs
+    // we skip inputs that are not from the escrow address
+    // we do recursive call for inputs that are from the escrow address
     for input in inputs {
         info!("Checking input: {:?}", input.index);
 
-        // if the input has my address, do recursive call
         let input_address = input
             .previous_outpoint_address
             .as_ref()
@@ -126,7 +117,7 @@ pub async fn recursive_trace_transactions(
             continue;
         }
 
-        // TODO: can we have wrapper for it?
+        // TODO: have ::From method to get utxo from TxInput
         let input_utxo = TransactionOutpoint {
             transaction_id: kaspa_hashes::Hash::from_bytes(
                 hex::decode(&input.previous_outpoint_hash)?
@@ -135,6 +126,7 @@ pub async fn recursive_trace_transactions(
             ),
             index: input.previous_outpoint_index.parse()?,
         };
+
         // do recursive call
         let res = Box::pin(recursive_trace_transactions(
             client,
@@ -146,13 +138,13 @@ pub async fn recursive_trace_transactions(
         ))
         .await;
 
-        // if returns error, continue to other input
+        // if returns error, this input is not part of the lineage, continue to other input
         if res.is_err() {
             continue;
         }
 
-        // if returns OK, add the input to the lineage_UTXOs and return
-        // Check if payload is empty, return err if so
+        /* ------------ if returns OK, the input is part of the lineage! ------------ */
+
         let payload = transaction
             .payload
             .clone()
