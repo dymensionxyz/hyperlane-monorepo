@@ -6,10 +6,10 @@ use tracing::error;
 
 use kaspa_wallet_core::utxo::NetworkParams;
 
-use corelib::escrow::is_utxo_escrow_address;
 use corelib::message::{add_kaspa_metadata_hl_messsage, parse_hyperlane_metadata, ParsedHL};
 use std::str::FromStr;
 
+use corelib::escrow::EscrowPublic;
 use kaspa_rpc_core::{api::rpc::RpcApi, RpcBlock};
 use kaspa_rpc_core::{RpcHash, RpcTransactionOutput};
 use kaspa_wrpc_client::prelude::{NetworkId, NetworkType};
@@ -19,17 +19,6 @@ use eyre::Result;
 use hyperlane_core::U256;
 
 use corelib::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
-
-pub async fn validate_new_deposit(
-    client: &Arc<DynRpcApi>,
-    deposit: &DepositFXG,
-    escrow_address: &str,
-    network_params: &NetworkParams,
-) -> Result<bool> {
-    let validation_result =
-        validate_deposit(client, deposit, escrow_address, network_params).await?;
-    Ok(validation_result)
-}
 
 async fn validate_maturity(
     client: &Arc<DynRpcApi>,
@@ -56,10 +45,10 @@ async fn validate_maturity(
 ///
 /// Note: If the utxo value is higher of the amount the deposit is also accepted
 ///
-pub async fn validate_deposit(
+pub async fn validate_new_deposit(
     client: &Arc<DynRpcApi>,
     deposit: &DepositFXG,
-    escrow_address: &str,
+    escrow: &EscrowPublic,
     network_params: &NetworkParams,
 ) -> Result<bool> {
     // convert block and tx id strings to hashes
@@ -117,12 +106,10 @@ pub async fn validate_deposit(
         return Ok(false);
     }
 
-    // validation of the Kaspa tx destination is actually transferring funds to escrow address
-    let is_escrow = is_utxo_escrow_address(&utxo.script_public_key, escrow_address)?;
-    if !is_escrow {
+    if escrow.p2sh != utxo.script_public_key {
         error!(
-            "Deposit is not to escrow address,escrow: {:?}",
-            escrow_address
+            "Deposit is not to escrow address, escrow: {:?}, utxo: {:?}",
+            escrow.p2sh, utxo.script_public_key
         );
         return Ok(false);
     }

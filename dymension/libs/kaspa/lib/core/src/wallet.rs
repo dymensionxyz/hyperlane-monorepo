@@ -2,10 +2,11 @@
 
 use eyre::Result;
 use kaspa_addresses::{Prefix, Version};
-use kaspa_consensus_core::network::{NetworkId, NetworkType};
+use kaspa_consensus_core::{network::{NetworkId, NetworkType}};
 use kaspa_core::info;
 use kaspa_wallet_core::api::WalletApi;
 use kaspa_wallet_core::error::Error;
+use kaspa_wallet_core::utxo::NetworkParams;
 use kaspa_wallet_core::wallet::Wallet;
 use kaspa_wallet_keys::secret::Secret;
 use secp256k1::Keypair as KaspaSecpKeypair;
@@ -90,6 +91,10 @@ impl EasyKaspaWallet {
 
     pub fn network_id(&self) -> NetworkId {
         self.network_info.network_id
+    }
+
+    pub fn network_params(&self) -> &NetworkParams {
+        NetworkParams::from(self.network_id())
     }
 
     pub fn address_prefix(&self) -> Prefix {

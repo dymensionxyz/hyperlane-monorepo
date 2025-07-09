@@ -41,7 +41,7 @@ use std::os::unix;
 use std::sync::Arc;
 use std::time::Duration;
 use url::Url;
-use validator::deposit::validate_deposit;
+use validator::deposit::validate_new_deposit;
 use validator::withdraw::*;
 
 use kaspa_wallet_core::prelude::*;
@@ -215,7 +215,7 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
     );
 
     // validate deposit using kaspa rpc (validator operation)
-    let validation_result = validate_deposit(
+    let validation_result = validate_new_deposit(
         &w.rpc_api(),
         &deposit_recv,
         &escrow_address.clone().to_string(),
