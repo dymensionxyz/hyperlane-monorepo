@@ -51,6 +51,7 @@ use kaspa_rpc_core::model::RpcTransactionId;
 use kaspa_wallet_core::tx::is_transaction_output_dust;
 use kaspa_wallet_pskt::prelude::Bundle;
 use tracing::info;
+use corelib::util;
 
 /// Fetches escrow and relayer balances and a combined list of all inputs
 pub async fn fetch_input_utxos(
@@ -343,36 +344,9 @@ async fn get_utxo_to_spend(
 
     // Descending order – older UTXOs first
     utxos.sort_by_key(|u| std::cmp::Reverse(u.utxo_entry.block_daa_score));
-    utxos.retain(|u| is_mature(&u.utxo_entry, current_daa_score, network_id));
+    utxos.retain(|u| util::maturity::is_mature(u.utxo_entry.block_daa_score, current_daa_score, network_id));
 
     Ok(utxos)
-}
-
-fn is_mature(utxo: &RpcUtxoEntry, current_daa_score: u64, network_id: NetworkId) -> bool {
-    match maturity_progress(utxo, current_daa_score, network_id) {
-        Some(_) => false,
-        None => true,
-    }
-}
-
-// Copy https://github.com/kaspanet/rusty-kaspa/blob/v1.0.0/wallet/core/src/storage/transaction/record.rs
-fn maturity_progress(
-    utxo: &RpcUtxoEntry,
-    current_daa_score: u64,
-    network_id: NetworkId,
-) -> Option<f64> {
-    let params = NetworkParams::from(network_id);
-    let maturity = if utxo.is_coinbase {
-        params.coinbase_transaction_maturity_period_daa()
-    } else {
-        params.user_transaction_maturity_period_daa()
-    };
-
-    if current_daa_score < utxo.block_daa_score + maturity {
-        Some((current_daa_score - utxo.block_daa_score) as f64 / maturity as f64)
-    } else {
-        None
-    }
 }
 
 fn estimate_fee(

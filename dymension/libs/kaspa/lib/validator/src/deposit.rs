@@ -18,7 +18,7 @@ use std::sync::Arc;
 use eyre::Result;
 use hyperlane_core::U256;
 
-use corelib::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
+use corelib::{confirmation::ConfirmationFXG, util, withdraw::WithdrawFXG};
 
 pub async fn validate_new_deposit(
     client: &Arc<DynRpcApi>,
@@ -29,21 +29,6 @@ pub async fn validate_new_deposit(
     let validation_result =
         validate_deposit(client, deposit, escrow_address, network_params).await?;
     Ok(validation_result)
-}
-
-async fn validate_maturity(
-    client: &Arc<DynRpcApi>,
-    block: &RpcBlock,
-    network_params: &NetworkParams,
-) -> Result<bool> {
-    let dag_info = client.get_block_dag_info().await?;
-    if block.header.daa_score + network_params.user_transaction_maturity_period_daa()
-        < dag_info.virtual_daa_score
-    {
-        return Ok(true);
-    }
-
-    Ok(false)
 }
 
 pub async fn validate_deposit(
@@ -99,7 +84,9 @@ pub async fn validate_deposit(
         return Ok(false);
     }
 
-    let maturity_result = validate_maturity(client, &block, network_params).await?;
+    let maturity_result =
+        util::maturity::validate_maturity_params(client, block.header.daa_score, network_params)
+            .await?;
     if !maturity_result {
         error!(
             "Deposit is not mature, block daa score: {:?}",
