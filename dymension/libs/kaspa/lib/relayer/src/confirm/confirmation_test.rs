@@ -75,6 +75,6 @@ mod tests {
     }
 }
 
-
+// FIXME: test non lineage utxo
 // FIXME: test multi hop lineage
 // FIXME: test single TX with multiple message IDs
