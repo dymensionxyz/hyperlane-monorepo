@@ -1,22 +1,16 @@
 use eyre::Result;
 
 use super::hub_to_kaspa::build_withdrawal_pskt;
-use base64;
 use corelib::escrow::EscrowPublic;
 use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use hardcode::tx::DUST_AMOUNT;
-use hex::ToHex;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use hyperlane_warp_route::TokenMessage;
 use kaspa_addresses::Prefix;
 use kaspa_consensus_core::tx::TransactionOutpoint;
-use kaspa_hashes;
-use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_pskt::prelude::Bundle;
-use kaspa_wallet_pskt::prelude::*;
 use std::io::Cursor;
 use tracing::info;
 

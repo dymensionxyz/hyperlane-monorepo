@@ -120,10 +120,12 @@ impl KaspaProvider {
         &self.cosmos_rpc
     }
 
+    /// dococo
     pub fn wallet(&self) -> &EasyKaspaWallet {
         &self.easy_wallet
     }
 
+    /// dococo
     pub fn hub_mailbox_id(&self) -> String {
         self.conf.hub_mailbox_id.clone()
     }

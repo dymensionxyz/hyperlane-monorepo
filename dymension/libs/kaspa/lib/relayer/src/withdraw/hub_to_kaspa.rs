@@ -1,20 +1,11 @@
 use eyre::Result;
 
-use kaspa_consensus_core::hashing::sighash::{
-    calc_schnorr_signature_hash, SigHashReusedValuesUnsync,
-};
 use kaspa_wallet_core::derivation::build_derivate_paths;
 
-use corelib::consts::KEY_MESSAGE_IDS;
 use corelib::escrow::EscrowPublic;
 use corelib::payload::MessageID;
 use corelib::payload::MessageIDs;
-use hardcode::tx::DUST_AMOUNT;
-use hex::ToHex;
-use hyperlane_core::{Decode, HyperlaneMessage, H256};
-use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
-use hyperlane_warp_route::TokenMessage;
+use hyperlane_core::HyperlaneMessage;
 use kaspa_consensus_core::config::params::Params;
 use kaspa_consensus_core::constants::TX_VERSION;
 use kaspa_consensus_core::hashing::sighash_type::{
@@ -27,27 +18,21 @@ use kaspa_consensus_core::tx::{PopulatedTransaction, ScriptPublicKey, UtxoEntry}
 use kaspa_consensus_core::tx::{
     Transaction, TransactionInput, TransactionOutpoint, TransactionOutput,
 };
-use kaspa_hashes;
 use kaspa_rpc_core::{RpcTransaction, RpcUtxoEntry, RpcUtxosByAddressesEntry};
 use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_txscript::{opcodes::codes::OpData65, script_builder::ScriptBuilder};
-use kaspa_wallet_core::account::pskb::PSKBSigner;
 use kaspa_wallet_core::account::Account;
 use kaspa_wallet_core::prelude::DynRpcApi;
 use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_core::utxo::NetworkParams;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
-use secp256k1::PublicKey;
-use std::io::Cursor;
 use std::sync::Arc;
 
 use super::messages::WithdrawalDetails;
 use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::WithdrawFXG;
 use eyre::eyre;
-use kaspa_addresses::Prefix;
-use kaspa_rpc_core::model::RpcTransactionId;
 use kaspa_wallet_core::tx::is_transaction_output_dust;
 use kaspa_wallet_pskt::prelude::Bundle;
 use tracing::info;
@@ -60,7 +45,7 @@ use tracing::info;
 /// needs to get the whole amount they transferred, so they must get 10 KAS. However, there is
 /// the transaction fee, which must be covered by the relayer. Let's say it's 1 KAS.
 ///
-/// For that, we fetch ALL UTXOs from the multisig address and them as inputs. This will also
+/// For that, we fetch ALL UTXOs from the multisig address and add them as inputs. This will also
 /// work as automatic sweeping. The change is returned as an output which is also used as
 /// a new anchor.
 ///
@@ -100,7 +85,7 @@ pub async fn build_withdrawal_pskt(
     // Get all available UTXOs from multisig
     let escrow_utxos = get_utxo_to_spend(escrow.addr.clone(), kaspa_rpc, network_id).await?;
 
-    // Check if the current anchor is withing the list of multisig UTXOs
+    // Check if the current anchor is within the list of multisig UTXOs
     if !escrow_utxos.iter().any(|u| {
         u.outpoint.transaction_id == current_anchor.transaction_id
             && u.outpoint.index == current_anchor.index
@@ -225,8 +210,7 @@ pub async fn build_withdrawal_pskt(
         outputs.clone(),
         payload.clone(),
         network_id,
-    ) * 11
-        / 10;
+    ) * 11 / 10;
 
     if relayer_balance < tx_fee {
         return Err(eyre::eyre!(
@@ -492,7 +476,6 @@ async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> R
     // Iterate over (PSKT; associated HL messages) pairs
     for (pskt, messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
         let pskt = PSKT::<Signer>::from(pskt.clone());
-
         signed.push(sign_pay_fee(pskt, &wallet, &secret).await?);
     }
     Ok(Bundle::from(signed))
