@@ -15,12 +15,11 @@ use std::io::Cursor;
 use tracing::info;
 
 pub fn get_recipient_address(recipient: H256, prefix: Prefix) -> kaspa_addresses::Address {
-    let addr = kaspa_addresses::Address::new(
+    kaspa_addresses::Address::new(
         prefix,
         kaspa_addresses::Version::PubKey, // should always be PubKey
         recipient.as_bytes(),
-    );
-    addr
+    )
 }
 
 /// Processes given messages and returns WithdrawFXG and the very first outpoint

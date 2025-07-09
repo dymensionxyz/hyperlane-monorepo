@@ -686,9 +686,8 @@ mod tests {
         // In the agent, the 32-byte array is converted to H256
         let output_h256 = H256::from_slice(&output_bytes_32);
         // Construct Kaspa address
-        let output_kaspa = kaspa_addresses::Address::new(
+        let output_kaspa = get_recipient_address(
             kaspa_addresses::Prefix::Testnet,
-            kaspa_addresses::Version::PubKey,
             output_h256.as_bytes(),
         );
 
