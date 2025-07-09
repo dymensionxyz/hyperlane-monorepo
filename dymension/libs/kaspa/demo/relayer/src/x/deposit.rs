@@ -127,7 +127,7 @@ async fn deposit_loop(
         time::sleep(Duration::from_secs(10)).await;
         let deposits_res: std::result::Result<Vec<Deposit>, ChainCommunicationError> =
             get_deposits(start_relay_time, client, &address).await;
-            
+
         let deposits = match deposits_res {
             Ok(deposits) => deposits,
             Err(e) => {
@@ -148,7 +148,6 @@ async fn deposit_loop(
                 deposits_new.push(d);
             }
         }
-
     }
 }
 

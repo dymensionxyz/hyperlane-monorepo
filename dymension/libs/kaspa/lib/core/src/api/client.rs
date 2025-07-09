@@ -107,11 +107,11 @@ impl HttpClient {
 
         let mut lower_bound_t = initial_lower_bound_t;
         loop {
-            // only upper_bound_t or lower_bound_t can be used in the query, not both. 
+            // only upper_bound_t or lower_bound_t can be used in the query, not both.
             // so in case upper_bound_t is set (>0) it means we need to page and we use the last tx received timestamp as upper_bound_t
             if upper_bound_t > 0 {
                 lower_bound_t = 0;
-            } 
+            }
 
             let mut res = transactions_page(
                 &c,
@@ -139,8 +139,7 @@ impl HttpClient {
             // if txs found are less than n, or we already did paging till the initial lower bound
             if txs_found < n as usize || upper_bound_t < initial_lower_bound_t {
                 break;
-            } 
-
+            }
         }
 
         // return txs filtered by txs that include utxos with destination escrow address and including a payload
