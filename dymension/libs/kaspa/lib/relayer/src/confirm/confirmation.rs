@@ -1,22 +1,9 @@
-use eyre::eyre;
 use eyre::Result;
 use tracing::info;
-
 use api_rs::models::TxModel;
 use kaspa_consensus_core::tx::TransactionOutpoint;
-
 use kaspa_wallet_core::error::Error;
-
-use api_rs::apis::{
-    configuration::Configuration,
-    kaspa_transactions_api::{
-        get_transaction_transactions_transaction_id_get,
-        GetTransactionTransactionsTransactionIdGetParams,
-    },
-};
-
 use corelib::api::client::HttpClient;
-
 use corelib::{confirmation::ConfirmationFXG, payload::MessageID};
 use hex;
 

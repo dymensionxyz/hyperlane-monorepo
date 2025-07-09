@@ -1,11 +1,7 @@
-use std::{error::Error, io::Cursor};
-
+use std::io::Cursor;
 use eyre::Result;
 use hyperlane_core::{Decode, HyperlaneMessage, RawHyperlaneMessage};
 use hyperlane_warp_route::TokenMessage;
-use kaspa_addresses::Prefix;
-use kaspa_rpc_core::RpcScriptPublicKey;
-use kaspa_txscript::extract_script_pub_key_address;
 pub use secp256k1::Keypair as KaspaSecpKeypair;
 
 pub fn parse_hyperlane_message(m: &RawHyperlaneMessage) -> Result<HyperlaneMessage> {

@@ -3,17 +3,9 @@ use eyre::Result;
 use kaspa_consensus_core::hashing::sighash::{
     calc_schnorr_signature_hash, SigHashReusedValuesUnsync,
 };
-
-use super::consts::KEY_MESSAGE_IDS;
-use super::escrow::EscrowPublic;
-use super::payload::{MessageID, MessageIDs};
-use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
 
-use super::wallet::EasyKaspaWallet;
-use super::withdraw::WithdrawFXG;
-use eyre::eyre;
 
 pub fn sign_pskt(
     pskt: PSKT<Signer>,

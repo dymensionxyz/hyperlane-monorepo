@@ -1,6 +1,6 @@
 use super::payload::MessageID;
 use borsh::{
-    from_slice as borsh_from_slice, to_vec as borsh_to_vec, BorshDeserialize, BorshSerialize,
+    from_slice as borsh_from_slice, to_vec as borsh_to_vec,
 };
 use bytes::Bytes;
 use eyre::Error as EyreError;

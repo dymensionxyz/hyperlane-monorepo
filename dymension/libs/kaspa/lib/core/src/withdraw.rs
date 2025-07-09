@@ -3,7 +3,6 @@ use bytes::Bytes;
 use eyre::Error as EyreError;
 use hex::ToHex;
 use hyperlane_core::HyperlaneMessage;
-use hyperlane_core::H256;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use kaspa_consensus_core::tx::TransactionOutpoint;
@@ -11,7 +10,7 @@ use kaspa_wallet_pskt::prelude::Bundle;
 use serde::{Deserialize, Serialize};
 
 /// WithdrawFXG resrents is sequence of PSKT transactions for batch processing and transport as
-/// a single serialized payload. Bundle has mulpible PSKT. Each PSKT is associated with
+/// a single serialized payload. Bundle has multiple PSKT. Each PSKT is associated with
 /// some HL messages.
 ///
 /// PSKT inside the bundle and its HL messages should live on respective indices, i.e.,

@@ -1,13 +1,12 @@
 use api_rs::apis::configuration::Configuration;
 use tracing::info;
 
-use url::Url;
 
 use eyre::{Error, Result};
 
 use super::base::RateLimitConfig;
-use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
-use std::hash::{BuildHasher, Hash, Hasher, RandomState};
+use reqwest_middleware::ClientWithMiddleware;
+use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 use std::time::Duration;
 

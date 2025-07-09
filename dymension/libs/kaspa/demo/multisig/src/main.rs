@@ -13,7 +13,6 @@ use hardcode::e2e::{
     DEPOSIT_AMOUNT as e2e_deposit_amount, NETWORK_ID as e2e_network_id,
     RELAYER_NETWORK_FEE as e2e_relayer_network_fee, URL as e2e_url,
 };
-use relayer::withdraw::demo::*;
 use relayer::withdraw::hub_to_kaspa::{
     build_withdrawal_pskt, combine_bundles_with_fee as relayer_combine_bundles_and_pay_fee,
 };

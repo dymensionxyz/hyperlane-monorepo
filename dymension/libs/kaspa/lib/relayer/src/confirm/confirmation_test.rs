@@ -1,17 +1,3 @@
-use anyhow::Result;
-use hyperlane_cosmos_native::CosmosNativeProvider;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
-    ProgressIndication, QueryOutpointRequest, WithdrawalId,
-};
-
-use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionId, TransactionOutpoint, UtxoEntry};
-use kaspa_rpc_core::api::rpc::RpcApi;
-
-use kaspa_addresses::Address;
-
-use api_rs::models::{TxInput, TxModel, TxOutput};
-
-use super::get_previous_utxo_in_lineage;
 
 #[cfg(test)]
 mod tests {

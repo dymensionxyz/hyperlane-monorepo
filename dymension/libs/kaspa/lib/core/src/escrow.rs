@@ -8,7 +8,6 @@ use kaspa_txscript::{
 use eyre::Result;
 use kaspa_rpc_core::RpcScriptPublicKey;
 use secp256k1::{rand::thread_rng, Keypair, PublicKey};
-use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 pub fn generate_escrow_priv_key() -> Keypair {

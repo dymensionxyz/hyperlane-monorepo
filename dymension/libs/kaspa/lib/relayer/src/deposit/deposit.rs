@@ -9,7 +9,7 @@ use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
 use prost::Message;
 
 use corelib::message::{parse_hyperlane_message, parse_hyperlane_metadata};
-use hyperlane_core::{Encode, HyperlaneMessage, RawHyperlaneMessage, U256};
+use hyperlane_core::{Encode, HyperlaneMessage, U256};
 use hyperlane_warp_route::TokenMessage;
 use kaspa_consensus_core::tx::TransactionOutpoint;
 pub use secp256k1::PublicKey;
