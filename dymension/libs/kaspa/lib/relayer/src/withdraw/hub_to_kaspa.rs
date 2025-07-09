@@ -474,7 +474,7 @@ async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> R
 
     let mut signed = Vec::new();
     // Iterate over (PSKT; associated HL messages) pairs
-    for (pskt, messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
+    for (pskt, _messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
         let pskt = PSKT::<Signer>::from(pskt.clone());
         signed.push(sign_pay_fee(pskt, &wallet, &secret).await?);
     }
@@ -622,7 +622,7 @@ pub fn finalize_pskt(
         .unwrap()
         .extract_tx()
         .map_err(|e: ExtractError| eyre::eyre!("Extract kaspa tx: {:?}", e))?;
-    let (mut tx, _) = finalize_fn(mass);
+    let (tx, _) = finalize_fn(mass);
 
     let rpc_tx = (&tx).into();
     Ok(rpc_tx)

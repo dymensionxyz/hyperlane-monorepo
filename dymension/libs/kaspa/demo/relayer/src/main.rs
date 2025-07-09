@@ -6,6 +6,8 @@ use hardcode::e2e::*;
 use x::args::Args;
 use x::deposit::{demo, DemoArgs};
 
+use x::deposit::ESCROW_ADDRESS;
+
 #[tokio::main]
 async fn main() {
     let args = Args::parse();

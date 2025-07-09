@@ -59,6 +59,9 @@ use tokio::{sync::Mutex, task::JoinHandle, time};
 use tracing::error;
 use workflow_core::abortable::Abortable;
 
+pub const ESCROW_ADDRESS: &str =
+    "kaspatest:qzwyrgapjnhtjqkxdrmp7fpm3yddw296v2ajv9nmgmw5k3z0r38guevxyk7j0";
+
 pub struct DepositCache {
     seen: Mutex<HashSet<Deposit>>,
 }

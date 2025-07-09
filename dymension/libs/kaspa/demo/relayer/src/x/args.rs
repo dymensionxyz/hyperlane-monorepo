@@ -3,8 +3,7 @@ use corelib::env::version;
 use clap::{Arg, ArgAction, Command};
 
 const NAME: &str = "demo";
-const ESCROW_ADDRESS: &str =
-    "kaspatest:qzwyrgapjnhtjqkxdrmp7fpm3yddw296v2ajv9nmgmw5k3z0r38guevxyk7j0";
+
 
 pub fn cli() -> Command {
     Command::new(NAME)
