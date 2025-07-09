@@ -1,4 +1,4 @@
-use corelib::api::client::Deposit;
+use corelib::{api::client::Deposit, message::add_kaspa_metadata_hl_messsage};
 use corelib::deposit::DepositFXG;
 use eyre::Result;
 
@@ -59,40 +59,20 @@ pub async fn handle_new_deposit(escrow_address: &str, deposit: &Deposit) -> Resu
         })
         .ok_or(eyre::eyre!("kaspa deposit had insufficient sompi amount"))?;
 
-    let output = TransactionOutpoint {
-        transaction_id: deposit.id,
-        index: utxo_index as u32,
-    };
-    let output_bytes = bincode::serialize(&output)?;
 
-    let mut metadata: HlMetadata;
-    if token_message.metadata().is_empty() {
-        metadata = HlMetadata {
-            hook_forward_to_ibc: Vec::new(),
-            kaspa: output_bytes,
-        };
-    } else {
-        metadata = HlMetadata::decode(token_message.metadata())?;
-        // replace kaspa value and reencode message
-        metadata.kaspa = output_bytes;
-    }
-    let token_message_new = TokenMessage::new(
-        token_message.recipient(),
-        token_message.amount(),
-        metadata.encode_to_vec(),
-    );
+    let token_message_new = add_kaspa_metadata_hl_messsage(token_message,deposit.id,utxo_index)?;
+    
     // create message with new body
-    let mut hl_message_new = hl_message.clone();
+    let mut hl_message_new: HyperlaneMessage = hl_message.clone();
     hl_message_new.body = token_message_new.to_vec();
 
     // build response for validator
     let tx = DepositFXG {
-        msg_id: hl_message_new.id(),
         tx_id: deposit.id.to_string(),
         utxo_index: utxo_index,
-        amount: token_message.amount(),
+        amount: token_message_new.amount(),
         block_id: deposit.block_hash[0].clone(), // used by validator to find tx by block
-        payload: hl_message_new,
+        hl_message: hl_message_new,
     };
     Ok(tx)
 }

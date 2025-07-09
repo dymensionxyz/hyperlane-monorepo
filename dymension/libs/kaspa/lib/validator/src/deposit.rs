@@ -98,7 +98,7 @@ pub async fn validate_deposit(
     }
 
     // decode Hyperlane message
-    let token_message = parse_hyperlane_metadata(&deposit.payload)?;
+    let token_message = parse_hyperlane_metadata(&deposit.hl_message)?;
 
     // decode original Hyperlane message
     let original_token_message = parse_hyperlane_metadata(&original_hl_message)?;
