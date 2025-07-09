@@ -80,6 +80,7 @@ pub async fn recursive_trace_transactions(
     // if curr_utxo is the anchor_utxo, return
     // this will wrap up the recursive call
     if curr_utxo == anchor_utxo {
+        lineage_utxos.push(curr_utxo);
         return Ok(());
     }
 
@@ -131,10 +132,6 @@ pub async fn recursive_trace_transactions(
         }
 
         // if returns OK, add the input to the lineage_UTXOs and return
-
-
-        // FIXME: parse message IDs from the transaction
-        /*
         // Parse the payload string to extract the message ID
         if let Some(payload) = transaction.payload.clone() {
             let unhexed_payload = hex::decode(&payload)
@@ -149,12 +146,10 @@ pub async fn recursive_trace_transactions(
                     )
                 })?;
 
-            // Convert each message ID into a WithdrawalId and add to the list
             processed_withdrawals.extend(message_ids.0);
         } else {
             return Err(eyre::eyre!("No payload found in transaction"));
         }
-         */
 
 
         lineage_utxos.push(input_utxo);
