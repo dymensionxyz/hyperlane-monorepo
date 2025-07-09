@@ -83,6 +83,7 @@ pub async fn validate_deposit(
         .ok_or("transaction not found in block")
         .map_err(|e: &'static str| eyre::eyre!(e))?;
 
+    // deposit tx retrieved from Kaspa node
     let deposit_tx = block.transactions[tx_index].clone();
 
     // get utxo in the tx from index in deposit.
@@ -99,10 +100,10 @@ pub async fn validate_deposit(
     let amount: U256 = parsed_hl.token_message.amount();
 
     // this recreates the metadata injection to the token message done by the relayer
-    let hl_message_new = add_kaspa_metadata_hl_messsage(parsed_hl,tx_hash,deposit.utxo_index)?;
+    let hl_message_with_tx_info = add_kaspa_metadata_hl_messsage(parsed_hl,tx_hash,deposit.utxo_index)?;
 
     // this validates the original HL message included in the Kaspa Tx its the same than the HL message relayed, after adding the metadata.
-    if deposit.hl_message.id() != hl_message_new.id() {
+    if deposit.hl_message.id() != hl_message_with_tx_info.id() {
         error!("Relayed HL message does not match HL message included in Kaspa Tx");
         return Ok(false);
     }
