@@ -1,5 +1,5 @@
-use corelib::{api::client::Deposit, message::add_kaspa_metadata_hl_messsage};
 use corelib::deposit::DepositFXG;
+use corelib::{api::client::Deposit, message::add_kaspa_metadata_hl_messsage};
 use eyre::Result;
 
 use tracing::info;
@@ -14,7 +14,6 @@ use hyperlane_warp_route::TokenMessage;
 use kaspa_consensus_core::tx::TransactionOutpoint;
 pub use secp256k1::PublicKey;
 use std::error::Error;
-
 
 pub async fn handle_new_deposit(escrow_address: &str, deposit: &Deposit) -> Result<DepositFXG> {
     // decode payload into Hyperlane message
@@ -37,8 +36,8 @@ pub async fn handle_new_deposit(escrow_address: &str, deposit: &Deposit) -> Resu
         })
         .ok_or(eyre::eyre!("kaspa deposit had insufficient sompi amount"))?;
 
-    let hl_message_new = add_kaspa_metadata_hl_messsage(parsed_hl,deposit.id,utxo_index)?;
-    
+    let hl_message_new = add_kaspa_metadata_hl_messsage(parsed_hl, deposit.id, utxo_index)?;
+
     // build response for validator
     let tx = DepositFXG {
         tx_id: deposit.id.to_string(),

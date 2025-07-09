@@ -1,14 +1,13 @@
 use std::io::Cursor;
 
 use eyre::Result;
-use hyperlane_core::{Encode,Decode, HyperlaneMessage, RawHyperlaneMessage};
+use hyperlane_core::{Decode, Encode, HyperlaneMessage, RawHyperlaneMessage};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
 use hyperlane_warp_route::TokenMessage;
-use kaspa_hashes::Hash;
 use kaspa_consensus_core::tx::TransactionOutpoint;
-pub use secp256k1::Keypair as KaspaSecpKeypair;
+use kaspa_hashes::Hash;
 use prost::Message;
-
+pub use secp256k1::Keypair as KaspaSecpKeypair;
 
 pub struct ParsedHL {
     pub hl_message: HyperlaneMessage,
@@ -51,8 +50,11 @@ pub fn parse_hyperlane_metadata(m: &HyperlaneMessage) -> Result<TokenMessage> {
     Ok(token_message)
 }
 
-pub fn add_kaspa_metadata_hl_messsage(parsed: ParsedHL,transaction_id: Hash, utxo_index: usize) -> Result<HyperlaneMessage> {
-
+pub fn add_kaspa_metadata_hl_messsage(
+    parsed: ParsedHL,
+    transaction_id: Hash,
+    utxo_index: usize,
+) -> Result<HyperlaneMessage> {
     let hl_message = parsed.hl_message;
     let token_message: TokenMessage = parsed.token_message;
 

@@ -46,7 +46,6 @@ async fn validate_maturity(
     Ok(false)
 }
 
-
 /// Deposit validation process
 /// Executed by validators to check the deposit info relayed is equivalent to the original Kaspa tx to the escrow address
 /// It validates that:
@@ -54,16 +53,15 @@ async fn validate_maturity(
 ///  * The HL message relayed is equivalent to the HL message included in the original Kaspa Tx (after recreating metadata injection to token message)
 ///  * The Kaspa transaction utxo destination is the escrowed address and the utxo value is enough to cover the tx.
 ///  * The utxo is mature
-/// 
+///
 /// Note: If the utxo value is higher of the amount the deposit is also accepted
-/// 
+///
 pub async fn validate_deposit(
     client: &Arc<DynRpcApi>,
     deposit: &DepositFXG,
     escrow_address: &str,
     network_params: &NetworkParams,
 ) -> Result<bool> {
-
     // convert block and tx id strings to hashes
     let block_hash = RpcHash::from_str(&deposit.block_id)?;
     let tx_hash = RpcHash::from_str(&deposit.tx_id)?;
@@ -95,12 +93,13 @@ pub async fn validate_deposit(
 
     // get HLMessage and token message from Tx payload
     let parsed_hl = ParsedHL::parse_bytes(deposit_tx.payload)?;
- 
+
     // deposit tx amount
     let amount: U256 = parsed_hl.token_message.amount();
 
     // this recreates the metadata injection to the token message done by the relayer
-    let hl_message_with_tx_info = add_kaspa_metadata_hl_messsage(parsed_hl,tx_hash,deposit.utxo_index)?;
+    let hl_message_with_tx_info =
+        add_kaspa_metadata_hl_messsage(parsed_hl, tx_hash, deposit.utxo_index)?;
 
     // this validates the original HL message included in the Kaspa Tx its the same than the HL message relayed, after adding the metadata.
     if deposit.hl_message.id() != hl_message_with_tx_info.id() {
@@ -110,7 +109,11 @@ pub async fn validate_deposit(
 
     // validation the utxo amount is sufficient for the deposit
     if U256::from(utxo.value) < amount {
-        error!("Deposit amount is less than token message amount, deposit: {:?}, token message: {:?}",U256::from(utxo.value), amount);
+        error!(
+            "Deposit amount is less than token message amount, deposit: {:?}, token message: {:?}",
+            U256::from(utxo.value),
+            amount
+        );
         return Ok(false);
     }
 
