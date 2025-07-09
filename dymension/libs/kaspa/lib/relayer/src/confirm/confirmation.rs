@@ -138,6 +138,95 @@ pub async fn expensive_trace_transactions(
     ))
 }
 
+
+
+
+
+
+
+
+
+
+pub async fn recursive_trace_transactions(
+    client: &HttpClient,
+    escrow_addresses: &str,
+    curr_utxo: TransactionOutpoint,
+    anchor_utxo: TransactionOutpoint,
+    lineage_utxos: &mut Vec<TransactionOutpoint>,
+) -> Result<()> {
+    // if curr_utxo is the anchor_utxo, return
+    // this will wrap up the recursive call
+    if curr_utxo == anchor_utxo {
+        return Ok(());
+    }
+
+    info!("Tracing lineage from UTXO: {:?}", curr_utxo);
+
+    // get the transaction
+    let transaction = client
+        .get_tx_by_id(&curr_utxo.transaction_id.to_string())
+        .await?;
+
+    // get the inputs of the current transaction
+    let inputs = transaction
+        .inputs
+        .as_ref()
+        .ok_or(Error::Custom("Inputs not found".to_string()))?;
+
+    // follow inputs
+    for input in inputs {
+        info!("Checking input: {:?}", input.index);
+
+        // if the input has my address, do recursive call
+        let input_address = input
+            .previous_outpoint_address
+            .as_ref()
+            .ok_or(Error::Custom("Input address not found".to_string()))?;
+
+        // skip input if not my address
+        if input_address != escrow_addresses {
+            info!("Skipping input from non-escrow address: {:?}", input_address);
+            continue;
+        }
+
+
+        // FIXME: we have wrapper for it?
+        let input_utxo = TransactionOutpoint {
+            transaction_id: kaspa_hashes::Hash::from_bytes(
+                hex::decode(&input.previous_outpoint_hash)?.try_into().map_err(|_| {
+                    eyre::eyre!("Invalid hex in previous_outpoint_hash")
+                })?
+            ),
+            index: input.previous_outpoint_index.parse()?,
+        };
+        // do recursive call
+        let res = recursive_trace_transactions(client, escrow_addresses, input_utxo, anchor_utxo, lineage_utxos).await;
+
+        // if returns error, continue to other input
+        if res.is_err() {
+            continue;
+        }
+
+        // if returns OK, add the input to the lineage_UTXOs and return
+        lineage_utxos.push(input_utxo);
+        return Ok(())
+    }
+
+    // if reached here, return error as we're not followed the lineage
+    Err(eyre::eyre!("No lineage UTXOs found in transaction inputs"))
+}
+
+
+
+
+
+
+
+
+
+
+
+
 pub fn get_previous_utxo_in_lineage(
     transaction: &TxModel,
     lineage_address: &str,
