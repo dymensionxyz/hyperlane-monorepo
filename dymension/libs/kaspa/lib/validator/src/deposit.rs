@@ -2,13 +2,12 @@ use corelib::deposit::DepositFXG;
 
 use kaspa_wallet_core::prelude::DynRpcApi;
 
-use relayer::deposit::ParsedHL;
 use tracing::error;
 
 use kaspa_wallet_core::utxo::NetworkParams;
 
 use corelib::escrow::is_utxo_escrow_address;
-use corelib::message::parse_hyperlane_metadata;
+use corelib::message::{add_kaspa_metadata_hl_messsage, parse_hyperlane_metadata, ParsedHL};
 use std::str::FromStr;
 
 use kaspa_rpc_core::{api::rpc::RpcApi, RpcBlock};
@@ -52,7 +51,7 @@ async fn validate_maturity(
 /// Executed by validators to check the deposit relayed is equivalent to original Kaspa transaction to escrow address
 /// It validates that:
 ///  * The original escrow transaction exists in Kaspa network
-///  * The deposit amount and destination address of the relayed deposit corresponds to the original HL message in the Kaspa transaction payload
+///  * The HL message relayed is equivalent to the HL message included in the original Kaspa Tx
 ///  * The Kaspa transaction utxo destination is the escrowed address and the utxo value is enough to cover the tx.
 ///  * The utxo is mature
 /// Note: If the utxo value is higher of the amount the deposit is also accepted
@@ -62,13 +61,15 @@ pub async fn validate_deposit(
     escrow_address: &str,
     network_params: &NetworkParams,
 ) -> Result<bool> {
+
+    // convert block and tx id strings to hashes
     let block_hash = RpcHash::from_str(&deposit.block_id)?;
     let tx_hash = RpcHash::from_str(&deposit.tx_id)?;
 
-    // get block from rpc
+    // get block from Kaspa node
     let block: RpcBlock = client.get_block(block_hash, true).await?;
 
-    // find tx in block
+    // find the relayed Kaspa Tx in block (id included in the deposit)
     let tx_index = block
         .verbose_data
         .as_ref()
@@ -89,35 +90,28 @@ pub async fn validate_deposit(
         .ok_or("utxo not found by index")
         .map_err(|e: &'static str| eyre::eyre!(e))?;
 
-    let original_hl_message = ParsedHL::parse_bytes(deposit_tx.payload)?.hl_message;
+    // get HLMessage and token message from Tx payload
+    let parsed_hl = ParsedHL::parse_bytes(deposit_tx.payload)?;
+ 
+    // deposit tx amount
+    let amount: U256 = parsed_hl.token_message.amount();
 
-    // validate the relayed hl message recipient corresponds to original hl message included in the transaction
-    if original_hl_message.recipient != deposit.payload.recipient {
-        error!("Original HL message recipient does not correspond to relayed message. Original Id: {}. Relayed Id: {}",original_hl_message.recipient,deposit.payload.recipient);
+    // this recreates the metadata injection to the token message done by the relayer
+    let hl_message_new = add_kaspa_metadata_hl_messsage(parsed_hl,tx_hash,deposit.utxo_index)?;
+
+    // this validates the original HL message included in the Kaspa Tx its the same than the HL message relayed, after adding the metadata.
+    if deposit.hl_message.id() != hl_message_new.id() {
+        error!("Relayed HL message does not match HL message included in Kaspa Tx");
         return Ok(false);
     }
 
-    // decode Hyperlane message
-    let token_message = parse_hyperlane_metadata(&deposit.hl_message)?;
-
-    // decode original Hyperlane message
-    let original_token_message = parse_hyperlane_metadata(&original_hl_message)?;
-
-    // compare original token message values with relayed one
-    if original_token_message.amount() != token_message.amount() || original_token_message.recipient() != token_message.recipient(){
-        error!("Original token message does not correspond to relayed token message.");
-        return Ok(false);
-    }
-    if U256::from(utxo.value) < token_message.amount() {
-        let amt = U256::from(utxo.value);
-        let token_amt = token_message.amount();
-        error!(
-            "Deposit amount is less than token message amount, deposit: {:?}, token message: {:?}",
-            amt, token_amt
-        );
+    // validation the utxo amount is sufficient for the deposit
+    if U256::from(utxo.value) < amount {
+        error!("Deposit amount is less than token message amount, deposit: {:?}, token message: {:?}",U256::from(utxo.value), amount);
         return Ok(false);
     }
 
+    // validation of the Kaspa tx destination is actually transferring funds to escrow address
     let is_escrow = is_utxo_escrow_address(&utxo.script_public_key, escrow_address)?;
     if !is_escrow {
         error!(
@@ -127,6 +121,7 @@ pub async fn validate_deposit(
         return Ok(false);
     }
 
+    // validation of the Kaspa tx maturity (old enough to be accepted)
     let maturity_result = validate_maturity(client, &block, network_params).await?;
     if !maturity_result {
         error!(

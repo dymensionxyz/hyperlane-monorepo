@@ -8,69 +8,42 @@ use tracing::info;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
 use prost::Message;
 
-use corelib::message::{parse_hyperlane_message, parse_hyperlane_metadata};
+use corelib::message::{parse_hyperlane_message, parse_hyperlane_metadata, ParsedHL};
 use hyperlane_core::{Encode, HyperlaneMessage, RawHyperlaneMessage, U256};
 use hyperlane_warp_route::TokenMessage;
 use kaspa_consensus_core::tx::TransactionOutpoint;
 pub use secp256k1::PublicKey;
 use std::error::Error;
 
-pub struct ParsedHL {
-    pub hl_message: HyperlaneMessage,
-    pub token_message: TokenMessage,
-}
-
-impl ParsedHL {
-    pub fn parse_string(payload: &str) -> Result<Self> {
-        let raw = hex::decode(payload)?;
-        Self::parse_bytes(raw)
-    }
-
-    pub fn parse_bytes(payload: Vec<u8>) -> Result<Self> {
-        let hl_message = parse_hyperlane_message(&payload)?;
-        let token_message = parse_hyperlane_metadata(&hl_message)?;
-        Ok(ParsedHL {
-            hl_message,
-            token_message,
-        })
-    }
-}
 
 pub async fn handle_new_deposit(escrow_address: &str, deposit: &Deposit) -> Result<DepositFXG> {
     // decode payload into Hyperlane message
 
     let payload = deposit.payload.clone().unwrap();
-    let parsed = ParsedHL::parse_string(&payload)?;
+    let parsed_hl = ParsedHL::parse_string(&payload)?;
     info!(
         "Dymension, parsed new deposit HL message: {:?}",
-        parsed.hl_message
+        parsed_hl.hl_message
     );
 
-    let hl_message = parsed.hl_message;
-    let token_message = parsed.token_message;
-
+    let amount = parsed_hl.token_message.amount();
     // find the index of the utxo that satisfies the transfer amount in hl message
     let utxo_index = deposit
         .outputs
         .iter()
         .position(|utxo: &api_rs::models::TxOutput| {
-            U256::from(utxo.amount) >= token_message.amount()
+            U256::from(utxo.amount) >= amount
                 && utxo.script_public_key_address.as_ref().unwrap() == escrow_address
         })
         .ok_or(eyre::eyre!("kaspa deposit had insufficient sompi amount"))?;
 
-
-    let token_message_new = add_kaspa_metadata_hl_messsage(token_message,deposit.id,utxo_index)?;
+    let hl_message_new = add_kaspa_metadata_hl_messsage(parsed_hl,deposit.id,utxo_index)?;
     
-    // create message with new body
-    let mut hl_message_new: HyperlaneMessage = hl_message.clone();
-    hl_message_new.body = token_message_new.to_vec();
-
     // build response for validator
     let tx = DepositFXG {
         tx_id: deposit.id.to_string(),
         utxo_index: utxo_index,
-        amount: token_message_new.amount(),
+        amount: amount,
         block_id: deposit.block_hash[0].clone(), // used by validator to find tx by block
         hl_message: hl_message_new,
     };
