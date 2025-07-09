@@ -300,6 +300,7 @@ where
                 let candidate_new_anchor = TransactionOutpoint::from(utxo.outpoint);
                 let fxg = expensive_trace_transactions(
                     &self.provider.rest().client.client,
+                    escrow_address.to_string(),
                     candidate_new_anchor,
                     old_anchor,
                 )
