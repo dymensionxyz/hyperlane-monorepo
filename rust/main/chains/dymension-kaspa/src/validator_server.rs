@@ -10,14 +10,14 @@ use axum::{
 };
 use dym_kas_core::deposit::DepositFXG;
 use dym_kas_core::escrow::EscrowPublic;
-use dym_kas_core::payload::MessageIDs;
+use dym_kas_core::api::client::HttpClient;
 use dym_kas_core::wallet::EasyKaspaWallet;
 use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
 use dym_kas_validator::deposit::validate_new_deposit;
 use dym_kas_validator::withdraw::{sign_withdrawal_fxg, validate_withdrawal_batch};
 pub use dym_kas_validator::KaspaSecpKeypair;
-use eyre::{eyre, Report};
+use eyre::Report;
 use hyperlane_core::{
     Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable,
     SignedCheckpointWithMessageId, SignedType, H256,
@@ -108,8 +108,8 @@ impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> 
         self.kas_provider.as_ref().unwrap().hub_mailbox_id()
     }
 
-    fn must_rest_config(&self) -> api_rs::apis::configuration::Configuration {
-        self.kas_provider.as_ref().unwrap().rest().get_config()
+    fn must_rest_client(&self) -> &HttpClient {
+        &self.kas_provider.as_ref().unwrap().rest().client.client
     }
 
     pub fn default() -> Self {
@@ -174,8 +174,7 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
         body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
     // Call to validator.G()
-    let config = resources.must_rest_config();
-    if !validate_confirmed_withdrawals(&confirmation_fxg, &config)
+    if !validate_confirmed_withdrawals(resources.must_rest_client(), &confirmation_fxg)
         .await
         .map_err(|e| AppError(e))?
     {

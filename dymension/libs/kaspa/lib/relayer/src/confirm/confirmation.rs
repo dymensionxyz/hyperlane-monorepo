@@ -144,25 +144,12 @@ pub async fn recursive_trace_transactions(
         }
 
         /* ------------ if returns OK, the input is part of the lineage! ------------ */
-
         let payload = transaction
             .payload
             .clone()
             .ok_or_else(|| eyre::eyre!("No payload found in transaction"))?;
 
-        // Parse the payload string to extract the message ID
-        let unhexed_payload =
-            hex::decode(&payload).map_err(|e| eyre::eyre!("Failed to decode payload: {}", e))?;
-
-        // Deserialize the payload bytes into MessageIDs
-        let message_ids =
-            corelib::payload::MessageIDs::from_bytes(&unhexed_payload).map_err(|e| {
-                eyre::eyre!(
-                    "Failed to deserialize MessageIDs: Payload: {} Err: {}",
-                    payload,
-                    e
-                )
-            })?;
+        let message_ids = corelib::payload::MessageIDs::from_tx_payload(&payload)?;
 
         // add to the result
         processed_withdrawals.extend(message_ids.0);
