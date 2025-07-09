@@ -10,16 +10,16 @@ use corelib::message::{add_kaspa_metadata_hl_messsage, parse_hyperlane_metadata,
 use std::str::FromStr;
 
 use corelib::escrow::EscrowPublic;
-use kaspa_addresses::Address;
 use corelib::wallet::NetworkInfo;
+use kaspa_addresses::Address;
 use kaspa_rpc_core::{api::rpc::RpcApi, RpcBlock};
 use kaspa_rpc_core::{RpcHash, RpcTransactionOutput};
 use kaspa_wrpc_client::prelude::{NetworkId, NetworkType};
 use std::sync::Arc;
 
-use kaspa_txscript::extract_script_pub_key_address;
 use eyre::Result;
 use hyperlane_core::U256;
+use kaspa_txscript::extract_script_pub_key_address;
 
 use corelib::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 
