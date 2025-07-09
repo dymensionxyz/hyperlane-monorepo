@@ -5,14 +5,8 @@ use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use reqwest_retry::policies::ExponentialBackoff;
 use std::sync::Arc;
 use std::time::Duration;
-use std::{error::Error, num::NonZeroU32};
-use url::Url;
+use std::num::NonZeroU32;
 
-use kaspa_wrpc_client::{
-    client::{ConnectOptions, ConnectStrategy},
-    prelude::{NetworkId, NetworkType},
-    KaspaRpcClient, Resolver, WrpcEncoding,
-};
 
 struct FooRateLimiter {
     limiter: Arc<DefaultDirectRateLimiter>,

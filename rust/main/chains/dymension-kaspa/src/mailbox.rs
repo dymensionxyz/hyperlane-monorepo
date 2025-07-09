@@ -43,27 +43,6 @@ impl KaspaMailbox {
         }
     }
 
-    // TODO: where used?
-    fn encode_hyperlane_message(
-        &self,
-        message: &HyperlaneMessage,
-        metadata: &[u8],
-    ) -> ChainResult<Any> {
-        let mailbox_id: String = self.address.encode_hex();
-        let message = hex::encode(RawHyperlaneMessage::from(message));
-        let metadata = hex::encode(metadata);
-        let signer = self.provider.rest().get_signer()?.address_string.clone();
-        let process = MsgProcessMessage {
-            mailbox_id: "0x".to_string() + &mailbox_id,
-            metadata,
-            message,
-            relayer: signer,
-        };
-        Ok(Any {
-            type_url: MsgProcessMessage::type_url(),
-            value: process.encode_to_vec(),
-        })
-    }
 }
 
 impl HyperlaneChain for KaspaMailbox {
