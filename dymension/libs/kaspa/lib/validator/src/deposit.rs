@@ -47,6 +47,15 @@ async fn validate_maturity(
     Ok(false)
 }
 
+
+/// Deposit validation process
+/// Executed by validators to check the deposit relayed is equivalent to original Kaspa transaction to escrow address
+/// It validates that:
+///  * The original escrow transaction exists in Kaspa network
+///  * The deposit amount and destination address of the relayed deposit corresponds to the original HL message in the Kaspa transaction payload
+///  * The Kaspa transaction utxo destination is the escrowed address and the utxo value is enough to cover the tx.
+///  * The utxo is mature
+/// Note: If the utxo value is higher of the amount the deposit is also accepted
 pub async fn validate_deposit(
     client: &Arc<DynRpcApi>,
     deposit: &DepositFXG,
