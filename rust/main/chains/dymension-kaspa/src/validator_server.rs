@@ -115,7 +115,7 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
         &resources.must_api(),
         &deposits,
         &resources.must_escrow(),
-        &resources.must_wallet().network_params(),
+        &resources.must_wallet().net.network_params(),
     )
     .await
     .map_err(|e| AppError(e))?
@@ -196,7 +196,7 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
         &fxg,
         resources.must_hub_rpc(),
         resources.must_hub_mailbox_id(),
-        resources.must_wallet().address_prefix(),
+        resources.must_wallet().net.address_prefix,
         resources.must_escrow(),
     )
     .await

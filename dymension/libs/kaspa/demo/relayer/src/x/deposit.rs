@@ -218,8 +218,8 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
     let validation_result = validate_new_deposit(
         &w.rpc_api(),
         &deposit_recv,
-        &escrow_address.clone().to_string(),
-        NetworkParams::from(w.network_id()?),
+        &escrow_address,
+        NetworkParams::from(w.net.network_id),
     )
     .await?;
 

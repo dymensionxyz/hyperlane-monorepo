@@ -10,11 +10,14 @@ use corelib::message::{add_kaspa_metadata_hl_messsage, parse_hyperlane_metadata,
 use std::str::FromStr;
 
 use corelib::escrow::EscrowPublic;
+use kaspa_addresses::Address;
+use corelib::wallet::NetworkInfo;
 use kaspa_rpc_core::{api::rpc::RpcApi, RpcBlock};
 use kaspa_rpc_core::{RpcHash, RpcTransactionOutput};
 use kaspa_wrpc_client::prelude::{NetworkId, NetworkType};
 use std::sync::Arc;
 
+use kaspa_txscript::extract_script_pub_key_address;
 use eyre::Result;
 use hyperlane_core::U256;
 
@@ -48,7 +51,8 @@ async fn validate_maturity(
 pub async fn validate_new_deposit(
     client: &Arc<DynRpcApi>,
     deposit: &DepositFXG,
-    escrow: &EscrowPublic,
+    net: &NetworkInfo,
+    escrow_address: &Address,
     network_params: &NetworkParams,
 ) -> Result<bool> {
     // convert block and tx id strings to hashes
@@ -106,10 +110,11 @@ pub async fn validate_new_deposit(
         return Ok(false);
     }
 
-    if escrow.p2sh != utxo.script_public_key {
+    let utxo_addr = extract_script_pub_key_address(&utxo.script_public_key, net.address_prefix)?;
+    if utxo_addr != *escrow_address {
         error!(
             "Deposit is not to escrow address, escrow: {:?}, utxo: {:?}",
-            escrow.p2sh, utxo.script_public_key
+            escrow_address, utxo.script_public_key
         );
         return Ok(false);
     }
