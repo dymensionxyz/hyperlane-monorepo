@@ -116,11 +116,13 @@ async fn demo() -> Result<()> {
 
     let payload = MessageIDs::from(vec![hl_msg.id()]).to_bytes()?;
 
+    let current_anchor = TransactionOutpoint::new(tx_id, 0);
+
     let inputs = fetch_input_utxos(
         &rpc,
         &e.public(e2e_address_prefix),
-        &w.account(),
-        &TransactionOutpoint::new(tx_id, 0),
+        &w.account().change_address().unwrap(),
+        &current_anchor,
         e2e_network_id,
     )
     .await
@@ -141,7 +143,13 @@ async fn demo() -> Result<()> {
 
     info!("Constructed withdrawal PSKT");
 
-    let fxg = WithdrawFXG::new(Bundle::from(pskt), vec![vec![hl_msg]]);
+    let new_anchor = TransactionOutpoint::new(pskt.calculate_id(), (pskt.outputs.len() - 1) as u32);
+
+    let fxg = WithdrawFXG::new(
+        Bundle::from(pskt),
+        vec![vec![hl_msg]],
+        vec![current_anchor, new_anchor],
+    );
 
     let bundle_val = validator_sign_withdrawal_fxg(&fxg, e.keys.first().unwrap())?;
 
