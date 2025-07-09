@@ -75,8 +75,7 @@ pub async fn fetch_input_utxos(
     }
 
     // Get all available UTXOs for relayer
-    let relayer_utxos =
-        get_utxo_to_spend(relayer_address, kaspa_rpc, network_id).await?;
+    let relayer_utxos = get_utxo_to_spend(relayer_address, kaspa_rpc, network_id).await?;
 
     // Iterate through escrow and relayer UTXO – they are the transaction inputs.
     // Create a vector of "populated" inputs: TransactionInput and UtxoEntry.
@@ -311,8 +310,7 @@ pub fn filter_outputs_from_msgs(
             }
         };
 
-        let recipient =
-            get_recipient_script_pubkey(tm.recipient(), prefix);
+        let recipient = get_recipient_script_pubkey(tm.recipient(), prefix);
 
         let o = TransactionOutput::new(tm.amount().as_u64(), recipient);
 

@@ -20,8 +20,8 @@ use hyperlane_core::{Decode, HyperlaneMessage, H256, U256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use hyperlane_warp_route::TokenMessage;
-use kaspa_addresses::{Address as KaspaAddress, Prefix};
 use kaspa_addresses::Prefix::Testnet;
+use kaspa_addresses::{Address as KaspaAddress, Prefix};
 use kaspa_consensus_core::hashing::sighash::{
     calc_schnorr_signature_hash, SigHashReusedValuesUnsync,
 };
