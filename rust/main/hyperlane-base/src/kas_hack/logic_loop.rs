@@ -216,7 +216,7 @@ where
         )?;
 
         self.hub_mailbox
-            .process(&fxg.payload, &formatted_sigs, None)
+            .process(&fxg.hl_message, &formatted_sigs, None)
             .await
     }
 
@@ -278,7 +278,7 @@ where
         let all_escrow_utxos = self
             .provider
             .rpc()
-            .get_utxos_by_addresses(vec![escrow_address])
+            .get_utxos_by_addresses(vec![escrow_address.clone()])
             .await?;
 
         // check if the anchor utxo is in the utxos.
@@ -300,18 +300,24 @@ where
                 let candidate_new_anchor = TransactionOutpoint::from(utxo.outpoint);
                 let fxg = expensive_trace_transactions(
                     &self.provider.rest().client.client,
-                    candidate_new_anchor,
+                    &escrow_address.to_string(),
+                    candidate_new_anchor.clone(),
                     old_anchor,
                 )
                 .await;
                 if !fxg.is_ok() {
                     error!(
-                        "Dymension, error tracing sequence of kaspa withdrawals for syncing: {:?}",
-                        fxg.err()
+                        "Dymension, invalid confirmation candidate: error tracing sequence of kaspa withdrawals for syncing: {:?}, candidate: {:?}",
+                        fxg.err(),
+                        candidate_new_anchor,
                     );
                     continue;
                 }
                 info!("Traced sequence of kaspa withdrawals for syncing");
+
+                /*
+                TODO: need to try again here if validators are not unavailable etc, rather than just returning an error and thus a crash
+                  */
                 self.confirm_withdrawal_on_hub(fxg.unwrap()).await?;
                 good = true;
                 break;
