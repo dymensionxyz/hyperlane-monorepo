@@ -17,7 +17,7 @@ use hyperlane_core::{Decode, HyperlaneMessage};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_warp_route::TokenMessage;
 use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint};
-use kaspa_addresses::Prefix;
+use kaspa_addresses::Prefix as KaspaAddrPrefix;
 use std::collections::HashMap;
 use std::io::Cursor;
 use tracing::{debug, info};
@@ -26,7 +26,7 @@ pub async fn validate_withdrawal_batch(
     fxg: &WithdrawFXG,
     cosmos_client: &CosmosGrpcClient,
     mailbox_id: String,
-    address_prefix: Prefix,
+    address_prefix: KaspaAddrPrefix,
     escrow_public: EscrowPublic,
 ) -> Result<(), ValidationError> {
     let messages: Vec<HyperlaneMessage> = fxg.messages.clone().into_iter().flatten().collect();
@@ -78,7 +78,7 @@ pub async fn validate_withdrawal_batch(
 pub fn validate_pskts(
     fxg: &WithdrawFXG,
     hub_outpoint: TransactionOutpoint,
-    address_prefix: Prefix,
+    address_prefix: KaspaAddrPrefix,
     escrow_public: EscrowPublic,
 ) -> Result<(), ValidationError> {
     let relayer_hub_outpoint = fxg.anchors.first().unwrap();
@@ -121,7 +121,7 @@ pub fn validate_pskt(
     pskt: PSKT<Signer>,
     hub_outpoint: TransactionOutpoint,
     pending_messages: &Vec<HyperlaneMessage>,
-    address_prefix: Prefix,
+    address_prefix: KaspaAddrPrefix,
     escrow_public: EscrowPublic,
 ) -> Result<TransactionOutpoint, ValidationError> {
     // Step 3: Check PSKT payload
