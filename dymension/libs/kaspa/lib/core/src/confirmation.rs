@@ -41,7 +41,6 @@ impl ConfirmationFXG {
             })
             .collect();
 
-
         // TODO: or is the list the other way around?
         let old = outpoints[0];
         let new = outpoints[outpoints.len() - 1];

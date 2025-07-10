@@ -16,11 +16,10 @@ use super::recursive_trace_transactions;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use corelib::api::base::RateLimitConfig;
+    use corelib::api::client::HttpClient;
     use hex;
     use kaspa_hashes::Hash;
-    use corelib::api::client::HttpClient;
-    use corelib::api::base::RateLimitConfig;
-
 
     #[tokio::test]
     // tested over https://explorer-tn10.kaspa.org/txs/1ffa672605af17906d99ba9506dd49406a2e8a3faa2969ab0c8929373aca51d1
@@ -32,7 +31,7 @@ mod tests {
             "https://api-tn10.kaspa.org/".to_string(),
             RateLimitConfig::default(),
         );
-        
+
         let escrow_address =
             "kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr".to_string();
 
@@ -47,8 +46,6 @@ mod tests {
             index: 0,
         };
 
-
-
         let new_utxo = TransactionOutpoint {
             transaction_id: Hash::from_bytes(
                 hex::decode("1ffa672605af17906d99ba9506dd49406a2e8a3faa2969ab0c8929373aca51d1")
@@ -60,7 +57,15 @@ mod tests {
         };
 
         // Assert the result
-        let result = recursive_trace_transactions(&client, &escrow_address, new_utxo, anchor_utxo, &mut lineage_utxos, &mut processed_withdrawals).await;
+        let result = recursive_trace_transactions(
+            &client,
+            &escrow_address,
+            new_utxo,
+            anchor_utxo,
+            &mut lineage_utxos,
+            &mut processed_withdrawals,
+        )
+        .await;
         assert!(result.is_ok());
         assert_eq!(lineage_utxos.len(), 2);
         assert_eq!(processed_withdrawals.len(), 1);
