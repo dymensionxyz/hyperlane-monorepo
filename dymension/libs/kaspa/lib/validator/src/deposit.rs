@@ -23,6 +23,7 @@ use kaspa_txscript::extract_script_pub_key_address;
 
 use corelib::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use hardcode::hl::ALLOWED_HL_MESSAGE_VERSION;
+use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 
 async fn validate_maturity(
     client: &Arc<DynRpcApi>,
@@ -54,7 +55,14 @@ pub async fn validate_new_deposit(
     deposit: &DepositFXG,
     net: &NetworkInfo,
     escrow_address: &Address,
+    hub_client: &CosmosGrpcClient,
 ) -> Result<bool> {
+    let hub_bootstrapped = hub_client.hub_bootstrapped().await?;
+    if !hub_bootstrapped {
+        error!("Hub is not bootstrapped, cannot validate deposit");
+        return Ok(false);
+    }
+
     // convert block and tx id strings to hashes
     let block_hash = RpcHash::from_str(&deposit.block_id)?;
     let tx_hash = RpcHash::from_str(&deposit.tx_id)?;
