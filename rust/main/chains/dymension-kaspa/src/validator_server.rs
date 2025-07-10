@@ -9,6 +9,7 @@ use axum::{
     routing::post,
     Router,
 };
+use hyperlane_core::Signature as HLCoreSignature;
 use dym_kas_core::api::client::HttpClient;
 use dym_kas_core::deposit::DepositFXG;
 use dym_kas_core::escrow::EscrowPublic;
@@ -166,7 +167,7 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
 async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + Sync + 'static>(
     State(resources): State<Arc<ValidatorServerResources<S>>>,
     body: Bytes,
-) -> HandlerResult<Json<SignedType<SignableProgressIndication>>> {
+) -> HandlerResult<Json<HLCoreSignature>> {
     info!("Validator: checking confirmed kaspa withdrawal");
     let confirmation_fxg: ConfirmationFXG =
         body.try_into().map_err(|e: eyre::Report| AppError(e))?;
@@ -191,7 +192,7 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
 
     info!("Validator: signed confirmed withdrawal");
 
-    Ok(Json(sig))
+    Ok(Json(sig.signature))
 }
 
 async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(

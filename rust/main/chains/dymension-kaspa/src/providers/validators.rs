@@ -92,7 +92,7 @@ impl ValidatorsClient {
     pub async fn get_confirmation_sigs(
         &self,
         fxg: &ConfirmationFXG,
-    ) -> ChainResult<Vec<SignedType<SignableProgressIndication>>> {
+    ) -> ChainResult<Vec<Signature>> {
         info!(
             "Dymension, getting confirmation sigs, number of validators: {:?}, fxg: {:?}",
             self.conf.validator_hosts.len(),
@@ -205,7 +205,7 @@ pub async fn request_validate_new_deposits(
 pub async fn request_validate_new_confirmation(
     host: String,
     confirmation: &ConfirmationFXG,
-) -> Result<Option<SignedType<SignableProgressIndication>>> {
+) -> Result<Option<Signature>> {
     let bz = Bytes::from(confirmation);
     let c = reqwest::Client::new();
     let res = c
@@ -216,7 +216,7 @@ pub async fn request_validate_new_confirmation(
 
     let status = res.status();
     if status == StatusCode::OK {
-        let body = res.json::<SignedType<SignableProgressIndication>>().await?;
+        let body = res.json::<Signature>().await?;
         Ok(Some(body))
     } else {
         Err(eyre::eyre!("Failed to validate confirmation: {}", status))
