@@ -314,6 +314,10 @@ where
                     continue;
                 }
                 info!("Traced sequence of kaspa withdrawals for syncing");
+
+                /*
+                TODO: need to try again here if validators are not unavailable etc, rather than just returning an error and thus a crash
+                  */
                 self.confirm_withdrawal_on_hub(fxg.unwrap()).await?;
                 good = true;
                 break;
