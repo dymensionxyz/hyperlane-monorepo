@@ -92,6 +92,12 @@ impl ValidatorsClient {
         &self,
         fxg: &ConfirmationFXG,
     ) -> ChainResult<Vec<Signature>> {
+        info!(
+            "Dymension, getting confirmation sigs, number of validators: {:?}, fxg: {:?}",
+            self.conf.validator_hosts.len(),
+            fxg
+        );
+
         let futures = self
         .conf
         .validator_hosts
