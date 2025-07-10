@@ -42,7 +42,8 @@ use secp256k1::PublicKey;
 use std::io::Cursor;
 use std::sync::Arc;
 
-use corelib::util::get_recipient_script_pubkey;
+use corelib::util;
+use corelib::util::{get_recipient_script_pubkey, input_sighash_type};
 use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::WithdrawFXG;
 use eyre::eyre;
@@ -51,7 +52,6 @@ use kaspa_rpc_core::model::RpcTransactionId;
 use kaspa_wallet_core::tx::is_transaction_output_dust;
 use kaspa_wallet_pskt::prelude::Bundle;
 use tracing::info;
-use corelib::util;
 
 /// Fetches escrow and relayer balances and a combined list of all inputs
 pub async fn fetch_input_utxos(
@@ -258,10 +258,7 @@ fn create_withdrawal_pskt(
             .utxo_entry(entry)
             .previous_outpoint(input.previous_outpoint)
             .sig_op_count(input.sig_op_count)
-            .sighash_type(
-                SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8())
-                    .unwrap(),
-            );
+            .sighash_type(input_sighash_type());
 
         if !input.signature_script.is_empty() {
             // escrow inputs need redeem_script
@@ -344,7 +341,9 @@ async fn get_utxo_to_spend(
 
     // Descending order – older UTXOs first
     utxos.sort_by_key(|u| std::cmp::Reverse(u.utxo_entry.block_daa_score));
-    utxos.retain(|u| util::maturity::is_mature(u.utxo_entry.block_daa_score, current_daa_score, network_id));
+    utxos.retain(|u| {
+        util::maturity::is_mature(u.utxo_entry.block_daa_score, current_daa_score, network_id)
+    });
 
     Ok(utxos)
 }

@@ -5,14 +5,35 @@ pub enum ValidationError {
     #[error("Message {message_id} is not delivered")]
     MessageNotDelivered { message_id: String },
 
+    #[error("The same message was relayed twice: {message_id}")]
+    DoubleSpending { message_id: String },
+
     #[error("Some of the messages are not in the unprocessed status on the Hub")]
     MessagesNotUnprocessed,
 
-    #[error("Hub outpoint {o:?} not found in PSKT inputs")]
-    HubOutpointNotFound { o: TransactionOutpoint },
+    #[error("HL message used escrow address as withdrawal recipient")]
+    EscrowWithdrawalNotAllowed { message_id: String },
+
+    #[error("Hub anchor {o:?} not found in PSKT inputs")]
+    HubAnchorNotFound { o: TransactionOutpoint },
+
+    #[error("Sighash type is not SIG_HASH_ALL | SIG_HASH_ANY_ONE_CAN_PAY")]
+    IncorrectSigHashType,
+
+    #[error("PSKT should not have lock time")]
+    UnexpectedLockTime,
+
+    #[error("Next anchor not found in PSKT outputs")]
+    NextAnchorNotFound,
+
+    #[error("More than one anchor candidate in PSKT outputs")]
+    MultipleAnchors,
 
     #[error("PSKT payload doesn't match inteded HL messages")]
     PayloadMismatch,
+
+    #[error("PSKT has incorrect TX version")]
+    TxVersionMismatch,
 
     #[error("Outpoint {o:?} not found in PSKT chain")]
     AnchorMismatch { o: TransactionOutpoint },
