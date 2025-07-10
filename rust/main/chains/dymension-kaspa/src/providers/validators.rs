@@ -18,6 +18,7 @@ use axum::Json;
 use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG, withdraw::WithdrawFXG};
 use futures::future::join_all;
 use kaspa_wallet_pskt::prelude::Bundle;
+use crate::validator_server::SignableProgressIndication;
 
 #[derive(Debug, Clone)]
 pub struct ValidatorsClient {
@@ -91,7 +92,7 @@ impl ValidatorsClient {
     pub async fn get_confirmation_sigs(
         &self,
         fxg: &ConfirmationFXG,
-    ) -> ChainResult<Vec<Signature>> {
+    ) -> ChainResult<Vec<SignedType<SignableProgressIndication>>> {
         info!(
             "Dymension, getting confirmation sigs, number of validators: {:?}, fxg: {:?}",
             self.conf.validator_hosts.len(),
@@ -204,7 +205,7 @@ pub async fn request_validate_new_deposits(
 pub async fn request_validate_new_confirmation(
     host: String,
     confirmation: &ConfirmationFXG,
-) -> Result<Option<Signature>> {
+) -> Result<Option<SignedType<SignableProgressIndication>>> {
     let bz = Bytes::from(confirmation);
     let c = reqwest::Client::new();
     let res = c
@@ -215,7 +216,7 @@ pub async fn request_validate_new_confirmation(
 
     let status = res.status();
     if status == StatusCode::OK {
-        let body = res.json::<Signature>().await?;
+        let body = res.json::<SignedType<SignableProgressIndication>>().await?;
         Ok(Some(body))
     } else {
         Err(eyre::eyre!("Failed to validate confirmation: {}", status))

@@ -176,8 +176,8 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
         validate_confirmed_withdrawals(resources.must_rest_client(), &confirmation_fxg)
             .await
             .map_err(|e| AppError(Report::from(e)))?;
+        info!("Validator: confirmed withdrawal is valid");
     }
-    info!("Validator: confirmed withdrawal is valid");
 
     let progress_indication = &confirmation_fxg.progress_indication;
 
@@ -212,16 +212,15 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
         )
         .await
         .map_err(|e| AppError(Report::from(e)))?;
+        info!("Validator: pskts are valid");
     }
-
-    info!("Validator: pskts are valid");
 
     let bundle = sign_withdrawal_fxg(&fxg, &resources.must_kas_key()).map_err(|e| AppError(e))?;
 
     Ok(Json(bundle))
 }
 
-struct SignableProgressIndication {
+pub struct SignableProgressIndication {
     progress_indication: ProgressIndication,
 }
 
