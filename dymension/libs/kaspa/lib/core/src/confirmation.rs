@@ -1,8 +1,8 @@
-use bytes::{Buf, BufMut, Bytes, BytesMut};
 use super::payload::MessageID;
 use borsh::{
     from_slice as borsh_from_slice, to_vec as borsh_to_vec, BorshDeserialize, BorshSerialize,
 };
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 use eyre::Error as EyreError;
 use hex::ToHex;
 use hyperlane_core::H256;
