@@ -50,10 +50,10 @@ impl ValidatorAnnounce for KaspaValidatorAnnounce {
         &self,
         validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
-       /*
-       This just has to match the value that was passed to the agent on the CLI on boot, it's not really used semantically
-        */ 
-        let c = "ARBITRARY_VALUE_FOOBAR"; 
+        /*
+        This just has to match the value that was passed to the agent on the CLI on boot, it's not really used semantically
+         */
+        let c = "ARBITRARY_VALUE_FOOBAR";
         Ok(vec![vec![format!("file://{}", c)]])
     }
 

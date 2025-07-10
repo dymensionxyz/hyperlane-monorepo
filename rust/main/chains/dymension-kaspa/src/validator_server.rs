@@ -9,7 +9,6 @@ use axum::{
     routing::post,
     Router,
 };
-use hyperlane_core::Signature as HLCoreSignature;
 use dym_kas_core::api::client::HttpClient;
 use dym_kas_core::deposit::DepositFXG;
 use dym_kas_core::escrow::EscrowPublic;
@@ -20,6 +19,7 @@ use dym_kas_validator::deposit::validate_new_deposit;
 use dym_kas_validator::withdraw::{sign_withdrawal_fxg, validate_withdrawal_batch};
 pub use dym_kas_validator::KaspaSecpKeypair;
 use eyre::Report;
+use hyperlane_core::Signature as HLCoreSignature;
 use hyperlane_core::{
     Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable,
     SignedCheckpointWithMessageId, SignedType, H256,

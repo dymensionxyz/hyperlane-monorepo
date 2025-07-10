@@ -14,11 +14,11 @@ use tracing::{error, info};
 use crate::ConnectionConf;
 
 use crate::endpoints::*;
+use crate::validator_server::SignableProgressIndication;
 use axum::Json;
 use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG, withdraw::WithdrawFXG};
 use futures::future::join_all;
 use kaspa_wallet_pskt::prelude::Bundle;
-use crate::validator_server::SignableProgressIndication;
 
 #[derive(Debug, Clone)]
 pub struct ValidatorsClient {
