@@ -52,6 +52,8 @@ use tracing::{debug, error, info, warn};
 /// (7)  TX UTXO spends actually correspond to the message content.
 /// (8)  No message use escrow as a recipient.
 /// (9)  Each PSKT has exactly one anchor.
+///
+/// CONTRACT: the first anchor of `fxg.anchors` is the Hub anchor.
 pub async fn validate_withdrawal_batch(
     fxg: &WithdrawFXG,
     cosmos_client: &CosmosGrpcClient,
@@ -72,7 +74,7 @@ pub async fn validate_withdrawal_batch(
     }
 
     // Steps 2: Check that all messages are *dispatched* from the Hub.
-    // Delivered is a confusing name.
+    // Delivered is a confusing name. `delivered` is a network query.
     for id in msg_ids {
         let delivered_response = cosmos_client
             .delivered(mailbox_id.clone(), id.encode_hex())
@@ -109,7 +111,7 @@ pub async fn validate_withdrawal_batch(
 
 pub fn validate_pskts(
     fxg: &WithdrawFXG,
-    hub_outpoint: TransactionOutpoint,
+    hub_anchor: TransactionOutpoint,
     address_prefix: KaspaAddrPrefix,
     escrow_public: EscrowPublic,
 ) -> Result<(), ValidationError> {
