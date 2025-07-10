@@ -301,14 +301,15 @@ where
                 let fxg = expensive_trace_transactions(
                     &self.provider.rest().client.client,
                     &escrow_address.to_string(),
-                    candidate_new_anchor,
+                    candidate_new_anchor.clone(),
                     old_anchor,
                 )
                 .await;
                 if !fxg.is_ok() {
                     error!(
-                        "Dymension, error tracing sequence of kaspa withdrawals for syncing: {:?}",
-                        fxg.err()
+                        "Dymension, invalid confirmation candidate: error tracing sequence of kaspa withdrawals for syncing: {:?}, candidate: {:?}",
+                        fxg.err(),
+                        candidate_new_anchor,
                     );
                     continue;
                 }
