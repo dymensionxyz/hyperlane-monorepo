@@ -120,7 +120,6 @@ pub async fn validate_withdrawal_batch(
             });
         }
     }
-    // TODO: check message content ok
 
     // Steps 2: Check that all messages are *dispatched* from the Hub.
     for id in msg_ids {
