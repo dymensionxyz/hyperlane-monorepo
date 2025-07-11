@@ -39,7 +39,12 @@ impl BlockNumberGetter for ValidatorsClient {
 /// 2. Call validator.G() to see if validator is OK with a confirmation of withdrawal on Kaspa
 impl ValidatorsClient {
     fn hosts(&self) -> Vec<String> {
-        self.conf.relayer_stuff.as_ref().unwrap().validator_hosts.clone()
+        self.conf
+            .relayer_stuff
+            .as_ref()
+            .unwrap()
+            .validator_hosts
+            .clone()
     }
 
     /// Returns a new Rpc Provider

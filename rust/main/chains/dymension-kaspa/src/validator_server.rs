@@ -16,9 +16,7 @@ use dym_kas_core::wallet::EasyKaspaWallet;
 use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
 use dym_kas_validator::deposit::validate_new_deposit;
-use dym_kas_validator::withdraw::{
-    sign_withdrawal_fxg, validate_withdrawal_batch, MustMatch,
-};
+use dym_kas_validator::withdraw::{sign_withdrawal_fxg, validate_withdrawal_batch, MustMatch};
 pub use dym_kas_validator::KaspaSecpKeypair;
 use eyre::Report;
 use hyperlane_core::Signature as HLCoreSignature;
@@ -171,7 +169,11 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
         body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
     // Call to validator
-    if resources.must_val_stuff().toggles.withdrawal_confirmation_enabled {
+    if resources
+        .must_val_stuff()
+        .toggles
+        .withdrawal_confirmation_enabled
+    {
         validate_confirmed_withdrawals(resources.must_rest_client(), &confirmation_fxg)
             .await
             .map_err(|e| AppError(Report::from(e)))?;

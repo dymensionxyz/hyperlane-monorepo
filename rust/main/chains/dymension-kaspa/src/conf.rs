@@ -10,7 +10,6 @@ use hyperlane_core::{
 /// Kaspa connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
-
     /*
     Used for both agents, since we need WRPC client for both and the easiest way to get the wrpc client is through the wallet
     Should fix
@@ -55,7 +54,6 @@ pub struct RelayerStuff {
     pub deposit_look_back_mins: Option<u64>,
 }
 
-
 #[derive(Debug, Clone)]
 pub struct ValidationConf {
     pub deposit_enabled: bool,
@@ -92,7 +90,6 @@ impl ConnectionConf {
         op_submission_config: OpSubmissionConfig,
         validation_conf: ValidationConf,
 
-
         // we could query these two instead
         hub_domain: u32,
         hub_token_id: H256,
@@ -114,7 +111,7 @@ impl ConnectionConf {
         };
 
         let r = match &kaspa_escrow_private_key {
-            None=> Some(RelayerStuff {
+            None => Some(RelayerStuff {
                 deposit_look_back_mins,
                 validator_hosts,
             }),
