@@ -91,11 +91,14 @@ impl ConnectionConf {
         hub_mailbox_id: String,
         op_submission_config: OpSubmissionConfig,
         validation_conf: ValidationConf,
+
+
+        // we could query these two instead
         hub_domain: u32,
         hub_token_id: H256,
+
         kas_domain: u32,
         kas_token_id: H256,
-        kas_escrow_private: String,
     ) -> Self {
         let v = match &kaspa_escrow_private_key {
             Some(kas_escrow_private) => Some(ValidatorStuff {

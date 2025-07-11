@@ -432,6 +432,34 @@ pub fn build_kaspa_connection_conf(
         conf
     };
 
+    let hub_domain = chain
+        .chain(err)
+        .get_opt_key("hubDomain")
+        .parse_u32()
+        .end()
+        .unwrap_or(1);
+
+    let hub_token_id = chain
+        .chain(err)
+        .get_opt_key("hubTokenId")
+        .parse_string()
+        .end()
+        .unwrap_or(H256::zero());
+
+    let kas_domain = chain
+        .chain(err)
+        .get_opt_key("kasDomain")
+        .parse_u32()
+        .end()
+        .unwrap_or(0);
+
+    let kas_token_id = chain
+        .chain(err)
+        .get_opt_key("kasTokenId")
+        .parse_string()
+        .end()
+        .unwrap_or(H256::zero());
+
     Some(ChainConnectionConf::Kaspa(
         dymension_kaspa::ConnectionConf::new(
             wallet_secret.to_owned(),
@@ -448,6 +476,11 @@ pub fn build_kaspa_connection_conf(
             hub_mailbox_id.to_owned(),
             operation_batch,
             validation_conf,
+
+            hub_domain,
+            hub_token_id,
+            kas_domain,
+            kas_token_id,
         ),
     ))
 }
