@@ -16,7 +16,9 @@ use dym_kas_core::wallet::EasyKaspaWallet;
 use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
 use dym_kas_validator::deposit::validate_new_deposit;
-use dym_kas_validator::withdraw::{sign_withdrawal_fxg, validate_withdrawal_batch};
+use dym_kas_validator::withdraw::{
+    sign_withdrawal_fxg, validate_withdrawal_batch, MustMatch,
+};
 pub use dym_kas_validator::KaspaSecpKeypair;
 use eyre::Report;
 use hyperlane_core::Signature as HLCoreSignature;
@@ -92,10 +94,6 @@ impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> 
 
     fn must_hub_rpc(&self) -> &CosmosGrpcClient {
         self.kas_provider.as_ref().unwrap().hub_rpc()
-    }
-
-    pub fn must_hub_mailbox_id(&self) -> String {
-        self.kas_provider.as_ref().unwrap().hub_mailbox_id()
     }
 
     fn must_rest_client(&self) -> &HttpClient {
@@ -207,9 +205,10 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
         validate_withdrawal_batch(
             &fxg,
             resources.must_hub_rpc(),
-            resources.must_hub_mailbox_id(),
-            resources.must_wallet().net.address_prefix,
-            resources.must_escrow(),
+            MustMatch::new(
+                resources.must_wallet().net.address_prefix,
+                resources.must_escrow(),
+            ),
         )
         .await
         .map_err(|e| AppError(Report::from(e)))?;
