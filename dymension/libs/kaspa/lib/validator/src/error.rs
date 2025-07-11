@@ -3,7 +3,7 @@ use kaspa_consensus_core::tx::TransactionOutpoint;
 #[derive(Debug, thiserror::Error)]
 pub enum ValidationError {
     #[error("Message {message_id} is not delivered")]
-    MessageNotDelivered { message_id: String },
+    MessageNotDispatched { message_id: String },
 
     #[error("The same message was relayed twice: {message_id}")]
     DoubleSpending { message_id: String },

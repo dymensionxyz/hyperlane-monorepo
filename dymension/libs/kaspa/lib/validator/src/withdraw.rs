@@ -74,16 +74,18 @@ pub async fn validate_withdrawal_batch(
     }
 
     // Steps 2: Check that all messages are *dispatched* from the Hub.
-    // Delivered is a confusing name. `delivered` is a network query.
     for id in msg_ids {
-        let delivered_response = cosmos_client
+        let res = cosmos_client
             .delivered(mailbox_id.clone(), id.encode_hex())
             .await
             .map_err(|e| ValidationError::SystemError(Report::from(e)))?;
 
-        if !delivered_response.delivered {
+        // Delivered is a confusing name. `delivered` is just the name of the network query.
+        let was_dispatched_on_hub = res.delivered;
+        info!("was_dispatched_on_hub: {}", was_dispatched_on_hub);
+        if !was_dispatched_on_hub {
             let message_id = id.encode_hex();
-            return Err(ValidationError::MessageNotDelivered { message_id });
+            return Err(ValidationError::MessageNotDispatched { message_id });
         }
     }
 
