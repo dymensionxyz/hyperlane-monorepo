@@ -17,7 +17,8 @@ use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use eyre::{Report, Result};
 use hex::ToHex;
-use hyperlane_core::{Decode, HyperlaneMessage, H256, U256};
+use hyperlane_core::HyperlaneDomainConfigError::DomainNameMismatch;
+use hyperlane_core::{Decode, HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, H256, U256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use hyperlane_warp_route::TokenMessage;
@@ -36,6 +37,7 @@ use tracing::{debug, error, info, warn};
 
 /// Validate WithdrawFXG received from the relayer against Kaspa and Hub.
 /// It verifies that:
+/// (0)  All messages should have Kaspa domain.
 /// (1)  No double spending allowed. All messages must be unique.
 /// (2)  Each message is actually dispatched on the Hub. Achieved by `CosmosGrpcClient.delivered`.
 ///      Consequence: `delivered` ensures that the HL message hash in known on the Hub,
@@ -58,6 +60,8 @@ pub async fn validate_withdrawal_batch(
     fxg: &WithdrawFXG,
     cosmos_client: &CosmosGrpcClient,
     mailbox_id: String,
+    kas_domain: &HyperlaneDomain,
+    kas_recipient: H256,
     address_prefix: KaspaAddrPrefix,
     escrow_public: EscrowPublic,
 ) -> Result<(), ValidationError> {
@@ -65,6 +69,14 @@ pub async fn validate_withdrawal_batch(
     let num_msgs = messages.len();
 
     debug!("Starting withdrawal validation for {} messages", num_msgs);
+
+    // Step 0: all messages should have Kaspa domain
+    let incorrect_msg = messages
+        .iter()
+        .any(|m| m.destination != kas_domain.id() || m.recipient != kas_recipient);
+    if incorrect_msg {
+        return Err(ValidationError::IncorrectHLMessage);
+    }
 
     // Step 1: check double spending
     let msg_ids: Vec<H256> = messages.iter().map(|m| m.id()).collect();

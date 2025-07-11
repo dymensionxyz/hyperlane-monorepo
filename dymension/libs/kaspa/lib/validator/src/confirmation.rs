@@ -1,20 +1,27 @@
 use crate::error::ValidationError;
 use corelib::confirmation::ConfirmationFXG;
+use std::cmp::min;
 
 use corelib::api::client::HttpClient;
 
 use api_rs::models::TxModel;
 use corelib::payload::{MessageID, MessageIDs};
+use corelib::util;
+use kaspa_consensus_core::network::NetworkId;
 use kaspa_consensus_core::tx::{TransactionId, TransactionInput, TransactionOutpoint};
 use kaspa_hashes::Hash as KaspaHash;
+use kaspa_rpc_core::RpcHash;
+use kaspa_wallet_core::prelude::DynRpcApi;
 use std::collections::HashSet;
+use std::sync::Arc;
 use tracing::{info, warn};
-
 // FIXME: add address validation
 
 pub async fn validate_confirmed_withdrawals(
-    client: &HttpClient,
     fxg: &ConfirmationFXG,
+    kas_http: &HttpClient,
+    kas_rpc: &Arc<DynRpcApi>,
+    network_id: NetworkId,
 ) -> Result<(), ValidationError> {
     info!("Validator: Starting validation of withdrawals confirmation");
 
@@ -73,6 +80,11 @@ pub async fn validate_confirmed_withdrawals(
 
     let mut collected_message_ids = Vec::new();
 
+    let dag_info = kas_rpc
+        .get_block_dag_info()
+        .await
+        .map_err(|e| eyre::eyre!("Get block DAG info: {}", e))?;
+
     // Start from the next UTXO after the anchor_utxo (skip the first outpoint)
     for (i, curr_outpoint) in outpoints.iter().enumerate().skip(1) {
         info!(
@@ -83,7 +95,7 @@ pub async fn validate_confirmed_withdrawals(
         );
 
         // Get the transaction that CREATED this UTXO
-        let transaction = client
+        let transaction = kas_http
             .get_tx_by_id(&curr_outpoint.transaction_id.to_string())
             .await
             .map_err(|e| {
@@ -94,7 +106,28 @@ pub async fn validate_confirmed_withdrawals(
                 )
             })?;
 
-        // FIXME: validate transaction maturity
+        // Validate that the tx is mature
+        let block_hashes = transaction
+            .block_hash
+            .ok_or_else(|| eyre::eyre!("Validator: No block hash found in transaction"))?;
+
+        // Note: we do `get_block` (network call) for every tx block hash
+        // which might create network overhead or trigger rate limit.
+        // TODO: does it make sense to use some cache?
+        let mut earlies_daa: u64 = 0;
+        for hash in block_hashes {
+            let hash = RpcHash::constructor(hash.as_str());
+            let block = kas_rpc
+                .get_block(hash, false)
+                .await
+                .map_err(|e| eyre::eyre!("Failed to get block {}: {}", hash, e))?;
+
+            earlies_daa = min(earlies_daa, block.header.daa_score);
+        }
+
+        if !util::maturity::is_mature(earlies_daa, dag_info.virtual_daa_score, network_id) {
+            return Err(ValidationError::ImmatureTransaction { tx_id });
+        }
 
         // Validate that this transaction spends the previous outpoint
         let prev_outpoint = &outpoints[i - 1]; // Previous outpoint in the chain
@@ -140,9 +173,7 @@ fn validate_previous_transaction_in_inputs(
                 hex::decode(&input.previous_outpoint_hash)
                     .map_err(|e| eyre::eyre!("Invalid hex in previous_outpoint_hash: {}", e))?
                     .try_into()
-                    .map_err(|e| {
-                        eyre::eyre!("Invalid hex length in previous_outpoint_hash: {}", e)
-                    })?,
+                    .map_err(|_| eyre::eyre!("Invalid hex length in previous_outpoint_hash"))?,
             ),
             index: input
                 .previous_outpoint_index
