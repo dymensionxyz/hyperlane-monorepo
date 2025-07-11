@@ -51,7 +51,7 @@ pub struct ValidatorStuff {
 
 #[derive(Debug, Clone)]
 pub struct RelayerStuff {
-    validator_hosts: Vec<String>,
+    pub validator_hosts: Vec<String>,
     pub deposit_look_back_mins: Option<u64>,
 }
 
@@ -104,7 +104,7 @@ impl ConnectionConf {
                 kas_domain,
                 kas_token_id,
                 hub_mailbox_id,
-                kas_escrow_private,
+                kas_escrow_private: kas_escrow_private.clone(),
                 toggles: validation_conf,
             }),
             None => None,

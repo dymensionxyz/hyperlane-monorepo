@@ -119,7 +119,7 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
     info!("Validator: checking new kaspa deposit");
     let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
     // Call to validator.G()
-    if resources.must_val_conf().deposit_enabled
+    if resources.must_val_stuff().toggles.deposit_enabled
         && !validate_new_deposit(
             &resources.must_api(),
             &deposits,
@@ -171,7 +171,7 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
         body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
     // Call to validator
-    if resources.must_val_conf().withdrawal_confirmation_enabled {
+    if resources.must_val_stuff().toggles.withdrawal_confirmation_enabled {
         validate_confirmed_withdrawals(resources.must_rest_client(), &confirmation_fxg)
             .await
             .map_err(|e| AppError(Report::from(e)))?;
@@ -201,7 +201,7 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
     let fxg: WithdrawFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
     // Call to validator.G()
-    if resources.must_val_conf().withdrawal_enabled {
+    if resources.must_val_stuff().toggles.withdrawal_enabled {
         validate_withdrawal_batch(
             &fxg,
             resources.must_hub_rpc(),
@@ -212,7 +212,7 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
                 resources.must_val_stuff().hub_token_id,
                 resources.must_val_stuff().kas_domain,
                 resources.must_val_stuff().kas_token_id,
-                resources.must_val_stuff().hub_mailbox_id,
+                resources.must_val_stuff().hub_mailbox_id.clone(),
             ),
         )
         .await
