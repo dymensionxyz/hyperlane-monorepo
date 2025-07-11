@@ -99,7 +99,7 @@ pub async fn validate_withdrawal_batch(
     }
 
     validate_pskts(fxg, hub_anchor, address_prefix, escrow_public)
-        .map_err(|e| eyre::eyre!("PSKT validation failed: {}", e))?;
+        .map_err(|e| eyre::eyre!("WithdrawFXG validation failed: {}", e))?;
 
     info!(
         "Withdrawal validation completed successfully for {} withdrawals",
@@ -122,7 +122,10 @@ pub fn validate_pskts(
     if relayer_hub_outpoint.index != hub_anchor.index
         || relayer_hub_outpoint.transaction_id != hub_anchor.transaction_id
     {
-        return Err(ValidationError::HubAnchorNotFound { o: hub_anchor });
+        return Err(ValidationError::HubAnchorMismatch {
+            hub_anchor,
+            relayer_anchor: relayer_hub_outpoint.clone(),
+        });
     }
 
     // Step 5: Validate the correct UTXO chaining.
@@ -149,7 +152,8 @@ pub fn validate_pskts(
             messages,
             address_prefix,
             escrow_public.clone(),
-        )?;
+        )
+        .map_err(|e| eyre::eyre!("Single PSKT validation failed: {}", e))?;
 
         // Validate that the computed anchor is the same as the one
         // provided in WithdrawFXG
@@ -185,7 +189,7 @@ pub fn validate_pskt(
             && input.previous_outpoint.index == prev_anchor.index
     });
     if !prev_outpoint_found {
-        return Err(ValidationError::HubAnchorNotFound { o: prev_anchor });
+        return Err(ValidationError::AnchorNotFound { o: prev_anchor });
     }
 
     // Step 6: Check PSKT:
@@ -196,7 +200,7 @@ pub fn validate_pskt(
         .iter()
         .any(|input| !check_sighash_type(input.sighash_type));
     if !correct_sig_hash {
-        return Err(ValidationError::HubAnchorNotFound { o: prev_anchor });
+        return Err(ValidationError::IncorrectSigHashType);
     }
 
     // - No lock time

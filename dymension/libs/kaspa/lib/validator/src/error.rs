@@ -14,8 +14,16 @@ pub enum ValidationError {
     #[error("HL message used escrow address as withdrawal recipient")]
     EscrowWithdrawalNotAllowed { message_id: String },
 
-    #[error("Hub anchor {o:?} not found in PSKT inputs")]
-    HubAnchorNotFound { o: TransactionOutpoint },
+    #[error("Anchor {o:?} not found in PSKT inputs")]
+    AnchorNotFound { o: TransactionOutpoint },
+
+    #[error(
+        "Relayer Hub anchor {hub_anchor:?} does not match withdrawal Hub anchor {relayer_anchor:?}"
+    )]
+    HubAnchorMismatch {
+        hub_anchor: TransactionOutpoint,
+        relayer_anchor: TransactionOutpoint,
+    },
 
     #[error("Sighash type is not SIG_HASH_ALL | SIG_HASH_ANY_ONE_CAN_PAY")]
     IncorrectSigHashType,
