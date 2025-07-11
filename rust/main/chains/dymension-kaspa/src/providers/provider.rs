@@ -49,7 +49,6 @@ use kaspa_consensus_core::tx::TransactionOutpoint;
 pub struct KaspaProvider {
     conf: ConnectionConf,
     domain: HyperlaneDomain,
-    kas_recipient: H256, // will be zero?
     easy_wallet: EasyKaspaWallet,
     rest: RestProvider,
     validators: ValidatorsClient,
@@ -70,7 +69,6 @@ impl KaspaProvider {
     pub async fn new(
         conf: &ConnectionConf,
         domain: HyperlaneDomain,
-        kas_recipient: H256,
         signer: Option<HyperlaneSigner>,
         metrics: PrometheusClientMetrics,
         chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
@@ -95,7 +93,6 @@ impl KaspaProvider {
 
         Ok(KaspaProvider {
             domain: domain.clone(),
-            kas_recipient,
             conf: conf.clone(),
             easy_wallet,
             rest,
@@ -142,10 +139,6 @@ impl KaspaProvider {
 
     pub fn must_validator_stuff(&self) -> &ValidatorStuff {
         self.conf.validator_stuff.as_ref().unwrap()
-    }
-
-    pub fn kas_recipient(&self) -> H256 {
-        self.kas_recipient
     }
 
     /// dococo

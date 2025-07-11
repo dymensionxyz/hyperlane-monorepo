@@ -94,16 +94,8 @@ impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> 
         self.kas_provider.as_ref().unwrap().hub_rpc()
     }
 
-    pub fn must_hub_mailbox_id(&self) -> String {
-        self.kas_provider.as_ref().unwrap().hub_mailbox_id()
-    }
-
     pub fn must_kas_domain(&self) -> &HyperlaneDomain {
         self.kas_provider.as_ref().unwrap().domain()
-    }
-
-    pub fn must_kas_recipient(&self) -> H256 {
-        self.kas_provider.as_ref().unwrap().kas_recipient()
     }
 
     fn must_rest_client(&self) -> &HttpClient {
@@ -225,8 +217,6 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
             &fxg,
             resources.must_hub_rpc(),
             MustMatch::new(
-                resources.must_kas_domain(),
-                resources.must_kas_recipient(),
                 resources.must_wallet().net.address_prefix,
                 resources.must_escrow(),
                 resources.must_val_stuff().hub_domain,

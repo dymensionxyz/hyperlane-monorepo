@@ -94,21 +94,21 @@ pub async fn validate_confirmed_withdrawals(
             curr_outpoint
         );
 
+        let tx_id = &curr_outpoint.transaction_id.to_string();
+
         // Get the transaction that CREATED this UTXO
-        let transaction = kas_http
-            .get_tx_by_id(&curr_outpoint.transaction_id.to_string())
-            .await
-            .map_err(|e| {
-                eyre::eyre!(
-                    "Validator: Failed to get transaction {}: {}",
-                    curr_outpoint.transaction_id,
-                    e
-                )
-            })?;
+        let transaction = kas_http.get_tx_by_id(tx_id).await.map_err(|e| {
+            eyre::eyre!(
+                "Validator: Failed to get transaction {}: {}",
+                curr_outpoint.transaction_id,
+                e
+            )
+        })?;
 
         // Validate that the tx is mature
-        let block_hashes = transaction
+        let block_hashes = &transaction
             .block_hash
+            .clone()
             .ok_or_else(|| eyre::eyre!("Validator: No block hash found in transaction"))?;
 
         // Note: we do `get_block` (network call) for every tx block hash
@@ -126,7 +126,9 @@ pub async fn validate_confirmed_withdrawals(
         }
 
         if !util::maturity::is_mature(earlies_daa, dag_info.virtual_daa_score, network_id) {
-            return Err(ValidationError::ImmatureTransaction { tx_id });
+            return Err(ValidationError::ImmatureTransaction {
+                tx_id: tx_id.clone(),
+            });
         }
 
         // Validate that this transaction spends the previous outpoint
