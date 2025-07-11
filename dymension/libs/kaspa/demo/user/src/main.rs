@@ -24,9 +24,15 @@ async fn run(cli: Cli) {
             let e = x::escrow::get_escrow_address(pub_keys);
             println!("Escrow address: {}", e);
         }
-        Commands::Validator => {
-            let (v, _) = x::escrow::create_validator();
-            println!("Validator infos: {}", v.to_string());
+        Commands::Validator(args) => {
+            let mut infos = vec![];
+            for _ in 0..args.n {
+                let (v, _) = x::escrow::create_validator();
+                infos.push(v);
+            }
+            // sort required by Hyperlane Cosmos ISM creation
+            infos.sort_by(|a, b| a.validator_ism_addr.cmp(&b.validator_ism_addr));
+            println!("{}", serde_json::to_string_pretty(&infos).unwrap());
         }
         Commands::ValidatorAndEscrow => {
             let v = x::escrow::create_validator_with_escrow();
