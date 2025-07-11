@@ -11,12 +11,21 @@ use hyperlane_core::{
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
 
+    /*
+    Used for both agents, since we need WRPC client for both and the easiest way to get the wrpc client is through the wallet
+    Should fix
+     */
     pub wallet_secret: String,
-    pub kaspa_rpc_url: String, // direct connection to kaspa DAG node .e.g localhost:16210
+
+    pub kaspa_rpc_url: String, // direct connection to kaspa DAG node .e.g localhost:17210
     pub kaspa_rest_url: Url, // connection to Kaspa higher level indexer server e.g. https://api.kaspa.org
+
+    /*
+    Used by both, since it's used to build escrow public object, which is used by both agents
+     */
     pub validator_pub_keys: Vec<String>,
 
-    pub kaspa_escrow_addr: String, // TODO: can be derived from pub keys
+    pub kaspa_escrow_addr: String, // TODO: could be derived from pub keys and removed
 
     pub multisig_threshold_hub_ism: usize, // TODO: no need for it to be config, can actually query from dymension destination object
     pub multisig_threshold_kaspa: usize,
@@ -29,13 +38,14 @@ pub struct ConnectionConf {
     pub relayer_stuff: Option<RelayerStuff>,
 }
 
+#[derive(Debug, Clone)]
 pub struct ValidatorStuff {
     pub hub_domain: u32,
     pub hub_token_id: H256,
     pub kas_domain: u32,
     pub kas_token_id: H256,
     pub hub_mailbox_id: String,
-    pub kas_escrow_private: String
+    pub kas_escrow_private: String,
     pub toggles: ValidationConf, // only relevant for validator
 }
 
@@ -86,7 +96,7 @@ impl ConnectionConf {
         kas_token_id: H256,
         kas_escrow_private: String,
     ) -> Self {
-        let v = match kaspa_escrow_private_key {
+        let v = match &kaspa_escrow_private_key {
             Some(kas_escrow_private) => Some(ValidatorStuff {
                 hub_domain,
                 hub_token_id,
@@ -99,7 +109,7 @@ impl ConnectionConf {
             None => None,
         };
 
-        let r = match kaspa_escrow_private_key {
+        let r = match &kaspa_escrow_private_key {
             None=> Some(RelayerStuff {
                 deposit_look_back_mins,
                 validator_hosts,

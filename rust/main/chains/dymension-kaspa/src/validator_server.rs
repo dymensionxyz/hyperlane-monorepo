@@ -1,4 +1,4 @@
-use super::conf::ValidationConf;
+use super::conf::ValidatorStuff;
 use super::endpoints::*;
 use super::providers::KaspaProvider;
 use axum::{
@@ -100,8 +100,8 @@ impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> 
         &self.kas_provider.as_ref().unwrap().rest().client.client
     }
 
-    fn must_val_conf(&self) -> ValidationConf {
-        self.kas_provider.as_ref().unwrap().val_conf()
+    fn must_val_stuff(&self) -> &ValidatorStuff {
+        self.kas_provider.as_ref().unwrap().must_validator_stuff()
     }
 
     pub fn default() -> Self {
@@ -208,6 +208,11 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
             MustMatch::new(
                 resources.must_wallet().net.address_prefix,
                 resources.must_escrow(),
+                resources.must_val_stuff().hub_domain,
+                resources.must_val_stuff().hub_token_id,
+                resources.must_val_stuff().kas_domain,
+                resources.must_val_stuff().kas_token_id,
+                resources.must_val_stuff().hub_mailbox_id,
             ),
         )
         .await
