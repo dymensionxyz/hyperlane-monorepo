@@ -30,6 +30,8 @@ pub enum Commands {
     ValidatorAndEscrow,
     /// Make a user deposit (to escrow)
     Deposit(DepositCli),
+    /// Relayer
+    Relayer,
 }
 
 #[derive(Args, Debug)]
