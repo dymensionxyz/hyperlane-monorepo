@@ -49,6 +49,7 @@ pub struct ValidatorStuff {
     pub toggles: ValidationConf, // only relevant for validator
 }
 
+#[derive(Debug, Clone)]
 pub struct RelayerStuff {
     validator_hosts: Vec<String>,
     pub deposit_look_back_mins: Option<u64>,
