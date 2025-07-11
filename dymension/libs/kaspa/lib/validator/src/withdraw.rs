@@ -106,13 +106,20 @@ pub async fn validate_withdrawal_batch(
 
     debug!("Starting withdrawal validation for {} messages", num_msgs);
 
-    // Step 1: check double spending
+    // Step 1: check double spending, and that message is for relevant token
     let msg_ids: Vec<H256> = messages.iter().map(|m| m.id()).collect();
     if let Some(duplicate) = util::find_duplicate(&msg_ids) {
         let message_id = duplicate.encode_hex();
         return Err(ValidationError::DoubleSpending { message_id });
     }
 
+    for msg in messages.iter() {
+        if !must_match.is_match(&msg) {
+            return Err(ValidationError::MessageWrongBridge {
+                message_id: msg.id().encode_hex(),
+            });
+        }
+    }
     // TODO: check message content ok
 
     // Steps 2: Check that all messages are *dispatched* from the Hub.
