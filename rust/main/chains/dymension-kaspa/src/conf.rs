@@ -43,7 +43,7 @@ pub struct ValidatorStuff {
     pub hub_domain: u32,
     pub hub_token_id: H256,
     pub kas_domain: u32,
-    pub kas_token_id: H256,
+    pub kas_token_placeholder: H256,
     pub hub_mailbox_id: String,
     pub kas_escrow_private: String,
     pub toggles: ValidationConf, // only relevant for validator
@@ -98,14 +98,14 @@ impl ConnectionConf {
         hub_token_id: H256,
 
         kas_domain: u32,
-        kas_token_id: H256,
+        kas_token_placeholder: H256,
     ) -> Self {
         let v = match &kaspa_escrow_private_key {
             Some(kas_escrow_private) => Some(ValidatorStuff {
                 hub_domain,
                 hub_token_id,
                 kas_domain,
-                kas_token_id,
+                kas_token_placeholder,
                 hub_mailbox_id,
                 kas_escrow_private: kas_escrow_private.clone(),
                 toggles: validation_conf,

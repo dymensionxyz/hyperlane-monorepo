@@ -94,7 +94,7 @@ where
     async fn deposit_loop(&self) {
         info!("Dymension, starting deposit loop");
         let lower_bound_unix_time: Option<i64> =
-            match self.provider.rest().conf.deposit_look_back_mins {
+            match self.provider.rest().conf.relayer_stuff.as_ref().unwrap().deposit_look_back_mins {
                 Some(offset) => {
                     let secs = offset * 60;
                     let d = Duration::new(secs, 0);

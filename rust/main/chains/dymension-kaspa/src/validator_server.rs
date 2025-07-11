@@ -211,7 +211,7 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
                 resources.must_val_stuff().hub_domain,
                 resources.must_val_stuff().hub_token_id,
                 resources.must_val_stuff().kas_domain,
-                resources.must_val_stuff().kas_token_id,
+                resources.must_val_stuff().kas_token_placeholder,
                 resources.must_val_stuff().hub_mailbox_id.clone(),
             ),
         )

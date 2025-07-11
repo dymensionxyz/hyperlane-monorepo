@@ -437,14 +437,17 @@ pub fn build_kaspa_connection_conf(
         .get_opt_key("hubDomain")
         .parse_u32()
         .end()
-        .unwrap_or(1);
+        .unwrap_or(0);
 
-    let hub_token_id = chain
+    let hub_token_id = match chain
         .chain(err)
         .get_opt_key("hubTokenId")
         .parse_string()
         .end()
-        .unwrap_or(H256::zero());
+    {
+        Some(s) => H256::try_from(s).unwrap(),
+        None => H256::random(),
+    };
 
     let kas_domain = chain
         .chain(err)
@@ -453,12 +456,15 @@ pub fn build_kaspa_connection_conf(
         .end()
         .unwrap_or(0);
 
-    let kas_token_id = chain
+    let kas_token_placeholder = match chain
         .chain(err)
         .get_opt_key("kasTokenId")
         .parse_string()
         .end()
-        .unwrap_or(H256::zero());
+    {
+        Some(s) => H256::try_from(s).unwrap(),
+        None => H256::random(),
+    };
 
     Some(ChainConnectionConf::Kaspa(
         dymension_kaspa::ConnectionConf::new(
@@ -476,11 +482,10 @@ pub fn build_kaspa_connection_conf(
             hub_mailbox_id.to_owned(),
             operation_batch,
             validation_conf,
-
             hub_domain,
             hub_token_id,
             kas_domain,
-            kas_token_id,
+            kas_token_placeholder,
         ),
     ))
 }

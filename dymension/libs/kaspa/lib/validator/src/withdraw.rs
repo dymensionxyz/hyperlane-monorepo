@@ -49,7 +49,7 @@ impl MustMatch {
         hub_domain: u32,
         hub_token_id: H256,
         kas_domain: u32,
-        kas_token_id: H256, // a fake value, since Kaspa does not have a 'token' smart contract. Howevert his value must be consistent with hub config.
+        kas_token_placeholder: H256, // a fake value, since Kaspa does not have a 'token' smart contract. Howevert his value must be consistent with hub config.
         hub_mailbox_id: String,
     ) -> Self {
         Self {
@@ -61,7 +61,7 @@ impl MustMatch {
                 origin: hub_domain,
                 sender: hub_token_id,
                 destination: kas_domain,
-                recipient: kas_token_id,
+                recipient: kas_token_placeholder,
                 body: vec![],
             },
             hub_mailbox_id,
