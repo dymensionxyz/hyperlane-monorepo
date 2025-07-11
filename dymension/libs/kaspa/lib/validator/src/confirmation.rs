@@ -5,7 +5,7 @@ use corelib::api::client::HttpClient;
 
 use api_rs::models::TxModel;
 use corelib::payload::{MessageID, MessageIDs};
-use kaspa_consensus_core::tx::TransactionOutpoint;
+use kaspa_consensus_core::tx::{TransactionId, TransactionInput, TransactionOutpoint};
 use kaspa_hashes::Hash as KaspaHash;
 use std::collections::HashSet;
 use tracing::{info, warn};
@@ -22,21 +22,13 @@ pub async fn validate_confirmed_withdrawals(
         .progress_indication
         .old_outpoint
         .as_ref()
-        .ok_or_else(|| {
-            ValidationError::SystemError(eyre::eyre!(
-                "Validator: Old outpoint missing in progress indication"
-            ))
-        })?;
+        .ok_or_else(|| eyre::eyre!("Validator: Old outpoint missing in progress indication"))?;
 
     let new_utxo = fxg
         .progress_indication
         .new_outpoint
         .as_ref()
-        .ok_or_else(|| {
-            ValidationError::SystemError(eyre::eyre!(
-                "Validator: New outpoint missing in progress indication"
-            ))
-        })?;
+        .ok_or_else(|| eyre::eyre!("Validator: New outpoint missing in progress indication"))?;
 
     // Convert progress indication outpoints to kaspa consensus types for comparison
     let anchor_kaspa_outpoint = TransactionOutpoint {
@@ -45,10 +37,8 @@ pub async fn validate_confirmed_withdrawals(
                 .transaction_id
                 .as_slice()
                 .try_into()
-                .map_err(|_| {
-                    ValidationError::SystemError(eyre::eyre!(
-                        "Validator: Invalid anchor outpoint transaction ID"
-                    ))
+                .map_err(|e| {
+                    eyre::eyre!("Validator: Invalid anchor outpoint transaction ID: {}", e)
                 })?,
         ),
         index: anchor_utxo.index,
@@ -56,10 +46,8 @@ pub async fn validate_confirmed_withdrawals(
 
     let new_kaspa_outpoint = TransactionOutpoint {
         transaction_id: KaspaHash::from_bytes(
-            new_utxo.transaction_id.as_slice().try_into().map_err(|_| {
-                ValidationError::SystemError(eyre::eyre!(
-                    "Validator: Invalid new outpoint transaction ID"
-                ))
+            new_utxo.transaction_id.as_slice().try_into().map_err(|e| {
+                eyre::eyre!("Validator: Invalid new outpoint transaction ID: {}", e)
             })?,
         ),
         index: new_utxo.index,
@@ -99,11 +87,11 @@ pub async fn validate_confirmed_withdrawals(
             .get_tx_by_id(&curr_outpoint.transaction_id.to_string())
             .await
             .map_err(|e| {
-                ValidationError::SystemError(eyre::eyre!(
+                eyre::eyre!(
                     "Validator: Failed to get transaction {}: {}",
                     curr_outpoint.transaction_id,
                     e
-                ))
+                )
             })?;
 
         // FIXME: validate transaction maturity
@@ -117,16 +105,14 @@ pub async fn validate_confirmed_withdrawals(
         }
 
         // Extract the messageID from the payload
-        let payload = transaction.payload.clone().ok_or_else(|| {
-            ValidationError::SystemError(eyre::eyre!("No payload found in transaction"))
-        })?;
+        let payload = transaction
+            .payload
+            .clone()
+            .ok_or_else(|| eyre::eyre!("No payload found in transaction"))?;
 
-        let message_ids = corelib::payload::MessageIDs::from_tx_payload(&payload).map_err(|e| {
-            ValidationError::SystemError(eyre::eyre!(
-                "Failed to parse message IDs from payload: {}",
-                e
-            ))
-        })?;
+        let message_ids = MessageIDs::from_tx_payload(&payload)
+            .map_err(|e| eyre::eyre!("Failed to parse message IDs from payload: {}", e))?;
+
         collected_message_ids.extend(message_ids.0);
     }
 
@@ -142,34 +128,26 @@ fn validate_previous_transaction_in_inputs(
     transaction: &TxModel,
     prev_outpoint: &TransactionOutpoint,
 ) -> Result<bool, ValidationError> {
-    let inputs = transaction.inputs.as_ref().ok_or_else(|| {
-        ValidationError::SystemError(eyre::eyre!("Validator: Transaction inputs not found"))
-    })?;
+    let inputs = transaction
+        .inputs
+        .as_ref()
+        .ok_or_else(|| eyre::eyre!("Validator: Transaction inputs not found"))?;
 
     for input in inputs {
         // Properly decode the hex values like in the relayer
         let input_utxo = TransactionOutpoint {
             transaction_id: kaspa_hashes::Hash::from_bytes(
                 hex::decode(&input.previous_outpoint_hash)
-                    .map_err(|e| {
-                        ValidationError::SystemError(eyre::eyre!(
-                            "Invalid hex in previous_outpoint_hash: {}",
-                            e
-                        ))
-                    })?
+                    .map_err(|e| eyre::eyre!("Invalid hex in previous_outpoint_hash: {}", e))?
                     .try_into()
-                    .map_err(|_| {
-                        ValidationError::SystemError(eyre::eyre!(
-                            "Invalid hex length in previous_outpoint_hash"
-                        ))
+                    .map_err(|e| {
+                        eyre::eyre!("Invalid hex length in previous_outpoint_hash: {}", e)
                     })?,
             ),
-            index: input.previous_outpoint_index.parse().map_err(|e| {
-                ValidationError::SystemError(eyre::eyre!(
-                    "Failed to parse previous_outpoint_index: {}",
-                    e
-                ))
-            })?,
+            index: input
+                .previous_outpoint_index
+                .parse()
+                .map_err(|e| eyre::eyre!("Failed to parse previous_outpoint_index: {}", e))?,
         };
 
         if input_utxo.transaction_id == prev_outpoint.transaction_id
