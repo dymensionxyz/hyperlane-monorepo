@@ -623,6 +623,7 @@ pub async fn sign_pay_fee(pskt: PSKT<Signer>, w: &Arc<Wallet>, s: &Secret) -> Re
 mod tests {
     use super::*;
     use bytes::Bytes;
+    use corelib::util::check_sighash_type;
     use corelib::withdraw::WithdrawFXG;
     use std::collections::BTreeMap;
 
@@ -761,5 +762,60 @@ mod tests {
             test_proprietaries.len(),
             "Number of proprietaries should be preserved"
         );
+    }
+
+    #[test]
+    fn test_pskt_intput_sighash_type() -> Result<()> {
+        // Create PSKT signer with input
+        let input = kaspa_wallet_pskt::input::InputBuilder::default()
+            .sighash_type(input_sighash_type())
+            .build()
+            .map_err(|e| eyre::eyre!("Failed to build input: {}", e))?;
+
+        let pskt = PSKT::<Creator>::default()
+            .constructor()
+            .input(input)
+            .no_more_inputs()
+            .no_more_outputs()
+            .signer();
+
+        // Verify sighash type
+        let sighash_type_1 = pskt.inputs.first().unwrap().sighash_type;
+        assert!(check_sighash_type(sighash_type_1));
+
+        // Create WithdrawFXG
+        let bundle = Bundle::from(pskt);
+
+        let withdraw_fxg = WithdrawFXG::new(
+            bundle,
+            vec![],
+            vec![
+                TransactionOutpoint::default(),
+                TransactionOutpoint::default(),
+            ],
+        );
+
+        // Convert WithdrawFXG to Bytes
+        let serialized_bytes = Bytes::try_from(&withdraw_fxg)
+            .map_err(|e| eyre::eyre!("Failed to serialize WithdrawFXG to Bytes: {}", e))?;
+
+        // Convert Bytes back to WithdrawFXG
+        let deserialized_withdraw_fxg = WithdrawFXG::try_from(serialized_bytes)
+            .map_err(|e| eyre::eyre!("Failed to deserialize WithdrawFXG from Bytes: {}", e))?;
+
+        // Verify sighash type
+        let sighash_type_2 = deserialized_withdraw_fxg
+            .bundle
+            .iter()
+            .next()
+            .unwrap()
+            .inputs
+            .first()
+            .unwrap()
+            .sighash_type;
+
+        assert!(check_sighash_type(sighash_type_2));
+
+        Ok(())
     }
 }

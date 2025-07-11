@@ -57,6 +57,6 @@ pub enum ValidationError {
         output_amount: u64,
     },
 
-    #[error("System error: {0}")]
+    #[error("{0}")]
     SystemError(#[from] eyre::Report),
 }

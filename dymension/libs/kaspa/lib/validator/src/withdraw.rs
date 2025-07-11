@@ -92,7 +92,7 @@ pub async fn validate_withdrawal_batch(
     // Step 3: All messages should be unprocessed (pending) on the Hub
     let (hub_anchor, pending_messages) = filter_pending_withdrawals(messages, cosmos_client, None)
         .await
-        .map_err(|e| ValidationError::SystemError(eyre::eyre!("Get pending withdrawals: {}", e)))?;
+        .map_err(|e| eyre::eyre!("Get pending withdrawals: {}", e))?;
 
     if num_msgs != pending_messages.len() {
         return Err(ValidationError::MessagesNotUnprocessed);
@@ -194,12 +194,12 @@ pub fn validate_pskt(
 
     // Step 6: Check PSKT:
 
-    // - Correct sighash type in inputs
-    let correct_sig_hash = pskt
+    // - Check if any input has incorrect sighash
+    let incorrect_sig_hash = pskt
         .inputs
         .iter()
         .any(|input| !check_sighash_type(input.sighash_type));
-    if !correct_sig_hash {
+    if incorrect_sig_hash {
         return Err(ValidationError::IncorrectSigHashType);
     }
 
@@ -211,9 +211,7 @@ pub fn validate_pskt(
     // - Payload covers corresponding HL messages
     let payload = MessageIDs(pending_messages.iter().map(|m| MessageID(m.id())).collect())
         .to_bytes()
-        .map_err(|e| {
-            ValidationError::SystemError(eyre::eyre!("Failed to serialize MessageIDs: {}", e))
-        })?;
+        .map_err(|e| eyre::eyre!("Failed to serialize MessageIDs: {}", e))?;
 
     let pskt_payload = pskt.global.payload.clone().unwrap_or(vec![]);
 
@@ -247,12 +245,8 @@ pub fn validate_pskt(
     let mut expected_outputs: HashMap<(u64, ScriptPublicKey), i32> = HashMap::new();
 
     for m in pending_messages {
-        let tm = TokenMessage::read_from(&mut Cursor::new(&m.body)).map_err(|e| {
-            ValidationError::SystemError(eyre::eyre!(
-                "Failed to parse TokenMessage from message body: {}",
-                e
-            ))
-        })?;
+        let tm = TokenMessage::read_from(&mut Cursor::new(&m.body))
+            .map_err(|e| eyre::eyre!("Failed to parse TokenMessage from message body: {}", e))?;
 
         let recipient = get_recipient_script_pubkey(tm.recipient(), address_prefix);
 

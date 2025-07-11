@@ -95,3 +95,13 @@ pub mod maturity {
         current_daa_score >= block_daa_score + maturity
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_input_sighash_type() {
+        assert!(check_sighash_type(input_sighash_type()));
+    }
+}
