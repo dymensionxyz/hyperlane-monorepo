@@ -17,6 +17,7 @@ use hyperlane_starknet as h_starknet;
 
 use crate::settings::envs::*;
 use crate::settings::ChainConnectionConf;
+use std::str::FromStr;
 
 use super::{parse_base_and_override_urls, parse_cosmos_gas_price, ValueParser};
 
@@ -445,8 +446,11 @@ pub fn build_kaspa_connection_conf(
         .parse_string()
         .end()
     {
-        Some(s) => H256::try_from(s).unwrap(),
-        None => H256::random(),
+        Some(s) => {
+            let ss: &String = &s.to_owned();
+            H256::from_str(ss).unwrap()
+        }
+        None => H256::default(),
     };
 
     let kas_domain = chain
@@ -462,8 +466,11 @@ pub fn build_kaspa_connection_conf(
         .parse_string()
         .end()
     {
-        Some(s) => H256::try_from(s).unwrap(),
-        None => H256::random(),
+        Some(s) => {
+            let ss: &String = &s.to_owned();
+            H256::from_str(ss).unwrap()
+        }
+        None => H256::default(),
     };
 
     Some(ChainConnectionConf::Kaspa(
