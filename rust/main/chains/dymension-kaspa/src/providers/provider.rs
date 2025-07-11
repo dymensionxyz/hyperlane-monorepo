@@ -83,9 +83,9 @@ impl KaspaProvider {
         )
         .await?;
 
-        let kas_key = &match conf.validator_stuff {
+        let kas_key = match &conf.validator_stuff {
             Some(v) => {
-                let kp: SecpKeypair = serde_json::from_str(&v.kas_escrow_private).unwrap();
+                let kp: KaspaSecpKeypair = serde_json::from_str(&v.kas_escrow_private).unwrap();
                 Some(kp)
             }
             None => None,
