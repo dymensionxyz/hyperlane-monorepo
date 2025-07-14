@@ -76,12 +76,8 @@ pub async fn validate_new_deposit_inner(
     let block: RpcBlock = client.get_block(block_hash, true).await?;
 
     // validation of the Kaspa tx maturity (old enough to be accepted)
-    let maturity_result = util::maturity::validate_maturity(
-        client,
-        block.header.daa_score,
-        net.network_id,
-    )
-    .await?;
+    let maturity_result =
+        util::maturity::validate_maturity(client, block.header.daa_score, net.network_id).await?;
     if !maturity_result {
         error!(
             "Deposit is not mature, block daa score: {:?}",
