@@ -33,9 +33,12 @@ pub async fn validate_maturity_block(
     validate_maturity(client, block.header.daa_score, network_id).await
 }
 
+/// Returns true if the block is unlikely to be reorged
+/// Suitable only for sending transactions to Kaspa: the tranaction will fail if any input
+/// is reorged.
+/// Unsuitable for doing off-chain work such as minting on a bridge.
 pub fn is_mature(block_daa_score: u64, current_daa_score: u64, network_id: NetworkId) -> bool {
     let params = NetworkParams::from(network_id);
     let maturity = params.user_transaction_maturity_period_daa();
-
     current_daa_score >= block_daa_score + maturity
 }
