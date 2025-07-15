@@ -98,7 +98,7 @@ pub async fn validate_new_deposit_inner(
         .as_ref()
         .ok_or("block data not found")
         .map_err(|e: &'static str| eyre::eyre!(e))?
-        .transaction_ids
+        .transaction_ids // TODO: fix, accepting block might not contain the tx
         .iter()
         .position(|id| id == &d_untrusted.tx_hash_rpc()?)
         .ok_or("transaction not found in block")
