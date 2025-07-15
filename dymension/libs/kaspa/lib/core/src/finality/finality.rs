@@ -7,27 +7,20 @@ use kaspa_wallet_core::prelude::DynRpcApi;
 use kaspa_wallet_core::utxo::NetworkParams;
 use std::sync::Arc;
 
-pub async fn validate_maturity_block(
+// TODO: needs a rework/rename
+pub async fn is_tx_final(
     client: &Arc<DynRpcApi>,
     block_hash: RpcHash,
     network_id: NetworkId,
 ) -> Result<bool> {
     let block = client.get_block(block_hash, true).await?;
-    validate_maturity(client, block.header.daa_score, network_id).await
-}
-
-pub async fn validate_maturity(
-    client: &Arc<DynRpcApi>,
-    block_daa_score: u64,
-    network_id: NetworkId,
-) -> Result<bool> {
     let dag_info = client
         .get_block_dag_info()
         .await
         .map_err(|e| eyre::eyre!("Get block DAG info: {}", e))?;
 
     Ok(is_mature(
-        block_daa_score,
+        block.header.daa_score,
         dag_info.virtual_daa_score,
         network_id,
     ))
@@ -37,8 +30,8 @@ pub async fn validate_maturity(
 /// Suitable only for sending transactions to Kaspa: the tranaction will fail if any input
 /// is reorged.
 /// Unsuitable for doing off-chain work such as minting on a bridge.
-pub fn is_mature(block_daa_score: u64, current_daa_score: u64, network_id: NetworkId) -> bool {
+pub fn is_mature(daa_score_block: u64, daa_score_virtual: u64, network_id: NetworkId) -> bool {
     let params = NetworkParams::from(network_id);
     let maturity = params.user_transaction_maturity_period_daa();
-    current_daa_score >= block_daa_score + maturity
+    daa_score_virtual >= daa_score_block + maturity
 }

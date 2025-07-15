@@ -72,7 +72,7 @@ pub async fn validate_new_deposit_inner(
     /*
     TODO: INSECURE! NEED TO CHECK CLAIMED ACCEPTING BLOCK ACTUALLY ACCEPTS TX
       */
-    if !finality::validate_maturity_block(
+    if !finality::is_tx_final(
         client,
         d_untrusted.accepting_block_hash_rpc()?,
         net.network_id,

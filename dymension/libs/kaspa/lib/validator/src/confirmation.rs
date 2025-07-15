@@ -125,7 +125,7 @@ pub async fn validate_confirmed_withdrawals(
                     .ok_or_else(|| eyre::eyre!("No accepting block hash found in transaction"))?,
             )
             .map_err(|e| eyre::eyre!("Failed to convert accepting block hash to RpcHash: {}", e))?;
-            if !finality::validate_maturity_block(kas_rpc, hash, network_id).await? {
+            if !finality::is_tx_final(kas_rpc, hash, network_id).await? {
                 return Err(ValidationError::ImmatureTransaction {
                     tx_id: tx_id.clone(),
                 });
