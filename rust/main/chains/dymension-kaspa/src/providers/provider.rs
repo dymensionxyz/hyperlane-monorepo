@@ -173,7 +173,7 @@ impl KaspaProvider {
         )
         .await?;
 
-        let res = self.submit_txs(finalized.clone()).await?;
+        let _ = self.submit_txs(finalized.clone()).await?;
         info!("Kaspa provider, submitted TXs, now indicating progress on the Hub");
 
         self.pending_confirmation
@@ -196,8 +196,6 @@ impl KaspaProvider {
         }
         Ok(ret)
     }
-
-    async fn get_tx_by_id(&self, tx_id: &H512) -> Result<RpcTransaction> {}
 
     pub fn escrow(&self) -> EscrowPublic {
         EscrowPublic::from_strs(
