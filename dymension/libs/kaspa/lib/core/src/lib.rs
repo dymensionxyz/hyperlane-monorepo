@@ -12,6 +12,7 @@ pub mod user;
 pub mod util;
 pub mod wallet;
 pub mod withdraw;
+pub mod finality;
 
 use std::{error::Error, io::Cursor};
 
