@@ -33,7 +33,7 @@ use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 ///  * The Kaspa transaction utxo destination is the escrowed address and the utxo value is enough to cover the tx.
 ///  * The utxo is mature
 ///
-/// Note: If the utxo value is higher of the amount the deposit is also accepted
+/// Note: If the utxo value is higher of the amount, the deposit is also accepted
 ///
 pub async fn validate_new_deposit(
     client: &Arc<DynRpcApi>,
@@ -95,34 +95,40 @@ pub async fn validate_new_deposit_inner(
     // find the relayed Kaspa Tx in block (id included in the deposit)
     let tx_index = block
         .verbose_data
-        .as_ref()
-        .ok_or("block data not found")
-        .map_err(|e: &'static str| eyre::eyre!(e))?
+        .ok_or(eyre::eyre!("block data not found: {}", deposit.block_id))?
         .transaction_ids
         .iter()
         .position(|id| id == &tx_hash)
-        .ok_or("transaction not found in block")
-        .map_err(|e: &'static str| eyre::eyre!(e))?;
+        .ok_or(eyre::eyre!(
+            "transaction not found in block: tx {}, block {}",
+            deposit.tx_id,
+            deposit.block_id
+        ))?;
 
     // deposit tx retrieved from Kaspa node
-    let deposit_tx = block.transactions[tx_index].clone();
+    let deposit_tx = &block.transactions[tx_index];
 
     // get utxo in the tx from index in deposit.
-    let utxo: &RpcTransactionOutput = deposit_tx
-        .outputs
-        .get(deposit.utxo_index)
-        .ok_or("utxo not found by index")
-        .map_err(|e: &'static str| eyre::eyre!(e))?;
+    let utxo: &RpcTransactionOutput =
+        deposit_tx
+            .outputs
+            .get(deposit.utxo_index)
+            .ok_or(eyre::eyre!(
+                "utxo not found by index: tx {}, index {}",
+                deposit.tx_id,
+                deposit.utxo_index
+            ))?;
 
     // get HLMessage and token message from Tx payload
-    let parsed_hl = ParsedHL::parse_bytes(deposit_tx.payload)?;
+    let parsed_hl = ParsedHL::parse_bytes(&deposit_tx.payload)?;
 
     // deposit tx amount
     let amount: U256 = parsed_hl.token_message.amount();
 
     // this recreates the metadata injection to the token message done by the relayer
     let hl_message_with_tx_info =
-        add_kaspa_metadata_hl_messsage(parsed_hl, tx_hash, deposit.utxo_index)?;
+        add_kaspa_metadata_hl_messsage(parsed_hl, tx_hash, deposit.utxo_index)
+            .map_err(|e| eyre::eyre!("add kaspa metadata to hl message while injecting: {}", e))?;
 
     // this validates the original HL message included in the Kaspa Tx its the same than the HL message relayed, after adding the metadata.
     if deposit.hl_message.id() != hl_message_with_tx_info.id() {

@@ -119,7 +119,7 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
     body: Bytes,
 ) -> HandlerResult<Json<SignedCheckpointWithMessageId>> {
     info!("Validator: checking new kaspa deposit");
-    let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
+    let deposits: DepositFXG = body.try_into().map_err(|e: Report| AppError(e))?;
     // Call to validator.G()
     if resources.must_val_stuff().toggles.deposit_enabled
         && !validate_new_deposit(

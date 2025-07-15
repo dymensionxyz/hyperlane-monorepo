@@ -191,7 +191,7 @@ pub async fn request_validate_new_deposits(
     let bz = Bytes::from(deposits);
     let c = reqwest::Client::new();
     let res = c
-        // calls to https://github.com/dymensionxyz/hyperlane-monorepo/blob/1a603d65e0073037da896534fc52da4332a7a7b1/rust/main/chains/dymension-kaspa/src/router.rs#L40
+        // calls to https://github.com/dymensionxyz/hyperlane-monorepo/blob/feat/kas-bridge/rust/main/chains/dymension-kaspa/src/validator_server.rs#L117
         .post(format!("{}{}", host, ROUTE_VALIDATE_NEW_DEPOSITS))
         .body(bz)
         .send()

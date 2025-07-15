@@ -1,4 +1,6 @@
 use super::payload::MessageID;
+use crate::util;
+use crate::util::kaspa_outpoint_to_hub_outpoint;
 use borsh::{
     from_slice as borsh_from_slice, to_vec as borsh_to_vec, BorshDeserialize, BorshSerialize,
 };
@@ -44,18 +46,8 @@ impl ConfirmationFXG {
         // TODO: or is the list the other way around?
         let old = outpoints[0];
         let new = outpoints[outpoints.len() - 1];
-
-        let new_outpoint_indication =
-            hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint {
-                transaction_id: new.transaction_id.as_bytes().to_vec(),
-                index: new.index,
-            };
-
-        let anchor_outpoint_indication =
-            hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint {
-                transaction_id: old.transaction_id.as_bytes().to_vec(),
-                index: old.index,
-            };
+        let new_outpoint_indication = kaspa_outpoint_to_hub_outpoint(&new);
+        let anchor_outpoint_indication = kaspa_outpoint_to_hub_outpoint(&old);
 
         let progress_indication = ProgressIndication {
             old_outpoint: Some(anchor_outpoint_indication),

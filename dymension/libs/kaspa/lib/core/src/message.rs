@@ -17,10 +17,10 @@ pub struct ParsedHL {
 impl ParsedHL {
     pub fn parse_string(payload: &str) -> Result<Self> {
         let raw = hex::decode(payload)?;
-        Self::parse_bytes(raw)
+        Self::parse_bytes(&raw)
     }
 
-    pub fn parse_bytes(payload: Vec<u8>) -> Result<Self> {
+    pub fn parse_bytes(payload: &Vec<u8>) -> Result<Self> {
         let hl_message = parse_hyperlane_message(&payload)?;
         let token_message = parse_hyperlane_metadata(&hl_message)?;
         Ok(ParsedHL {
@@ -36,9 +36,8 @@ pub fn parse_hyperlane_message(m: &RawHyperlaneMessage) -> Result<HyperlaneMessa
     if m.len() < MIN_EXPECTED_LENGTH {
         return Err(eyre::eyre!("Value cannot be zero."));
     }
-    let message = HyperlaneMessage::from(m);
 
-    Ok(message)
+    Ok(HyperlaneMessage::from(m))
 }
 
 pub fn parse_hyperlane_metadata(m: &HyperlaneMessage) -> Result<TokenMessage> {
@@ -55,12 +54,11 @@ pub fn add_kaspa_metadata_hl_messsage(
     transaction_id: Hash,
     utxo_index: usize,
 ) -> Result<HyperlaneMessage> {
-    let hl_message = parsed.hl_message;
-    let token_message: TokenMessage = parsed.token_message;
+    let token_message = parsed.token_message;
 
     // build TransactionOutpoint from transaction id and utxo index
     let output = TransactionOutpoint {
-        transaction_id: transaction_id,
+        transaction_id,
         index: utxo_index as u32,
     };
 
@@ -68,17 +66,17 @@ pub fn add_kaspa_metadata_hl_messsage(
     let output_bytes = bincode::serialize(&output)?;
 
     // include TransactionOutpoint to metadata
-    let mut metadata: HlMetadata;
-    if token_message.metadata().is_empty() {
-        metadata = HlMetadata {
+    let metadata = if token_message.metadata().is_empty() {
+        HlMetadata {
             hook_forward_to_ibc: Vec::new(),
             kaspa: output_bytes,
-        };
+        }
     } else {
-        metadata = HlMetadata::decode(token_message.metadata())?;
+        let mut metadata = HlMetadata::decode(token_message.metadata())?;
         // replace kaspa value and reencode message
         metadata.kaspa = output_bytes;
-    }
+        metadata
+    };
 
     // create new TokenMessage with new metadata
     let token_message_new = TokenMessage::new(
@@ -88,7 +86,7 @@ pub fn add_kaspa_metadata_hl_messsage(
     );
 
     // create message with new body
-    let mut hl_message_new: HyperlaneMessage = hl_message.clone();
+    let mut hl_message_new: HyperlaneMessage = parsed.hl_message;
     hl_message_new.body = token_message_new.to_vec();
 
     // return new HL message

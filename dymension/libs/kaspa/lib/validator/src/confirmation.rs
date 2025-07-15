@@ -1,5 +1,6 @@
 use crate::error::ValidationError;
 use corelib::confirmation::ConfirmationFXG;
+use eyre::Result;
 use std::cmp::min;
 
 use corelib::api::client::HttpClient;
@@ -15,8 +16,11 @@ use kaspa_wallet_core::prelude::DynRpcApi;
 use std::collections::HashSet;
 use std::sync::Arc;
 use tracing::{info, warn};
+use corelib::util::hub_outpoint_to_kaspa_outpoint;
 // FIXME: add address validation
 
+/// Verify that:
+/// - The transactions form a sequence (’trace’) that spends old anchor and results in new anchor.
 pub async fn validate_confirmed_withdrawals(
     fxg: &ConfirmationFXG,
     kas_http: &HttpClient,
@@ -38,27 +42,11 @@ pub async fn validate_confirmed_withdrawals(
         .ok_or_else(|| eyre::eyre!("Validator: New outpoint missing in progress indication"))?;
 
     // Convert progress indication outpoints to kaspa consensus types for comparison
-    let anchor_kaspa_outpoint = TransactionOutpoint {
-        transaction_id: KaspaHash::from_bytes(
-            anchor_utxo
-                .transaction_id
-                .as_slice()
-                .try_into()
-                .map_err(|e| {
-                    eyre::eyre!("Validator: Invalid anchor outpoint transaction ID: {}", e)
-                })?,
-        ),
-        index: anchor_utxo.index,
-    };
+    let anchor_kaspa_outpoint = hub_outpoint_to_kaspa_outpoint(anchor_utxo)
+        .map_err(|e| eyre::eyre!("Validator: Invalid anchor outpoint: {}", e))?;
 
-    let new_kaspa_outpoint = TransactionOutpoint {
-        transaction_id: KaspaHash::from_bytes(
-            new_utxo.transaction_id.as_slice().try_into().map_err(|e| {
-                eyre::eyre!("Validator: Invalid new outpoint transaction ID: {}", e)
-            })?,
-        ),
-        index: new_utxo.index,
-    };
+    let new_kaspa_outpoint = hub_outpoint_to_kaspa_outpoint(new_utxo)
+        .map_err(|e| eyre::eyre!("Validator: Invalid new outpoint: {}", e))?;
 
     // Validate the progress indication is correct according to the cache
     let outpoints = &fxg.cache.outpoints;
@@ -97,6 +85,7 @@ pub async fn validate_confirmed_withdrawals(
         let tx_id = &curr_outpoint.transaction_id.to_string();
 
         // Get the transaction that CREATED this UTXO
+        // TODO: don't use kas_http in the validator!
         let transaction = kas_http.get_tx_by_id(tx_id).await.map_err(|e| {
             eyre::eyre!(
                 "Validator: Failed to get transaction {}: {}",
