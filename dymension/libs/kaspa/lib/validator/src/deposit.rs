@@ -12,6 +12,7 @@ use std::str::FromStr;
 use corelib::escrow::EscrowPublic;
 use corelib::wallet::NetworkInfo;
 use kaspa_addresses::Address;
+use corelib::finality;
 use kaspa_rpc_core::{api::rpc::RpcApi, RpcBlock};
 use kaspa_rpc_core::{RpcHash, RpcTransactionOutput};
 use kaspa_wrpc_client::prelude::{NetworkId, NetworkType};
@@ -77,7 +78,7 @@ pub async fn validate_new_deposit_inner(
 
     // validation of the Kaspa tx maturity (old enough to be accepted)
     let maturity_result =
-        util::maturity::validate_maturity(client, block.header.daa_score, net.network_id).await?;
+        finality::validate_maturity(client, block.header.daa_score, net.network_id).await?;
     if !maturity_result {
         error!(
             "Deposit is not mature, block daa score: {:?}",

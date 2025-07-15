@@ -15,6 +15,7 @@ use kaspa_wallet_core::prelude::DynRpcApi;
 use std::collections::HashSet;
 use std::sync::Arc;
 use tracing::{info, warn};
+use corelib::finality;
 // FIXME: add address validation
 
 pub async fn validate_confirmed_withdrawals(
@@ -125,7 +126,7 @@ pub async fn validate_confirmed_withdrawals(
             earlies_daa = min(earlies_daa, block.header.daa_score);
         }
 
-        if !util::maturity::is_mature(earlies_daa, dag_info.virtual_daa_score, network_id) {
+        if !finality::is_mature(earlies_daa, dag_info.virtual_daa_score, network_id) {
             return Err(ValidationError::ImmatureTransaction {
                 tx_id: tx_id.clone(),
             });
