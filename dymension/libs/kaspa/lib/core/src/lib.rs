@@ -5,6 +5,7 @@ pub mod consts;
 pub mod deposit;
 pub mod env;
 pub mod escrow;
+pub mod finality;
 pub mod message;
 pub mod payload;
 pub mod pskt;
@@ -12,7 +13,6 @@ pub mod user;
 pub mod util;
 pub mod wallet;
 pub mod withdraw;
-pub mod finality;
 
 use std::{error::Error, io::Cursor};
 

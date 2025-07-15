@@ -56,8 +56,9 @@ impl DepositFXG {
     }
 
     pub fn containing_block_hash_rpc(&self) -> Result<RpcHash> {
-        RpcHash::from_str(&self.containing_block_hash)
-            .map_err(|e| eyre::Report::new(e).wrap_err("Failed to convert containing block hash to RpcHash"))
+        RpcHash::from_str(&self.containing_block_hash).map_err(|e| {
+            eyre::Report::new(e).wrap_err("Failed to convert containing block hash to RpcHash")
+        })
     }
 }
 

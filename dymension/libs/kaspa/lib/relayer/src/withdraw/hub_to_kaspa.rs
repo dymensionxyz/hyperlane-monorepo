@@ -42,11 +42,11 @@ use secp256k1::PublicKey;
 use std::io::Cursor;
 use std::sync::Arc;
 
+use corelib::finality;
 use corelib::util;
 use corelib::util::{get_recipient_script_pubkey, input_sighash_type};
 use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::WithdrawFXG;
-use corelib::finality;
 use eyre::eyre;
 use kaspa_addresses::{AddressError, Prefix};
 use kaspa_rpc_core::model::RpcTransactionId;

@@ -22,7 +22,7 @@ use api_rs::apis::kaspa_transactions_api::{
     get_transaction_transactions_transaction_id_get as get_tx_by_id,
     GetTransactionTransactionsTransactionIdGetParams as get_tx_by_id_params,
 };
-use api_rs::models::{TxModel, TxOutput, AcceptanceMode};
+use api_rs::models::{AcceptanceMode, TxModel, TxOutput};
 
 use super::base::{get_client, get_config};
 
@@ -39,7 +39,6 @@ pub struct Deposit {
     pub accepting_block_time: i64,
     pub accepting_block_blue_score: i64,
     pub block_hashes: Vec<String>,
-
 }
 
 impl Hash for Deposit {
@@ -70,10 +69,18 @@ impl TryFrom<TxModel> for Deposit {
         let tx_hash = KaspaHash::from_str(&tx_id)?;
         let outputs = tx.outputs.ok_or(eyre::eyre!("Outputs are missing"))?; // TODO: outputs may be missing!
         let time = tx.block_time.ok_or(eyre::eyre!("Block time not set"))?;
-        let accepting_block_hash = tx.accepting_block_hash.ok_or(eyre::eyre!("Accepting block hash is missing"))?;
-        let accepting_block_blue_score = tx.accepting_block_blue_score.ok_or(eyre::eyre!("Accepting block blue score is missing"))?;
-        let accepting_block_time = tx.accepting_block_time.ok_or(eyre::eyre!("Accepting block time is missing"))?;
-        let block_hashes = tx.block_hash.ok_or(eyre::eyre!("Block hashes are missing"))?;
+        let accepting_block_hash = tx
+            .accepting_block_hash
+            .ok_or(eyre::eyre!("Accepting block hash is missing"))?;
+        let accepting_block_blue_score = tx
+            .accepting_block_blue_score
+            .ok_or(eyre::eyre!("Accepting block blue score is missing"))?;
+        let accepting_block_time = tx
+            .accepting_block_time
+            .ok_or(eyre::eyre!("Accepting block time is missing"))?;
+        let block_hashes = tx
+            .block_hash
+            .ok_or(eyre::eyre!("Block hashes are missing"))?;
 
         Ok(Deposit {
             id: tx_hash,
@@ -158,7 +165,8 @@ impl HttpClient {
             .into_iter()
             .filter(|tx| {
                 is_valid_escrow_transfer(tx, &address.to_string()).expect("unable to validate txs")
-                    && tx.payload.is_some() && tx.is_accepted.unwrap_or(false)
+                    && tx.payload.is_some()
+                    && tx.is_accepted.unwrap_or(false)
             })
             .map(Deposit::try_from)
             .collect::<Result<Vec<Deposit>>>()?)
