@@ -16,11 +16,6 @@ pub use secp256k1::PublicKey;
 use std::error::Error;
 
 pub async fn on_new_deposit(escrow_address: &str, deposit: &Deposit) -> Result<Option<DepositFXG>> {
-    let deposit_tx_result = handle_new_deposit(escrow_address, deposit).await?;
-    Ok(Some(deposit_tx_result))
-}
-
-pub async fn handle_new_deposit(escrow_address: &str, deposit: &Deposit) -> Result<DepositFXG> {
     // decode payload into Hyperlane message
 
     let payload = deposit.payload.as_ref().unwrap();
@@ -32,13 +27,13 @@ pub async fn handle_new_deposit(escrow_address: &str, deposit: &Deposit) -> Resu
         parsed_hl.hl_message
     );
 
-    let amount = parsed_hl.token_message.amount();
+    let amt_hl = parsed_hl.token_message.amount();
     // find the index of the utxo that satisfies the transfer amount in hl message
     let utxo_index = deposit
         .outputs
         .iter()
         .position(|utxo: &api_rs::models::TxOutput| {
-            U256::from(utxo.amount) >= amount
+            U256::from(utxo.amount) >= amt_hl
                 && utxo.script_public_key_address.as_ref().unwrap() == escrow_address
         })
         .ok_or(eyre::eyre!("kaspa deposit had insufficient sompi amount"))?;
@@ -46,17 +41,21 @@ pub async fn handle_new_deposit(escrow_address: &str, deposit: &Deposit) -> Resu
     let hl_message = add_kaspa_metadata_hl_messsage(parsed_hl, deposit.id, utxo_index)
         .map_err(|e| eyre::eyre!("failed to add kaspa metadata to hl message: {}", e))?;
 
+    if deposit.block_hashes.len() == 0 {
+        return Err(eyre::eyre!("kaspa deposit had no block hashes"));
+    }
+
     // build response for validator
     let tx = DepositFXG {
         tx_id: deposit.id.to_string(),
-        utxo_index,
-        amount,
-        // block_id TODO: see if it's okay to use the first hash
-        // used by validator to find tx by block
-        block_id: deposit.block_hash[0].clone(),
-        hl_message,
+        utxo_index: utxo_index,
+        amount: amt_hl,
+        accepting_block_hash: deposit.accepting_block_hash.clone(),
+        containing_block_hash: deposit.block_hashes[0].clone(), // used by validator to find tx by block
+
+        hl_message: hl_message_new,
     };
-    Ok(tx)
+    Ok(Some(tx))
 }
 
 #[cfg(test)]
