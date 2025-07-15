@@ -2,6 +2,7 @@
 /// https://github.com/kaspanet/rusty-kaspa/blob/v1.0.0/wallet/core/src/storage/transaction/record.rs
 use eyre::Result;
 use kaspa_consensus_core::network::NetworkId;
+use kaspa_rpc_core::RpcHash;
 use kaspa_wallet_core::prelude::DynRpcApi;
 use kaspa_wallet_core::utxo::NetworkParams;
 use std::sync::Arc;
@@ -21,6 +22,15 @@ pub async fn validate_maturity(
         dag_info.virtual_daa_score,
         network_id,
     ))
+}
+
+pub async fn validate_maturity_block(
+    client: &Arc<DynRpcApi>,
+    block_hash: RpcHash,
+    network_id: NetworkId,
+) -> Result<bool> {
+    let block = client.get_block(block_hash, true).await?;
+    validate_maturity(client, block.header.daa_score, network_id).await
 }
 
 pub fn is_mature(block_daa_score: u64, current_daa_score: u64, network_id: NetworkId) -> bool {

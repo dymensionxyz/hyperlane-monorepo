@@ -10,9 +10,9 @@ use corelib::message::{add_kaspa_metadata_hl_messsage, parse_hyperlane_metadata,
 use std::str::FromStr;
 
 use corelib::escrow::EscrowPublic;
+use corelib::finality;
 use corelib::wallet::NetworkInfo;
 use kaspa_addresses::Address;
-use corelib::finality;
 use kaspa_rpc_core::{api::rpc::RpcApi, RpcBlock};
 use kaspa_rpc_core::{RpcHash, RpcTransactionOutput};
 use kaspa_wrpc_client::prelude::{NetworkId, NetworkType};
@@ -59,7 +59,7 @@ pub async fn validate_new_deposit(
 ///
 pub async fn validate_new_deposit_inner(
     client: &Arc<DynRpcApi>,
-    deposit: &DepositFXG,
+    d_untrusted: &DepositFXG,
     net: &NetworkInfo,
     escrow_address: &Address,
     hub_bootstrapped: bool,
@@ -69,49 +69,48 @@ pub async fn validate_new_deposit_inner(
         return Ok(false);
     }
 
-    // convert block and tx id strings to hashes
-    let block_hash = RpcHash::from_str(&deposit.block_id)?;
-    let tx_hash = RpcHash::from_str(&deposit.tx_id)?;
+    let block_actual: RpcBlock = client
+        .get_block(d_untrusted.accepting_block_hash_rpc()?, true)
+        .await?;
 
-    // get block from Kaspa node
-    let block: RpcBlock = client.get_block(block_hash, true).await?;
-
-    // validation of the Kaspa tx maturity (old enough to be accepted)
-    let maturity_result =
-        finality::validate_maturity(client, block.header.daa_score, net.network_id).await?;
-    if !maturity_result {
+    if !finality::validate_maturity_block(
+        client,
+        d_untrusted.accepting_block_hash_rpc()?,
+        net.network_id,
+    )
+    .await?
+    {
         error!(
-            "Deposit is not mature, block daa score: {:?}",
-            block.header.daa_score
+            "Deposit is not sufficiently final",
         );
         return Ok(false);
     }
 
     // check that the HL message version is allowed
-    if deposit.hl_message.version != ALLOWED_HL_MESSAGE_VERSION {
+    if d_untrusted.hl_message.version != ALLOWED_HL_MESSAGE_VERSION {
         error!("HL message version is not allowed");
         return Ok(false);
     }
 
     // find the relayed Kaspa Tx in block (id included in the deposit)
-    let tx_index = block
+    let tx_index_actual = block_actual
         .verbose_data
         .as_ref()
         .ok_or("block data not found")
         .map_err(|e: &'static str| eyre::eyre!(e))?
         .transaction_ids
         .iter()
-        .position(|id| id == &tx_hash)
+        .position(|id| id == &d_untrusted.tx_hash_rpc()?)
         .ok_or("transaction not found in block")
         .map_err(|e: &'static str| eyre::eyre!(e))?;
 
     // deposit tx retrieved from Kaspa node
-    let deposit_tx = block.transactions[tx_index].clone();
+    let deposit_tx = block_actual.transactions[tx_index_actual].clone();
 
     // get utxo in the tx from index in deposit.
     let utxo: &RpcTransactionOutput = deposit_tx
         .outputs
-        .get(deposit.utxo_index)
+        .get(d_untrusted.utxo_index)
         .ok_or("utxo not found by index")
         .map_err(|e: &'static str| eyre::eyre!(e))?;
 
@@ -123,10 +122,10 @@ pub async fn validate_new_deposit_inner(
 
     // this recreates the metadata injection to the token message done by the relayer
     let hl_message_with_tx_info =
-        add_kaspa_metadata_hl_messsage(parsed_hl, tx_hash, deposit.utxo_index)?;
+        add_kaspa_metadata_hl_messsage(parsed_hl, tx_hash, d_untrusted.utxo_index)?;
 
     // this validates the original HL message included in the Kaspa Tx its the same than the HL message relayed, after adding the metadata.
-    if deposit.hl_message.id() != hl_message_with_tx_info.id() {
+    if d_untrusted.hl_message.id() != hl_message_with_tx_info.id() {
         error!("Relayed HL message does not match HL message included in Kaspa Tx");
         return Ok(false);
     }

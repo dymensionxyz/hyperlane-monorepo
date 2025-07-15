@@ -215,7 +215,7 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
 
     println!(
         "Deposit pulled by relay tx_id:{} block_id:{} amount:{}",
-        deposit_recv.tx_id, deposit_recv.block_id, deposit_recv.amount
+        deposit_recv.tx_id, deposit_recv.accepting_block_hash, deposit_recv.amount
     );
 
     // validate deposit using kaspa rpc (validator operation)

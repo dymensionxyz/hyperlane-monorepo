@@ -43,7 +43,7 @@ pub async fn handle_new_deposit(escrow_address: &str, deposit: &Deposit) -> Resu
         tx_id: deposit.id.to_string(),
         utxo_index: utxo_index,
         amount: amount,
-        block_id: deposit.block_hash[0].clone(), // used by validator to find tx by block
+        accepting_block_hash: deposit.accepting_block_hash.clone(), // used by validator to find tx by block
         hl_message: hl_message_new,
     };
     Ok(tx)
