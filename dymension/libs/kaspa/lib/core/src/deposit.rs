@@ -1,6 +1,4 @@
 use super::escrow::*;
-use eyre::Result;
-
 use bytes::Bytes;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
 use hyperlane_warp_route::TokenMessage;
@@ -29,6 +27,7 @@ pub struct DepositFXG {
     pub utxo_index: usize,
     pub accepting_block_hash: String,
     pub hl_message: HyperlaneMessage,
+    pub containing_block_hash: String,
 }
 
 impl Default for DepositFXG {
@@ -39,6 +38,7 @@ impl Default for DepositFXG {
             utxo_index: 0,
             accepting_block_hash: String::new(),
             hl_message: HyperlaneMessage::default(),
+            containing_block_hash: String::new(),
         }
     }
 }
@@ -53,6 +53,11 @@ impl DepositFXG {
     pub fn tx_hash_rpc(&self) -> Result<RpcHash> {
         RpcHash::from_str(&self.tx_id)
             .map_err(|e| eyre::Report::new(e).wrap_err("Failed to convert tx hash to RpcHash"))
+    }
+
+    pub fn containing_block_hash_rpc(&self) -> Result<RpcHash> {
+        RpcHash::from_str(&self.containing_block_hash)
+            .map_err(|e| eyre::Report::new(e).wrap_err("Failed to convert containing block hash to RpcHash"))
     }
 }
 

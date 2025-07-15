@@ -14,6 +14,7 @@ use kaspa_hashes::Hash as KaspaHash;
 use kaspa_rpc_core::RpcHash;
 use kaspa_wallet_core::prelude::DynRpcApi;
 use std::collections::HashSet;
+use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{info, warn};
 // FIXME: add address validation
@@ -119,15 +120,12 @@ pub async fn validate_confirmed_withdrawals(
 
         // If the last TX in sequence is final then the others must be too
         if i == outpoints.len() - 1 {
-            if !finality::validate_maturity_block(
-                kas_rpc,
-                tx.accepting_block_hash
-                    .clone()
+            let hash = RpcHash::from_str(
+                &tx.accepting_block_hash
                     .ok_or_else(|| eyre::eyre!("No accepting block hash found in transaction"))?,
-                network_id,
             )
-            .await?
-            {
+            .map_err(|e| eyre::eyre!("Failed to convert accepting block hash to RpcHash: {}", e))?;
+            if !finality::validate_maturity_block(kas_rpc, hash, network_id).await? {
                 return Err(ValidationError::ImmatureTransaction {
                     tx_id: tx_id.clone(),
                 });

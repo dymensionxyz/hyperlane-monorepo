@@ -33,7 +33,7 @@ use kaspa_wallet_core::api::{AccountsSendRequest, WalletApi};
 use kaspa_wallet_core::error::Error as KaspaError;
 use kaspa_wallet_core::tx::Fees;
 use kaspa_wallet_core::utxo::NetworkParams;
-use relayer::deposit::handle_new_deposit;
+use relayer::deposit::on_new_deposit;
 use relayer::withdraw::*;
 use std::collections::HashSet;
 use std::error::Error;
@@ -205,10 +205,10 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
 
     let escrow = escrow_address.clone();
     // handle deposit (relayer operation)
-    let deposit_fxg = handle_new_deposit(&escrow.address_to_string(), &result).await?;
+    let deposit_fxg = on_new_deposit(&escrow.address_to_string(), &result).await;
 
     // deposit encode to bytes
-    let deposit_bytes_recv: Bytes = (&deposit_fxg).into();
+    let deposit_bytes_recv: Bytes = (&deposit_fxg.unwrap().unwrap()).into();
 
     // deposit from bytes
     let deposit_recv = DepositFXG::try_from(deposit_bytes_recv)?;

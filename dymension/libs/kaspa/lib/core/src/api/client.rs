@@ -38,6 +38,7 @@ pub struct Deposit {
     pub accepting_block_hash: String,
     pub accepting_block_time: i64,
     pub accepting_block_blue_score: i64,
+    pub block_hashes: Vec<String>,
 
 }
 
@@ -72,6 +73,7 @@ impl TryFrom<TxModel> for Deposit {
         let accepting_block_hash = tx.accepting_block_hash.ok_or(eyre::eyre!("Accepting block hash is missing"))?;
         let accepting_block_blue_score = tx.accepting_block_blue_score.ok_or(eyre::eyre!("Accepting block blue score is missing"))?;
         let accepting_block_time = tx.accepting_block_time.ok_or(eyre::eyre!("Accepting block time is missing"))?;
+        let block_hashes = tx.block_hash.ok_or(eyre::eyre!("Block hashes are missing"))?;
 
         Ok(Deposit {
             id: tx_hash,
@@ -82,6 +84,7 @@ impl TryFrom<TxModel> for Deposit {
             accepting_block_hash: accepting_block_hash,
             accepting_block_time: accepting_block_time,
             accepting_block_blue_score: accepting_block_blue_score,
+            block_hashes: block_hashes,
         })
     }
 }
@@ -167,6 +170,7 @@ impl HttpClient {
         get_config(&url, self.client.clone())
     }
 
+    // TODO: we should pass block hash hint in validator (he can get it from relayer)
     pub async fn get_tx_by_id(&self, tx_id: &str) -> Result<TxModel> {
         info!("Querying kaspa tx by id: {:?}", tx_id);
         let c = self.get_config();
