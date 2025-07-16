@@ -340,7 +340,7 @@ where
     /// Handle sync requirement by preparing progress indication and submitting to hub
     /// needs to satisfy
     /// https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/keeper/msg_server.go#L42-L48
-    /// https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/types/d.go#L76-L84
+    /// https://github.com/dymensionxyz/dymension/blob/55468f6/x/kas/types/d.go#L87-L98
     async fn confirm_withdrawal_on_hub(&self, fxg: ConfirmationFXG) -> Result<()> {
         let mut sigs = self
             .provider
