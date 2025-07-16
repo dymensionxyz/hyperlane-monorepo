@@ -7,25 +7,6 @@ use kaspa_wallet_core::prelude::DynRpcApi;
 use kaspa_wallet_core::utxo::NetworkParams;
 use std::sync::Arc;
 
-// TODO: needs a rework/rename
-pub async fn is_tx_final(
-    client: &Arc<DynRpcApi>,
-    block_hash: RpcHash,
-    network_id: NetworkId,
-) -> Result<bool> {
-    let block = client.get_block(block_hash, true).await?;
-    let dag_info = client
-        .get_block_dag_info()
-        .await
-        .map_err(|e| eyre::eyre!("Get block DAG info: {}", e))?;
-
-    Ok(is_mature(
-        block.header.daa_score,
-        dag_info.virtual_daa_score,
-        network_id,
-    ))
-}
-
 /// Returns true if the block is unlikely to be reorged
 /// Suitable only for sending transactions to Kaspa: the tranaction will fail if any input
 /// is reorged.
