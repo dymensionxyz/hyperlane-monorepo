@@ -191,6 +191,8 @@ where
             // TODO: what happens if at some point no one is bridging and we have failed confirmations?
             let confirmation = self.provider.consume_pending_confirmation();
 
+            time::sleep(FINALITY_APPROX_WAIT_TIME).await;
+
             match confirmation {
                 Some(confirmation) => {
                     let res = self.confirm_withdrawal_on_hub(confirmation.clone()).await;
