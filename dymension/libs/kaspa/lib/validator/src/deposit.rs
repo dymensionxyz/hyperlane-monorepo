@@ -38,8 +38,8 @@ use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 /// Note: If the utxo value is higher of the amount the deposit is also accepted
 ///
 pub async fn validate_new_deposit(
-    client: &Arc<DynRpcApi>,
-    rest_client: &HttpClient,
+    client_node: &Arc<DynRpcApi>,
+    client_rest: &HttpClient,
     deposit: &DepositFXG,
     net: &NetworkInfo,
     escrow_address: &Address,
@@ -47,8 +47,8 @@ pub async fn validate_new_deposit(
 ) -> Result<bool> {
     let hub_bootstrapped = hub_client.hub_bootstrapped().await?;
     validate_new_deposit_inner(
-        client,
-        rest_client,
+        client_node,
+        client_rest,
         deposit,
         net,
         escrow_address,
@@ -68,8 +68,8 @@ pub async fn validate_new_deposit(
 /// Note: If the utxo value is higher of the amount the deposit is also accepted
 ///
 pub async fn validate_new_deposit_inner(
-    node_client: &Arc<DynRpcApi>,
-    rest_client: &HttpClient,
+    client_node: &Arc<DynRpcApi>,
+    client_rest: &HttpClient,
     d_untrusted: &DepositFXG,
     net: &NetworkInfo,
     escrow_address: &Address,
@@ -81,7 +81,7 @@ pub async fn validate_new_deposit_inner(
     }
 
     if !finality::is_safe_against_reorg(
-        rest_client,
+        client_rest,
         &d_untrusted.tx_id,
         Some(d_untrusted.containing_block_hash_rpc()?.to_string()),
     )
@@ -102,7 +102,7 @@ pub async fn validate_new_deposit_inner(
         return Ok(false);
     }
 
-    let containing_block: RpcBlock = node_client
+    let containing_block: RpcBlock = client_node
         .get_block(d_untrusted.containing_block_hash_rpc()?, true)
         .await?;
 
