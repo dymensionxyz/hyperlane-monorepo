@@ -124,6 +124,7 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
     if resources.must_val_stuff().toggles.deposit_enabled
         && !validate_new_deposit(
             &resources.must_api(),
+            &resources.must_rest_client(),
             &deposits,
             &resources.must_wallet().net,
             &resources.must_escrow().addr,

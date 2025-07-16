@@ -39,13 +39,22 @@ use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 ///
 pub async fn validate_new_deposit(
     client: &Arc<DynRpcApi>,
+    rest_client: &HttpClient,
     deposit: &DepositFXG,
     net: &NetworkInfo,
     escrow_address: &Address,
     hub_client: &CosmosGrpcClient,
 ) -> Result<bool> {
     let hub_bootstrapped = hub_client.hub_bootstrapped().await?;
-    validate_new_deposit_inner(client, deposit, net, escrow_address, hub_bootstrapped).await
+    validate_new_deposit_inner(
+        client,
+        rest_client,
+        deposit,
+        net,
+        escrow_address,
+        hub_bootstrapped,
+    )
+    .await
 }
 
 /// Deposit validation process
