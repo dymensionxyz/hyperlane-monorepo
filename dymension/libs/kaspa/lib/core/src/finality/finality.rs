@@ -1,5 +1,6 @@
 use crate::api::client::HttpClient;
 use eyre::Result;
+use hardcode::tx::REQUIRED_FINALITY_BLUE_SCORE_CONFIRMATIONS;
 use kaspa_consensus_core::network::NetworkId;
 use kaspa_rpc_core::RpcHash;
 use kaspa_wallet_core::prelude::DynRpcApi;
@@ -39,12 +40,28 @@ pub fn is_mature(daa_score_block: u64, daa_score_virtual: u64, network_id: Netwo
 /// returns true if accepted and final (reorg with low probability)
 pub async fn is_final(
     rest_client: &HttpClient,
+    tx_id: &str,
+    block_hash_hint: Option<String>, // enables faster lookup
+) -> Result<bool> {
+    is_final_n_confirmations(
+        rest_client,
+        REQUIRED_FINALITY_BLUE_SCORE_CONFIRMATIONS,
+        tx_id,
+        block_hash_hint,
+    )
+    .await
+}
+
+pub async fn is_final_n_confirmations(
+    rest_client: &HttpClient,
     required_confirmations: i64,
     tx_id: &str,
     block_hash_hint: Option<String>, // enables faster lookup
 ) -> Result<bool> {
     let virtual_blue_score = rest_client.get_blue_score().await?;
-    let tx = rest_client.get_tx_by_id_slim(tx_id, block_hash_hint).await?;
+    let tx = rest_client
+        .get_tx_by_id_slim(tx_id, block_hash_hint)
+        .await?;
     let accepting_blue_score = tx
         .accepting_block_blue_score
         .ok_or(eyre::eyre!("Accepting block blue score is missing"))?;

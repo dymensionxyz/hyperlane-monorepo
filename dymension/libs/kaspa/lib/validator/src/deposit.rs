@@ -22,6 +22,7 @@ use eyre::Result;
 use hyperlane_core::U256;
 use kaspa_txscript::extract_script_pub_key_address;
 
+use corelib::api::client::HttpClient;
 use corelib::{confirmation::ConfirmationFXG, util, withdraw::WithdrawFXG};
 use hardcode::hl::ALLOWED_HL_MESSAGE_VERSION;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
@@ -58,7 +59,8 @@ pub async fn validate_new_deposit(
 /// Note: If the utxo value is higher of the amount the deposit is also accepted
 ///
 pub async fn validate_new_deposit_inner(
-    client: &Arc<DynRpcApi>,
+    node_client: &Arc<DynRpcApi>,
+    rest_client: &HttpClient,
     d_untrusted: &DepositFXG,
     net: &NetworkInfo,
     escrow_address: &Address,
@@ -69,13 +71,10 @@ pub async fn validate_new_deposit_inner(
         return Ok(false);
     }
 
-    /*
-    TODO: INSECURE! NEED TO CHECK CLAIMED ACCEPTING BLOCK ACTUALLY ACCEPTS TX
-      */
-    if !finality::is_tx_final(
-        client,
-        d_untrusted.accepting_block_hash_rpc()?,
-        net.network_id,
+    if !finality::is_final(
+        rest_client,
+        &d_untrusted.tx_id,
+        Some(d_untrusted.containing_block_hash_rpc()?.to_string()),
     )
     .await?
     {
@@ -94,7 +93,7 @@ pub async fn validate_new_deposit_inner(
         return Ok(false);
     }
 
-    let containing_block: RpcBlock = client
+    let containing_block: RpcBlock = node_client
         .get_block(d_untrusted.containing_block_hash_rpc()?, true)
         .await?;
 
