@@ -37,7 +37,7 @@ pub fn is_mature(daa_score_block: u64, daa_score_virtual: u64, network_id: Netwo
     daa_score_virtual >= daa_score_block + maturity
 }
 
-/// returns true if accepted and final (reorg with low probability)
+/// returns true if accepted and final (reorg with very low probability)
 pub async fn is_final(
     rest_client: &HttpClient,
     tx_id: &str,
@@ -56,11 +56,15 @@ pub async fn is_final_n_confirmations(
     rest_client: &HttpClient,
     required_confirmations: i64,
     tx_id: &str,
-    block_hash_hint: Option<String>, // enables faster lookup
+    containing_block_hash_hint: Option<String>, // enables faster lookup
 ) -> Result<bool> {
+
+    // Note: we use the blue score from the rest client rather than querying against our own WPRC node because
+    // the rest server anyway delegates this call to its own WRPC node
+    // we want a consistent view of the network across both the TX query and the virtual blue score query
     let virtual_blue_score = rest_client.get_blue_score().await?;
     let tx = rest_client
-        .get_tx_by_id_slim(tx_id, block_hash_hint)
+        .get_tx_by_id_slim(tx_id, containing_block_hash_hint)
         .await?;
     let accepting_blue_score = tx
         .accepting_block_blue_score

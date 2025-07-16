@@ -120,12 +120,17 @@ pub async fn validate_confirmed_withdrawals(
 
         // If the last TX in sequence is final then the others must be too
         if i == outpoints.len() - 1 {
-            let hash = RpcHash::from_str(
-                &tx.accepting_block_hash
-                    .ok_or_else(|| eyre::eyre!("No accepting block hash found in transaction"))?,
-            )
-            .map_err(|e| eyre::eyre!("Failed to convert accepting block hash to RpcHash: {}", e))?;
-            if !finality::is_tx_final(kas_rpc, hash, network_id).await? {
+            let hint = match tx.block_hash {
+                Some(block_hashes) => {
+                    if 0 < block_hashes.len() {
+                        Some(block_hashes[0].clone())
+                    } else {
+                        None
+                    }
+                }
+                None => None,
+            };
+            if !finality::is_final(kas_http, &tx_id, hint).await? {
                 return Err(ValidationError::ImmatureTransaction {
                     tx_id: tx_id.clone(),
                 });
