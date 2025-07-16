@@ -38,16 +38,15 @@ pub fn is_mature(daa_score_block: u64, daa_score_virtual: u64, network_id: Netwo
 
 /// returns true if accepted and final (reorg with low probability)
 pub async fn is_final(
-    wrpc_client: &Arc<DynRpcApi>,
     rest_client: &HttpClient,
+    required_confirmations: i64,
     tx_id: &str,
+    block_hash_hint: Option<String>, // enables faster lookup
 ) -> Result<bool> {
-    let tx = rest_client.get_tx_by_id(tx_id).await?;
-    let accepting = tx
-        .accepting_block_hash
-        .ok_or(eyre::eyre!("Accepting block hash is missing"))?;
+    let virtual_blue_score = rest_client.get_blue_score().await?;
+    let tx = rest_client.get_tx_by_id_slim(tx_id, block_hash_hint).await?;
     let accepting_blue_score = tx
         .accepting_block_blue_score
         .ok_or(eyre::eyre!("Accepting block blue score is missing"))?;
-    Ok(true)
+    Ok(accepting_blue_score + required_confirmations <= virtual_blue_score)
 }
