@@ -80,7 +80,7 @@ pub async fn validate_new_deposit_inner(
         return Ok(false);
     }
 
-    if !finality::is_final(
+    if !finality::is_safe_against_reorg(
         rest_client,
         &d_untrusted.tx_id,
         Some(d_untrusted.containing_block_hash_rpc()?.to_string()),

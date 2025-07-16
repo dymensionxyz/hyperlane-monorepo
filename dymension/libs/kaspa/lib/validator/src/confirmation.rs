@@ -130,8 +130,8 @@ pub async fn validate_confirmed_withdrawals(
                 }
                 None => None,
             };
-            if !finality::is_final(kas_http, &tx_id, hint).await? {
-                return Err(ValidationError::ImmatureTransaction {
+            if !finality::is_safe_against_reorg(kas_http, &tx_id, hint).await? {
+                return Err(ValidationError::NotSafeAgainstReorg {
                     tx_id: tx_id.clone(),
                 });
             }

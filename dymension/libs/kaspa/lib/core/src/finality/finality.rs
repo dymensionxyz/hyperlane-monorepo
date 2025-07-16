@@ -38,12 +38,13 @@ pub fn is_mature(daa_score_block: u64, daa_score_virtual: u64, network_id: Netwo
 }
 
 /// returns true if accepted and final (reorg with very low probability)
-pub async fn is_final(
+/// NOTE: not using 'maturity' because don't want to confuse with the less safe maturity concept used by wallets
+pub async fn is_safe_against_reorg(
     rest_client: &HttpClient,
     tx_id: &str,
     block_hash_hint: Option<String>, // enables faster lookup
 ) -> Result<bool> {
-    is_final_n_confirmations(
+    is_safe_against_reorg_n_confs(
         rest_client,
         REQUIRED_FINALITY_BLUE_SCORE_CONFIRMATIONS,
         tx_id,
@@ -52,13 +53,12 @@ pub async fn is_final(
     .await
 }
 
-pub async fn is_final_n_confirmations(
+pub async fn is_safe_against_reorg_n_confs(
     rest_client: &HttpClient,
     required_confirmations: i64,
     tx_id: &str,
     containing_block_hash_hint: Option<String>, // enables faster lookup
 ) -> Result<bool> {
-
     // Note: we use the blue score from the rest client rather than querying against our own WPRC node because
     // the rest server anyway delegates this call to its own WRPC node
     // we want a consistent view of the network across both the TX query and the virtual blue score query
