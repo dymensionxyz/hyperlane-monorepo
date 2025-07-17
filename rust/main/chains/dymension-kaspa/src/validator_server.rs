@@ -16,7 +16,9 @@ use dym_kas_core::wallet::EasyKaspaWallet;
 use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
 use dym_kas_validator::deposit::validate_new_deposit;
-use dym_kas_validator::withdraw::{sign_withdrawal_fxg, validate_withdrawal_batch, MustMatch};
+use dym_kas_validator::withdraw::{
+    safe_bundle, sign_withdrawal_fxg, validate_withdrawal_batch, MustMatch,
+};
 pub use dym_kas_validator::KaspaSecpKeypair;
 use eyre::Report;
 use hyperlane_core::{
@@ -207,10 +209,14 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
     info!("Validator: signing pskts");
     let fxg: WithdrawFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
+    let b = safe_bundle(&fxg.bundle).map_err(|e| AppError(e))?; // !! Safe bundle can be considered part of the validation, strictly speaking
+    let m = fxg.messages;
+
     // Call to validator.G()
     if resources.must_val_stuff().toggles.withdrawal_enabled {
         validate_withdrawal_batch(
-            &fxg,
+            &b,
+            &m,
             resources.must_hub_rpc(),
             MustMatch::new(
                 resources.must_wallet().net.address_prefix,
@@ -227,7 +233,7 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
         info!("Validator: pskts are valid");
     }
 
-    let bundle = sign_withdrawal_fxg(&fxg, &resources.must_kas_key()).map_err(|e| AppError(e))?;
+    let bundle = sign_withdrawal_fxg(&b, &resources.must_kas_key()).map_err(|e| AppError(e))?;
 
     Ok(Json(bundle))
 }

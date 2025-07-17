@@ -31,6 +31,7 @@ use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint, Transaction
 use kaspa_hashes;
 use kaspa_txscript::pay_to_address_script;
 use kaspa_wallet_core::utxo::NetworkParams;
+use kaspa_wallet_pskt::pskt::{Global, Inner, Input, Output, Signer, Version, PSKT};
 use std::collections::HashMap;
 use std::io::Cursor;
 use tracing::{debug, error, info, warn};
@@ -99,18 +100,19 @@ impl MustMatch {
 ///
 /// CONTRACT: the first anchor of `fxg.anchors` is the Hub anchor.
 pub async fn validate_withdrawal_batch(
-    fxg: &WithdrawFXG,
+    bundle: &Bundle,
+    messages: &Vec<Vec<HyperlaneMessage>>,
     cosmos_client: &CosmosGrpcClient,
     must_match: MustMatch,
 ) -> Result<(), ValidationError> {
-    let hub_anchor = validate_messages(fxg, cosmos_client, &must_match).await?;
+    let hub_anchor = validate_messages(messages, cosmos_client, &must_match).await?;
 
     // At this point we know
     // - The set of messages is unique
     // - All the messages are dispatched on the hub
     // - None of the messages are already confirmed on the hub
 
-    validate_pskts(fxg, hub_anchor, must_match)
+    validate_pskts(bundle, messages, hub_anchor, must_match)
         .map_err(|e| eyre::eyre!("WithdrawFXG validation failed: {}", e))?;
 
     info!("Withdrawal validation completed successfully for withdrawals");
@@ -119,11 +121,11 @@ pub async fn validate_withdrawal_batch(
 }
 
 async fn validate_messages(
-    fxg: &WithdrawFXG,
+    messages: &Vec<Vec<HyperlaneMessage>>,
     cosmos_client: &CosmosGrpcClient,
     must_match: &MustMatch,
 ) -> Result<TransactionOutpoint, ValidationError> {
-    let messages: Vec<HyperlaneMessage> = fxg.messages.clone().into_iter().flatten().collect();
+    let messages: Vec<HyperlaneMessage> = messages.clone().into_iter().flatten().collect();
     let num_msgs = messages.len();
     debug!(
         "Starting withdrawal validation for messages, num_msgs: {}",
@@ -167,21 +169,22 @@ async fn validate_messages(
 }
 
 pub fn validate_pskts(
-    fxg: &WithdrawFXG,
+    bundle: &Bundle,
+    messages: &Vec<Vec<HyperlaneMessage>>,
     hub_anchor: TransactionOutpoint,
     must_match: MustMatch,
 ) -> Result<(), ValidationError> {
-    if fxg.bundle.0.len() != fxg.messages.len() {
+    if bundle.0.len() != messages.len() {
         return Err(ValidationError::MessageCacheLengthMismatch {
-            expected: fxg.bundle.0.len(),
-            actual: fxg.messages.len(),
+            expected: bundle.0.len(),
+            actual: messages.len(),
         });
     }
 
     // PSKTs must be linked by anchor, starting with the current hub anchor
     let mut anchor_to_spend = hub_anchor;
-    for (idx, pskt) in fxg.bundle.iter().enumerate() {
-        let messages = fxg.messages.get(idx).unwrap();
+    for (idx, pskt) in bundle.iter().enumerate() {
+        let messages = messages.get(idx).unwrap();
 
         anchor_to_spend = validate_pskt(
             PSKT::<Signer>::from(pskt.clone()),
@@ -220,10 +223,6 @@ pub fn validate_pskt_impl_details(
         return Err(ValidationError::SigHashType);
     }
 
-    if pskt.global.fallback_lock_time.is_some() {
-        return Err(ValidationError::LockTime);
-    }
-
     Ok(())
 }
 
@@ -245,8 +244,7 @@ pub fn validate_pskt_application_semantics(
         return Err(ValidationError::AnchorNotFound { o: must_spend });
     }
 
-    // Payload covers corresponding HL messages
-    let payload = MessageIDs(
+    let payload_expect = MessageIDs(
         expected_messages
             .iter()
             .map(|m| MessageID(m.id()))
@@ -255,19 +253,15 @@ pub fn validate_pskt_application_semantics(
     .to_bytes()
     .map_err(|e| eyre::eyre!("Failed to serialize MessageIDs: {}", e))?;
 
-    let pskt_payload = pskt.global.payload.clone().unwrap_or(vec![]);
+    let payload_actual = pskt.global.payload.clone().unwrap_or(vec![]);
 
-    if pskt_payload != payload {
+    if payload_actual != payload_expect {
         return Err(ValidationError::PayloadMismatch);
-    }
-
-    if pskt.global.tx_version != kaspa_consensus_core::constants::TX_VERSION {
-        return Err(ValidationError::TxVersionMismatch);
     }
 
     // Check that UTXO outputs align with withdrawals
     // Find escrow input amount
-    let escrow_input_amount = pskt.inputs.iter().fold(0, |acc, i| {
+    let escrow_inputs_sum = pskt.inputs.iter().fold(0, |acc, i| {
         // redeem_script is None for relayer input
         let rs = i.redeem_script.clone().unwrap_or_default();
         return if rs == must_match.escrow_public.redeem_script {
@@ -291,7 +285,7 @@ pub fn validate_pskt_application_semantics(
 
         let recipient = get_recipient_script_pubkey(tm.recipient(), must_match.address_prefix);
 
-        // Step 8: Check that there are no withdrawals where escrow is set
+        // There are no withdrawals where escrow is set
         // as recepient. It would drastically complicate the confirmation flow.
         if recipient == must_match.escrow_public.p2sh {
             let message_id = m.id().encode_hex();
@@ -305,14 +299,14 @@ pub fn validate_pskt_application_semantics(
     // Ensure that all HL messages have outputs.
     // Also, calculate the total output amount of withdrawals + escrow change,
     // it should match the input escrow amount.
-    let mut escrow_output_amount = 0;
+    let mut escrow_outputs_sum = 0;
     let mut next_anchor_idx: Option<u32> = None;
     for (idx, output) in pskt.outputs.iter().enumerate() {
         let key = (output.amount, output.script_public_key.clone());
 
         let e = expected_outputs.entry(key).and_modify(|v| *v -= 1);
         if let Entry::Occupied(e) = e {
-            escrow_output_amount += output.amount;
+            escrow_outputs_sum += output.amount;
             if *e.get() == 0 {
                 e.remove();
             }
@@ -321,12 +315,12 @@ pub fn validate_pskt_application_semantics(
 
         // Check that output is an anchor
         if output.script_public_key == must_match.escrow_public.p2sh {
-            // Step 9: Abort if there is more than one anchor candidate
+            // Abort if there is more than one anchor candidate
             if next_anchor_idx.is_some() {
                 return Err(ValidationError::MultipleAnchors);
             }
 
-            escrow_output_amount += output.amount;
+            escrow_outputs_sum += output.amount;
             next_anchor_idx = Some(idx as u32);
         }
     }
@@ -339,19 +333,19 @@ pub fn validate_pskt_application_semantics(
 
     // Verify that the input of escrow funds equals to the output of escrow funds:
     // Input == output == escrow change + sum(withdrawals)
-    if escrow_input_amount != escrow_output_amount {
+    if escrow_inputs_sum != escrow_outputs_sum {
         return Err(ValidationError::EscrowAmountMismatch {
-            input_amount: escrow_input_amount,
-            output_amount: escrow_output_amount,
+            input_amount: escrow_inputs_sum,
+            output_amount: escrow_outputs_sum,
         });
     }
 
     Ok(next_anchor_idx.ok_or(ValidationError::NextAnchorNotFound)?)
 }
 
-pub fn sign_withdrawal_fxg(fxg: &WithdrawFXG, keypair: &SecpKeypair) -> Result<Bundle> {
+pub fn sign_withdrawal_fxg(bundle: &Bundle, keypair: &SecpKeypair) -> Result<Bundle> {
     let mut signed = Vec::new();
-    for (pskt) in fxg.bundle.iter() {
+    for (pskt) in bundle.iter() {
         let pskt = PSKT::<Signer>::from(pskt.clone());
 
         let signed_pskt = corelib::pskt::sign_pskt(pskt, keypair, None)?;
@@ -361,4 +355,45 @@ pub fn sign_withdrawal_fxg(fxg: &WithdrawFXG, keypair: &SecpKeypair) -> Result<B
     info!("Validator: signed pskts");
     let bundle = Bundle::from(signed);
     Ok(bundle)
+}
+
+// Load only the interesting fields of the PSKT which should be there
+// This means we don't have to validate all the other uninteresting fields one by one
+fn safe_pskt(unstrusted_inner: Inner) -> Result<PSKT<Signer>> {
+    let mut inner = Inner::default();
+    inner.global.input_count = unstrusted_inner.inputs.len();
+    inner.global.output_count = unstrusted_inner.outputs.len();
+    inner.global.payload = unstrusted_inner.global.payload;
+    for (i, input) in unstrusted_inner.inputs.iter().enumerate() {
+        let mut b = InputBuilder::default();
+        if let Some(utxo_entry) = &input.utxo_entry {
+            b.utxo_entry(utxo_entry.clone());
+        }
+        b.previous_outpoint(input.previous_outpoint);
+        if let Some(sig_op_count) = input.sig_op_count {
+            b.sig_op_count(sig_op_count);
+        }
+        b.sighash_type(input.sighash_type);
+        if let Some(redeem_script) = &input.redeem_script {
+            b.redeem_script(redeem_script.clone());
+        }
+        inner.inputs.push(b.build()?);
+    }
+
+    for (i, output) in unstrusted_inner.outputs.iter().enumerate() {
+        let mut b = OutputBuilder::default();
+        b.amount(output.amount);
+        b.script_public_key(output.script_public_key.clone());
+        inner.outputs.push(b.build()?);
+    }
+
+    Ok(PSKT::<Signer>::from(inner))
+}
+
+pub fn safe_bundle(unstrusted_bundle: &Bundle) -> Result<Bundle> {
+    let mut items = Vec::new();
+    for pskt in unstrusted_bundle.iter() {
+        items.push(safe_pskt(pskt.clone())?);
+    }
+    Ok(Bundle::from(items))
 }
