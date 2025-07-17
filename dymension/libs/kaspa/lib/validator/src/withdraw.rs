@@ -103,21 +103,36 @@ pub async fn validate_withdrawal_batch(
     cosmos_client: &CosmosGrpcClient,
     must_match: MustMatch,
 ) -> Result<(), ValidationError> {
+    let hub_anchor = validate_messages(fxg, cosmos_client, &must_match).await?;
+
+    validate_pskts(fxg, hub_anchor, must_match)
+        .map_err(|e| eyre::eyre!("WithdrawFXG validation failed: {}", e))?;
+
+    info!("Withdrawal validation completed successfully for withdrawals");
+
+    Ok(())
+}
+
+/// At this point we know
+/// - The set of messages is unique
+/// - All the messages are dispatched on the hub
+/// - None of the messages are already confirmed on the hub
+async fn validate_messages(
+    fxg: &WithdrawFXG,
+    cosmos_client: &CosmosGrpcClient,
+    must_match: &MustMatch,
+) -> Result<TransactionOutpoint, ValidationError> {
     let messages: Vec<HyperlaneMessage> = fxg.messages.clone().into_iter().flatten().collect();
     let num_msgs = messages.len();
-
     debug!(
         "Starting withdrawal validation for messages, num_msgs: {}",
         num_msgs
     );
-
-    // Step 1: check double spending, and that message is for relevant token
     let msg_ids: Vec<H256> = messages.iter().map(|m| m.id()).collect();
     if let Some(duplicate) = util::find_duplicate(&msg_ids) {
         let message_id = duplicate.encode_hex();
         return Err(ValidationError::DoubleSpending { message_id });
     }
-
     for msg in messages.iter() {
         if !must_match.is_match(&msg) {
             return Err(ValidationError::MessageWrongBridge {
@@ -125,8 +140,6 @@ pub async fn validate_withdrawal_batch(
             });
         }
     }
-
-    // Steps 2: Check that all messages are *dispatched* from the Hub.
     for id in msg_ids {
         let res = cosmos_client
             .delivered(must_match.hub_mailbox_id.clone(), id.encode_hex())
@@ -141,35 +154,15 @@ pub async fn validate_withdrawal_batch(
             return Err(ValidationError::MessageNotDispatched { message_id });
         }
     }
-
     debug!("All withdrawal fxg messages are dispatched on hub");
-
-    // Step 3: All messages should be unprocessed (pending) on the Hub
     let (hub_anchor, pending_messages) = filter_pending_withdrawals(messages, cosmos_client, None)
         .await
         .map_err(|e| eyre::eyre!("Get pending withdrawals: {}", e))?;
-
     if num_msgs != pending_messages.len() {
         return Err(ValidationError::MessagesNotUnprocessed);
     }
-
     debug!("All withdrawal fxg messages are unprocessed on hub");
-
-    /*
-    At this point we know
-    - The set of messages is unique
-    - All the messages are dispatched on the hub
-    - None of the messages are already confirmed on the hub
-     */
-    validate_pskts(fxg, hub_anchor, must_match)
-        .map_err(|e| eyre::eyre!("WithdrawFXG validation failed: {}", e))?;
-
-    info!(
-        "Withdrawal validation completed successfully for withdrawals: num_msgs: {}",
-        num_msgs
-    );
-
-    Ok(())
+    Ok(hub_anchor)
 }
 
 pub fn validate_pskts(
@@ -183,16 +176,6 @@ pub fn validate_pskts(
             actual: fxg.messages.len(),
         });
     }
-
-    // Step 4: Validate that the Hub anchor in WithdrawFXG is still the actual Hub anchor
-
-    // Step 5: Validate the correct UTXO chaining.
-    // Batch transactions should follow this approach:
-    //
-    //   TX1   input: `hub_anchor`      TX1   output: `tx1_anchor`
-    //   TX2   input: `tx1_anchor`      TX2   output: `tx2_anchor`
-    //      ...                                    ...
-    //   TX(N) input: `tx(N-1)_anchor`  TX(N) output: `tx(N)_anchor`
 
     // PSKTs must be linked by anchor, starting with the current hub anchor
     let mut anchor_to_spend = hub_anchor;
@@ -238,9 +221,14 @@ pub fn validate_pskt(
     }
 
     // Payload covers corresponding HL messages
-    let payload = MessageIDs(expected_messages.iter().map(|m| MessageID(m.id())).collect())
-        .to_bytes()
-        .map_err(|e| eyre::eyre!("Failed to serialize MessageIDs: {}", e))?;
+    let payload = MessageIDs(
+        expected_messages
+            .iter()
+            .map(|m| MessageID(m.id()))
+            .collect(),
+    )
+    .to_bytes()
+    .map_err(|e| eyre::eyre!("Failed to serialize MessageIDs: {}", e))?;
 
     let pskt_payload = pskt.global.payload.clone().unwrap_or(vec![]);
 
