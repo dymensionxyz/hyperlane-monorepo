@@ -43,6 +43,8 @@ use serde::{Deserialize, Serialize};
 pub struct WithdrawFXG {
     pub bundle: Bundle,
     pub messages: Vec<Vec<HyperlaneMessage>>,
+
+    // used by relayer only
     // the first element – the very first anchor (old hub)
     // the last eleemnt – the very new anchor (new hub)
     pub anchors: Vec<TransactionOutpoint>,

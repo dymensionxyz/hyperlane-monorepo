@@ -26,6 +26,9 @@ pub enum ValidationError {
     #[error("Anchor {o:?} not found in PSKT inputs")]
     AnchorNotFound { o: TransactionOutpoint },
 
+    #[error("No messages to validate")]
+    NoMessages,
+
     #[error(
         "Relayer Hub anchor {hub_anchor:?} does not match withdrawal Hub anchor {relayer_anchor:?}"
     )]
@@ -35,10 +38,10 @@ pub enum ValidationError {
     },
 
     #[error("Sighash type is not SIG_HASH_ALL | SIG_HASH_ANY_ONE_CAN_PAY")]
-    IncorrectSigHashType,
+    SigHashType,
 
     #[error("PSKT should not have lock time")]
-    UnexpectedLockTime,
+    LockTime,
 
     #[error("Next anchor not found in PSKT outputs")]
     NextAnchorNotFound,
@@ -54,6 +57,9 @@ pub enum ValidationError {
 
     #[error("Outpoint {o:?} not found in PSKT chain")]
     AnchorMismatch { o: TransactionOutpoint },
+
+    #[error("Message cache length mismatch: {expected} != {actual}")]
+    MessageCacheLengthMismatch { expected: usize, actual: usize },
 
     #[error("Some HL messages do not have outputs")]
     MissingOutputs,
