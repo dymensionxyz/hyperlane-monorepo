@@ -55,6 +55,9 @@ pub enum ValidationError {
     #[error("Outpoint {o:?} not found in PSKT chain")]
     AnchorMismatch { o: TransactionOutpoint },
 
+    #[error("Message cache length mismatch: {expected} != {actual}")]
+    MessageCacheLengthMismatch { expected: usize, actual: usize },
+
     #[error("Some HL messages do not have outputs")]
     MissingOutputs,
 

@@ -103,10 +103,11 @@ pub async fn validate_withdrawal_batch(
     cosmos_client: &CosmosGrpcClient,
     must_match: MustMatch,
 ) -> Result<(), ValidationError> {
+
     let messages: Vec<HyperlaneMessage> = fxg.messages.clone().into_iter().flatten().collect();
     let num_msgs = messages.len();
 
-    debug!("Starting withdrawal validation for {} messages", num_msgs);
+    debug!("Starting withdrawal validation for messages, num_msgs: {}", num_msgs);
 
     // Step 1: check double spending, and that message is for relevant token
     let msg_ids: Vec<H256> = messages.iter().map(|m| m.id()).collect();
@@ -139,7 +140,7 @@ pub async fn validate_withdrawal_batch(
         }
     }
 
-    debug!("All messages are dispatched");
+    debug!("All withdrawal fxg messages are dispatched on hub");
 
     // Step 3: All messages should be unprocessed (pending) on the Hub
     let (hub_anchor, pending_messages) = filter_pending_withdrawals(messages, cosmos_client, None)
@@ -149,6 +150,8 @@ pub async fn validate_withdrawal_batch(
     if num_msgs != pending_messages.len() {
         return Err(ValidationError::MessagesNotUnprocessed);
     }
+
+    debug!("All withdrawal fxg messages are unprocessed on hub");
 
     /*
     At this point we know
@@ -160,7 +163,7 @@ pub async fn validate_withdrawal_batch(
         .map_err(|e| eyre::eyre!("WithdrawFXG validation failed: {}", e))?;
 
     info!(
-        "Withdrawal validation completed successfully for {} withdrawals",
+        "Withdrawal validation completed successfully for withdrawals: num_msgs: {}",
         num_msgs
     );
 
@@ -172,35 +175,35 @@ pub fn validate_pskts(
     hub_anchor: TransactionOutpoint,
     must_match: MustMatch,
 ) -> Result<(), ValidationError> {
+    if fxg.bundle.0.len() != fxg.messages.len() {
+        return Err(ValidationError::MessageCacheLengthMismatch {
+            expected: fxg.bundle.0.len(),
+            actual: fxg.messages.len(),
+        });
+    }
+
     // Step 4: Validate that the Hub anchor in WithdrawFXG is still the actual Hub anchor
 
     // Step 5: Validate the correct UTXO chaining.
-    // Batch transactoins should follow this approach:
+    // Batch transactions should follow this approach:
     //
     //   TX1   input: `hub_anchor`      TX1   output: `tx1_anchor`
     //   TX2   input: `tx1_anchor`      TX2   output: `tx2_anchor`
     //      ...                                    ...
     //   TX(N) input: `tx(N-1)_anchor`  TX(N) output: `tx(N)_anchor`
 
-    // The first anchor is the hub anchor
-    let mut anchor_prev = hub_anchor;
-
-    // PSKTs must be linked by anchor
+    // PSKTs must be linked by anchor, starting with the current hub anchor
+    let mut anchor_to_spend = hub_anchor;
     for (idx, pskt) in fxg.bundle.iter().enumerate() {
         let messages = fxg.messages.get(idx).unwrap();
 
-        // Compute the next anchor UTXO
-        let anchor_next = validate_pskt(
+        anchor_to_spend = validate_pskt(
             PSKT::<Signer>::from(pskt.clone()),
-            anchor_prev,
+            anchor_to_spend,
             messages,
             must_match.clone(),
         )
         .map_err(|e| eyre::eyre!("Single PSKT validation failed: {}", e))?;
-
-        // The previous anchor for the *next* PSKT is the next anchor of
-        // the *previous* PSKT.
-        anchor_prev = anchor_next;
     }
 
     Ok(())
