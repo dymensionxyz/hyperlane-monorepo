@@ -152,9 +152,9 @@ async fn demo() -> Result<()> {
         vec![current_anchor, new_anchor],
     );
 
-    // let bundle = validator_safe_bundle(&fxg.bundle)?;
+    let safe_b = validator_safe_bundle(&fxg.bundle)?;
 
-    let bundle_val = validator_sign_withdrawal_fxg(&fxg.bundle, e.keys.first().unwrap())?;
+    let bundle_val = validator_sign_withdrawal_fxg(&safe_b, e.keys.first().unwrap())?;
 
     info!("Signed withdrawal PSKT");
 

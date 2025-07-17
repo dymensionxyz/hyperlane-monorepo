@@ -367,13 +367,16 @@ pub fn sign_withdrawal_fxg(bundle: &Bundle, keypair: &SecpKeypair) -> Result<Bun
 
 // Load only the interesting fields of the PSKT which should be there
 // This means we don't have to validate all the other uninteresting fields one by one
-fn safe_pskt(unstrusted_inner: Inner) -> PSKT<Signer> {
+fn safe_pskt(unstrusted_inner: Inner) -> Result<PSKT<Signer>> {
     let mut inner = Inner::default();
     inner.global.input_count = unstrusted_inner.inputs.len();
     inner.global.output_count = unstrusted_inner.outputs.len();
     inner.global.payload = unstrusted_inner.global.payload;
     for (i, input) in unstrusted_inner.inputs.iter().enumerate() {
         let mut b = InputBuilder::default();
+        if let Some(utxo_entry) = &input.utxo_entry {
+            b.utxo_entry(utxo_entry.clone());
+        }
         b.previous_outpoint(input.previous_outpoint);
         if let Some(sig_op_count) = input.sig_op_count {
             b.sig_op_count(sig_op_count);
@@ -382,23 +385,23 @@ fn safe_pskt(unstrusted_inner: Inner) -> PSKT<Signer> {
         if let Some(redeem_script) = &input.redeem_script {
             b.redeem_script(redeem_script.clone());
         }
-        inner.inputs.push(b.build().unwrap());
+        inner.inputs.push(b.build()?);
     }
 
     for (i, output) in unstrusted_inner.outputs.iter().enumerate() {
         let mut b = OutputBuilder::default();
         b.amount(output.amount);
         b.script_public_key(output.script_public_key.clone());
-        inner.outputs.push(b.build().unwrap());
+        inner.outputs.push(b.build()?);
     }
 
-    PSKT::<Signer>::from(inner)
+    Ok(PSKT::<Signer>::from(inner))
 }
 
 pub fn safe_bundle(unstrusted_bundle: &Bundle) -> Result<Bundle> {
     let mut items = Vec::new();
     for pskt in unstrusted_bundle.iter() {
-        items.push(safe_pskt(pskt.clone()));
+        items.push(safe_pskt(pskt.clone())?);
     }
     Ok(Bundle::from(items))
 }
