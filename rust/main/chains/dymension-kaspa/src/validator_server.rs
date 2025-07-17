@@ -181,9 +181,13 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
         .toggles
         .withdrawal_confirmation_enabled
     {
-        validate_confirmed_withdrawals(&confirmation_fxg, resources.must_rest_client())
-            .await
-            .map_err(|e| AppError(Report::from(e)))?;
+        validate_confirmed_withdrawals(
+            &confirmation_fxg,
+            resources.must_rest_client(),
+            &resources.must_escrow().addr,
+        )
+        .await
+        .map_err(|e| AppError(Report::from(e)))?;
         info!("Validator: confirmed withdrawal is valid");
     }
 
