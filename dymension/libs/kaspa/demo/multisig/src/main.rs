@@ -18,8 +18,8 @@ use relayer::withdraw::hub_to_kaspa::{
     build_withdrawal_pskt, combine_bundles_with_fee as relayer_combine_bundles_and_pay_fee,
     fetch_input_utxos,
 };
-use validator::withdraw::sign_withdrawal_fxg as validator_sign_withdrawal_fxg;
 use validator::withdraw::safe_bundle as validator_safe_bundle;
+use validator::withdraw::sign_withdrawal_fxg as validator_sign_withdrawal_fxg;
 use x::args::Args;
 
 use std::sync::Arc;

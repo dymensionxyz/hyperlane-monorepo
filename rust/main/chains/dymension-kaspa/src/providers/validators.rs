@@ -64,28 +64,26 @@ impl ValidatorsClient {
             self.hosts().len()
         );
 
-        let futures = self.hosts().into_iter().map(|host| {
-            async move {
-                let h = host.to_string();
-                match request_validate_new_deposits(host, &fxg).await {
-                    Ok(Some(sig)) => {
-                        info!("Dymension, got deposit sig response ok, validator: {:?}", h);
-                        Ok(sig)
-                    }
-                    Ok(None) => {
-                        error!(
-                            "Dymension, got deposit sig response None, validator: {:?}",
-                            h
-                        );
-                        Err(eyre!("No signature received"))
-                    }
-                    Err(e) => {
-                        error!(
-                            "Dymension, got deposit sig response Err, validator: {:?}, error: {:?}",
-                            h, e
-                        );
-                        Err(e.into())
-                    }
+        let futures = self.hosts().into_iter().map(|host| async move {
+            let h = host.to_string();
+            match request_validate_new_deposits(host, &fxg).await {
+                Ok(Some(sig)) => {
+                    info!("Dymension, got deposit sig response ok, validator: {:?}", h);
+                    Ok(sig)
+                }
+                Ok(None) => {
+                    error!(
+                        "Dymension, got deposit sig response None, validator: {:?}",
+                        h
+                    );
+                    Err(eyre!("No signature received"))
+                }
+                Err(e) => {
+                    error!(
+                        "Dymension, got deposit sig response Err, validator: {:?}, error: {:?}",
+                        h, e
+                    );
+                    Err(e.into())
                 }
             }
         });
@@ -143,25 +141,29 @@ impl ValidatorsClient {
             self.hosts().len()
         );
 
-        let futures = self
-        .hosts()
-        .into_iter()
-        .map(|host| {
-            async move {
-                let h = host.to_string();
-                match request_sign_withdrawal_bundle(host, &fxg).await {
-                    Ok(Some(bundle)) => {
-                        info!("Dymension, got withdrawal sig response ok, validator: {:?}", h);
-                        Ok(bundle)
-                    }
-                    Ok(None) => {
-                        error!("Dymension, got withdrawal sig response None, validator: {:?}", h);
-                        Err(eyre!("No bundle received"))
-                    }
-                    Err(e) => {
-                        error!("Dymension, got withdrawal sig response Err, validator: {:?}, error: {:?}", h, e);
-                        Err(e.into())
-                    }
+        let futures = self.hosts().into_iter().map(|host| async move {
+            let h = host.to_string();
+            match request_sign_withdrawal_bundle(host, &fxg).await {
+                Ok(Some(bundle)) => {
+                    info!(
+                        "Dymension, got withdrawal sig response ok, validator: {:?}",
+                        h
+                    );
+                    Ok(bundle)
+                }
+                Ok(None) => {
+                    error!(
+                        "Dymension, got withdrawal sig response None, validator: {:?}",
+                        h
+                    );
+                    Err(eyre!("No bundle received"))
+                }
+                Err(e) => {
+                    error!(
+                        "Dymension, got withdrawal sig response Err, validator: {:?}, error: {:?}",
+                        h, e
+                    );
+                    Err(e.into())
                 }
             }
         });
