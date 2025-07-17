@@ -223,14 +223,6 @@ pub fn validate_pskt_impl_details(
         return Err(ValidationError::SigHashType);
     }
 
-    if pskt.global.fallback_lock_time.is_some() {
-        return Err(ValidationError::LockTime);
-    }
-
-    if pskt.global.tx_version != kaspa_consensus_core::constants::TX_VERSION {
-        return Err(ValidationError::TxVersionMismatch);
-    }
-
     Ok(())
 }
 
