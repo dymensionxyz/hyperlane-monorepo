@@ -105,6 +105,11 @@ pub async fn validate_withdrawal_batch(
 ) -> Result<(), ValidationError> {
     let hub_anchor = validate_messages(fxg, cosmos_client, &must_match).await?;
 
+    // At this point we know
+    // - The set of messages is unique
+    // - All the messages are dispatched on the hub
+    // - None of the messages are already confirmed on the hub
+    
     validate_pskts(fxg, hub_anchor, must_match)
         .map_err(|e| eyre::eyre!("WithdrawFXG validation failed: {}", e))?;
 
@@ -113,10 +118,6 @@ pub async fn validate_withdrawal_batch(
     Ok(())
 }
 
-/// At this point we know
-/// - The set of messages is unique
-/// - All the messages are dispatched on the hub
-/// - None of the messages are already confirmed on the hub
 async fn validate_messages(
     fxg: &WithdrawFXG,
     cosmos_client: &CosmosGrpcClient,
@@ -200,6 +201,10 @@ pub fn validate_pskt(
     expected_messages: &Vec<HyperlaneMessage>,
     must_match: MustMatch,
 ) -> Result<TransactionOutpoint, ValidationError> {
+    if expected_messages.len() == 0 {
+        return Err(ValidationError::NoMessages);
+    }
+
     if !pskt
         .inputs
         .iter()
@@ -213,11 +218,11 @@ pub fn validate_pskt(
         .iter()
         .any(|input| !is_valid_sighash_type(input.sighash_type))
     {
-        return Err(ValidationError::IncorrectSigHashType);
+        return Err(ValidationError::SigHashType);
     }
 
     if pskt.global.fallback_lock_time.is_some() {
-        return Err(ValidationError::UnexpectedLockTime);
+        return Err(ValidationError::LockTime);
     }
 
     // Payload covers corresponding HL messages
