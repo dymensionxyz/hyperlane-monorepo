@@ -66,7 +66,7 @@ pub struct DepositCli {
     pub amount: String,
 
     /// The payload to deposit (hex without 0x prefix)
-    #[arg(long, required = true)]
+    #[arg(long, required = false, default_value = "")]
     pub payload: String,
 
     /// The wRPC url (like localhost:17210)
