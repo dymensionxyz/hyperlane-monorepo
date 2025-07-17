@@ -202,8 +202,9 @@ pub fn validate_pskt(
     must_match: MustMatch,
 ) -> Result<TransactionOutpoint, ValidationError> {
     validate_pskt_impl_details(&pskt, &must_spend, expected_messages, &must_match)?;
-    let ix = validate_pskt_application_semantics(&pskt, must_spend, expected_messages, must_match)?;
-    Ok(TransactionOutpoint::new(pskt.calculate_id(), ix))
+    let output_ix =
+        validate_pskt_application_semantics(&pskt, must_spend, expected_messages, must_match)?;
+    Ok(TransactionOutpoint::new(pskt.calculate_id(), output_ix))
 }
 
 pub fn validate_pskt_impl_details(
@@ -222,6 +223,10 @@ pub fn validate_pskt_impl_details(
 
     if pskt.global.fallback_lock_time.is_some() {
         return Err(ValidationError::LockTime);
+    }
+
+    if pskt.global.tx_version != kaspa_consensus_core::constants::TX_VERSION {
+        return Err(ValidationError::TxVersionMismatch);
     }
 
     Ok(())
@@ -245,8 +250,7 @@ pub fn validate_pskt_application_semantics(
         return Err(ValidationError::AnchorNotFound { o: must_spend });
     }
 
-    // Payload covers corresponding HL messages
-    let payload = MessageIDs(
+    let payload_expect = MessageIDs(
         expected_messages
             .iter()
             .map(|m| MessageID(m.id()))
@@ -255,19 +259,15 @@ pub fn validate_pskt_application_semantics(
     .to_bytes()
     .map_err(|e| eyre::eyre!("Failed to serialize MessageIDs: {}", e))?;
 
-    let pskt_payload = pskt.global.payload.clone().unwrap_or(vec![]);
+    let payload_actual = pskt.global.payload.clone().unwrap_or(vec![]);
 
-    if pskt_payload != payload {
+    if payload_actual != payload_expect {
         return Err(ValidationError::PayloadMismatch);
-    }
-
-    if pskt.global.tx_version != kaspa_consensus_core::constants::TX_VERSION {
-        return Err(ValidationError::TxVersionMismatch);
     }
 
     // Check that UTXO outputs align with withdrawals
     // Find escrow input amount
-    let escrow_input_amount = pskt.inputs.iter().fold(0, |acc, i| {
+    let escrow_inputs_sum = pskt.inputs.iter().fold(0, |acc, i| {
         // redeem_script is None for relayer input
         let rs = i.redeem_script.clone().unwrap_or_default();
         return if rs == must_match.escrow_public.redeem_script {
@@ -339,9 +339,9 @@ pub fn validate_pskt_application_semantics(
 
     // Verify that the input of escrow funds equals to the output of escrow funds:
     // Input == output == escrow change + sum(withdrawals)
-    if escrow_input_amount != escrow_output_amount {
+    if escrow_inputs_sum != escrow_output_amount {
         return Err(ValidationError::EscrowAmountMismatch {
-            input_amount: escrow_input_amount,
+            input_amount: escrow_inputs_sum,
             output_amount: escrow_output_amount,
         });
     }
