@@ -224,6 +224,10 @@ pub fn validate_pskt_impl_details(
         return Err(ValidationError::LockTime);
     }
 
+    if pskt.global.tx_version != kaspa_consensus_core::constants::TX_VERSION {
+        return Err(ValidationError::TxVersionMismatch);
+    }
+
     Ok(())
 }
 
@@ -245,8 +249,7 @@ pub fn validate_pskt_application_semantics(
         return Err(ValidationError::AnchorNotFound { o: must_spend });
     }
 
-    // Payload covers corresponding HL messages
-    let payload = MessageIDs(
+    let payload_expect = MessageIDs(
         expected_messages
             .iter()
             .map(|m| MessageID(m.id()))
@@ -255,19 +258,15 @@ pub fn validate_pskt_application_semantics(
     .to_bytes()
     .map_err(|e| eyre::eyre!("Failed to serialize MessageIDs: {}", e))?;
 
-    let pskt_payload = pskt.global.payload.clone().unwrap_or(vec![]);
+    let payload_actual = pskt.global.payload.clone().unwrap_or(vec![]);
 
-    if pskt_payload != payload {
+    if payload_actual != payload_expect {
         return Err(ValidationError::PayloadMismatch);
-    }
-
-    if pskt.global.tx_version != kaspa_consensus_core::constants::TX_VERSION {
-        return Err(ValidationError::TxVersionMismatch);
     }
 
     // Check that UTXO outputs align with withdrawals
     // Find escrow input amount
-    let escrow_input_amount = pskt.inputs.iter().fold(0, |acc, i| {
+    let escrow_inputs_sum = pskt.inputs.iter().fold(0, |acc, i| {
         // redeem_script is None for relayer input
         let rs = i.redeem_script.clone().unwrap_or_default();
         return if rs == must_match.escrow_public.redeem_script {
@@ -291,7 +290,7 @@ pub fn validate_pskt_application_semantics(
 
         let recipient = get_recipient_script_pubkey(tm.recipient(), must_match.address_prefix);
 
-        // Step 8: Check that there are no withdrawals where escrow is set
+        // There are no withdrawals where escrow is set
         // as recepient. It would drastically complicate the confirmation flow.
         if recipient == must_match.escrow_public.p2sh {
             let message_id = m.id().encode_hex();
@@ -305,14 +304,14 @@ pub fn validate_pskt_application_semantics(
     // Ensure that all HL messages have outputs.
     // Also, calculate the total output amount of withdrawals + escrow change,
     // it should match the input escrow amount.
-    let mut escrow_output_amount = 0;
+    let mut escrow_outputs_sum = 0;
     let mut next_anchor_idx: Option<u32> = None;
     for (idx, output) in pskt.outputs.iter().enumerate() {
         let key = (output.amount, output.script_public_key.clone());
 
         let e = expected_outputs.entry(key).and_modify(|v| *v -= 1);
         if let Entry::Occupied(e) = e {
-            escrow_output_amount += output.amount;
+            escrow_outputs_sum += output.amount;
             if *e.get() == 0 {
                 e.remove();
             }
@@ -321,12 +320,12 @@ pub fn validate_pskt_application_semantics(
 
         // Check that output is an anchor
         if output.script_public_key == must_match.escrow_public.p2sh {
-            // Step 9: Abort if there is more than one anchor candidate
+            // Abort if there is more than one anchor candidate
             if next_anchor_idx.is_some() {
                 return Err(ValidationError::MultipleAnchors);
             }
 
-            escrow_output_amount += output.amount;
+            escrow_outputs_sum += output.amount;
             next_anchor_idx = Some(idx as u32);
         }
     }
@@ -339,10 +338,10 @@ pub fn validate_pskt_application_semantics(
 
     // Verify that the input of escrow funds equals to the output of escrow funds:
     // Input == output == escrow change + sum(withdrawals)
-    if escrow_input_amount != escrow_output_amount {
+    if escrow_inputs_sum != escrow_outputs_sum {
         return Err(ValidationError::EscrowAmountMismatch {
-            input_amount: escrow_input_amount,
-            output_amount: escrow_output_amount,
+            input_amount: escrow_inputs_sum,
+            output_amount: escrow_outputs_sum,
         });
     }
 
