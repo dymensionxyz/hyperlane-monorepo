@@ -100,18 +100,19 @@ impl MustMatch {
 ///
 /// CONTRACT: the first anchor of `fxg.anchors` is the Hub anchor.
 pub async fn validate_withdrawal_batch(
-    fxg: &WithdrawFXG,
+    bundle: &Bundle,
+    messages: &Vec<Vec<HyperlaneMessage>>,
     cosmos_client: &CosmosGrpcClient,
     must_match: MustMatch,
 ) -> Result<(), ValidationError> {
-    let hub_anchor = validate_messages(fxg, cosmos_client, &must_match).await?;
+    let hub_anchor = validate_messages(messages, cosmos_client, &must_match).await?;
 
     // At this point we know
     // - The set of messages is unique
     // - All the messages are dispatched on the hub
     // - None of the messages are already confirmed on the hub
 
-    validate_pskts(fxg, hub_anchor, must_match)
+    validate_pskts(bundle, messages, hub_anchor, must_match)
         .map_err(|e| eyre::eyre!("WithdrawFXG validation failed: {}", e))?;
 
     info!("Withdrawal validation completed successfully for withdrawals");
@@ -120,11 +121,11 @@ pub async fn validate_withdrawal_batch(
 }
 
 async fn validate_messages(
-    fxg: &WithdrawFXG,
+    messages: &Vec<Vec<HyperlaneMessage>>,
     cosmos_client: &CosmosGrpcClient,
     must_match: &MustMatch,
 ) -> Result<TransactionOutpoint, ValidationError> {
-    let messages: Vec<HyperlaneMessage> = fxg.messages.clone().into_iter().flatten().collect();
+    let messages: Vec<HyperlaneMessage> = messages.clone().into_iter().flatten().collect();
     let num_msgs = messages.len();
     debug!(
         "Starting withdrawal validation for messages, num_msgs: {}",
@@ -168,21 +169,22 @@ async fn validate_messages(
 }
 
 pub fn validate_pskts(
-    fxg: &WithdrawFXG,
+    bundle: &Bundle,
+    messages: &Vec<Vec<HyperlaneMessage>>,
     hub_anchor: TransactionOutpoint,
     must_match: MustMatch,
 ) -> Result<(), ValidationError> {
-    if fxg.bundle.0.len() != fxg.messages.len() {
+    if bundle.0.len() != messages.len() {
         return Err(ValidationError::MessageCacheLengthMismatch {
-            expected: fxg.bundle.0.len(),
-            actual: fxg.messages.len(),
+            expected: bundle.0.len(),
+            actual: messages.len(),
         });
     }
 
     // PSKTs must be linked by anchor, starting with the current hub anchor
     let mut anchor_to_spend = hub_anchor;
-    for (idx, pskt) in fxg.bundle.iter().enumerate() {
-        let messages = fxg.messages.get(idx).unwrap();
+    for (idx, pskt) in bundle.iter().enumerate() {
+        let messages = messages.get(idx).unwrap();
 
         anchor_to_spend = validate_pskt(
             PSKT::<Signer>::from(pskt.clone()),
@@ -349,9 +351,9 @@ pub fn validate_pskt_application_semantics(
     Ok(next_anchor_idx.ok_or(ValidationError::NextAnchorNotFound)?)
 }
 
-pub fn sign_withdrawal_fxg(fxg: &WithdrawFXG, keypair: &SecpKeypair) -> Result<Bundle> {
+pub fn sign_withdrawal_fxg(bundle: &Bundle, keypair: &SecpKeypair) -> Result<Bundle> {
     let mut signed = Vec::new();
-    for (pskt) in fxg.bundle.iter() {
+    for (pskt) in bundle.iter() {
         let pskt = PSKT::<Signer>::from(pskt.clone());
 
         let signed_pskt = corelib::pskt::sign_pskt(pskt, keypair, None)?;
@@ -389,4 +391,12 @@ fn safe_pskt(unstrusted_inner: Inner) -> PSKT<Signer> {
     }
 
     PSKT::<Signer>::from(inner)
+}
+
+pub fn safe_bundle(unstrusted_bundle: Bundle) -> Result<Bundle> {
+    let mut items = Vec::new();
+    for (i, pskt) in unstrusted_bundle.iter().enumerate() {
+        items.push(safe_pskt(pskt.clone()));
+    }
+    Ok(Bundle::from(items))
 }
