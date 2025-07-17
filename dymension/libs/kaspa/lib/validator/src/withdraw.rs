@@ -393,9 +393,9 @@ fn safe_pskt(unstrusted_inner: Inner) -> PSKT<Signer> {
     PSKT::<Signer>::from(inner)
 }
 
-pub fn safe_bundle(unstrusted_bundle: Bundle) -> Result<Bundle> {
+pub fn safe_bundle(unstrusted_bundle: &Bundle) -> Result<Bundle> {
     let mut items = Vec::new();
-    for (i, pskt) in unstrusted_bundle.iter().enumerate() {
+    for pskt in unstrusted_bundle.iter() {
         items.push(safe_pskt(pskt.clone()));
     }
     Ok(Bundle::from(items))

@@ -19,6 +19,7 @@ use relayer::withdraw::hub_to_kaspa::{
     fetch_input_utxos,
 };
 use validator::withdraw::sign_withdrawal_fxg as validator_sign_withdrawal_fxg;
+use validator::withdraw::safe_bundle as validator_safe_bundle;
 use x::args::Args;
 
 use std::sync::Arc;
@@ -151,7 +152,9 @@ async fn demo() -> Result<()> {
         vec![current_anchor, new_anchor],
     );
 
-    let bundle_val = validator_sign_withdrawal_fxg(&fxg, e.keys.first().unwrap())?;
+    let bundle = validator_safe_bundle(&fxg.bundle)?;
+
+    let bundle_val = validator_sign_withdrawal_fxg(&bundle, e.keys.first().unwrap())?;
 
     info!("Signed withdrawal PSKT");
 

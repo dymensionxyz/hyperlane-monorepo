@@ -209,7 +209,7 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
     info!("Validator: signing pskts");
     let fxg: WithdrawFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
-    let b = safe_bundle(fxg.bundle).map_err(|e| AppError(e))?;
+    let b = safe_bundle(&fxg.bundle).map_err(|e| AppError(e))?;
     let m = fxg.messages;
 
     // Call to validator.G()

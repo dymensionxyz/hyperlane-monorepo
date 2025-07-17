@@ -65,10 +65,9 @@ impl ValidatorsClient {
         );
 
         let futures = self.hosts().into_iter().map(|host| {
-            let fxg_clone = fxg.clone();
             async move {
                 let h = host.to_string();
-                match request_validate_new_deposits(host, &fxg_clone).await {
+                match request_validate_new_deposits(host, &fxg).await {
                     Ok(Some(sig)) => {
                         info!("Dymension, got deposit sig response ok, validator: {:?}", h);
                         Ok(sig)
@@ -148,10 +147,9 @@ impl ValidatorsClient {
         .hosts()
         .into_iter()
         .map(|host| {
-            let fxg_clone = fxg.clone();
             async move {
                 let h = host.to_string();
-                match request_sign_withdrawal_bundle(host, &fxg_clone).await {
+                match request_sign_withdrawal_bundle(host, &fxg).await {
                     Ok(Some(bundle)) => {
                         info!("Dymension, got withdrawal sig response ok, validator: {:?}", h);
                         Ok(bundle)
