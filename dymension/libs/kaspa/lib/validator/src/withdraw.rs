@@ -31,7 +31,7 @@ use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint, Transaction
 use kaspa_hashes;
 use kaspa_txscript::pay_to_address_script;
 use kaspa_wallet_core::utxo::NetworkParams;
-use kaspa_wallet_pskt::pskt::{Global, Inner, Input, Output, PSKT, Signer, Version};
+use kaspa_wallet_pskt::pskt::{Global, Inner, Input, Output, Signer, Version, PSKT};
 use std::collections::HashMap;
 use std::io::Cursor;
 use tracing::{debug, error, info, warn};
@@ -364,30 +364,29 @@ pub fn sign_withdrawal_fxg(fxg: &WithdrawFXG, keypair: &SecpKeypair) -> Result<B
 }
 
 fn safe_pskt(unstrusted_inner: Inner) -> PSKT<Signer> {
-    let inner = Inner{
-        global: Global{
-            version: Version::Zero,
-            tx_version: kaspa_consensus_core::constants::TX_VERSION,
-            fallback_lock_time: None,
-            inputs_modifiable: true,
-            outputs_modifiable: true,
-        },
-        inputs : unstrusted_inner.inputs.iter().map(|input| {
-            Input{
-                previous_outpoint: input.previous_outpoint,
-                sighash_type: input.sighash_type,
-                redeem_script: input.redeem_script,
-            }
-        }).collect(),
-        outputs: unstrusted_inner.outputs.iter().map(|output| {
-            Output{
-                amount: output.amount,
-                script_public_key: output.script_public_key,
-            }
-        }).collect(),
-        lock_time: unstrusted_inner.lock_time,
-
+    let mut inner = Inner::default();
+    inner.global.input_count = unstrusted_inner.inputs.len();
+    inner.global.output_count = unstrusted_inner.outputs.len();
+    inner.global.payload = unstrusted_inner.global.payload;
+    for (i, input) in unstrusted_inner.inputs.iter().enumerate() {
+        let mut b = InputBuilder::default();
+        b.previous_outpoint(input.previous_outpoint);
+        if let Some(sig_op_count) = input.sig_op_count {
+            b.sig_op_count(sig_op_count);
+        }
+        b.sighash_type(input.sighash_type);
+        if let Some(redeem_script) = &input.redeem_script {
+            b.redeem_script(redeem_script.clone());
+        }
+        inner.inputs.push(b.build().unwrap());
     }
-    
+
+    for (i, output) in unstrusted_inner.outputs.iter().enumerate() {
+        let mut b = OutputBuilder::default();
+        b.amount(output.amount);
+        b.script_public_key(output.script_public_key.clone());
+        inner.outputs.push(b.build().unwrap());
+    }
+
     PSKT::<Signer>::from(inner)
 }

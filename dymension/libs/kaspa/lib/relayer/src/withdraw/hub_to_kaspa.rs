@@ -253,35 +253,33 @@ fn create_withdrawal_pskt(
 
     // Add inputs
     for (input, entry) in inputs.into_iter() {
-        let mut builer = InputBuilder::default();
+        let mut b = InputBuilder::default();
 
-        builer
-            .utxo_entry(entry)
+        b.utxo_entry(entry)
             .previous_outpoint(input.previous_outpoint)
             .sig_op_count(input.sig_op_count)
             .sighash_type(input_sighash_type());
 
         if !input.signature_script.is_empty() {
             // escrow inputs need redeem_script
-            builer.redeem_script(input.signature_script);
+            b.redeem_script(input.signature_script);
         }
 
         pskt = pskt.input(
-            builer
-                .build()
+            b.build()
                 .map_err(|e| eyre::eyre!("Build pskt input: {}", e))?,
         );
     }
 
     // Add outputs
     for output in outputs.into_iter() {
-        let pskt_output = OutputBuilder::default()
+        let b = OutputBuilder::default()
             .amount(output.value)
             .script_public_key(output.script_public_key)
             .build()
             .map_err(|e| eyre::eyre!("Build pskt output for withdrawal: {}", e))?;
 
-        pskt = pskt.output(pskt_output);
+        pskt = pskt.output(b);
     }
 
     Ok(pskt
