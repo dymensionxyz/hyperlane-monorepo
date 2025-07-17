@@ -365,6 +365,8 @@ pub fn sign_withdrawal_fxg(bundle: &Bundle, keypair: &SecpKeypair) -> Result<Bun
     Ok(bundle)
 }
 
+// Load only the interesting fields of the PSKT which should be there
+// This means we don't have to validate all the other uninteresting fields one by one
 fn safe_pskt(unstrusted_inner: Inner) -> PSKT<Signer> {
     let mut inner = Inner::default();
     inner.global.input_count = unstrusted_inner.inputs.len();
