@@ -109,7 +109,7 @@ pub async fn validate_withdrawal_batch(
     // - The set of messages is unique
     // - All the messages are dispatched on the hub
     // - None of the messages are already confirmed on the hub
-    
+
     validate_pskts(fxg, hub_anchor, must_match)
         .map_err(|e| eyre::eyre!("WithdrawFXG validation failed: {}", e))?;
 
@@ -201,18 +201,17 @@ pub fn validate_pskt(
     expected_messages: &Vec<HyperlaneMessage>,
     must_match: MustMatch,
 ) -> Result<TransactionOutpoint, ValidationError> {
-    if expected_messages.len() == 0 {
-        return Err(ValidationError::NoMessages);
-    }
+    validate_pskt_impl_details(&pskt, &must_spend, expected_messages, &must_match)?;
+    let ix = validate_pskt_application_semantics(&pskt, must_spend, expected_messages, must_match)?;
+    Ok(TransactionOutpoint::new(pskt.calculate_id(), ix))
+}
 
-    if !pskt
-        .inputs
-        .iter()
-        .any(|input| input.previous_outpoint == must_spend)
-    {
-        return Err(ValidationError::AnchorNotFound { o: must_spend });
-    }
-
+pub fn validate_pskt_impl_details(
+    pskt: &PSKT<Signer>,
+    must_spend: &TransactionOutpoint,
+    expected_messages: &Vec<HyperlaneMessage>,
+    must_match: &MustMatch,
+) -> Result<(), ValidationError> {
     if pskt
         .inputs
         .iter()
@@ -223,6 +222,27 @@ pub fn validate_pskt(
 
     if pskt.global.fallback_lock_time.is_some() {
         return Err(ValidationError::LockTime);
+    }
+
+    Ok(())
+}
+
+pub fn validate_pskt_application_semantics(
+    pskt: &PSKT<Signer>,
+    must_spend: TransactionOutpoint,
+    expected_messages: &Vec<HyperlaneMessage>,
+    must_match: MustMatch,
+) -> Result<u32, ValidationError> {
+    if expected_messages.len() == 0 {
+        return Err(ValidationError::NoMessages);
+    }
+
+    if !pskt
+        .inputs
+        .iter()
+        .any(|input| input.previous_outpoint == must_spend)
+    {
+        return Err(ValidationError::AnchorNotFound { o: must_spend });
     }
 
     // Payload covers corresponding HL messages
@@ -311,9 +331,6 @@ pub fn validate_pskt(
         }
     }
 
-    // Step 9: There should be exactly one anchor
-    let idx = next_anchor_idx.ok_or(ValidationError::NextAnchorNotFound)?;
-
     // expected_outputs contains the number of occurrences of (recipiend; amount) pairs.
     // If it is empty, then all the occurrences are covered by the Kaspa TX.
     if !expected_outputs.is_empty() {
@@ -329,7 +346,7 @@ pub fn validate_pskt(
         });
     }
 
-    Ok(TransactionOutpoint::new(pskt.calculate_id(), idx))
+    Ok(next_anchor_idx.ok_or(ValidationError::NextAnchorNotFound)?)
 }
 
 pub fn sign_withdrawal_fxg(fxg: &WithdrawFXG, keypair: &SecpKeypair) -> Result<Bundle> {
