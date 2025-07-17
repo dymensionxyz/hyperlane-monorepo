@@ -223,6 +223,8 @@ pub fn validate_pskt_impl_details(
         return Err(ValidationError::SigHashType);
     }
 
+    // Note: input sig op count is just used as a hint for mass calculation. It's not security sensitive, and is likely going to removed in future.
+
     Ok(())
 }
 
