@@ -31,6 +31,7 @@ use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint, Transaction
 use kaspa_hashes;
 use kaspa_txscript::pay_to_address_script;
 use kaspa_wallet_core::utxo::NetworkParams;
+use kaspa_wallet_pskt::pskt::{Global, Inner, Input, Output, PSKT, Signer, Version};
 use std::collections::HashMap;
 use std::io::Cursor;
 use tracing::{debug, error, info, warn};
@@ -360,4 +361,33 @@ pub fn sign_withdrawal_fxg(fxg: &WithdrawFXG, keypair: &SecpKeypair) -> Result<B
     info!("Validator: signed pskts");
     let bundle = Bundle::from(signed);
     Ok(bundle)
+}
+
+fn safe_pskt(unstrusted_inner: Inner) -> PSKT<Signer> {
+    let inner = Inner{
+        global: Global{
+            version: Version::Zero,
+            tx_version: kaspa_consensus_core::constants::TX_VERSION,
+            fallback_lock_time: None,
+            inputs_modifiable: true,
+            outputs_modifiable: true,
+        },
+        inputs : unstrusted_inner.inputs.iter().map(|input| {
+            Input{
+                previous_outpoint: input.previous_outpoint,
+                sighash_type: input.sighash_type,
+                redeem_script: input.redeem_script,
+            }
+        }).collect(),
+        outputs: unstrusted_inner.outputs.iter().map(|output| {
+            Output{
+                amount: output.amount,
+                script_public_key: output.script_public_key,
+            }
+        }).collect(),
+        lock_time: unstrusted_inner.lock_time,
+
+    }
+    
+    PSKT::<Signer>::from(inner)
 }
