@@ -103,11 +103,13 @@ pub async fn validate_withdrawal_batch(
     cosmos_client: &CosmosGrpcClient,
     must_match: MustMatch,
 ) -> Result<(), ValidationError> {
-
     let messages: Vec<HyperlaneMessage> = fxg.messages.clone().into_iter().flatten().collect();
     let num_msgs = messages.len();
 
-    debug!("Starting withdrawal validation for messages, num_msgs: {}", num_msgs);
+    debug!(
+        "Starting withdrawal validation for messages, num_msgs: {}",
+        num_msgs
+    );
 
     // Step 1: check double spending, and that message is for relevant token
     let msg_ids: Vec<H256> = messages.iter().map(|m| m.id()).collect();
@@ -211,37 +213,32 @@ pub fn validate_pskts(
 
 pub fn validate_pskt(
     pskt: PSKT<Signer>,
-    anchor_prev: TransactionOutpoint,
-    pending_messages: &Vec<HyperlaneMessage>,
+    must_spend: TransactionOutpoint,
+    expected_messages: &Vec<HyperlaneMessage>,
     must_match: MustMatch,
 ) -> Result<TransactionOutpoint, ValidationError> {
-    // Step 5 continuing: Check that PSKT contains the previous anchor as input
-    let prev_outpoint_found = pskt.inputs.iter().any(|input| {
-        input.previous_outpoint.transaction_id == anchor_prev.transaction_id
-            && input.previous_outpoint.index == anchor_prev.index
-    });
-    if !prev_outpoint_found {
-        return Err(ValidationError::AnchorNotFound { o: anchor_prev });
-    }
-
-    // Step 6: Check PSKT:
-
-    // - Check if any input has incorrect sighash
-    let incorrect_sig_hash = pskt
+    if !pskt
         .inputs
         .iter()
-        .any(|input| !is_valid_sighash_type(input.sighash_type));
-    if incorrect_sig_hash {
+        .any(|input| input.previous_outpoint == must_spend)
+    {
+        return Err(ValidationError::AnchorNotFound { o: must_spend });
+    }
+
+    if pskt
+        .inputs
+        .iter()
+        .any(|input| !is_valid_sighash_type(input.sighash_type))
+    {
         return Err(ValidationError::IncorrectSigHashType);
     }
 
-    // - No lock time
-    if let Some(_) = pskt.global.fallback_lock_time {
+    if pskt.global.fallback_lock_time.is_some() {
         return Err(ValidationError::UnexpectedLockTime);
     }
 
-    // - Payload covers corresponding HL messages
-    let payload = MessageIDs(pending_messages.iter().map(|m| MessageID(m.id())).collect())
+    // Payload covers corresponding HL messages
+    let payload = MessageIDs(expected_messages.iter().map(|m| MessageID(m.id())).collect())
         .to_bytes()
         .map_err(|e| eyre::eyre!("Failed to serialize MessageIDs: {}", e))?;
 
@@ -251,12 +248,11 @@ pub fn validate_pskt(
         return Err(ValidationError::PayloadMismatch);
     }
 
-    // - TX version
     if pskt.global.tx_version != kaspa_consensus_core::constants::TX_VERSION {
         return Err(ValidationError::TxVersionMismatch);
     }
 
-    // Step 7: Check that UTXO outputs align with withdrawals
+    // Check that UTXO outputs align with withdrawals
     // Find escrow input amount
     let escrow_input_amount = pskt.inputs.iter().fold(0, |acc, i| {
         // redeem_script is None for relayer input
@@ -276,7 +272,7 @@ pub fn validate_pskt(
     // with the same amount.
     let mut expected_outputs: HashMap<(u64, ScriptPublicKey), i32> = HashMap::new();
 
-    for m in pending_messages {
+    for m in expected_messages {
         let tm = TokenMessage::read_from(&mut Cursor::new(&m.body))
             .map_err(|e| eyre::eyre!("Failed to parse TokenMessage from message body: {}", e))?;
 

@@ -31,10 +31,7 @@ pub fn input_sighash_type() -> SigHashType {
 }
 
 pub fn is_valid_sighash_type(t: SigHashType) -> bool {
-    return t.to_u8()
-        == (SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8())
-            .unwrap())
-        .to_u8();
+    return t.to_u8() == input_sighash_type().to_u8();
 }
 
 /// Find the first duplicate if any.
