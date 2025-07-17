@@ -43,27 +43,14 @@ ESCROW_ADDR="kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6p
 # THES VALUES MUST CORRESPOND WITH agent-config.json (in this directory, REQUIRES EDITING)  Do NOT unescape json quotes
 
 #~~~~~~~
-# First time wallet set up guide
-# Assuming ~/.kaspa is empty
-cargo run
-
+# Seed escrow with 1 TKAS
+# (Requires wallet from https://github.com/dymensionxyz/hyperlane-deployments/blob/main/e2e/assets/kaspa-wallet-funded-testnet-relayer/kaspa.wallet in ~/.kaspa)
 cargo run -- deposit \
-  --escrow-address kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr \
-  --amount 1 \
+  --escrow-address $ESCROW_ADDR \
+  --amount 100000000 \
   --wrpc-url localhost:17210 \
   --network-id testnet-10 \
-  --wallet-secret lkjsdf \
-  --payload 030000000004d10892ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff804b267ca0726f757465725f6170700000000000000000000000000002000000000000000000000000000000000000000089760f514dcfcccf1e4c5edc6bf6041931c4c1830000000000000000000000000000000000000000000000000000000005f5e100 
-#~~~~~~~
-
-
-# in rusty-kaspa/wallet/native
-cargo run
-open
-connect
-select
-send 1 $ESCROW_ADDR
-# seed escrow with a few kas 
+  --wallet-secret lkjsdf
 
 ###################################
 #### Step 2. Setup HUB
@@ -180,10 +167,10 @@ dymd q forward hl-message-kaspa $TOKEN_ID $HUB_USER_ADDR $DEPOSIT_AMT
 cargo run -- deposit \
   --escrow-address $ESCROW_ADDR \
   --amount $DEPOSIT_AMT \
-  --payload 030000000004d10892ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff804b267ca0726f757465725f6170700000000000000000000000000002000000000000000000000000000000000000000089760f514dcfcccf1e4c5edc6bf6041931c4c1830000000000000000000000000000000000000000000000000000000005f5e100 \
   --wrpc-url localhost:17210 \
   --network-id testnet-10 \
-  --wallet-secret lkjsdf
+  --wallet-secret lkjsdf \
+  --payload 030000000004d10892ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff804b267ca0726f757465725f6170700000000000000000000000000002000000000000000000000000000000000000000089760f514dcfcccf1e4c5edc6bf6041931c4c1830000000000000000000000000000000000000000000000000000000005f5e100
 
 # *WITHDRAWALS*
 
