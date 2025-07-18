@@ -147,6 +147,22 @@ where
             info!("Dymension, built new deposit FXG: {:?}", new_deposit_res);
             match new_deposit_res {
                 Ok(Some(fxg)) => {
+                    let delivered_res = self.hub_mailbox.delivered(fxg.hl_message.id()).await;
+                    match delivered_res {
+                        Ok(true) => {
+                            info!(
+                                "Dymension, deposit already delivered, skipping : {:?}",
+                                fxg.hl_message.id()
+                            );
+                            continue;
+                        }
+                        Err(e) => {
+                            error!("Dymension, check if deposit is delivered: {:?}", e);
+                            // TODO: should have a retry flow
+                            continue;
+                        }
+                        _ => {}
+                    };
                     let res = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
                     match res {
                         Ok(_) => {
