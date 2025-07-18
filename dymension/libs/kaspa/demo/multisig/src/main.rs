@@ -157,6 +157,7 @@ async fn demo() -> Result<()> {
     let val_bundles = e
         .keys
         .iter()
+        .take(e.m())
         .map(|k| validator_sign_withdrawal_fxg(&safe_b, k))
         .collect::<Result<Vec<_>>>()?;
 
