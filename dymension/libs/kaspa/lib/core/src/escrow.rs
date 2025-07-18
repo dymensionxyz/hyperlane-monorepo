@@ -30,14 +30,14 @@ pub struct EscrowPublic {
 }
 
 impl Escrow {
-    pub fn new(n: u8) -> Self {
+    pub fn new(m: u8, n: u8) -> Self {
         let kps = (0..n)
             .map(|_| Keypair::new(secp256k1::SECP256K1, &mut thread_rng()))
             .collect::<Vec<_>>();
 
         Self {
             keys: kps,
-            required_signatures: n,
+            required_signatures: m,
         }
     }
 

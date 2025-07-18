@@ -95,7 +95,7 @@ async fn demo() -> Result<()> {
 
     check_balance("wallet", rpc.as_ref(), &w.account().receive_address()?).await?;
 
-    let e = Escrow::new(1);
+    let e = Escrow::new(2, 3);
     info!(
         "Created escrow address: {}",
         e.public(e2e_address_prefix).addr
@@ -154,12 +154,16 @@ async fn demo() -> Result<()> {
 
     let safe_b = validator_safe_bundle(&fxg.bundle)?;
 
-    let bundle_val = validator_sign_withdrawal_fxg(&safe_b, e.keys.first().unwrap())?;
+    let val_bundles = e
+        .keys
+        .iter()
+        .map(|k| validator_sign_withdrawal_fxg(&safe_b, k))
+        .collect::<Result<Vec<_>>>()?;
 
     info!("Signed withdrawal PSKT");
 
     let finalized = relayer_combine_bundles_and_pay_fee(
-        vec![bundle_val],
+        val_bundles,
         &fxg,
         e.m(),
         &e.public(e2e_address_prefix),
