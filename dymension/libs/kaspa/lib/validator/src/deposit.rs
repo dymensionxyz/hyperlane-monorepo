@@ -44,7 +44,7 @@ impl MustMatch {
     ) -> Self {
         Self {
             partial_message: HyperlaneMessage {
-                version: 0,
+                version: ALLOWED_HL_MESSAGE_VERSION,
                 nonce: 0,
                 origin: kas_domain,
                 sender: kas_token_placeholder,
@@ -66,7 +66,8 @@ impl MustMatch {
             return true;
         }
 
-        self.partial_message.origin == other.origin
+        self.partial_message.version == other.version
+            && self.partial_message.origin == other.origin
             && self.partial_message.sender == other.sender
             && self.partial_message.destination == other.destination
             && self.partial_message.recipient == other.recipient
@@ -142,12 +143,6 @@ pub async fn validate_new_deposit_inner(
     .await?
     {
         error!("Deposit is not sufficiently final",);
-        return Ok(false);
-    }
-
-    // check that the HL message version is allowed
-    if d_untrusted.hl_message.version != ALLOWED_HL_MESSAGE_VERSION {
-        error!("HL message version is not allowed");
         return Ok(false);
     }
 

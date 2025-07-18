@@ -16,6 +16,7 @@ use corelib::util::{get_recipient_address, get_recipient_script_pubkey, is_valid
 use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use eyre::{Report, Result};
+use hardcode::hl::ALLOWED_HL_MESSAGE_VERSION;
 use hex::ToHex;
 use hyperlane_core::HyperlaneDomainConfigError::DomainNameMismatch;
 use hyperlane_core::{Decode, HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, H256, U256};
@@ -58,7 +59,7 @@ impl MustMatch {
             address_prefix,
             escrow_public,
             partial_message: HyperlaneMessage {
-                version: 0,
+                version: ALLOWED_HL_MESSAGE_VERSION,
                 nonce: 0,
                 origin: hub_domain,
                 sender: hub_token_id,
@@ -71,7 +72,8 @@ impl MustMatch {
     }
 
     fn is_match(&self, other: &HyperlaneMessage) -> bool {
-        self.partial_message.origin == other.origin
+        self.partial_message.version == other.version
+            && self.partial_message.origin == other.origin
             && self.partial_message.sender == other.sender
             && self.partial_message.destination == other.destination
             && self.partial_message.recipient == other.recipient
@@ -204,17 +206,12 @@ pub fn validate_pskt(
     expected_messages: &Vec<HyperlaneMessage>,
     must_match: MustMatch,
 ) -> Result<TransactionOutpoint, ValidationError> {
-    validate_pskt_impl_details(&pskt, &must_spend, expected_messages, &must_match)?;
+    validate_pskt_impl_details(&pskt)?;
     let ix = validate_pskt_application_semantics(&pskt, must_spend, expected_messages, must_match)?;
     Ok(TransactionOutpoint::new(pskt.calculate_id(), ix))
 }
 
-pub fn validate_pskt_impl_details(
-    pskt: &PSKT<Signer>,
-    must_spend: &TransactionOutpoint,
-    expected_messages: &Vec<HyperlaneMessage>,
-    must_match: &MustMatch,
-) -> Result<(), ValidationError> {
+pub fn validate_pskt_impl_details(pskt: &PSKT<Signer>) -> Result<(), ValidationError> {
     if pskt
         .inputs
         .iter()
