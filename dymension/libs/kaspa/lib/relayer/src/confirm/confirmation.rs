@@ -40,7 +40,6 @@ pub async fn expensive_trace_transactions(
     let mut processed_withdrawals: Vec<MessageID> = Vec::new();
     let mut outpoint_sequence = Vec::new();
 
-    outpoint_sequence.push(out_new_candidate);
     recursive_trace_transactions(
         client,
         escrow_addresses,
@@ -51,13 +50,13 @@ pub async fn expensive_trace_transactions(
     )
     .await?;
 
+    
+
     info!(
         "Trace completed. Found {} UTXOs in lineage with {} processed withdrawals",
         outpoint_sequence.len(),
         processed_withdrawals.len()
     );
-
-    outpoint_sequence.reverse();
     for o in outpoint_sequence.clone() {
         info!("Lineage Outpoint: {:?}", o);
     }
