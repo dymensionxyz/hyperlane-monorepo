@@ -116,12 +116,12 @@ impl ConnectionConf {
             None => None,
         };
 
-        let r = match &kaspa_escrow_private_key {
-            None => Some(RelayerStuff {
+        let r = match validator_hosts.len() {
+            0 => None,
+            _ => Some(RelayerStuff {
                 deposit_look_back_mins,
                 validator_hosts,
             }),
-            Some(_) => None,
         };
 
         Self {
