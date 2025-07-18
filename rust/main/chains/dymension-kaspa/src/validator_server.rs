@@ -15,9 +15,9 @@ use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::wallet::EasyKaspaWallet;
 use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
-use dym_kas_validator::deposit::validate_new_deposit;
+use dym_kas_validator::deposit::{validate_new_deposit, MustMatch as DepositMustMatch};
 use dym_kas_validator::withdraw::{
-    safe_bundle, sign_withdrawal_fxg, validate_withdrawal_batch, MustMatch,
+    safe_bundle, sign_withdrawal_fxg, validate_withdrawal_batch, MustMatch as WithdrawMustMatch,
 };
 pub use dym_kas_validator::KaspaSecpKeypair;
 use eyre::Report;
@@ -35,6 +35,24 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha3::{digest::Update, Digest, Keccak256};
 use std::sync::Arc;
 use tracing::{info, warn};
+
+/// Allows automatic error mapping
+struct AppError(eyre::Report);
+
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        let err = "Error: ".to_string() + &self.0.to_string();
+        eprintln!("{}", err);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "An internal error occurred: ".to_string() + err.as_str(),
+        )
+            .into_response()
+    }
+}
+
+/// Allows handler to have some state
+type HandlerResult<T> = Result<T, AppError>;
 
 /// Signer here refers to the typical Hyperlane signer which will need to sign attestations to be able to relay TO the hub
 pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(
@@ -62,12 +80,14 @@ async fn respond_kaspa_ping<S: HyperlaneSignerExt + Send + Sync + 'static>(
     Ok(Json("pong".to_string()))
 }
 
+/// dococo
 #[derive(Clone)]
 pub struct ValidatorServerResources<S: HyperlaneSignerExt + Send + Sync + 'static> {
     ism_signer: Option<Arc<S>>,
     kas_provider: Option<Box<KaspaProvider>>, // TODO: box, need multithread object? need to lock when signing?
 }
 impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> {
+    /// dococo
     pub fn new(signer: Arc<S>, kas_provider: Box<KaspaProvider>) -> Self {
         Self {
             ism_signer: Some(signer),
@@ -131,6 +151,12 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
             &resources.must_wallet().net,
             &resources.must_escrow().addr,
             resources.must_hub_rpc(),
+            DepositMustMatch::new(
+                resources.must_val_stuff().hub_domain,
+                resources.must_val_stuff().hub_token_id,
+                resources.must_val_stuff().kas_domain,
+                resources.must_val_stuff().kas_token_placeholder,
+            ),
         )
         .await
         .map_err(|e| AppError(e))?
@@ -167,45 +193,6 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
     Ok(Json(sig))
 }
 
-async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + Sync + 'static>(
-    State(resources): State<Arc<ValidatorServerResources<S>>>,
-    body: Bytes,
-) -> HandlerResult<Json<HLCoreSignature>> {
-    info!("Validator: checking confirmed kaspa withdrawal");
-    let confirmation_fxg: ConfirmationFXG =
-        body.try_into().map_err(|e: eyre::Report| AppError(e))?;
-
-    // Call to validator
-    if resources
-        .must_val_stuff()
-        .toggles
-        .withdrawal_confirmation_enabled
-    {
-        validate_confirmed_withdrawals(
-            &confirmation_fxg,
-            resources.must_rest_client(),
-            &resources.must_escrow().addr,
-        )
-        .await
-        .map_err(|e| AppError(Report::from(e)))?;
-        info!("Validator: confirmed withdrawal is valid");
-    }
-
-    let progress_indication = &confirmation_fxg.progress_indication;
-
-    let sig = resources
-        .must_ism_signer() // TODO: need to lock?
-        .sign(SignableProgressIndication {
-            progress_indication: progress_indication.clone(),
-        })
-        .await
-        .map_err(|e| AppError(e.into()))?;
-
-    info!("Validator: signed confirmed withdrawal");
-
-    Ok(Json(sig.signature))
-}
-
 async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
     State(resources): State<Arc<ValidatorServerResources<S>>>,
     body: Bytes,
@@ -222,7 +209,7 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
             &b,
             &m,
             resources.must_hub_rpc(),
-            MustMatch::new(
+            WithdrawMustMatch::new(
                 resources.must_wallet().net.address_prefix,
                 resources.must_escrow(),
                 resources.must_val_stuff().hub_domain,
@@ -313,20 +300,41 @@ impl Signable for SignableProgressIndication {
     }
 }
 
-/// Allows automatic error mapping
-struct AppError(eyre::Report);
+async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + Sync + 'static>(
+    State(resources): State<Arc<ValidatorServerResources<S>>>,
+    body: Bytes,
+) -> HandlerResult<Json<HLCoreSignature>> {
+    info!("Validator: checking confirmed kaspa withdrawal");
+    let confirmation_fxg: ConfirmationFXG =
+        body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
-impl IntoResponse for AppError {
-    fn into_response(self) -> Response {
-        let err = "Error: ".to_string() + &self.0.to_string();
-        eprintln!("{}", err);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "An internal error occurred: ".to_string() + err.as_str(),
+    // Call to validator
+    if resources
+        .must_val_stuff()
+        .toggles
+        .withdrawal_confirmation_enabled
+    {
+        validate_confirmed_withdrawals(
+            &confirmation_fxg,
+            resources.must_rest_client(),
+            &resources.must_escrow().addr,
         )
-            .into_response()
+        .await
+        .map_err(|e| AppError(Report::from(e)))?;
+        info!("Validator: confirmed withdrawal is valid");
     }
-}
 
-/// Allows handler to have some state
-type HandlerResult<T> = Result<T, AppError>;
+    let progress_indication = &confirmation_fxg.progress_indication;
+
+    let sig = resources
+        .must_ism_signer() // TODO: need to lock?
+        .sign(SignableProgressIndication {
+            progress_indication: progress_indication.clone(),
+        })
+        .await
+        .map_err(|e| AppError(e.into()))?;
+
+    info!("Validator: signed confirmed withdrawal");
+
+    Ok(Json(sig.signature))
+}

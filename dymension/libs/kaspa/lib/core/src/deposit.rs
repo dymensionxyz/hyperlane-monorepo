@@ -50,7 +50,7 @@ impl DepositFXG {
         })
     }
 
-    pub fn tx_hash_rpc(&self) -> Result<RpcHash> {
+    pub fn tx_id_rpc(&self) -> Result<RpcHash> {
         RpcHash::from_str(&self.tx_id)
             .map_err(|e| eyre::Report::new(e).wrap_err("Failed to convert tx hash to RpcHash"))
     }

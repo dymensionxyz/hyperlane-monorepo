@@ -38,10 +38,13 @@ use relayer::withdraw::*;
 use std::collections::HashSet;
 use std::error::Error;
 use std::os::unix;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use url::Url;
-use validator::deposit::{validate_new_deposit, validate_new_deposit_inner};
+use validator::deposit::{
+    validate_new_deposit, validate_new_deposit_inner, MustMatch as DepositMustMatch,
+};
 use validator::withdraw::*;
 
 use kaspa_wallet_core::prelude::*;
@@ -224,6 +227,9 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
         deposit_recv.tx_id, deposit_recv.accepting_block_hash, deposit_recv.amount
     );
 
+    let mut mm = DepositMustMatch::default();
+    mm.set_validation(false);
+
     // validate deposit using kaspa rpc (validator operation)
     let validation_result = validate_new_deposit_inner(
         &w.api(),
@@ -232,6 +238,7 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
         &w.net,
         &escrow_address,
         true,
+        mm,
     )
     .await?;
 
