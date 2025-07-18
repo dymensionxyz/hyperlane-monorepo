@@ -533,13 +533,17 @@ pub fn finalize_pskt(c: PSKT<Combiner>, escrow: &EscrowPublic) -> Result<RpcTran
 
                             // ORIGINAL COMMENT: todo actually required count can be retrieved from redeem_script, sigs can be taken from partial sigs according to required count
                             // ORIGINAL COMMENT: considering xpubs sorted order
-
-                            // For each escrow pubkey return <op code, sig, sighash type> and then concat these triples
-                            let sigs: Vec<_> = escrow
+                            let available_pubs = escrow
                                 .pubs
                                 .iter()
+                                .filter(|kp| input.partial_sigs.contains_key(kp))
+                                .collect::<Vec<_>>();
+
+                            // For each escrow pubkey return <op code, sig, sighash type> and then concat these triples
+                            let sigs: Vec<_> = available_pubs
+                                .iter()
+                                .take(escrow.m())
                                 .flat_map(|kp| {
-                                    // TODO: should not unwrap, and need to handle where sig is missing (m of n)
                                     let sig = input.partial_sigs.get(&kp).unwrap().into_bytes();
                                     std::iter::once(OpData65)
                                         .chain(sig)
