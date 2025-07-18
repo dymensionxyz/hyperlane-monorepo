@@ -29,9 +29,10 @@ use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::H256;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct MustMatch {
     partial_message: HyperlaneMessage,
+    enable_validation: bool,
 }
 
 impl MustMatch {
@@ -51,10 +52,20 @@ impl MustMatch {
                 recipient: hub_token_id,
                 body: vec![],
             },
+            enable_validation: true,
         }
     }
 
+    // TODO: a dirty hack to make demo work without writing loads of code
+    pub fn set_validation(&mut self, enable_validation: bool) {
+        self.enable_validation = enable_validation;
+    }
+
     fn is_match(&self, other: &HyperlaneMessage) -> bool {
+        if !self.enable_validation {
+            return true;
+        }
+
         self.partial_message.origin == other.origin
             && self.partial_message.sender == other.sender
             && self.partial_message.destination == other.destination
