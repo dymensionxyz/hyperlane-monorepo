@@ -50,8 +50,6 @@ pub async fn expensive_trace_transactions(
     )
     .await?;
 
-    
-
     info!(
         "Trace completed. Found {} UTXOs in lineage with {} processed withdrawals",
         outpoint_sequence.len(),
@@ -76,13 +74,11 @@ pub async fn recursive_trace_transactions(
 ) -> Result<()> {
     if out_curr == out_old {
         // we reached the end, success!
+        outpoint_sequence.push(out_curr);
         return Ok(());
     }
 
-    info!(
-        "Tracing lineage backwards from UTXO: {:?}",
-        out_curr
-    );
+    info!("Tracing lineage backwards from UTXO: {:?}", out_curr);
 
     // tx that created the candidate
     let tx = client_rest
@@ -115,7 +111,7 @@ pub async fn recursive_trace_transactions(
         }
 
         // TODO: have ::From method to get utxo from TxInput
-        let input_utxo = TransactionOutpoint {
+        let out_input = TransactionOutpoint {
             transaction_id: kaspa_hashes::Hash::from_bytes(
                 hex::decode(&input.previous_outpoint_hash)?
                     .try_into()
@@ -127,7 +123,7 @@ pub async fn recursive_trace_transactions(
         let res = Box::pin(recursive_trace_transactions(
             client_rest,
             escrow_addr,
-            input_utxo,
+            out_input,
             out_old,
             outpoint_sequence,
             processed_withdrawals,
@@ -148,7 +144,7 @@ pub async fn recursive_trace_transactions(
         let message_ids = corelib::payload::MessageIDs::from_tx_payload(&payload)?;
 
         processed_withdrawals.extend(message_ids.0);
-        outpoint_sequence.push(input_utxo);
+        outpoint_sequence.push(out_curr);
         return Ok(());
     }
 
