@@ -4,6 +4,8 @@
 #[cfg(test)]
 mod tests {
     use crate::api::client::HttpClient;
+    use eyre::Result;
+    use kaspa_addresses::Prefix;
 
     use api_rs::apis::configuration;
     use api_rs::apis::kaspa_addresses_api::*;
@@ -11,6 +13,7 @@ mod tests {
     use url::Url;
 
     use crate::api::base::RateLimitConfig;
+    use crate::escrow::{Escrow, EscrowPublic};
 
     const DAN_TESTNET_ADDR: &str =
         "kaspatest:qq3r5cj2r3a7kfne7wwwcf0n8kc8e5y3cy2xgm2tcuqygs4lrktswcc3d9l3p";
@@ -153,11 +156,28 @@ mod tests {
 
     #[tokio::test]
     // #[ignore = "avoid api abuse"]
-    async fn test_get_tx_by_id() {
+    async fn test_get_tx_by_id() -> Result<()> {
         let client = t_client();
 
-        let tx_id = "1ffa672605af17906d99ba9506dd49406a2e8a3faa2969ab0c8929373aca51d1";
-        let tx = client.get_tx_by_id(tx_id).await;
+        let tx_id = "435ef8d3bf548591d44b4ff846de10288f3a8fda010d305540cac9779e6c3d49";
+        let tx = client
+            .get_tx_by_id(tx_id)
+            .await
+            .map_err(|e| eyre::eyre!(e))?;
+
         println!("Tx: {:?}", tx);
+
+        let addr = tx
+            .outputs
+            .ok_or(eyre::eyre!("Tx has no outputs"))?
+            .first()
+            .ok_or(eyre::eyre!("Tx has no outputs"))?
+            .clone()
+            .script_public_key_address
+            .ok_or(eyre::eyre!("Tx output has no script public key address"))?;
+
+        assert!(kaspa_addresses::Address::validate(addr.as_str()));
+
+        Ok(())
     }
 }

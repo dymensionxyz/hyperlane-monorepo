@@ -26,6 +26,9 @@ pub enum ValidationError {
     #[error("Anchor {o:?} not found in PSKT inputs")]
     AnchorNotFound { o: TransactionOutpoint },
 
+    #[error("Anchor {o:?} is not escrow change")]
+    NonEscrowAnchor { o: TransactionOutpoint },
+
     #[error("No messages to validate")]
     NoMessages,
 

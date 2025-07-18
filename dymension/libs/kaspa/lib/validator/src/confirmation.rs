@@ -4,11 +4,15 @@ use std::cmp::min;
 
 use corelib::api::client::HttpClient;
 
-use api_rs::models::TxModel;
+use api_rs::models::{TxModel, TxOutput};
+use corelib::escrow::EscrowPublic;
 use corelib::finality;
 use corelib::payload::{MessageID, MessageIDs};
 use corelib::util;
+use corelib::wallet::NetworkInfo;
+use eyre::eyre;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
+use kaspa_addresses::Address;
 use kaspa_consensus_core::network::NetworkId;
 use kaspa_consensus_core::tx::{TransactionId, TransactionInput, TransactionOutpoint};
 use kaspa_hashes::Hash as KaspaHash;
@@ -20,9 +24,14 @@ use std::sync::Arc;
 use tracing::{info, warn};
 // FIXME: add address validation
 
+/// Validator is given a progress indication to sign, and a cache of outpoints,
+/// that should start from the current hub anchor and end with the new one.
+/// The validator checks that indeed that set of outpoints is from a real withdrawal
+/// sequence on Kaspa chain.
 pub async fn validate_confirmed_withdrawals(
     fxg: &ConfirmationFXG,
     client_rest: &HttpClient,
+    escrow_address: &Address,
 ) -> Result<(), ValidationError> {
     info!("Validator: Starting validation of withdrawals confirmation");
 
@@ -95,12 +104,21 @@ pub async fn validate_confirmed_withdrawals(
         })?;
 
         // Validate that this transaction spends the previous outpoint
-        let prev = &outpoint_sequence[i - 1]; // Previous outpoint in the chain
-        if !validate_previous_transaction_in_inputs(&tx, prev)? {
+        let o_prev = &outpoint_sequence[i - 1]; // Previous outpoint in the chain
+        if !outpoint_in_inputs(&tx, o_prev)? {
             return Err(ValidationError::SystemError(eyre::eyre!(
                 "Validator: Previous transaction not found in inputs"
             )));
         }
+
+        // Validate that this transaction creates the current outpoint
+        escrow_outpoint_in_outputs(&tx, o, escrow_address).map_err(|e| {
+            ValidationError::SystemError(eyre::eyre!(
+                "Validator: Failed to validate anchor in outputs for tx {}: {}",
+                o.transaction_id,
+                e
+            ))
+        })?;
 
         let p = tx
             .payload
@@ -139,10 +157,10 @@ pub async fn validate_confirmed_withdrawals(
     Ok(())
 }
 
-/// Validate that the previous transaction is referenced in the current transaction's inputs
-fn validate_previous_transaction_in_inputs(
+/// Validate that the previous outpoint is referenced in the current transaction's inputs
+fn outpoint_in_inputs(
     transaction: &TxModel,
-    prev_outpoint: &TransactionOutpoint,
+    anchor: &TransactionOutpoint,
 ) -> Result<bool, ValidationError> {
     let inputs = transaction
         .inputs
@@ -164,14 +182,47 @@ fn validate_previous_transaction_in_inputs(
                 .map_err(|e| eyre::eyre!("Failed to parse previous_outpoint_index: {}", e))?,
         };
 
-        if input_utxo.transaction_id == prev_outpoint.transaction_id
-            && input_utxo.index == prev_outpoint.index
-        {
+        if input_utxo == *anchor {
             return Ok(true);
         }
     }
 
     Ok(false)
+}
+
+/// Validate that the anchor is referenced in the current transaction's outputs
+/// and it is an escrow change
+fn escrow_outpoint_in_outputs(
+    tx_trusted: &TxModel,
+    escrow_outpoint_unstrusted: &TransactionOutpoint,
+    escrow_address: &Address,
+) -> Result<(), ValidationError> {
+    let outs = tx_trusted
+        .outputs
+        .as_ref()
+        .ok_or(eyre::eyre!("Validator: Transaction outputs not found"))?;
+
+    let out_actual: &TxOutput = outs
+        .get(escrow_outpoint_unstrusted.index as usize)
+        .ok_or(ValidationError::NextAnchorNotFound)?;
+
+    // We already know this TX spends escrow funds, so it must be signed by validators
+    // Validators only sign withdrawals containing exactly one change output back to the escrow
+    // So this must be the unique change output
+    let recipient_actual = out_actual
+        .script_public_key_address
+        .clone()
+        .ok_or(eyre::eyre!(
+            "Validatior: No script public key address found in anchor output"
+        ))?;
+
+    if recipient_actual != escrow_address.address_to_string() {
+        return Err(ValidationError::NonEscrowAnchor {
+            o: escrow_outpoint_unstrusted.clone(),
+        });
+    }
+
+    Ok(())
 }
 
 /// Validate that the collected message IDs match the progress indication
