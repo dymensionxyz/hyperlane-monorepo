@@ -29,101 +29,89 @@ use hex;
 pub async fn expensive_trace_transactions(
     client: &HttpClient,
     escrow_addresses: &str,
-    new_out: TransactionOutpoint,
-    old_out: TransactionOutpoint,
+    out_new_candidate: TransactionOutpoint,
+    out_old: TransactionOutpoint,
 ) -> Result<ConfirmationFXG> {
     info!(
         "Starting transaction trace from candidate new anchor {:?} to old anchor {:?}",
-        new_out, old_out
+        out_new_candidate, out_old
     );
 
     let mut processed_withdrawals: Vec<MessageID> = Vec::new();
-    let mut lineage_utxos = Vec::new();
+    let mut outpoint_sequence = Vec::new();
 
-    // get the lineage utxos
-    let res = recursive_trace_transactions(
+    recursive_trace_transactions(
         client,
         escrow_addresses,
-        new_out,
-        old_out,
-        &mut lineage_utxos,
+        out_new_candidate,
+        out_old,
+        &mut outpoint_sequence,
         &mut processed_withdrawals,
     )
-    .await;
-    if res.is_err() {
-        return Err(eyre::eyre!(
-            "Failed to trace transactions: {}",
-            res.err().unwrap()
-        ));
-    }
+    .await?;
 
     info!(
         "Trace completed. Found {} UTXOs in lineage with {} processed withdrawals",
-        lineage_utxos.len(),
+        outpoint_sequence.len(),
         processed_withdrawals.len()
     );
-    for utxo in lineage_utxos.clone() {
-        info!("Lineage UTXO: {:?}", utxo);
+    for o in outpoint_sequence.clone() {
+        info!("Lineage Outpoint: {:?}", o);
     }
-
     Ok(ConfirmationFXG::from_msgs_outpoints(
         processed_withdrawals,
-        lineage_utxos,
+        outpoint_sequence,
     ))
 }
 
 pub async fn recursive_trace_transactions(
-    client: &HttpClient,
-    escrow_addresses: &str,
-    curr_utxo: TransactionOutpoint,
-    anchor_utxo: TransactionOutpoint,
-    lineage_utxos: &mut Vec<TransactionOutpoint>,
+    client_rest: &HttpClient,
+    escrow_addr: &str,
+    out_curr: TransactionOutpoint,
+    out_old: TransactionOutpoint,
+    outpoint_sequence: &mut Vec<TransactionOutpoint>,
     processed_withdrawals: &mut Vec<MessageID>,
 ) -> Result<()> {
-    // if curr_utxo is the anchor_utxo, add it to the lineage and return
-    // this will wrap up the recursive call
-    if curr_utxo == anchor_utxo {
-        lineage_utxos.push(curr_utxo);
+    if out_curr == out_old {
+        // we reached the end, success!
+        outpoint_sequence.push(out_curr);
         return Ok(());
     }
 
-    info!("Tracing lineage from UTXO: {:?}", curr_utxo);
+    info!("Tracing lineage backwards from UTXO: {:?}", out_curr);
 
-    // get the transaction
-    let transaction = client
-        .get_tx_by_id(&curr_utxo.transaction_id.to_string())
+    // tx that created the candidate
+    let tx = client_rest
+        .get_tx_by_id(&out_curr.transaction_id.to_string())
         .await?;
 
-    info!("Queried kaspa tx: {:?}", transaction);
+    info!("Queried kaspa tx: {:?}", tx);
 
-    // get the inputs of the current transaction
-    let inputs = transaction
+    let inputs = tx
         .inputs
         .as_ref()
         .ok_or(Error::Custom("Inputs not found".to_string()))?;
 
-    // follow inputs
     // we skip inputs that are not from the escrow address
     // we do recursive call for inputs that are from the escrow address
     for input in inputs {
         info!("Checking input: {:?}", input.index);
 
-        let input_address = input
-            .previous_outpoint_address
-            .as_ref()
-            .ok_or(Error::Custom("Input address not found".to_string()))?;
+        let spent_escrow_funds = {
+            let input_address = input
+                .previous_outpoint_address
+                .as_ref()
+                .ok_or(Error::Custom("Input address not found".to_string()))?;
 
-        // skip input if not my address
-        if input_address != escrow_addresses {
-            info!(
-                "Skipping input from non-escrow address: {:?}",
-                input_address
-            );
+            input_address == escrow_addr
+        };
+        if !spent_escrow_funds {
+            info!("Skipping input from non-escrow address");
             continue;
         }
 
         // TODO: have ::From method to get utxo from TxInput
-        let input_utxo = TransactionOutpoint {
+        let out_input = TransactionOutpoint {
             transaction_id: kaspa_hashes::Hash::from_bytes(
                 hex::decode(&input.previous_outpoint_hash)?
                     .try_into()
@@ -132,33 +120,31 @@ pub async fn recursive_trace_transactions(
             index: input.previous_outpoint_index.parse()?,
         };
 
-        // do recursive call
         let res = Box::pin(recursive_trace_transactions(
-            client,
-            escrow_addresses,
-            input_utxo,
-            anchor_utxo,
-            lineage_utxos,
+            client_rest,
+            escrow_addr,
+            out_input,
+            out_old,
+            outpoint_sequence,
             processed_withdrawals,
         ))
         .await;
 
-        // if returns error, this input is not part of the lineage, continue to other input
+        // this input is not part of the lineage, continue to other input
         if res.is_err() {
             continue;
         }
 
-        /* ------------ if returns OK, the input is part of the lineage! ------------ */
-        let payload = transaction
+        /* ------------ the input is part of the lineage! ------------ */
+        let payload = tx
             .payload
             .clone()
             .ok_or_else(|| eyre::eyre!("No payload found in transaction"))?;
 
         let message_ids = corelib::payload::MessageIDs::from_tx_payload(&payload)?;
 
-        // add to the result
         processed_withdrawals.extend(message_ids.0);
-        lineage_utxos.push(input_utxo);
+        outpoint_sequence.push(out_curr);
         return Ok(());
     }
 
