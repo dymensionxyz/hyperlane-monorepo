@@ -80,6 +80,11 @@ pub async fn validate_new_deposit_inner(
         return Ok(false);
     }
 
+    if !d_untrusted.tx_id_rpc().is_ok() {
+        error!("Deposit tx hash is not valid");
+        return Ok(false);
+    }
+
     if !finality::is_safe_against_reorg(
         client_rest,
         &d_untrusted.tx_id,
@@ -88,11 +93,6 @@ pub async fn validate_new_deposit_inner(
     .await?
     {
         error!("Deposit is not sufficiently final",);
-        return Ok(false);
-    }
-
-    if !d_untrusted.tx_hash_rpc().is_ok() {
-        error!("Deposit tx hash is not valid");
         return Ok(false);
     }
 
@@ -106,7 +106,7 @@ pub async fn validate_new_deposit_inner(
         .get_block(d_untrusted.containing_block_hash_rpc()?, true)
         .await?;
 
-    let actual_deposit = tx_by_id(&containing_block, &d_untrusted.tx_hash_rpc().unwrap())?;
+    let actual_deposit = tx_by_id(&containing_block, &d_untrusted.tx_id_rpc().unwrap())?;
 
     // get utxo in the tx from index in deposit.
     let actual_deposit_utxo: &RpcTransactionOutput = actual_deposit
@@ -124,7 +124,7 @@ pub async fn validate_new_deposit_inner(
     // recreate the metadata injection to the token message done by the relayer
     let actual_hl_message_with_injected_info = add_kaspa_metadata_hl_messsage(
         actual_hl_message,
-        d_untrusted.tx_hash_rpc()?,
+        d_untrusted.tx_id_rpc()?,
         d_untrusted.utxo_index,
     )?;
 
