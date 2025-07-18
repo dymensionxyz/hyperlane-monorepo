@@ -77,19 +77,56 @@ Always, we want to get confirmation that everything has worked, been accepted by
 
 We will test against testnet 10. The wallet has 200'000 KAS available.
 
+*/
+async fn load_wallet(args: &Args, url: Option<&str>) -> Result<EasyKaspaWallet> {
+    // if url is none will try to build one
+    // nslookup n-testnet-10.kaspa.ws
+    for u in vec![
+        "65.109.145.174",
+        "152.53.18.176",
+        "57.129.49.28",
+        "95.217.61.211",
+        "185.69.54.99",
+        "23.88.70.20",
+        "122.116.168.37",
+        "152.53.21.111",
+        "152.53.54.29",
+        "89.58.46.206",
+        "79.137.67.110",
+        "38.242.150.130",
+        "167.235.98.225",
+        "144.76.19.91",
+        "184.190.99.128",
+        "157.90.201.188",
+    ] {
+        for pre in vec!["", "http://", "https://", "ws://", "wss://"] {
+            for suf in vec!["", ":16210", ":17210"] {
+                let full_url: String = match url {
+                    Some(url) => url.to_string(),
+                    None => format!("{}{}{}", pre, u, suf),
+                };
+                let w = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
+                    wallet_secret: args.wallet_secret.as_ref().unwrap().clone(),
+                    rpc_url: full_url.clone(),
+                    net: Network::KaspaTest10,
+                })
+                .await;
+                if w.is_ok() {
+                    println!("Connected to wallet at {}", full_url);
+                    return Ok(w.unwrap());
+                }
+            }
+        }
+    }
+    Err(eyre::eyre!("Failed to connect to wallet"))
+}
 
- */
 async fn demo() -> Result<()> {
     kaspa_core::log::init_logger(None, "");
 
     let args = Args::parse();
 
-    let w = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
-        wallet_secret: args.wallet_secret.unwrap(),
-        rpc_url: e2e_url.to_string(),
-        net: Network::KaspaTest10,
-    })
-    .await?;
+    let w = load_wallet(&args, e2e_url).await?;
 
     let rpc = w.api();
 
