@@ -24,6 +24,10 @@ use std::sync::Arc;
 use tracing::{info, warn};
 // FIXME: add address validation
 
+/// Validator is given a progress indication to sign, and a cache of outpoints,
+/// that should start from the current hub anchor and end with the new one.
+/// The validator checks that indeed that set of outpoints is from a real withdrawal
+/// sequence on Kaspa chain.
 pub async fn validate_confirmed_withdrawals(
     fxg: &ConfirmationFXG,
     client_rest: &HttpClient,
@@ -100,15 +104,15 @@ pub async fn validate_confirmed_withdrawals(
         })?;
 
         // Validate that this transaction spends the previous outpoint
-        let prev = &outpoint_sequence[i - 1]; // Previous outpoint in the chain
-        if !validate_previous_anchor_in_inputs(&tx, prev)? {
+        let o_prev = &outpoint_sequence[i - 1]; // Previous outpoint in the chain
+        if !outpoint_in_inputs(&tx, o_prev)? {
             return Err(ValidationError::SystemError(eyre::eyre!(
                 "Validator: Previous transaction not found in inputs"
             )));
         }
 
         // Validate that this transaction creates the current outpoint
-        validate_anchor_in_outputs(&tx, o, escrow_address).map_err(|e| {
+        escrow_outpoint_in_outputs(&tx, o, escrow_address).map_err(|e| {
             ValidationError::SystemError(eyre::eyre!(
                 "Validator: Failed to validate anchor in outputs for tx {}: {}",
                 o.transaction_id,
@@ -154,9 +158,9 @@ pub async fn validate_confirmed_withdrawals(
 }
 
 /// Validate that the previous outpoint is referenced in the current transaction's inputs
-fn validate_previous_anchor_in_inputs(
+fn outpoint_in_inputs(
     transaction: &TxModel,
-    prev_outpoint: &TransactionOutpoint,
+    anchor: &TransactionOutpoint,
 ) -> Result<bool, ValidationError> {
     let inputs = transaction
         .inputs
@@ -178,9 +182,7 @@ fn validate_previous_anchor_in_inputs(
                 .map_err(|e| eyre::eyre!("Failed to parse previous_outpoint_index: {}", e))?,
         };
 
-        if input_utxo.transaction_id == prev_outpoint.transaction_id
-            && input_utxo.index == prev_outpoint.index
-        {
+        if input_utxo == *anchor {
             return Ok(true);
         }
     }
@@ -190,29 +192,34 @@ fn validate_previous_anchor_in_inputs(
 
 /// Validate that the anchor is referenced in the current transaction's outputs
 /// and it is an escrow change
-fn validate_anchor_in_outputs(
-    transaction: &TxModel,
-    anchor: &TransactionOutpoint,
+fn escrow_outpoint_in_outputs(
+    tx_trusted: &TxModel,
+    escrow_outpoint_unstrusted: &TransactionOutpoint,
     escrow_address: &Address,
 ) -> Result<(), ValidationError> {
-    let outputs = transaction
+    let outs = tx_trusted
         .outputs
         .as_ref()
         .ok_or(eyre::eyre!("Validator: Transaction outputs not found"))?;
 
-    let anchor_output: &TxOutput = outputs
-        .get(anchor.index as usize)
+    let out_actual: &TxOutput = outs
+        .get(escrow_outpoint_unstrusted.index as usize)
         .ok_or(ValidationError::NextAnchorNotFound)?;
 
-    let anchor_recipient = anchor_output
+    // We already know this TX spends escrow funds, so it must be signed by validators
+    // Validators only sign withdrawals containing exactly one change output back to the escrow
+    // So this must be the unique change output
+    let recipient_actual = out_actual
         .script_public_key_address
         .clone()
         .ok_or(eyre::eyre!(
             "Validatior: No script public key address found in anchor output"
         ))?;
 
-    if anchor_recipient != escrow_address.address_to_string() {
-        return Err(ValidationError::NonEscrowAnchor { o: anchor.clone() });
+    if recipient_actual != escrow_address.address_to_string() {
+        return Err(ValidationError::NonEscrowAnchor {
+            o: escrow_outpoint_unstrusted.clone(),
+        });
     }
 
     Ok(())
