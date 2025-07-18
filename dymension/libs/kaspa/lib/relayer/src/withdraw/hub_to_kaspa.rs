@@ -487,12 +487,7 @@ fn finalize_txs(
     let transactions_result: Result<Vec<RpcTransaction>, _> = txs_sigs
         .into_iter()
         .zip(messages.into_iter())
-        .map(|(tx, hl_messages)| {
-            let payload = MessageIDs::from(hl_messages)
-                .to_bytes()
-                .map_err(|e| eyre::eyre!("Deserialize MessageIDs: {}", e))?;
-            finalize_pskt(tx, payload, escrow)
-        })
+        .map(|(tx, _)| finalize_pskt(tx, escrow))
         .collect();
 
     let transactions: Vec<RpcTransaction> = transactions_result?;
@@ -501,11 +496,7 @@ fn finalize_txs(
 }
 
 // used by multisig demo AND real code
-pub fn finalize_pskt(
-    c: PSKT<Combiner>,
-    payload: Vec<u8>,
-    escrow: &EscrowPublic,
-) -> Result<RpcTransaction> {
+pub fn finalize_pskt(c: PSKT<Combiner>, escrow: &EscrowPublic) -> Result<RpcTransaction> {
     let finalized_pskt = c
         .finalizer()
         .finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
@@ -548,6 +539,7 @@ pub fn finalize_pskt(
                                 .pubs
                                 .iter()
                                 .flat_map(|kp| {
+                                    // TODO: should not unwrap, and need to handle where sig is missing (m of n)
                                     let sig = input.partial_sigs.get(&kp).unwrap().into_bytes();
                                     std::iter::once(OpData65)
                                         .chain(sig)
