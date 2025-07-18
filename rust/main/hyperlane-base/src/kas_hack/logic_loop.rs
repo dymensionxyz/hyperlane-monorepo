@@ -309,11 +309,11 @@ where
 
             let mut good = false;
             for utxo in all_escrow_utxos {
-                let candidate_new_anchor = TransactionOutpoint::from(utxo.outpoint);
+                let new_anchor_candidate = TransactionOutpoint::from(utxo.outpoint);
                 let fxg = expensive_trace_transactions(
                     &self.provider.rest().client.client,
                     &escrow_address.to_string(),
-                    candidate_new_anchor.clone(),
+                    new_anchor_candidate.clone(),
                     old_anchor,
                 )
                 .await;
@@ -321,7 +321,7 @@ where
                     error!(
                         "Dymension, invalid confirmation candidate: error tracing sequence of kaspa withdrawals for syncing: {:?}, candidate: {:?}",
                         fxg.err(),
-                        candidate_new_anchor,
+                        new_anchor_candidate,
                     );
                     continue;
                 }
