@@ -40,6 +40,8 @@ pub async fn expensive_trace_transactions(
     let mut processed_withdrawals: Vec<MessageID> = Vec::new();
     let mut lineage_utxos = Vec::new();
 
+    //init lineage_utxos with new anchor, to receive all trace in result
+    lineage_utxos.push(new_out);
     // get the lineage utxos
     let res = recursive_trace_transactions(
         client,
@@ -66,9 +68,11 @@ pub async fn expensive_trace_transactions(
         info!("Lineage UTXO: {:?}", utxo);
     }
 
+    // get last + first from lineage_utxos to create new outpoints that will update the hub (equivalent to [old anchor, new anchor])
+    let outpoints = vec![lineage_utxos[lineage_utxos.len()-1],lineage_utxos[0]];
     Ok(ConfirmationFXG::from_msgs_outpoints(
         processed_withdrawals,
-        lineage_utxos,
+        outpoints,
     ))
 }
 
@@ -83,7 +87,6 @@ pub async fn recursive_trace_transactions(
     // if curr_utxo is the anchor_utxo, add it to the lineage and return
     // this will wrap up the recursive call
     if curr_utxo == anchor_utxo {
-        lineage_utxos.push(curr_utxo);
         return Ok(());
     }
 
