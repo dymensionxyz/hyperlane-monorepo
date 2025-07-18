@@ -487,12 +487,7 @@ fn finalize_txs(
     let transactions_result: Result<Vec<RpcTransaction>, _> = txs_sigs
         .into_iter()
         .zip(messages.into_iter())
-        .map(|(tx, hl_messages)| {
-            let payload = MessageIDs::from(hl_messages)
-                .to_bytes()
-                .map_err(|e| eyre::eyre!("Deserialize MessageIDs: {}", e))?;
-            finalize_pskt(tx, payload, escrow)
-        })
+        .map(|(tx, _)| finalize_pskt(tx, escrow))
         .collect();
 
     let transactions: Vec<RpcTransaction> = transactions_result?;
@@ -501,11 +496,7 @@ fn finalize_txs(
 }
 
 // used by multisig demo AND real code
-pub fn finalize_pskt(
-    c: PSKT<Combiner>,
-    payload: Vec<u8>,
-    escrow: &EscrowPublic,
-) -> Result<RpcTransaction> {
+pub fn finalize_pskt(c: PSKT<Combiner>, escrow: &EscrowPublic) -> Result<RpcTransaction> {
     let finalized_pskt = c
         .finalizer()
         .finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
@@ -542,11 +533,16 @@ pub fn finalize_pskt(
 
                             // ORIGINAL COMMENT: todo actually required count can be retrieved from redeem_script, sigs can be taken from partial sigs according to required count
                             // ORIGINAL COMMENT: considering xpubs sorted order
-
-                            // For each escrow pubkey return <op code, sig, sighash type> and then concat these triples
-                            let sigs: Vec<_> = escrow
+                            let available_pubs = escrow
                                 .pubs
                                 .iter()
+                                .filter(|kp| input.partial_sigs.contains_key(kp))
+                                .collect::<Vec<_>>();
+
+                            // For each escrow pubkey return <op code, sig, sighash type> and then concat these triples
+                            let sigs: Vec<_> = available_pubs
+                                .iter()
+                                .take(escrow.m())
                                 .flat_map(|kp| {
                                     let sig = input.partial_sigs.get(&kp).unwrap().into_bytes();
                                     std::iter::once(OpData65)
