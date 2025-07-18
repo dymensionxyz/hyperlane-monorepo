@@ -25,7 +25,42 @@ use kaspa_txscript::extract_script_pub_key_address;
 use corelib::api::client::HttpClient;
 use corelib::{confirmation::ConfirmationFXG, util, withdraw::WithdrawFXG};
 use hardcode::hl::ALLOWED_HL_MESSAGE_VERSION;
+use hyperlane_core::HyperlaneMessage;
+use hyperlane_core::H256;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
+
+#[derive(Clone)]
+pub struct MustMatch {
+    partial_message: HyperlaneMessage,
+}
+
+impl MustMatch {
+    pub fn new(
+        hub_domain: u32,
+        hub_token_id: H256,
+        kas_domain: u32,
+        kas_token_placeholder: H256, // a fake value, since Kaspa does not have a 'token' smart contract. Howevert his value must be consistent with hub config.
+    ) -> Self {
+        Self {
+            partial_message: HyperlaneMessage {
+                version: 0,
+                nonce: 0,
+                origin: kas_domain,
+                sender: kas_token_placeholder,
+                destination: hub_domain,
+                recipient: hub_token_id,
+                body: vec![],
+            },
+        }
+    }
+
+    fn is_match(&self, other: &HyperlaneMessage) -> bool {
+        self.partial_message.origin == other.origin
+            && self.partial_message.sender == other.sender
+            && self.partial_message.destination == other.destination
+            && self.partial_message.recipient == other.recipient
+    }
+}
 
 /// Deposit validation process
 /// Executed by validators to check the deposit info relayed is equivalent to the original Kaspa tx to the escrow address
@@ -44,6 +79,7 @@ pub async fn validate_new_deposit(
     net: &NetworkInfo,
     escrow_address: &Address,
     hub_client: &CosmosGrpcClient,
+    must_match: MustMatch,
 ) -> Result<bool> {
     let hub_bootstrapped = hub_client.hub_bootstrapped().await?;
     validate_new_deposit_inner(
@@ -53,6 +89,7 @@ pub async fn validate_new_deposit(
         net,
         escrow_address,
         hub_bootstrapped,
+        must_match,
     )
     .await
 }
@@ -74,6 +111,7 @@ pub async fn validate_new_deposit_inner(
     net: &NetworkInfo,
     escrow_address: &Address,
     hub_bootstrapped: bool,
+    must_match: MustMatch,
 ) -> Result<bool> {
     if !hub_bootstrapped {
         error!("Hub is not bootstrapped, cannot validate deposit");
@@ -127,6 +165,11 @@ pub async fn validate_new_deposit_inner(
         d_untrusted.tx_id_rpc()?,
         d_untrusted.utxo_index,
     )?;
+
+    if !must_match.is_match(&actual_hl_message_with_injected_info) {
+        error!("Relayed HL message does not match HL message included in Kaspa Tx");
+        return Ok(false);
+    }
 
     // validate the original HL message included in the Kaspa Tx its the same than the HL message relayed, after adding the metadata.
     if d_untrusted.hl_message.id() != actual_hl_message_with_injected_info.id() {
