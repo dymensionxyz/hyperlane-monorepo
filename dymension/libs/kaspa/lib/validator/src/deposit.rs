@@ -173,7 +173,7 @@ pub async fn validate_new_deposit_inner(
     )?;
 
     if !must_match.is_match(&actual_hl_message_with_injected_info) {
-        error!("Relayed HL message does not match HL message included in Kaspa Tx");
+        error!("Relayed HL message does not pass common validaion: version, origin, sender, destination, or recipient is incorrect");
         return Ok(false);
     }
 

@@ -41,6 +41,10 @@ VALIDATOR_ESCROW_SECRET="\"11013bc86d1cb199a2324130c808e90ad37d07ae8f490d063b2fb
 VALIDATOR_ESCROW_PUB_KEY="02b1c7b586c8a0387a3c844f6a5471130bb7992346d3e906642cfd5dfce8a8129d"
 ESCROW_ADDR="kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr"
 # THES VALUES MUST CORRESPOND WITH agent-config.json (in this directory, REQUIRES EDITING)  Do NOT unescape json quotes
+# Update:
+# kaspatest10.validatorPubsKaspa = VALIDATOR_ESCROW_PUB_KEY
+# kaspatest10.escrowAddress = ESCROW_ADDR
+# kaspatest10.kaspaEscrowPrivateKey = VALIDATOR_ESCROW_SECRET
 
 #~~~~~~~
 # Seed escrow with 1 TKAS
@@ -52,11 +56,20 @@ cargo run -- deposit \
   --network-id testnet-10 \
   --wallet-secret lkjsdf
 
+#~~~~~~~
+# Or run with your own wallet
+open
+connect
+select
+send 1 $ESCROW_ADDR
+
+# PUT THE WALLET SECRET KEY IN agent-config.json – "kaspatest10.walletSecret"
+
 ###################################
 #### Step 2. Setup HUB
 #### Deploy hyperlane entities 
 
-MONODIR=/Users/danwt/Documents/dym/d-hyperlane-monorepo
+MONODIR=/Users/keruch/Development/Dymension/hyperlane-monorepo
 
 # clean slate
 trash ~/.hyperlane; trash ~/.dymension
@@ -70,7 +83,7 @@ dymd start --log_level=debug
 
 # setup bridge objects on hub
 REMOTE_ROUTER_ADDRESS="0x0000000000000000000000000000000000000000000000000000000000000000" # no smart contracts on kaspa 
-dymd q kas setup-bridge --validators "$VALIDATOR_ISM_ADDR" --threshold 1 --remote-router-address "$REMOTE_ROUTER_ADDRESS" "${HUB_FLAGS[@]}"
+dymd tx kas setup-bridge --validators "$VALIDATOR_ISM_ADDR" --threshold 1 --remote-router-address "$REMOTE_ROUTER_ADDRESS" "${HUB_FLAGS[@]}"
 MAILBOX=$(dymd q hyperlane mailboxes -o json | jq -r '.mailboxes[0].id')
 # popoulate agent-config.json with hubMailboxId, and ALSO hubTokenId, kasTokenId remains zero
 
@@ -78,7 +91,7 @@ MAILBOX=$(dymd q hyperlane mailboxes -o json | jq -r '.mailboxes[0].id')
 #### Step 3. SETUP VALIDATOR
 #### It will start listening for relayer requests
 
-AGENT_TMP=/Users/danwt/Documents/dym/aaa-dym-notes/all_tasks/tasks/202505_feat_kaspa/practical/e2e/tmp
+AGENT_TMP=/Users/keruch/Documents/Dymension/tmp
 DB_VALIDATOR=$AGENT_TMP/dbs/hyperlane_db_validator
 DB_RELAYER=$AGENT_TMP/dbs/hyperlane_db_relayer
 export CONFIG_FILES=$MONODIR/dymension/tests/kaspa_hub_test/agent-config.json
@@ -86,16 +99,29 @@ export CONFIG_FILES=$MONODIR/dymension/tests/kaspa_hub_test/agent-config.json
 trash $AGENT_TMP/dbs
 mkdir $AGENT_TMP/dbs
 
+## Build the binaries. In rust/main:
+cargo build --release --bin relayer --bin validator
 
 ./target/release/validator \
-  --db $DB_VALIDATOR \
-  --originChainName kaspatest10 \
-  --reorgPeriod 1 \
-  --checkpointSyncer.type localStorage \
-  --checkpointSyncer.path ARBITRARY_VALUE_FOOBAR \
-  --validator.key "0x${VALIDATOR_ISM_PRIV_KEY}" \
-  --metrics-port 9090 \
-  --log.level info 
+    --db $DB_VALIDATOR \
+    --originChainName kaspatest10 \
+    --reorgPeriod 1 \
+    --checkpointSyncer.type localStorage \
+    --checkpointSyncer.path ARBITRARY_VALUE_FOOBAR \
+    --validator.key "0x${VALIDATOR_ISM_PRIV_KEY}" \
+    --metrics-port 9090 \
+    --log.level info
+
+# Or build & run right away. RUST_BACKTRACE helps debug.
+RUST_BACKTRACE=full cargo run --release --bin validator -- \
+    --db $DB_VALIDATOR \
+    --originChainName kaspatest10 \
+    --reorgPeriod 1 \
+    --checkpointSyncer.type localStorage \
+    --checkpointSyncer.path ARBITRARY_VALUE_FOOBAR \
+    --validator.key "0x${VALIDATOR_ISM_PRIV_KEY}" \
+    --metrics-port 9090 \
+    --log.level info
 
 ###################################
 #### Step 4. BOOTSTRAP HUB
@@ -109,7 +135,7 @@ dymd q auth module-account gov -o json | jq -r '.account.value.address' # get th
 # get the kaspa seed outpoint
 
 curl -X 'GET' 'https://api-tn10.kaspa.org/addresses/kaspatest%3Apzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr/utxos' -H 'accept: application/json' # TODO: query escrow address (fix url encoding)
-OUTPOINT="5e1cf6784e7af1808674a252eb417d8fa003135190dd4147caf98d8463a7e73a"
+OUTPOINT="928c58432db741283e213f7f9dbcf3cdc580e072ccbdbf4c73555e17137d9e5f"
 # need to convert outpoint from hex to base64 when passing to hub (note, zero index does not render)
 echo $OUTPOINT | xxd -r -p | base64 # Xhz2eE568YCGdKJS60F9j6ADE1GQ3UFHyvmNhGOn5zo=
 # note, reverse is ` echo $base64 | base64 -D | xxd -p `
@@ -144,7 +170,22 @@ dymd tx gov vote 1 yes "${HUB_FLAGS[@]}"
     --chains.kaspatest10.signer.prefix dym \
     --chains.kaspatest10.signer.key $HYP_KEY \
     --metrics-port 9091 \
-    --log.level debug 
+    --log.level debug
+
+# Or build & run right away. RUST_BACKTRACE helps debug.
+RUST_BACKTRACE=1 cargo run --release --bin relayer -- \
+    --db $DB_RELAYER \
+    --relayChains kaspatest10,dymension \
+    --allowLocalCheckpointSyncers true \
+    --defaultSigner.key $HYP_KEY \
+    --chains.dymension.signer.type cosmosKey \
+    --chains.dymension.signer.prefix dym \
+    --chains.dymension.signer.key $HYP_KEY \
+    --chains.kaspatest10.signer.type cosmosKey \
+    --chains.kaspatest10.signer.prefix dym \
+    --chains.kaspatest10.signer.key $HYP_KEY \
+    --metrics-port 9091 \
+    --log.level debug
 
 ###################################
 #### Step 6. TEST DEPOSITS/WITHDRAWALS
@@ -161,16 +202,18 @@ DEPOSIT_AMT=100000000 # 100 million sompi = 1 TKAS
 # <token id> <recipient> <amt>
 dymd q forward hl-message-kaspa $TOKEN_ID $HUB_USER_ADDR $DEPOSIT_AMT 
 
-# in hyperlane-monorepo/dymension/libs/kaspa/demo/relayer
 # NOTE: payload should not have 0x prefix
-# manual put payload here (TODO: use env var)
-cargo run -- deposit \
+HL_PAYLOAD=$(dymd q forward hl-message-kaspa $TOKEN_ID $HUB_USER_ADDR $DEPOSIT_AMT | cut -c 3-)
+
+# In hyperlane-monorepo/dymension/libs/kaspa/demo/relayer
+# Put payload in the arguments
+cargo run -- \
   --escrow-address $ESCROW_ADDR \
   --amount $DEPOSIT_AMT \
-  --wrpc-url localhost:17210 \
-  --network-id testnet-10 \
-  --wallet-secret lkjsdf \
-  --payload 030000000004d10892ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff804b267ca0726f757465725f6170700000000000000000000000000002000000000000000000000000000000000000000089760f514dcfcccf1e4c5edc6bf6041931c4c1830000000000000000000000000000000000000000000000000000000005f5e100
+  --rpcserver localhost:17210 \
+  --wallet-secret 123456qwe \
+  --only-deposit \
+  --payload "${HL_PAYLOAD}"
 
 # *WITHDRAWALS*
 

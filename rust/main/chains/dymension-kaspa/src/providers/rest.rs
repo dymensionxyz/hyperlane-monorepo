@@ -4,7 +4,7 @@ use std::time::Instant;
 use std::time::Duration;
 
 use tonic::async_trait;
-
+use tracing::info;
 use hyperlane_core::{
     rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, FixedPointNumber, H512,
     U256,
