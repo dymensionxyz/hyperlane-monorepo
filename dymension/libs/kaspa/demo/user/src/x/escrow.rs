@@ -43,9 +43,11 @@ pub fn create_validator() -> (ValidatorInfos, PublicKey) {
     let signer = get_ethereum_style_signer().unwrap();
     let pub_key = kp.public_key();
 
+    let ism_unescaped = signer.address.replace("\"", "");
+
     (
         ValidatorInfos {
-            validator_ism_addr: signer.address,
+            validator_ism_addr: ism_unescaped,
             validator_ism_priv_key: signer.private_key,
             validator_escrow_secret: s,
             validator_escrow_pub_key: pub_key.to_string(),
