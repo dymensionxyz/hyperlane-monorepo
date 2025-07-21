@@ -46,6 +46,9 @@ pub struct EscrowCli {
     /// Comma separated list of pub keys
     #[arg(required = true, index = 1)]
     pub pub_keys: String,
+    /// Required signatures
+    #[arg(required = true, index = 2)]
+    pub required_signatures: u8,
 }
 
 #[derive(Args, Debug)]

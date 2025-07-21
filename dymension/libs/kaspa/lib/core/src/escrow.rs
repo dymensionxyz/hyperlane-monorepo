@@ -111,11 +111,11 @@ mod tests {
     #[test]
     fn test_from_pubs() {
         let pubs = "035461e2ab2584bc80435c2a3f51c4cf12285992b5e4fdec57f1f8b506134a9087,0218a9fcc6059c1995c70b8f31b2256ac3d4aeca5dffa331fb941a8c5d4bffdd76,03d7a78be7d152498cfb9fb8a89b60723f011435303499e0de7c1bcbf88f87d1b9,02f02a8dc60f124b34e9a8800fb25cf25ac01a3bdcf5a6ea21d2e2569a173dd9b2,028586f127129710cdac6ca1d86be1869bd8a8746db9a2339fde71278dff7fb469,0214d0d6d828c2f3e5ce908978622c5677c1fc53372346a9cff60d1140c54b5e5e,029035bddc82d62454b2d425e205533363d09dc5d9c0d0f74c1f937c2d211c15a1,03e4b95346367e49178c8571e8a649584981d8bd6f920c648e37bbe24f055baf9c";
-        let n = 1;
+        let m = 6;
         let epub = EscrowPublic::from_strs(
             pubs.split(",").map(|s| s.to_string()).collect(),
             Prefix::Testnet,
-            n,
+            m,
         );
         println!("escrow: {:?}", epub);
     }
