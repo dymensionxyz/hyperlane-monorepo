@@ -78,6 +78,13 @@ impl EasyKaspaWallet {
         let s = Secret::from(args.wallet_secret);
         let info = NetworkInfo::new(args.net, args.rpc_url);
         let w = get_wallet(&s, info.clone().network_id, info.clone().rpc_url).await?;
+        let node_info = w.rpc_api().get_server_info().await?;
+        if !node_info.is_synced {
+            return Err(eyre::eyre!("Kaspa WPRC node is not synced"));
+        }
+        if !node_info.has_utxo_index {
+            return Err(eyre::eyre!("Kaspa WPRC node does not have utxo index"));
+        }
         Ok(Self {
             wallet: w,
             secret: s,
