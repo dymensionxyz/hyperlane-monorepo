@@ -69,7 +69,7 @@ impl ValidatorsClient {
             match request_validate_new_deposits(host, &fxg).await {
                 Ok(Some(sig)) => {
                     info!("Dymension, got deposit sig response ok, validator: {:?}", h);
-                    Ok(sig)
+                    Ok((h, sig))
                 }
                 Ok(None) => {
                     error!(
@@ -89,9 +89,20 @@ impl ValidatorsClient {
         });
 
         let results = join_all(futures).await;
-        let successful_sigs: Vec<SignedCheckpointWithMessageId> =
+        let sigs: Vec<(String, SignedCheckpointWithMessageId)> =
             results.into_iter().filter_map(Result::ok).collect();
-        Ok(successful_sigs)
+
+        let hosts = self.hosts();
+        let mut sigs_map = sigs
+            .into_iter()
+            .map(|(h, sig)| (h, sig))
+            .collect::<std::collections::HashMap<_, _>>();
+        let sigs = hosts
+            .into_iter()
+            .filter_map(|h| sigs_map.remove(&h))
+            .collect::<Vec<SignedCheckpointWithMessageId>>();
+
+        Ok(sigs)
     }
 
     /// this runs on relayer
@@ -115,7 +126,7 @@ impl ValidatorsClient {
                 match request_validate_new_confirmation(host, &fxg_clone).await {
                     Ok(Some(sig)) => {
                         info!("Dymension, got confirmation sig response ok, validator: {:?}", h);
-                        Ok(sig)
+                        Ok((h, sig))
                     }
                     Ok(None) => {
                         error!("Dymension, got confirmation sig response None, validator: {:?}", h);
@@ -130,8 +141,19 @@ impl ValidatorsClient {
         });
 
         let results = join_all(futures).await;
-        let successful_sigs: Vec<Signature> = results.into_iter().filter_map(Result::ok).collect();
-        Ok(successful_sigs)
+        let sigs: Vec<(String, Signature)> = results.into_iter().filter_map(Result::ok).collect();
+
+        let hosts = self.hosts();
+        let mut sigs_map = sigs
+            .into_iter()
+            .map(|(h, sig)| (h, sig))
+            .collect::<std::collections::HashMap<_, _>>();
+        let sigs = hosts
+            .into_iter()
+            .filter_map(|h| sigs_map.remove(&h))
+            .collect::<Vec<Signature>>();
+
+        Ok(sigs)
     }
 
     /// this runs on relayer
