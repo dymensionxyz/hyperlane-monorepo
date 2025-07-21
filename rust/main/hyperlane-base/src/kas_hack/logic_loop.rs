@@ -206,7 +206,7 @@ where
             //
             // TODO: what happens if at some point no one is bridging and we have failed confirmations?
 
-            // consume_pending_confirmation() waits for finality time before sending to tun
+            // consume_pending_confirmation() waits for finality time before sending to hub in case there is a confirmation pending
             let confirmation = self.provider.consume_pending_confirmation().await;
 
             match confirmation {

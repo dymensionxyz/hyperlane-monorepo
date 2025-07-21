@@ -14,6 +14,8 @@ impl PendingConfirmation {
             mutex: Mutex::new(None),
         }
     }
+
+    /// consume waits a FINALITY_APPROX_WAIT_TIME before returning ConfirmationFXG when there is a pending one
     pub async fn consume(&self) -> Option<ConfirmationFXG> {
         if self.has_pending(){
             time::sleep(FINALITY_APPROX_WAIT_TIME).await;
@@ -25,7 +27,7 @@ impl PendingConfirmation {
         let mut guard = self.mutex.lock().unwrap();
         *guard = Some(fxg);
     }
-    // New function to check if there's a pending FXG
+    /// has_pending checks if there's a pending ConfirmationFXG
     pub fn has_pending(&self) -> bool {
         let guard = self.mutex.lock().unwrap(); // Acquire lock
         guard.is_some() // Check if the Option contains a value
