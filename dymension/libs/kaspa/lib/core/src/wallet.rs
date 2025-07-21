@@ -11,6 +11,7 @@ use kaspa_wallet_core::wallet::Wallet;
 use kaspa_wallet_keys::secret::Secret;
 use secp256k1::Keypair as KaspaSecpKeypair;
 use std::fmt;
+use std::str::FromStr;
 
 use kaspa_wallet_core::prelude::*; // Import the prelude for easy access to traits/structs
 
@@ -116,6 +117,7 @@ impl NetworkInfo {
     }
 }
 
+#[derive(Clone)]
 pub enum Network {
     KaspaTest10,
     KaspaMainnet,
@@ -134,5 +136,40 @@ impl NetworkInfo {
             _ => todo!("only tn10 supported"),
         }
         // TODO: finish
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_create_new_easy_wallet() {
+        let rpc_url = "65.109.145.174".to_string(); // A public rpc url
+        let network = Network::KaspaTest10;
+        let net_info = NetworkInfo::new(network.clone(), rpc_url.clone());
+
+        let secret = "lkjsdf";
+        let easy_wallet = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
+            wallet_secret: secret.to_string(),
+            rpc_url: rpc_url.clone(),
+            net: network,
+        })
+        .await
+        .unwrap();
+
+        let utxos = easy_wallet
+            .api()
+            .get_utxos_by_addresses(vec![Address::try_from(
+                // playground escrow
+                "kaspatest:pp07zhcxnm4zkw3k4d0vr6efhef8c7yg47ukdxe5uhmtgt5s4ayr6rud2mst2",
+            )
+            .unwrap()])
+            .await
+            .unwrap();
+        assert!(!utxos.is_empty());
+        assert!(0 < utxos.len());
     }
 }

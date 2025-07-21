@@ -299,15 +299,24 @@ where
             })
             .ok_or_else(|| eyre::eyre!("No outpoint found"))?;
 
-        info!("Dymension, current anchor: {:?}", old_anchor);
-
         // get all utxos from kaspa for the escrow address
         let escrow_address = self.provider.escrow_address();
+
+        info!(
+            "Dymension, current anchor: {:?}, escrow address: {:?}",
+            old_anchor, escrow_address
+        );
+
         let all_escrow_utxos = self
             .provider
             .rpc()
             .get_utxos_by_addresses(vec![escrow_address.clone()])
             .await?;
+
+        info!(
+            "Queried utxos for escrow address: {:?}",
+            all_escrow_utxos.len()
+        );
 
         // check if the anchor utxo is in the utxos.
         // if it found, it's means we're synced.
