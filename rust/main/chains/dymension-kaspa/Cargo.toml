@@ -32,7 +32,8 @@ tendermint = { workspace = true, features = ["rust-crypto", "secp256k1"] }
 tendermint-rpc = { workspace = true }
 time = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
+
 tonic = { workspace = true, features = [
     "transport",
     "tls",
@@ -50,6 +51,8 @@ dym-kas-validator = { path = "../../../../dymension/libs/kaspa/lib/validator", p
 dym-kas-relayer = { path = "../../../../dymension/libs/kaspa/lib/relayer" , package="relayer"}
 dym-kas-core = { path = "../../../../dymension/libs/kaspa/lib/core" , package="core"}
 dym-kas-api = { path = "../../../../dymension/libs/kaspa/lib/api" , package="openapi"}
+dym-kas-hardcode = { path = "../../../../dymension/libs/kaspa/lib/hardcode" , package="hardcode"}
+
 eyre = { workspace = true }
 bytes = { workspace = true }
 

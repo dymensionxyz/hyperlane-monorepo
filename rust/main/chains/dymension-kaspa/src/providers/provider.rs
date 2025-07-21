@@ -43,6 +43,7 @@ use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_native::RawCosmosAmount;
 use hyperlane_cosmos_native::Signer as HyperlaneSigner;
 use kaspa_consensus_core::tx::TransactionOutpoint;
+use tokio::time;
 
 /// dococo
 #[derive(Debug, Clone)]
@@ -104,8 +105,12 @@ impl KaspaProvider {
     }
 
     /// dococo
-    pub fn consume_pending_confirmation(&self) -> Option<ConfirmationFXG> {
-        self.pending_confirmation.consume()
+    pub async fn consume_pending_confirmation(&self) -> Option<ConfirmationFXG> {
+        self.pending_confirmation.consume().await
+    }
+
+    pub fn is_there_pending_confirmation(&self) -> bool {
+        self.pending_confirmation.has_pending()
     }
 
     /// dococo

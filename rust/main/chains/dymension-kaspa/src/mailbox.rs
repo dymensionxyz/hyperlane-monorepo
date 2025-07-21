@@ -4,7 +4,7 @@ use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, Withdrawal
 use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
 use hyperlane_cosmos_rs::prost::{Message, Name};
 use tonic::async_trait;
-
+use tokio::time;
 use super::consts::*;
 use tracing::info;
 
@@ -151,6 +151,18 @@ impl Mailbox for KaspaMailbox {
             "Kaspa mailbox, processing/submitting kaspa batch of size: {}",
             ops.len()
         );
+
+        loop {
+            if !self.provider.is_there_pending_confirmation() {
+                info!("Kaspa mailbox: No pending confirmation found. Proceeding with batch.");
+                time::sleep(time::Duration::from_secs(5)).await;
+                break; // Exit loop if no pending confirmation
+            }
+            info!("Kaspa mailbox: Pending confirmation found. Waiting before re-checking.");
+            // Use tokio::time::sleep for async waiting
+            time::sleep(time::Duration::from_secs(1)).await;
+        }
+
         let messages: Vec<HyperlaneMessage> = ops
             .iter()
             .map(|op| op.try_batch().map(|item| item.data)) // TODO: please work...
