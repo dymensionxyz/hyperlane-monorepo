@@ -80,6 +80,7 @@ impl KaspaProvider {
             domain.clone(),
             conf.kaspa_rpc_url.clone(),
             conf.wallet_secret.clone(),
+            conf.wallet_dir.clone(),
         )
         .await?;
 
