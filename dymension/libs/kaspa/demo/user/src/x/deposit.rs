@@ -7,6 +7,7 @@ use kaspa_wallet_keys::secret::Secret;
 
 pub struct DepositArgs {
     pub wallet_secret: String,
+    pub wallet_dir: Option<String>,
     pub amount: String,
     pub payload: String,
     pub escrow_address: String,
@@ -16,7 +17,7 @@ pub struct DepositArgs {
 
 pub async fn do_deposit(args: DepositArgs) -> Result<()> {
     let s = Secret::from(args.wallet_secret);
-    let w = get_wallet(&s, args.network_id, args.rpc_url, None).await?;
+    let w = get_wallet(&s, args.network_id, args.rpc_url, args.wallet_dir).await?;
     let a = Address::try_from(args.escrow_address)?;
     let amt = args.amount.parse::<u64>().unwrap();
     // TODO: check amt and payload

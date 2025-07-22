@@ -85,6 +85,10 @@ pub struct DepositCli {
     /// Local kaspa wallet keychain secret (not private key)
     #[arg(long("wallet-secret"), required = true)]
     pub wallet_secret: String,
+
+    /// Local kaspa wallet directory
+    #[arg(long("wallet-dir"), required = false)]
+    pub wallet_dir: Option<String>,
 }
 
 impl DepositCli {
@@ -96,6 +100,7 @@ impl DepositCli {
             network_id: NetworkId::from_str(&self.network_id).unwrap(),
             rpc_url: self.rpc_url.clone(),
             wallet_secret: self.wallet_secret.clone(),
+            wallet_dir: self.wallet_dir.clone(),
         }
     }
 }
