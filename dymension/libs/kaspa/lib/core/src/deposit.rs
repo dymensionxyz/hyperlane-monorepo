@@ -1,24 +1,14 @@
-use super::escrow::*;
 use bytes::Bytes;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
-use hyperlane_warp_route::TokenMessage;
 
-use std::sync::Arc;
-
-use kaspa_wallet_core::error::Error;
-use kaspa_wallet_core::tx::Fees;
-
-use kaspa_addresses::Prefix;
-
-use kaspa_wallet_core::prelude::*;
-
-use workflow_core::abortable::Abortable;
+use prost::Message;
 
 use eyre::Result;
-use hyperlane_core::{HyperlaneMessage, H256, U256};
+use hyperlane_core::{Encode, HyperlaneMessage, U256};
 use kaspa_rpc_core::RpcHash;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
+
+use hyperlane_cosmos_rs::dymensionxyz::hyperlane::kaspa::DepositFxg as ProtoDepositFXG;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct DepositFXG {
@@ -66,21 +56,52 @@ impl TryFrom<Bytes> for DepositFXG {
     type Error = eyre::Report;
 
     fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
-        // Deserialize the bytes into DepositFXG using bincode
-        bincode::deserialize(&bytes).map_err(|e| {
-            eyre::Report::new(e).wrap_err("Failed to deserialize DepositFXG from bytes")
-        })
+        let protodeposit = ProtoDepositFXG::decode(bytes).map_err(|e| {
+            eyre::Report::new(e).wrap_err("Failed to deserialize proto DepositFXG from bytes")
+        })?;
+
+        DepositFXG::try_from(protodeposit)
+
     }
 }
 
 impl From<&DepositFXG> for Bytes {
     fn from(deposit: &DepositFXG) -> Self {
-        // Serialize the DepositFXG into bytes using bincode
-        let encoded: Vec<u8> =
-            bincode::serialize(deposit).expect("Failed to serialize DepositFXG into bytes");
-        Bytes::from(encoded)
+        let proto_deposit = ProtoDepositFXG::from(deposit.clone());
+        Bytes::from(proto_deposit.encode_to_vec())
     }
 }
+
+impl From<&DepositFXG> for ProtoDepositFXG {
+    fn from(deposit: &DepositFXG) -> Self {
+        ProtoDepositFXG {
+            version: 1,
+            amount: deposit.amount.to_vec(), // U256 -> Vec<u8>
+            tx_id: deposit.tx_id.clone(),
+            utxo_index: deposit.utxo_index as u32, // usize -> u32
+            accepting_block_hash: deposit.accepting_block_hash.clone(),
+            hl_message: deposit.hl_message.to_vec(), 
+            containing_block_hash: deposit.containing_block_hash.clone(),
+        }
+    }
+}
+
+impl TryFrom<ProtoDepositFXG> for DepositFXG {
+    type Error = eyre::Report;
+
+    fn try_from(pb_deposit:ProtoDepositFXG) -> Result<Self, Self::Error> {
+
+        Ok(DepositFXG {
+            amount: U256::from_little_endian(&pb_deposit.amount.to_vec()), 
+            tx_id: pb_deposit.tx_id,
+            utxo_index: pb_deposit.utxo_index as usize, 
+            accepting_block_hash: pb_deposit.accepting_block_hash,
+            hl_message: HyperlaneMessage::from(pb_deposit.hl_message),
+            containing_block_hash: pb_deposit.containing_block_hash,
+        })
+    }
+}
+
 
 // --- Test Module ---
 #[cfg(test)]
