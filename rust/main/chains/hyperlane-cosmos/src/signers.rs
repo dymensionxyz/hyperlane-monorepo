@@ -1,5 +1,6 @@
 use cosmrs::crypto::{secp256k1::SigningKey, PublicKey};
 use hyperlane_core::{AccountAddressType, ChainResult, H256};
+use std::str::FromStr;
 
 use crate::{CosmosAddress, HyperlaneCosmosError};
 
@@ -59,5 +60,22 @@ impl Signer {
     /// gets digest of the cosmos account
     pub fn address_h256(&self) -> H256 {
         self.address.digest()
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hyperlane_core::AccountAddressType;
+
+    #[test]
+    fn test_create_new_signer() {
+        let k_s = "0xe95baa20c85b39e4b67549b6ef0c4528681005f9b5b86b073a12dbaa712e5d39";
+        let k = H256::from_str(k_s).unwrap();
+        let prefix = "dym".to_string();
+        let account_address_type = AccountAddressType::Ethereum;
+
+        let signer = Signer::new(k.as_bytes().to_vec(), prefix.clone(), &account_address_type)
+            .expect("should create signer");
+        assert_eq!(signer.address_string, "dym1mh2cyxppuvn7c2z0dg84qyjy8w4kn9307ahgxt");
     }
 }

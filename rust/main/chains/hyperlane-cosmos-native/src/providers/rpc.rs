@@ -1,5 +1,6 @@
 use std::future::Future;
 use std::time::Instant;
+use tracing::info;
 
 use cosmrs::{
     proto::cosmos::{
@@ -149,6 +150,9 @@ impl RpcProvider {
         let provider = FallbackProvider::new(clients);
         let provider = CosmosFallbackProvider::new(provider);
         let gas_price = CosmosAmount::try_from(conf.get_minimum_gas_price().clone())?;
+
+        let a = signer.as_ref().map_or(String::from("no signer"), |s| s.address_string.clone());
+        info!("Created Cosmos Native RPC Provider, signer addr: {:?}", a);
 
         Ok(RpcProvider {
             provider,
