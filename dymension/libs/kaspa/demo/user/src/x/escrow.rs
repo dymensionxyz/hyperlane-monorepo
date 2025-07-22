@@ -7,12 +7,12 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use validator::signer::get_ethereum_style_signer;
 
-pub fn get_escrow_address(pub_keys: Vec<&str>) -> String {
+pub fn get_escrow_address(pub_keys: Vec<&str>, required_signatures: u8) -> String {
     let pub_keys = pub_keys
         .iter()
         .map(|s| PublicKey::from_str(s).unwrap())
         .collect::<Vec<_>>();
-    let e = EscrowPublic::from_pubs(pub_keys, Prefix::Testnet, 1);
+    let e = EscrowPublic::from_pubs(pub_keys, Prefix::Testnet, required_signatures);
     e.addr.to_string()
 }
 
@@ -43,9 +43,11 @@ pub fn create_validator() -> (ValidatorInfos, PublicKey) {
     let signer = get_ethereum_style_signer().unwrap();
     let pub_key = kp.public_key();
 
+    let ism_unescaped = signer.address.replace("\"", "");
+
     (
         ValidatorInfos {
-            validator_ism_addr: signer.address,
+            validator_ism_addr: ism_unescaped,
             validator_ism_priv_key: signer.private_key,
             validator_escrow_secret: s,
             validator_escrow_pub_key: pub_key.to_string(),

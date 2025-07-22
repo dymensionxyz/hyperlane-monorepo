@@ -159,7 +159,7 @@ DEPOSIT_AMT=100000000 # 100 million sompi = 1 TKAS
 
 # get the HL message
 # <token id> <recipient> <amt>
-dymd q forward hl-message-kaspa $TOKEN_ID $HUB_USER_ADDR $DEPOSIT_AMT 
+dymd q forward hl-message-kaspa $TOKEN_ID $HUB_USER_ADDR $DEPOSIT_AMT "0x0000000000000000000000000000000000000000000000000000000000000000"
 
 # in hyperlane-monorepo/dymension/libs/kaspa/demo/relayer
 # NOTE: payload should not have 0x prefix
