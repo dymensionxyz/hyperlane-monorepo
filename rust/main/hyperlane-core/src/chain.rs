@@ -342,11 +342,11 @@ impl KnownHyperlaneDomain {
             ],
             Testnet: [
                 Alfajores, BinanceSmartChainTestnet, Chiado, ConnextSepolia, Fuji, Holesky, MoonbaseAlpha,
-                PlumeTestnet, ScrollSepolia, Sepolia, StarknetSepolia, SuperpositionTestnet, Abstracttestnet, PragmaDevnet 
+                PlumeTestnet, ScrollSepolia, Sepolia, StarknetSepolia, SuperpositionTestnet, Abstracttestnet, PragmaDevnet
             ],
             LocalTestChain: [
                 Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990,
-                CosmosTest99991, CosmosTestNative1, CosmosTestNative2, KyveAlpha, StarknetTest23448593, StarknetTest23448594 
+                CosmosTest99991, CosmosTestNative1, CosmosTestNative2, KyveAlpha, StarknetTest23448593, StarknetTest23448594
             ],
         })
     }

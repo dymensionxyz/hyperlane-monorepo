@@ -1,6 +1,7 @@
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
 use dym_kas_relayer::PublicKey;
 
+use crate::util::domain_to_kas_network;
 use eyre::{eyre, Result as EyreResult};
 use kaspa_addresses::Address;
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
@@ -11,7 +12,6 @@ use std::sync::{Arc, Mutex};
 use tonic::async_trait;
 use tracing::warn;
 use url::Url;
-use crate::util::domain_to_kas_network;
 
 use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::withdraw::WithdrawFXG;

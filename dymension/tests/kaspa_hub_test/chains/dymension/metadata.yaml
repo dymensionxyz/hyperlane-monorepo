@@ -15,7 +15,7 @@ deployer:
 displayName: Dymension Hub Local
 gasCurrencyCoinGeckoId: dymension
 # Generated from: console.log(parseInt('0x'+Buffer.from('DYMENSION').toString('hex')))
-domainId: 1260813472
+domainId: 417175819
 gasPrice:
   amount: "100000000000.0"
   denom: adym

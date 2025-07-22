@@ -181,7 +181,7 @@ KASPA_RECIPIENT=$(cargo run recipient kaspatest:qr0jmjgh2sx88q9gdegl449cuygp5rh6
 
 # initiate the transfer
 # dymd tx warp transfer [token-id] [destination-domain] [recipient] [amount] [flags]
-# kastest10 domain is 80808082
+# kastest10 domain is 1619618697
 WITHDRAW_AMT=20000002 # just enough to not be dust
 dymd tx warp transfer $TOKEN_ID $KASTEST_DOMAIN $KASPA_RECIPIENT $WITHDRAW_AMT --max-hyperlane-fee 1000adym  "${HUB_FLAGS[@]}"
 

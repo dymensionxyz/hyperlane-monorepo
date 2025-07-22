@@ -50,7 +50,7 @@ use lander::{
 };
 
 use super::msg::metadata::dymension_kaspa::PendingMessageMetadataGetter;
-use dymension_kaspa::{is_kas, kas_domains, KaspaMailbox, KaspaProvider};
+use dymension_kaspa::{is_dym, is_kas, kas_domains, KaspaMailbox, KaspaProvider};
 use hyperlane_base::kas_hack::logic_loop::Foo as KaspaBridgeFoo;
 use hyperlane_cosmos_native::CosmosNativeMailbox;
 
@@ -1484,19 +1484,8 @@ impl Relayer {
         let kas_provider_trait = kas_mailbox_trait.provider();
         let kas_provider = kas_provider_trait.downcast::<KaspaProvider>().unwrap();
 
-        let dym_domain = HyperlaneDomain::Unknown {
-            domain_id: 417175819,
-            domain_name: "dymension".to_string(),
-            domain_type: HyperlaneDomainType::Unknown,
-            domain_protocol: HyperlaneDomainProtocol::CosmosNative,
-            domain_technical_stack: HyperlaneDomainTechnicalStack::Other,
-        };
+        let dym_mailbox_trait = { mailboxes.iter().find(|(d, _)| is_dym(d)).unwrap().1.clone() };
 
-        if !mailboxes.contains_key(&dym_domain) {
-            return Ok(None);
-        }
-
-        let dym_mailbox_trait = mailboxes.get(&dym_domain).unwrap().clone(); // TODO: clone is right here? got a warning
         let dym_mailbox = dym_mailbox_trait
             .downcast_arc::<CosmosNativeMailbox>()
             .unwrap();
