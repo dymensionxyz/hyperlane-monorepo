@@ -2589,7 +2589,7 @@ dependencies = [
  "hardcode",
  "hex 0.4.3",
  "hyperlane-core",
- "hyperlane-cosmos-dymension-rs",
+ "hyperlane-cosmos-dymension-rs 0.1.4-dymension-v3.2.1",
  "hyperlane-cosmos-native",
  "hyperlane-warp-route",
  "kaspa-addresses",
@@ -3783,7 +3783,7 @@ dependencies = [
  "hyper 0.14.30",
  "hyper-tls",
  "hyperlane-core",
- "hyperlane-cosmos-dymension-rs",
+ "hyperlane-cosmos-dymension-rs 0.1.4-dymension-v3.2.1",
  "hyperlane-cosmos-native",
  "hyperlane-cosmwasm-interface",
  "hyperlane-metric",
@@ -6389,7 +6389,7 @@ dependencies = [
  "hardcode",
  "hyperlane-core",
  "hyperlane-cosmos",
- "hyperlane-cosmos-dymension-rs",
+ "hyperlane-cosmos-dymension-rs 0.1.4-dymension-v3.2.1 (git+https://github.com/dymensionxyz/hyperlane-cosmos-rs?branch=main)",
  "hyperlane-cosmos-native",
  "hyperlane-ethereum",
  "hyperlane-fuel",
@@ -6529,6 +6529,17 @@ dependencies = [
 [[package]]
 name = "hyperlane-cosmos-dymension-rs"
 version = "0.1.4-dymension-v3.2.1"
+dependencies = [
+ "cosmrs",
+ "prost 0.13.4",
+ "serde",
+ "tendermint-proto",
+ "tonic 0.12.3",
+]
+
+[[package]]
+name = "hyperlane-cosmos-dymension-rs"
+version = "0.1.4-dymension-v3.2.1"
 source = "git+https://github.com/dymensionxyz/hyperlane-cosmos-rs?branch=main#fd1c0d3f4ece3fe1a805f0449ec20838a0dc3bf1"
 dependencies = [
  "cosmrs",
@@ -6554,7 +6565,7 @@ dependencies = [
  "hyper 0.14.30",
  "hyper-tls",
  "hyperlane-core",
- "hyperlane-cosmos-dymension-rs",
+ "hyperlane-cosmos-dymension-rs 0.1.4-dymension-v3.2.1",
  "hyperlane-cosmwasm-interface",
  "hyperlane-metric",
  "itertools 0.13.0",
@@ -10858,7 +10869,7 @@ dependencies = [
  "hardcode",
  "hex 0.4.3",
  "hyperlane-core",
- "hyperlane-cosmos-dymension-rs",
+ "hyperlane-cosmos-dymension-rs 0.1.4-dymension-v3.2.1",
  "hyperlane-cosmos-native",
  "hyperlane-warp-route",
  "kaspa-addresses",
@@ -15251,7 +15262,7 @@ dependencies = [
  "hardcode",
  "hex 0.4.3",
  "hyperlane-core",
- "hyperlane-cosmos-dymension-rs",
+ "hyperlane-cosmos-dymension-rs 0.1.4-dymension-v3.2.1",
  "hyperlane-cosmos-native",
  "hyperlane-warp-route",
  "kaspa-addresses",
