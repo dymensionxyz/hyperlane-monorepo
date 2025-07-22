@@ -1,6 +1,7 @@
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
 use dym_kas_relayer::PublicKey;
 
+use crate::util::domain_to_kas_network;
 use eyre::{eyre, Result as EyreResult};
 use kaspa_addresses::Address;
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
@@ -260,10 +261,7 @@ async fn get_easy_wallet(
     let args = EasyKaspaWalletArgs {
         wallet_secret,
         rpc_url,
-        net: match domain {
-            HyperlaneDomain::Known(KnownHyperlaneDomain::KaspaTest10) => Network::KaspaTest10,
-            _ => todo!("only tn10 supported"),
-        },
+        net: domain_to_kas_network(&domain),
         storage_folder,
     };
     EasyKaspaWallet::try_new(args).await

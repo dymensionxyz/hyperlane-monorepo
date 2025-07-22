@@ -130,7 +130,7 @@ impl NetworkInfo {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Network {
     KaspaTest10,
     KaspaMainnet,
@@ -156,6 +156,16 @@ impl NetworkInfo {
 mod tests {
     use super::*;
     use std::sync::Arc;
+
+    #[test]
+    fn test_network_id() {
+        let network = NetworkId::with_suffix(NetworkType::Testnet, 10);
+        println!("network: {:?}", network.to_string());
+
+        let name = "testnet-10";
+        let id = NetworkId::from_str(name).unwrap();
+        println!("id: {:?}", id.to_string());
+    }
 
     #[tokio::test]
     #[ignore]

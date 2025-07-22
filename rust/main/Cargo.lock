@@ -3778,6 +3778,7 @@ dependencies = [
  "derive-new",
  "eyre",
  "futures",
+ "hardcode",
  "hex 0.4.3",
  "http 1.2.0",
  "hyper 0.14.30",
