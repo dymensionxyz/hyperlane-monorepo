@@ -11,6 +11,7 @@ use std::sync::{Arc, Mutex};
 use tonic::async_trait;
 use tracing::warn;
 use url::Url;
+use crate::util::domain_to_kas_network;
 
 use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::withdraw::WithdrawFXG;
@@ -260,10 +261,7 @@ async fn get_easy_wallet(
     let args = EasyKaspaWalletArgs {
         wallet_secret,
         rpc_url,
-        net: match domain {
-            HyperlaneDomain::Known(KnownHyperlaneDomain::KaspaTest10) => Network::KaspaTest10,
-            _ => todo!("only tn10 supported"),
-        },
+        net: domain_to_kas_network(&domain),
         storage_folder,
     };
     EasyKaspaWallet::try_new(args).await
