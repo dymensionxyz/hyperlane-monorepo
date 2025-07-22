@@ -61,7 +61,6 @@ impl TryFrom<Bytes> for DepositFXG {
         })?;
 
         DepositFXG::try_from(protodeposit)
-
     }
 }
 
@@ -80,7 +79,7 @@ impl From<&DepositFXG> for ProtoDepositFXG {
             tx_id: deposit.tx_id.clone(),
             utxo_index: deposit.utxo_index as u32, // usize -> u32
             accepting_block_hash: deposit.accepting_block_hash.clone(),
-            hl_message: deposit.hl_message.to_vec(), 
+            hl_message: deposit.hl_message.to_vec(),
             containing_block_hash: deposit.containing_block_hash.clone(),
         }
     }
@@ -89,19 +88,17 @@ impl From<&DepositFXG> for ProtoDepositFXG {
 impl TryFrom<ProtoDepositFXG> for DepositFXG {
     type Error = eyre::Report;
 
-    fn try_from(pb_deposit:ProtoDepositFXG) -> Result<Self, Self::Error> {
-
+    fn try_from(pb_deposit: ProtoDepositFXG) -> Result<Self, Self::Error> {
         Ok(DepositFXG {
-            amount: U256::from_little_endian(&pb_deposit.amount.to_vec()), 
+            amount: U256::from_little_endian(&pb_deposit.amount.to_vec()),
             tx_id: pb_deposit.tx_id,
-            utxo_index: pb_deposit.utxo_index as usize, 
+            utxo_index: pb_deposit.utxo_index as usize,
             accepting_block_hash: pb_deposit.accepting_block_hash,
             hl_message: HyperlaneMessage::from(pb_deposit.hl_message),
             containing_block_hash: pb_deposit.containing_block_hash,
         })
     }
 }
-
 
 // --- Test Module ---
 #[cfg(test)]
