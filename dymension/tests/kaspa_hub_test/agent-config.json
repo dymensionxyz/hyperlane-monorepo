@@ -16,7 +16,7 @@
       },
       "displayName": "Dymension Hub Local",
       "gasCurrencyCoinGeckoId": "dymension",
-      "domainId": 417175819,
+      "domainId": 587907060,
       "gasPrice": {
         "amount": "100000000000.0",
         "denom": "adym"
@@ -64,7 +64,7 @@
     "kaspatest10": {
       "protocol": "kaspa",
       "name": "kaspatest10",
-      "domainId": 1619618697,
+      "domainId": 897658017,
       "interchainGasPaymaster": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "mailbox": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "merkleTreeHook": "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -96,8 +96,8 @@
           "http": "http://127.0.0.1:8090"
         }
       ],
-      "hubDomain": 417175819,
-      "kasDomain": 1619618697,
+      "hubDomain": 587907060,
+      "kasDomain": 897658017,
       "hubTokenId": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "kasTokenId": "0x0000000000000000000000000000000000000000000000000000000000000000"
     }
