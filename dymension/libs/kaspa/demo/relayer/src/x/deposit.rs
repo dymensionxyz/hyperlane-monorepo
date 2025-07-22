@@ -163,6 +163,7 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
         wallet_secret: args.wallet_secret,
         rpc_url: URL.to_string(),
         net: Network::KaspaTest10,
+        storage_folder: None,
     })
     .await?;
 

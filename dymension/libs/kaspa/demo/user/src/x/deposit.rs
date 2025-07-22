@@ -16,7 +16,7 @@ pub struct DepositArgs {
 
 pub async fn do_deposit(args: DepositArgs) -> Result<()> {
     let s = Secret::from(args.wallet_secret);
-    let w = get_wallet(&s, args.network_id, args.rpc_url).await?;
+    let w = get_wallet(&s, args.network_id, args.rpc_url, None).await?;
     let a = Address::try_from(args.escrow_address)?;
     let amt = args.amount.parse::<u64>().unwrap();
     // TODO: check amt and payload

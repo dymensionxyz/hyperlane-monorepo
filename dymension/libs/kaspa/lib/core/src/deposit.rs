@@ -3,6 +3,7 @@ use bytes::Bytes;
 use prost::Message;
 
 use eyre::Result;
+use hyperlane_core::H256;
 use hyperlane_core::{Encode, HyperlaneMessage, U256};
 use kaspa_rpc_core::RpcHash;
 use serde::{Deserialize, Serialize};
