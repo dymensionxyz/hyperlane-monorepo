@@ -13,7 +13,8 @@ use secp256k1::Keypair as KaspaSecpKeypair;
 use std::fmt;
 use std::str::FromStr;
 
-use kaspa_wallet_core::prelude::*; // Import the prelude for easy access to traits/structs
+use kaspa_wallet_core::prelude::*;
+use kaspa_wallet_core::storage::local::set_default_storage_folder as unsafe_set_default_storage_folder_kaspa; // Import the prelude for easy access to traits/structs
 
 use std::sync::Arc;
 
@@ -23,7 +24,12 @@ pub async fn get_wallet(
     s: &Secret,
     network_id: NetworkId,
     url: String,
+    storage_folder: Option<String>,
 ) -> Result<Arc<Wallet>, Error> {
+    if let Some(storage_folder) = storage_folder {
+        unsafe { unsafe_set_default_storage_folder_kaspa(storage_folder) }?;
+    }
+
     let w = Arc::new(Wallet::try_new(
         Wallet::local_store()?,
         Some(Resolver::default()),
@@ -72,13 +78,20 @@ pub struct EasyKaspaWalletArgs {
     pub wallet_secret: String, // this the short password that protects the keychain, not the private key of the crypto account
     pub rpc_url: String,       // .e.g localhost:16210
     pub net: Network,
+    pub storage_folder: Option<String>,
 }
 
 impl EasyKaspaWallet {
     pub async fn try_new(args: EasyKaspaWalletArgs) -> Result<Self> {
         let s = Secret::from(args.wallet_secret);
         let info = NetworkInfo::new(args.net, args.rpc_url);
-        let w = get_wallet(&s, info.clone().network_id, info.clone().rpc_url).await?;
+        let w = get_wallet(
+            &s,
+            info.clone().network_id,
+            info.clone().rpc_url,
+            args.storage_folder,
+        )
+        .await?;
         let node_info = w.rpc_api().get_server_info().await?;
         if !node_info.is_synced {
             return Err(eyre::eyre!("Kaspa WPRC node is not synced"));
@@ -156,6 +169,7 @@ mod tests {
             wallet_secret: secret.to_string(),
             rpc_url: rpc_url.clone(),
             net: network,
+            storage_folder: None,
         })
         .await
         .unwrap();

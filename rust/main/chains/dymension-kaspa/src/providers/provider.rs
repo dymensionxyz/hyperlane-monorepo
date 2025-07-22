@@ -80,6 +80,7 @@ impl KaspaProvider {
             domain.clone(),
             conf.kaspa_rpc_url.clone(),
             conf.wallet_secret.clone(),
+            conf.wallet_dir.clone(),
         )
         .await?;
 
@@ -254,6 +255,7 @@ async fn get_easy_wallet(
     domain: HyperlaneDomain,
     rpc_url: String,
     wallet_secret: String,
+    storage_folder: Option<String>,
 ) -> Result<EasyKaspaWallet> {
     let args = EasyKaspaWalletArgs {
         wallet_secret,
@@ -262,6 +264,7 @@ async fn get_easy_wallet(
             HyperlaneDomain::Known(KnownHyperlaneDomain::KaspaTest10) => Network::KaspaTest10,
             _ => todo!("only tn10 supported"),
         },
+        storage_folder,
     };
     EasyKaspaWallet::try_new(args).await
 }
