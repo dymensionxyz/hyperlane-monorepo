@@ -191,7 +191,7 @@ pub fn build_withdrawal_pskt(
     // Multiply the fee by 1.1 to give some space for adding change UTXOs.
     // TODO: use feerate.
     let tx_fee =
-        estimate_fee(inputs.clone(), outputs.clone(), payload.clone(), network_id) * 11 / 10;
+        estimate_fee(inputs.clone(), outputs.clone(), payload.clone(), network_id) * 13 / 10;
 
     if relayer_balance < tx_fee {
         return Err(eyre::eyre!(
