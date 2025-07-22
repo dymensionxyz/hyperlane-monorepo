@@ -158,7 +158,7 @@ mod tests {
     use std::sync::Arc;
 
     #[tokio::test]
-    // #[ignore]
+    #[ignore]
     async fn test_create_new_easy_wallet() {
         let rpc_url = "65.109.145.174".to_string(); // A public rpc url
         let network = Network::KaspaTest10;
@@ -169,7 +169,7 @@ mod tests {
             wallet_secret: secret.to_string(),
             rpc_url: rpc_url.clone(),
             net: network,
-            storage_folder: Some("/Users/danwt/Documents/dym/aaa-dym-notes/all_tasks/tasks/2020507_testing_hyperlane/kas/pg/wallet".to_string()),
+            storage_folder: None,
         })
         .await
         .unwrap();
