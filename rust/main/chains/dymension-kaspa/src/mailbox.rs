@@ -156,12 +156,22 @@ impl Mailbox for KaspaMailbox {
             .map(|op| op.try_batch().map(|item| item.data)) // TODO: please work...
             .collect::<ChainResult<Vec<HyperlaneMessage>>>()?;
 
-        let _ = self.provider.process_withdrawal_messages(messages).await?;
+        let processed_messages = self.provider.process_withdrawal_messages(messages.clone()).await?;
         info!("Kaspa mailbox, processed withdrawals TXs");
 
         // Note: this return value doesn't really correspond well to what we did, since we sent (possibly) multiple TXs to Kaspa
         // however, since the TXs must go in sequence, we can take the last one, knowing all the prior ones were accepted
         // failed indexes should say which hyperlane messages were accepted
+
+        let failed = {
+            let mut failed = vec![];
+            for (i, msg) in messages.iter().enumerate() {
+                if !processed_messages.contains(msg) {
+                    failed.push(i);
+                }
+            }
+            failed
+        };
 
         Ok(BatchResult {
             outcome: Some(TxOutcome {
@@ -170,7 +180,7 @@ impl Mailbox for KaspaMailbox {
                 gas_used: U256::zero(),
                 gas_price: FixedPointNumber::from(0),
             }),
-            failed_indexes: vec![],
+            failed_indexes: failed,
         })
     }
 
