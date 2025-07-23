@@ -587,39 +587,15 @@ pub fn finalize_pskt(c: PSKT<Combiner>, escrow: &EscrowPublic) -> Result<RpcTran
     Ok(rpc_tx)
 }
 
-pub async fn sign_pay_fee(pskt: PSKT<Signer>, w: &Arc<Wallet>, s: &Secret) -> Result<PSKT<Signer>> {
-    // The code above combines `Account.pskb_sign` and `pskb_signer_for_address` functions.
-    // It's a hack allowing to sign PSKT with a custom payload.
-    // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/pskb.rs#L154
-    // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/mod.rs#L383
-
-    let derivation = w.account()?.as_derivation_capable()?;
-    let keydata = w.account()?.prv_key_data(s.clone()).await?;
-    let addr = w.account()?.change_address()?;
-    let (receive, change) = derivation.derivation().addresses_indexes(&[&addr])?;
-    let pks = derivation.create_private_keys(&keydata, &None, &receive, &change)?;
-    let (_, priv_key) = pks.first().unwrap();
-
-    let xprv = keydata.get_xprv(None)?;
-    let key_pair = secp256k1::Keypair::from_secret_key(secp256k1::SECP256K1, priv_key);
-
-    // Get derivation path for the account. build_derivate_paths returns receive and change paths, respectively.
-    // Use receive one as it is used in `Account.pskb_sign`.
-    let (derivation_path, _) = build_derivate_paths(
-        &derivation.account_kind(),
-        derivation.account_index(),
-        derivation.cosigner_index(),
-    )?;
-
-    let key_fingerprint = xprv.public_key().fingerprint();
-
+pub async fn sign_pay_fee(
+    pskt: PSKT<Signer>,
+    w: &SigningResources,
+    s: &Secret,
+) -> Result<PSKT<Signer>> {
     corelib::pskt::sign_pskt::<fn(&Input) -> bool>(
         pskt,
-        &key_pair,
-        Some(KeySource {
-            key_fingerprint,
-            derivation_path: derivation_path.clone(),
-        }),
+        &w.key_pair,
+        Some(w.key_source.clone()),
         None,
     )
 }

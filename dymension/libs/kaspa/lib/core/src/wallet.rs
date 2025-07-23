@@ -9,10 +9,12 @@ use kaspa_wallet_core::error::Error;
 use kaspa_wallet_core::utxo::NetworkParams;
 use kaspa_wallet_core::wallet::Wallet;
 use kaspa_wallet_keys::secret::Secret;
+use kaspa_wallet_pskt::prelude::KeySource;
 use secp256k1::Keypair as KaspaSecpKeypair;
 use std::fmt;
 use std::str::FromStr;
 
+use kaspa_wallet_core::derivation::build_derivate_paths;
 use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_core::storage::local::set_default_storage_folder as unsafe_set_default_storage_folder_kaspa; // Import the prelude for easy access to traits/structs
 
@@ -138,6 +140,39 @@ impl EasyKaspaWallet {
     pub fn account(&self) -> Arc<dyn Account> {
         self.wallet.account().unwrap()
     }
+
+    pub async fn signing_resources(&self) -> Result<SigningResources> {
+        let w = self.wallet;
+        let derivation = w.account()?.as_derivation_capable()?;
+        let keydata = w.account()?.prv_key_data(s.clone()).await?;
+        let addr = w.account()?.change_address()?;
+        let (receive, change) = derivation.derivation().addresses_indexes(&[&addr])?;
+        let pks = derivation.create_private_keys(&keydata, &None, &receive, &change)?;
+        let (_, priv_key) = pks.first().unwrap();
+
+        let xprv = keydata.get_xprv(None)?;
+        let key_pair = secp256k1::Keypair::from_secret_key(secp256k1::SECP256K1, priv_key);
+
+        // Get derivation path for the account. build_derivate_paths returns receive and change paths, respectively.
+        // Use receive one as it is used in `Account.pskb_sign`.
+        let (derivation_path, _) = build_derivate_paths(
+            &derivation.account_kind(),
+            derivation.account_index(),
+            derivation.cosigner_index(),
+        )?;
+
+        let key_fingerprint = xprv.public_key().fingerprint();
+
+        Ok(SigningResources {
+            key_source: KeySource::new(key_fingerprint, derivation_path),
+            key_pair,
+        })
+    }
+}
+
+pub struct SigningResources {
+    pub key_source: KeySource,
+    pub key_pair: secp256k1::Keypair,
 }
 
 #[derive(Clone, Debug)]
