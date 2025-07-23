@@ -146,9 +146,9 @@ impl EasyKaspaWallet {
         // It's a hack allowing to sign PSKT with a custom payload.
         // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/pskb.rs#L154
         // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/mod.rs#L383
-        let w = self.wallet;
+        let w = self.wallet.clone();
         let derivation = w.account()?.as_derivation_capable()?;
-        let keydata = w.account()?.prv_key_data(s.clone()).await?;
+        let keydata = w.account()?.prv_key_data(self.secret.clone()).await?;
         let addr = w.account()?.change_address()?;
         let (receive, change) = derivation.derivation().addresses_indexes(&[&addr])?;
         let pks = derivation.create_private_keys(&keydata, &None, &receive, &change)?;

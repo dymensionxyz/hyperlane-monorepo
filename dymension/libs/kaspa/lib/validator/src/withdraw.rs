@@ -11,10 +11,10 @@ use secp256k1::Keypair as SecpKeypair;
 
 use crate::error::ValidationError;
 use corelib::payload::{MessageID, MessageIDs};
+use corelib::pskt::InputFilter;
 use corelib::util;
 use corelib::util::{get_recipient_address, get_recipient_script_pubkey, is_valid_sighash_type};
 use corelib::wallet::EasyKaspaWallet;
-use corelib::pskt::InputFilter;
 
 use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use eyre::{Report, Result};
@@ -342,7 +342,11 @@ pub fn validate_pskt_application_semantics(
     Ok(next_anchor_idx.ok_or(ValidationError::NextAnchorNotFound)?)
 }
 
-pub fn sign_withdrawal_fxg<F>(bundle: &Bundle, keypair: &SecpKeypair, input_filter: Option<F>) -> Result<Bundle>
+pub fn sign_withdrawal_fxg<F>(
+    bundle: &Bundle,
+    keypair: &SecpKeypair,
+    input_filter: Option<F>,
+) -> Result<Bundle>
 where
     F: Fn(&Input) -> bool + Clone,
 {

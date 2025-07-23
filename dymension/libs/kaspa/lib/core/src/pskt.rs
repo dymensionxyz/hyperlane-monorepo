@@ -34,11 +34,9 @@ where
     let ok: Vec<bool> = pskt
         .inputs
         .iter()
-        .map(|input| {
-            input_filter.as_ref().map_or(true, |filter| filter(input))
-        })
+        .map(|input| input_filter.as_ref().map_or(true, |filter| filter(input)))
         .collect();
-    
+
     info!("ok: {:?}", ok);
     pskt.pass_signature_sync(|tx, sighash| {
         tx.tx
@@ -51,7 +49,10 @@ where
                         signature: Signature::Schnorr(
                             secp256k1::schnorr::Signature::from_slice(&[0; 64]).unwrap(),
                         ),
-                        pub_key: secp256k1::PublicKey::from_str("02eea60b50f48beafdfd737fecf50be79cb2a415f4dc0210931ad8ffcb933e3370").unwrap(),
+                        pub_key: secp256k1::PublicKey::from_str(
+                            "02eea60b50f48beafdfd737fecf50be79cb2a415f4dc0210931ad8ffcb933e3370",
+                        )
+                        .unwrap(),
                         key_source: None,
                     });
                 }

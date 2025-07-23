@@ -9,6 +9,7 @@ use corelib::consts::KEY_MESSAGE_IDS;
 use corelib::escrow::EscrowPublic;
 use corelib::payload::MessageID;
 use corelib::payload::MessageIDs;
+use corelib::wallet::SigningResources;
 use hardcode::tx::DUST_AMOUNT;
 use hex::ToHex;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
@@ -424,7 +425,12 @@ pub async fn combine_bundles_with_fee(
         bundles_validators
     };
     let txs_signed = combine_all_bundles(all_bundles)?;
-    let finalized = finalize_txs(txs_signed, fxg.messages.clone(), escrow)?;
+    let finalized = finalize_txs(
+        txs_signed,
+        fxg.messages.clone(),
+        escrow,
+        easy_wallet.pub_key().await?,
+    )?;
     Ok(finalized)
 }
 
@@ -487,12 +493,11 @@ fn finalize_txs(
     messages: Vec<Vec<HyperlaneMessage>>,
     escrow: &EscrowPublic,
     relayer_pub_key: secp256k1::PublicKey,
-
 ) -> Result<Vec<RpcTransaction>> {
     let transactions_result: Result<Vec<RpcTransaction>, _> = txs_sigs
         .into_iter()
         .zip(messages.into_iter())
-        .map(|(tx, _)| finalize_pskt(tx, escrow, relayer_pub_key))
+        .map(|(tx, _)| finalize_pskt(tx, escrow, &relayer_pub_key))
         .collect();
 
     let transactions: Vec<RpcTransaction> = transactions_result?;
@@ -501,7 +506,11 @@ fn finalize_txs(
 }
 
 // used by multisig demo AND real code
-pub fn finalize_pskt(c: PSKT<Combiner>, escrow: &EscrowPublic, relayer_pub_key: secp256k1::PublicKey) -> Result<RpcTransaction> {
+pub fn finalize_pskt(
+    c: PSKT<Combiner>,
+    escrow: &EscrowPublic,
+    relayer_pub_key: &secp256k1::PublicKey,
+) -> Result<RpcTransaction> {
     let finalized_pskt = c
         .finalizer()
         .finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
