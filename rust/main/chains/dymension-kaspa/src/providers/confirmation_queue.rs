@@ -1,5 +1,4 @@
 use dym_kas_core::confirmation::ConfirmationFXG;
-use dym_kas_hardcode::tx::FINALITY_APPROX_WAIT_TIME;
 use std::sync::Mutex;
 use tokio::time;
 
@@ -17,9 +16,6 @@ impl PendingConfirmation {
 
     /// consume waits a FINALITY_APPROX_WAIT_TIME before returning ConfirmationFXG when there is a pending one
     pub async fn consume(&self) -> Option<ConfirmationFXG> {
-        if self.has_pending(){
-            time::sleep(FINALITY_APPROX_WAIT_TIME).await;
-        }
         let mut guard = self.mutex.lock().unwrap();
         std::mem::take(&mut *guard)
     }
