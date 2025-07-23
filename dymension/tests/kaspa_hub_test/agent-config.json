@@ -90,7 +90,7 @@
       "depositLookBackMins": 3,
       "validateDeposit": true,
       "validateWithdrawal": true,
-      "validateWithdrawalConfirmation": false,
+      "validateWithdrawalConfirmation": true,
       "grpcUrls": [
         {
           "http": "http://127.0.0.1:8090"
@@ -98,7 +98,7 @@
       ],
       "hubDomain": 1260813472,
       "kasDomain": 80808082,
-      "hubTokenId": "0x726f757465725f706f73745f6469737061746368000000000000000000000002",
+      "hubTokenId": "0x726f757465725f61707000000000000000000000000000020000000000000000",
       "kasTokenId": "0x0000000000000000000000000000000000000000000000000000000000000000"
     }
   },

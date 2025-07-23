@@ -84,8 +84,14 @@ dymd start --log_level=debug
 # setup bridge objects on hub
 REMOTE_ROUTER_ADDRESS="0x0000000000000000000000000000000000000000000000000000000000000000" # no smart contracts on kaspa 
 dymd tx kas setup-bridge --validators "$VALIDATOR_ISM_ADDR" --threshold 1 --remote-router-address "$REMOTE_ROUTER_ADDRESS" "${HUB_FLAGS[@]}"
+
 MAILBOX=$(dymd q hyperlane mailboxes -o json | jq -r '.mailboxes[0].id')
-# popoulate agent-config.json with hubMailboxId, and ALSO hubTokenId, kasTokenId remains zero
+TOKEN_ID=$(dymd q warp tokens -o json | jq -r '.tokens[0].id')
+KAS_TOKEN_ID=$(dymd q warp remote-routers $TOKEN_ID -o json | jq -r '.remote_routers[0].receiver_contract')
+# popoulate agent-config.json with hubMailboxId, hubTokenId, kasTokenId:
+# hubMailboxId = MAILBOX
+# hubTokenId = TOKEN_ID
+# kasTokenId = KAS_TOKEN_ID
 
 ###################################
 #### Step 3. SETUP VALIDATOR
@@ -149,7 +155,7 @@ dymd tx gov submit-proposal $MONODIR/dymension/tests/kaspa_hub_test/bootstrap.js
   --fees 10000000000000000adym \
   -y 
 
-dymd tx gov vote 1 yes "${HUB_FLAGS[@]}" 
+dymd tx gov vote 1 yes "${HUB_FLAGS[@]}"
 
 
 ###################################
@@ -158,6 +164,11 @@ dymd tx gov vote 1 yes "${HUB_FLAGS[@]}"
 
 # TODO: remove unused/unnecessary things (i.e. I think kaspatest10.signer not actually used)
 
+# fund the relayer address on the Hub
+
+dymd tx bank send $HUB_KEY_WITH_FUNDS $RELAYER_ADDR 1000000000000000000adym "${HUB_FLAGS[@]}"
+
+# Run the relayer
 ./target/release/relayer \
     --db $DB_RELAYER \
     --relayChains kaspatest10,dymension \
@@ -191,19 +202,19 @@ RUST_BACKTRACE=1 cargo run --release --bin relayer -- \
 #### Step 6. TEST DEPOSITS/WITHDRAWALS
 #### Phase 1, deposit: generate a HL message using Hub CLI tool and pass this in kaspa deposit tool
 
-# *DEPOSITS*
+##############
+### *DEPOSITS*
 
-TOKEN_ID=$(dymd q warp tokens -o json | jq -r '.tokens[0].id')
 HUB_USER_ADDR=$(dymd keys show -a hub-user) #dym139mq752delxv78jvtmwxhasyrycufsvrw4aka9
 
 DEPOSIT_AMT=100000000 # 100 million sompi = 1 TKAS
 
 # get the HL message
-# <token id> <recipient> <amt>
-dymd q forward hl-message-kaspa $TOKEN_ID $HUB_USER_ADDR $DEPOSIT_AMT 
+# <token id> <recipient> <amt> <kas_token_id>
+dymd q forward hl-message-kaspa $TOKEN_ID $HUB_USER_ADDR $DEPOSIT_AMT $KAS_TOKEN_ID
 
 # NOTE: payload should not have 0x prefix
-HL_PAYLOAD=$(dymd q forward hl-message-kaspa $TOKEN_ID $HUB_USER_ADDR $DEPOSIT_AMT | cut -c 3-)
+HL_PAYLOAD=$(dymd q forward hl-message-kaspa $TOKEN_ID $HUB_USER_ADDR $DEPOSIT_AMT $KAS_TOKEN_ID | cut -c 3-)
 
 # In hyperlane-monorepo/dymension/libs/kaspa/demo/relayer
 # Put payload in the arguments
@@ -215,11 +226,19 @@ cargo run -- \
   --only-deposit \
   --payload "${HL_PAYLOAD}"
 
-# *WITHDRAWALS*
+# Validate the result
+
+KAS_TOKEN_DENOM=$(dymd q warp tokens -o json | jq -r '.tokens[0].origin_denom')
+
+# Should have $DEPOSIT_AMT Kaspa tokens
+dymd q bank balance $HUB_USER_ADDR $KAS_TOKEN_DENOM
+
+#################
+### *WITHDRAWALS*
 
 # convert your kaspa address to something that can be interpreted by Hub CLI
 # in demos/user
-KASPA_RECIPIENT=$(cargo run recipient kaspatest:qr0jmjgh2sx88q9gdegl449cuygp5rh6yarn5h9fh97whprvcsp2ksjkx456f) # (Dan's tn10 address, put your own address here)
+KASPA_RECIPIENT=$(cargo run recipient kaspatest:qrjmshvw4ucgyhm8rlc257g4mz9fy64kf0gkr8tgktsdwtplvtcs26durxukf) # (Dan's tn10 address, put your own address here)
 # output like 0xdf2dc917540c7380a86e51fad4b8e1101a0efa27473a5ca9b97ceb846cc402ab
 
 # initiate the transfer
@@ -227,6 +246,12 @@ KASPA_RECIPIENT=$(cargo run recipient kaspatest:qr0jmjgh2sx88q9gdegl449cuygp5rh6
 # kastest10 domain is 80808082
 WITHDRAW_AMT=20000002 # just enough to not be dust
 dymd tx warp transfer $TOKEN_ID $KASTEST_DOMAIN $KASPA_RECIPIENT $WITHDRAW_AMT --max-hyperlane-fee 1000adym  "${HUB_FLAGS[@]}"
+
+# Validate the result
+
+# get the transaction ID of new anchor outpoint on the Hub
+# it can be compared agains the change UTXO in the Kaspa explorer
+echo $(dymd q kas outpoint -o json | jq -r '.outpoint.transaction_id') | base64 -D | xxd -p
 
 ###############################################################
 ###############################################################
