@@ -211,7 +211,7 @@ pub fn build_withdrawal_pskt(
         value: relayer_change_amt,
         script_public_key: ScriptPublicKey::from(pay_to_address_script(relayer_addr)),
     };
-    if is_transaction_output_dust(&relayer_change) {
+    if is_dust(&relayer_change) {
         return Err(eyre::eyre!(
             "Insufficient relayer funds to cover tx fee: {} < {}, only leaves dust {}",
             relayer_balance,
@@ -227,7 +227,7 @@ pub fn build_withdrawal_pskt(
         value: escrow_change_amt,
         script_public_key: escrow.p2sh.clone(),
     };
-    if is_transaction_output_dust(&escrow_change) {
+    if is_dust(&escrow_change) {
         return Err(eyre::eyre!(
             "Insufficient escrow funds to cover withdrawals and avoid dust change: {} < {}, only leaves dust {}, should never happen due to seed",
             escrow_balance,
@@ -240,6 +240,10 @@ pub fn build_withdrawal_pskt(
     outputs.extend(vec![relayer_change, escrow_change]);
 
     create_withdrawal_pskt(inputs, outputs, payload)
+}
+
+fn is_dust(tx_out: &TransactionOutput) -> bool {
+    return tx_out.value < DUST_AMOUNT || is_transaction_output_dust(tx_out);
 }
 
 /// CONTRACT:
@@ -311,8 +315,8 @@ pub fn filter_outputs_from_msgs(
 
         let o = TransactionOutput::new(tm.amount().as_u64(), recipient);
 
-        if is_transaction_output_dust(&o) {
-            info!("Kaspa relayer, withdrawal amount is less than dust amount, skipping");
+        if is_dust(&o) {
+            info!("Kaspa relayer, withdrawal amount is less than dust amount, skipping, amount: {}, message id: {:?}", o.value, m.id());
             continue;
         }
 
