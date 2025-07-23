@@ -11,7 +11,6 @@ use secp256k1::Keypair as SecpKeypair;
 
 use crate::error::ValidationError;
 use corelib::payload::{MessageID, MessageIDs};
-use corelib::pskt::InputFilter;
 use corelib::util;
 use corelib::util::{get_recipient_address, get_recipient_script_pubkey, is_valid_sighash_type};
 use corelib::wallet::EasyKaspaWallet;
@@ -345,16 +344,13 @@ pub fn validate_pskt_application_semantics(
 pub fn sign_withdrawal_fxg<F>(
     bundle: &Bundle,
     keypair: &SecpKeypair,
-    input_filter: Option<F>,
-) -> Result<Bundle>
-where
-    F: Fn(&Input) -> bool + Clone,
-{
+    input_filter: Option<impl Fn(&Input) -> bool>,
+) -> Result<Bundle> {
     let mut signed = Vec::new();
     for (pskt) in bundle.iter() {
         let pskt = PSKT::<Signer>::from(pskt.clone());
 
-        let signed_pskt = corelib::pskt::sign_pskt::<F>(pskt, keypair, None, input_filter.clone())?;
+        let signed_pskt = corelib::pskt::sign_pskt(pskt, keypair, None, input_filter.clone())?;
 
         signed.push(signed_pskt);
     }

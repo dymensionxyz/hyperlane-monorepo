@@ -17,17 +17,13 @@ use super::withdraw::WithdrawFXG;
 use eyre::eyre;
 
 use std::str::FromStr;
-pub type InputFilter = fn(&Input) -> bool;
 
 pub fn sign_pskt<F>(
     pskt: PSKT<Signer>,
     key_pair: &secp256k1::Keypair,
     source: Option<KeySource>,
-    input_filter: Option<F>,
-) -> Result<PSKT<Signer>>
-where
-    F: Fn(&Input) -> bool,
-{
+    input_filter: Option<impl Fn(&Input) -> bool>,
+) -> Result<PSKT<Signer>> {
     // reused_values is something copied from the `pskb_signer_for_address` funciton
     let reused_values = SigHashReusedValuesUnsync::new();
 

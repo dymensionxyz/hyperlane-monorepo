@@ -600,7 +600,7 @@ pub async fn sign_pay_fee(pskt: PSKT<Signer>, r: &SigningResources) -> Result<PS
         pskt,
         &r.key_pair,
         Some(r.key_source.clone()),
-        None,
+        None::<fn(&Input) -> bool>,
     )
 }
 
