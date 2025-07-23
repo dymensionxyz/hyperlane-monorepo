@@ -193,7 +193,10 @@ async fn demo() -> Result<()> {
     let safe_b = validator_safe_bundle(&fxg.bundle)?;
 
     let filter = |i: &Input| {
-        true
+        match i.redeem_script.clone() {
+            Some(rs) => rs == e.public(e2e_address_prefix).redeem_script,
+            None => false,
+        }
     };
 
     let val_bundles = e

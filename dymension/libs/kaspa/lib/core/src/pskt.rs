@@ -15,6 +15,7 @@ use super::wallet::EasyKaspaWallet;
 use super::withdraw::WithdrawFXG;
 use eyre::eyre;
 
+use std::str::FromStr;
 pub type InputFilter = fn(&Input) -> bool;
 
 pub fn sign_pskt<F>(
@@ -48,7 +49,7 @@ where
                         signature: Signature::Schnorr(
                             secp256k1::schnorr::Signature::from_slice(&[0; 64]).unwrap(),
                         ),
-                        pub_key: secp256k1::PublicKey::from_slice(&[0; 33]).unwrap(),
+                        pub_key: secp256k1::PublicKey::from_str("02eea60b50f48beafdfd737fecf50be79cb2a415f4dc0210931ad8ffcb933e3370").unwrap(),
                         key_source: None,
                     });
                 }
