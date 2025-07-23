@@ -233,7 +233,7 @@ pub async fn request_validate_new_confirmation(
     host: String,
     confirmation: &ConfirmationFXG,
 ) -> Result<Option<Signature>> {
-    let bz = Bytes::from(confirmation);
+    let bz = Bytes::try_from(confirmation)?;
     let c = reqwest::Client::new();
     let res = c
         .post(format!("{}{}", host, ROUTE_VALIDATE_CONFIRMED_WITHDRAWALS))

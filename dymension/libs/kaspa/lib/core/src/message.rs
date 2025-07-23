@@ -3,7 +3,7 @@ use std::io::Cursor;
 use eyre::Result;
 use hyperlane_core::{Decode, Encode, HyperlaneMessage, RawHyperlaneMessage};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
-use hyperlane_cosmos_rs::dymensionxyz::hyperlane::kaspa::TransactionOutpoint;
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint;
 
 use hyperlane_warp_route::TokenMessage;
 use kaspa_hashes::Hash;
