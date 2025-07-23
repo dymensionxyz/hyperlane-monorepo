@@ -192,11 +192,16 @@ async fn demo() -> Result<()> {
 
     let safe_b = validator_safe_bundle(&fxg.bundle)?;
 
+    let input_selector = |i: &Input| match i.redeem_script.clone() {
+        Some(rs) => rs == e.public(e2e_address_prefix).redeem_script,
+        None => false,
+    };
+
     let val_bundles = e
         .keys
         .iter()
         .take(e.m())
-        .map(|k| validator_sign_withdrawal_fxg(&safe_b, k))
+        .map(|k| validator_sign_withdrawal_fxg(&safe_b, k, Some(input_selector)))
         .collect::<Result<Vec<_>>>()?;
 
     info!("Signed withdrawal PSKT");

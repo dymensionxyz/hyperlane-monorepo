@@ -9,25 +9,49 @@ use super::escrow::EscrowPublic;
 use super::payload::{MessageID, MessageIDs};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use kaspa_wallet_pskt::prelude::*;
-use kaspa_wallet_pskt::prelude::{Signer, PSKT};
+use kaspa_wallet_pskt::prelude::{Input, Signer, PSKT};
+use tracing::info;
 
 use super::wallet::EasyKaspaWallet;
 use super::withdraw::WithdrawFXG;
 use eyre::eyre;
 
+use std::str::FromStr;
+
 pub fn sign_pskt(
     pskt: PSKT<Signer>,
     key_pair: &secp256k1::Keypair,
     source: Option<KeySource>,
+    input_filter: Option<impl Fn(&Input) -> bool>,
 ) -> Result<PSKT<Signer>> {
     // reused_values is something copied from the `pskb_signer_for_address` funciton
     let reused_values = SigHashReusedValuesUnsync::new();
+
+    let ok: Vec<bool> = pskt
+        .inputs
+        .iter()
+        .map(|input| input_filter.as_ref().map_or(true, |filter| filter(input)))
+        .collect();
+
+    info!("ok: {:?}", ok);
     pskt.pass_signature_sync(|tx, sighash| {
         tx.tx
             .inputs
             .iter()
             .enumerate()
             .map(|(idx, _input)| {
+                if !ok[idx] {
+                    return Ok(SignInputOk {
+                        signature: Signature::Schnorr(
+                            secp256k1::schnorr::Signature::from_slice(&[0; 64]).unwrap(),
+                        ),
+                        pub_key: secp256k1::PublicKey::from_str(
+                            "02eea60b50f48beafdfd737fecf50be79cb2a415f4dc0210931ad8ffcb933e3370",
+                        )
+                        .unwrap(),
+                        key_source: None,
+                    });
+                }
                 let hash = calc_schnorr_signature_hash(
                     &tx.as_verifiable(),
                     idx,
