@@ -193,7 +193,7 @@ async fn demo() -> Result<()> {
     let safe_b = validator_safe_bundle(&fxg.bundle)?;
 
     let filter = |i: &Input| {
-        i.outpoint.txid == tx_id
+        true
     };
 
     let val_bundles = e

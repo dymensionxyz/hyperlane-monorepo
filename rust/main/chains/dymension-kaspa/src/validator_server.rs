@@ -224,7 +224,7 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
         info!("Validator: pskts are valid");
     }
 
-    let bundle = sign_withdrawal_fxg(&b, &resources.must_kas_key(), None).map_err(|e| AppError(e))?;
+    let bundle = sign_withdrawal_fxg::<fn(&Input) -> bool>(&b, &resources.must_kas_key(), None).map_err(|e| AppError(e))?;
 
     Ok(Json(bundle))
 }

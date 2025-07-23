@@ -17,12 +17,15 @@ use eyre::eyre;
 
 pub type InputFilter = fn(&Input) -> bool;
 
-pub fn sign_pskt(
+pub fn sign_pskt<F>(
     pskt: PSKT<Signer>,
     key_pair: &secp256k1::Keypair,
     source: Option<KeySource>,
-    input_filter: Option<InputFilter>,
-) -> Result<PSKT<Signer>> {
+    input_filter: Option<F>,
+) -> Result<PSKT<Signer>>
+where
+    F: Fn(&Input) -> bool,
+{
     // reused_values is something copied from the `pskb_signer_for_address` funciton
     let reused_values = SigHashReusedValuesUnsync::new();
 
@@ -30,11 +33,7 @@ pub fn sign_pskt(
         .inputs
         .iter()
         .map(|input| {
-            if let Some(filter) = input_filter {
-                filter(input)
-            } else {
-                true
-            }
+            input_filter.as_ref().map_or(true, |filter| filter(input))
         })
         .collect();
 

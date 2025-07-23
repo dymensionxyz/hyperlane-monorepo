@@ -611,7 +611,7 @@ pub async fn sign_pay_fee(pskt: PSKT<Signer>, w: &Arc<Wallet>, s: &Secret) -> Re
 
     let key_fingerprint = xprv.public_key().fingerprint();
 
-    corelib::pskt::sign_pskt(
+    corelib::pskt::sign_pskt::<fn(&Input) -> bool>(
         pskt,
         &key_pair,
         Some(KeySource {

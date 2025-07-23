@@ -342,12 +342,15 @@ pub fn validate_pskt_application_semantics(
     Ok(next_anchor_idx.ok_or(ValidationError::NextAnchorNotFound)?)
 }
 
-pub fn sign_withdrawal_fxg(bundle: &Bundle, keypair: &SecpKeypair, input_filter: Option<InputFilter>) -> Result<Bundle> {
+pub fn sign_withdrawal_fxg<F>(bundle: &Bundle, keypair: &SecpKeypair, input_filter: Option<F>) -> Result<Bundle>
+where
+    F: Fn(&Input) -> bool + Clone,
+{
     let mut signed = Vec::new();
     for (pskt) in bundle.iter() {
         let pskt = PSKT::<Signer>::from(pskt.clone());
 
-        let signed_pskt = corelib::pskt::sign_pskt(pskt, keypair, None, input_filter)?;
+        let signed_pskt = corelib::pskt::sign_pskt::<F>(pskt, keypair, None, input_filter.clone())?;
 
         signed.push(signed_pskt);
     }
