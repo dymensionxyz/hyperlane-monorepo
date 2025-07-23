@@ -142,6 +142,10 @@ impl EasyKaspaWallet {
     }
 
     pub async fn signing_resources(&self) -> Result<SigningResources> {
+        // The code above combines `Account.pskb_sign` and `pskb_signer_for_address` functions.
+        // It's a hack allowing to sign PSKT with a custom payload.
+        // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/pskb.rs#L154
+        // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/mod.rs#L383
         let w = self.wallet;
         let derivation = w.account()?.as_derivation_capable()?;
         let keydata = w.account()?.prv_key_data(s.clone()).await?;
@@ -167,6 +171,10 @@ impl EasyKaspaWallet {
             key_source: KeySource::new(key_fingerprint, derivation_path),
             key_pair,
         })
+    }
+
+    pub async fn pub_key(&self) -> Result<secp256k1::PublicKey> {
+        Ok(self.signing_resources().await?.key_pair.public_key())
     }
 }
 

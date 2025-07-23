@@ -429,15 +429,14 @@ pub async fn combine_bundles_with_fee(
 }
 
 async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> Result<Bundle> {
-    let wallet = easy_wallet.wallet.clone();
-    let secret = easy_wallet.secret.clone();
+    let resources = easy_wallet.signing_resources().await?;
 
     let mut signed = Vec::new();
     // Iterate over (PSKT; associated HL messages) pairs
     for (pskt, messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
         let pskt = PSKT::<Signer>::from(pskt.clone());
 
-        signed.push(sign_pay_fee(pskt, &wallet, &secret).await?);
+        signed.push(sign_pay_fee(pskt, &resources).await?);
     }
     Ok(Bundle::from(signed))
 }
@@ -487,11 +486,13 @@ fn finalize_txs(
     txs_sigs: Vec<PSKT<Combiner>>,
     messages: Vec<Vec<HyperlaneMessage>>,
     escrow: &EscrowPublic,
+    relayer_pub_key: secp256k1::PublicKey,
+
 ) -> Result<Vec<RpcTransaction>> {
     let transactions_result: Result<Vec<RpcTransaction>, _> = txs_sigs
         .into_iter()
         .zip(messages.into_iter())
-        .map(|(tx, _)| finalize_pskt(tx, escrow))
+        .map(|(tx, _)| finalize_pskt(tx, escrow, relayer_pub_key))
         .collect();
 
     let transactions: Vec<RpcTransaction> = transactions_result?;
@@ -500,7 +501,7 @@ fn finalize_txs(
 }
 
 // used by multisig demo AND real code
-pub fn finalize_pskt(c: PSKT<Combiner>, escrow: &EscrowPublic) -> Result<RpcTransaction> {
+pub fn finalize_pskt(c: PSKT<Combiner>, escrow: &EscrowPublic, relayer_pub_key: secp256k1::PublicKey) -> Result<RpcTransaction> {
     let finalized_pskt = c
         .finalizer()
         .finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
@@ -516,9 +517,7 @@ pub fn finalize_pskt(c: PSKT<Combiner>, escrow: &EscrowPublic) -> Result<RpcTran
                             let sig = input
                                 .partial_sigs
                                 .iter()
-                                .filter(|(pk, _sig)| !escrow.has_pub(pk)
-                                && pk.to_string() != "02eea60b50f48beafdfd737fecf50be79cb2a415f4dc0210931ad8ffcb933e3370"
-                            )
+                                .filter(|(pk, _sig)| pk == &relayer_pub_key)
                                 .next()
                                 .unwrap()
                                 .1
@@ -587,15 +586,11 @@ pub fn finalize_pskt(c: PSKT<Combiner>, escrow: &EscrowPublic) -> Result<RpcTran
     Ok(rpc_tx)
 }
 
-pub async fn sign_pay_fee(
-    pskt: PSKT<Signer>,
-    w: &SigningResources,
-    s: &Secret,
-) -> Result<PSKT<Signer>> {
+pub async fn sign_pay_fee(pskt: PSKT<Signer>, r: &SigningResources) -> Result<PSKT<Signer>> {
     corelib::pskt::sign_pskt::<fn(&Input) -> bool>(
         pskt,
-        &w.key_pair,
-        Some(w.key_source.clone()),
+        &r.key_pair,
+        Some(r.key_source.clone()),
         None,
     )
 }
