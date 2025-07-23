@@ -83,7 +83,8 @@ impl KaspaProvider {
             conf.wallet_secret.clone(),
             conf.wallet_dir.clone(),
         )
-        .await?;
+        .await
+        .map_err(|e| eyre::eyre!("Failed to create easy wallet: {}", e))?;
 
         let kas_key = match &conf.validator_stuff {
             Some(v) => {

@@ -119,11 +119,12 @@ where
             let deposits = match deposits_res {
                 Ok(deposits) => deposits,
                 Err(e) => {
-                    error!("Query new Kaspa deposits: {:?}", e);
+                    error!("Dymension, query new Kaspa deposits: {:?}", e);
                     time::sleep(Duration::from_secs(10)).await; // TODO: should use proper retry library and check if error is transient
                     continue;
                 }
             };
+            // TODO: len include deposits that have been processed, the number is misleading
             info!("Dymension, queried kaspa deposits, n: {:?}", deposits.len());
             time::sleep(FINALITY_APPROX_WAIT_TIME).await;
             self.handle_new_deposits(deposits).await;

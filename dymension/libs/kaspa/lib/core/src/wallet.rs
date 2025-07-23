@@ -30,32 +30,57 @@ pub async fn get_wallet(
         unsafe { unsafe_set_default_storage_folder_kaspa(storage_folder) }?;
     }
 
-    let w = Arc::new(Wallet::try_new(
-        Wallet::local_store()?,
-        Some(Resolver::default()),
-        Some(network_id),
-    )?);
+    let local_store = Wallet::local_store()
+        .map_err(|e| Error::from(format!("Failed to open wallet local store: {}", e)))?;
+
+    let w = Arc::new(
+        Wallet::try_new(local_store, Some(Resolver::default()), Some(network_id))
+            .map_err(|e| Error::from(format!("Failed to create wallet: {}", e)))?,
+    );
 
     // Start background services (UTXO processor, event handling).
-    w.start().await?;
+    w.start()
+        .await
+        .map_err(|e| Error::from(format!("Failed to start wallet: {}", e)))?;
 
-    w.clone().connect(Some(url), &network_id).await?;
+    w.clone()
+        .connect(Some(url), &network_id)
+        .await
+        .map_err(|e| Error::from(format!("Failed to connect wallet: {}", e)))?;
 
     let is_c = w.is_connected();
     info!("connected: {:?}", is_c);
 
-    w.clone().wallet_open(s.clone(), None, true, false).await?;
+    info!("secret: {:?}", s.as_str());
 
-    let accounts = w.clone().accounts_enumerate().await?;
+    w.clone()
+        .wallet_open(s.clone(), None, true, false)
+        .await
+        .map_err(|e| Error::from(format!("Failed to open wallet: {}", e)))?;
+
+    let accounts = w
+        .clone()
+        .accounts_enumerate()
+        .await
+        .map_err(|e| Error::from(format!("Failed to enumerate accounts: {}", e)))?;
+
     let account_descriptor = accounts.get(0).ok_or("Wallet has no accounts.")?;
+
     let account_id = account_descriptor.account_id;
     info!(
         "Account ID: {:?}, recv addr: {:?}, change addr: {:?}",
         account_id, account_descriptor.receive_address, account_descriptor.change_address
     );
 
-    w.clone().accounts_select(Some(account_id)).await?;
-    w.clone().accounts_activate(Some(vec![account_id])).await?;
+    w.clone()
+        .accounts_select(Some(account_id))
+        .await
+        .map_err(|e| Error::from(format!("Failed to select wallet account: {}", e)))?;
+
+    w.clone()
+        .accounts_activate(Some(vec![account_id]))
+        .await
+        .map_err(|e| Error::from(format!("Failed to activate wallet account: {}", e)))?;
 
     Ok(w)
 }
