@@ -156,7 +156,10 @@ impl Mailbox for KaspaMailbox {
             .map(|op| op.try_batch().map(|item| item.data)) // TODO: please work...
             .collect::<ChainResult<Vec<HyperlaneMessage>>>()?;
 
-        let processed_messages = self.provider.process_withdrawal_messages(messages.clone()).await?;
+        let processed_messages = self
+            .provider
+            .process_withdrawal_messages(messages.clone())
+            .await?;
         info!("Kaspa mailbox, processed withdrawals TXs");
 
         // Note: this return value doesn't really correspond well to what we did, since we sent (possibly) multiple TXs to Kaspa
