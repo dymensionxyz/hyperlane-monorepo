@@ -44,6 +44,7 @@ use hyperlane_cosmos_native::RawCosmosAmount;
 use hyperlane_cosmos_native::Signer as HyperlaneSigner;
 use kaspa_consensus_core::tx::TransactionOutpoint;
 use tokio::time;
+use dym_kas_hardcode::tx::FINALITY_APPROX_WAIT_TIME;
 
 /// dococo
 #[derive(Debug, Clone)]
@@ -109,7 +110,7 @@ impl KaspaProvider {
         self.pending_confirmation.consume().await
     }
 
-    pub fn is_there_pending_confirmation(&self) -> bool {
+    pub fn has_pending_confirmation(&self) -> bool {
         self.pending_confirmation.has_pending()
     }
 
