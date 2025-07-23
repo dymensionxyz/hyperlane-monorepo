@@ -69,7 +69,7 @@ send 1 $ESCROW_ADDR
 #### Step 2. Setup HUB
 #### Deploy hyperlane entities 
 
-MONODIR=/Users/keruch/Development/Dymension/hyperlane-monorepo
+MONODIR=/Users/danwt/Documents/dym/d-hyperlane-monorepo
 
 # clean slate
 trash ~/.hyperlane; trash ~/.dymension
@@ -97,7 +97,7 @@ KAS_TOKEN_ID=$(dymd q warp remote-routers $TOKEN_ID -o json | jq -r '.remote_rou
 #### Step 3. SETUP VALIDATOR
 #### It will start listening for relayer requests
 
-AGENT_TMP=/Users/keruch/Documents/Dymension/tmp
+AGENT_TMP=/Users/danwt/Documents/dym/aaa-dym-notes/all_tasks/tasks/202505_feat_kaspa/practical/e2e/tmp
 DB_VALIDATOR=$AGENT_TMP/dbs/hyperlane_db_validator
 DB_RELAYER=$AGENT_TMP/dbs/hyperlane_db_relayer
 export CONFIG_FILES=$MONODIR/dymension/tests/kaspa_hub_test/agent-config.json
@@ -141,7 +141,7 @@ dymd q auth module-account gov -o json | jq -r '.account.value.address' # get th
 # get the kaspa seed outpoint
 
 curl -X 'GET' 'https://api-tn10.kaspa.org/addresses/kaspatest%3Apzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr/utxos' -H 'accept: application/json' # TODO: query escrow address (fix url encoding)
-OUTPOINT="928c58432db741283e213f7f9dbcf3cdc580e072ccbdbf4c73555e17137d9e5f"
+OUTPOINT="5e1cf6784e7af1808674a252eb417d8fa003135190dd4147caf98d8463a7e73a"
 # need to convert outpoint from hex to base64 when passing to hub (note, zero index does not render)
 echo $OUTPOINT | xxd -r -p | base64 # Xhz2eE568YCGdKJS60F9j6ADE1GQ3UFHyvmNhGOn5zo=
 # note, reverse is ` echo $base64 | base64 -D | xxd -p `

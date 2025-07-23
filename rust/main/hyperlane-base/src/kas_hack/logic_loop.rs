@@ -124,7 +124,7 @@ where
                     continue;
                 }
             };
-            // TODO: len include deposits that have been processes, the number is misleading
+            // TODO: len include deposits that have been processed, the number is misleading
             info!("Dymension, queried kaspa deposits, n: {:?}", deposits.len());
             time::sleep(FINALITY_APPROX_WAIT_TIME).await;
             self.handle_new_deposits(deposits).await;
