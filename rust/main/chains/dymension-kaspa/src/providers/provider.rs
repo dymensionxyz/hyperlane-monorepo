@@ -145,9 +145,9 @@ impl KaspaProvider {
 
     /// dococo
     /// Returns next outpoint
-    pub async fn process_withdrawal_messages(&self, msgs: Vec<HyperlaneMessage>) -> Result<()> {
+    pub async fn process_withdrawal_messages(&self, msgs: Vec<HyperlaneMessage>) -> Result<Vec<HyperlaneMessage>> {
         let res = on_new_withdrawals(
-            msgs,
+            msgs.clone(),
             self.easy_wallet.clone(),
             self.cosmos_rpc.clone(),
             self.escrow(),
@@ -158,7 +158,7 @@ impl KaspaProvider {
 
         if res.is_none() {
             info!("On new withdrawals decided not to handle withdrawal messages");
-            return Ok(());
+            return Ok(msgs);
         }
 
         let fxg = res.unwrap();
@@ -182,7 +182,7 @@ impl KaspaProvider {
             .push(ConfirmationFXG::from_msgs_outpoints(fxg.ids(), fxg.anchors));
         info!("Kaspa provider, added to progress indication work queue");
 
-        Ok(())
+        Ok(fxg.messages.iter().flatten().cloned().collect())
     }
 
     async fn submit_txs(&self, txs: Vec<RpcTransaction>) -> Result<Vec<RpcTransactionId>> {
