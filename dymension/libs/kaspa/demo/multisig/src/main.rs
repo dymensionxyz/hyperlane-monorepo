@@ -192,11 +192,15 @@ async fn demo() -> Result<()> {
 
     let safe_b = validator_safe_bundle(&fxg.bundle)?;
 
+    let filter = |i: &Input| {
+        i.outpoint.txid == tx_id
+    };
+
     let val_bundles = e
         .keys
         .iter()
         .take(e.m())
-        .map(|k| validator_sign_withdrawal_fxg(&safe_b, k))
+        .map(|k| validator_sign_withdrawal_fxg(&safe_b, k, Some(filter)))
         .collect::<Result<Vec<_>>>()?;
 
     info!("Signed withdrawal PSKT");

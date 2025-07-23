@@ -618,6 +618,7 @@ pub async fn sign_pay_fee(pskt: PSKT<Signer>, w: &Arc<Wallet>, s: &Secret) -> Re
             key_fingerprint,
             derivation_path: derivation_path.clone(),
         }),
+        None,
     )
 }
 
