@@ -18,7 +18,7 @@ use eyre::eyre;
 
 use std::str::FromStr;
 
-pub fn sign_pskt<F>(
+pub fn sign_pskt(
     pskt: PSKT<Signer>,
     key_pair: &secp256k1::Keypair,
     source: Option<KeySource>,

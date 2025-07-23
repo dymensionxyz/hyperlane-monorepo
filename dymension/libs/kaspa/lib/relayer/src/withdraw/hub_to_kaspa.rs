@@ -596,7 +596,7 @@ pub fn finalize_pskt(
 }
 
 pub async fn sign_pay_fee(pskt: PSKT<Signer>, r: &SigningResources) -> Result<PSKT<Signer>> {
-    corelib::pskt::sign_pskt::<fn(&Input) -> bool>(
+    corelib::pskt::sign_pskt(
         pskt,
         &r.key_pair,
         Some(r.key_source.clone()),
