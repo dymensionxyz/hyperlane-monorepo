@@ -233,12 +233,8 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
         }
     };
 
-    let bundle = sign_withdrawal_fxg(
-        &b,
-        &resources.must_kas_key(),
-        Some(input_selector),
-    )
-    .map_err(|e| AppError(e))?;
+    let bundle = sign_withdrawal_fxg(&b, &resources.must_kas_key(), Some(input_selector))
+        .map_err(|e| AppError(e))?;
 
     Ok(Json(bundle))
 }
