@@ -227,7 +227,7 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
     let input_selector = {
         // only sign escrow inputs
         let expected_script = resources.must_escrow().redeem_script.clone();
-        |i: &Input| match i.redeem_script.clone() {
+        move |i: &Input| match i.redeem_script.clone() {
             Some(rs) => rs == expected_script,
             None => false,
         }
