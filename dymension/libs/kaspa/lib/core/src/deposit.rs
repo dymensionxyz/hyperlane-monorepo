@@ -1,17 +1,15 @@
 use bytes::Bytes;
-
-use prost::Message;
-
 use eyre::Result;
 use hyperlane_core::H256;
 use hyperlane_core::{Encode, HyperlaneMessage, U256};
+use hyperlane_cosmos_rs::dymensionxyz::hyperlane::kaspa::{
+    DepositFxg as ProtoDepositFXG, DepositVersion,
+};
 use kaspa_rpc_core::RpcHash;
-use serde::{Deserialize, Serialize};
+use prost::Message;
 use std::str::FromStr;
 
-use hyperlane_cosmos_rs::dymensionxyz::hyperlane::kaspa::DepositFxg as ProtoDepositFXG;
-
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq)]
 pub struct DepositFXG {
     pub amount: U256,
     pub tx_id: String,
@@ -67,7 +65,7 @@ impl TryFrom<Bytes> for DepositFXG {
 
 impl From<&DepositFXG> for Bytes {
     fn from(deposit: &DepositFXG) -> Self {
-        let proto_deposit = ProtoDepositFXG::from(deposit.clone());
+        let proto_deposit = ProtoDepositFXG::from(deposit);
         Bytes::from(proto_deposit.encode_to_vec())
     }
 }
@@ -75,7 +73,7 @@ impl From<&DepositFXG> for Bytes {
 impl From<&DepositFXG> for ProtoDepositFXG {
     fn from(deposit: &DepositFXG) -> Self {
         ProtoDepositFXG {
-            version: 1,
+            version: DepositVersion::DepositVersion1 as i32,
             amount: deposit.amount.to_vec(), // U256 -> Vec<u8>
             tx_id: deposit.tx_id.clone(),
             utxo_index: deposit.utxo_index as u32, // usize -> u32
@@ -162,7 +160,7 @@ mod tests {
         assert!(
             error
                 .to_string()
-                .contains("Failed to deserialize DepositFXG from bytes"),
+                .contains("Failed to deserialize proto DepositFXG from bytes"),
             "Error message unexpected"
         );
     }

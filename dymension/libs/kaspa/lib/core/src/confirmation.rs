@@ -1,35 +1,35 @@
 use super::payload::MessageID;
-use borsh::{
-    from_slice as borsh_from_slice, to_vec as borsh_to_vec, BorshDeserialize, BorshSerialize,
-};
-use bytes::{Buf, BufMut, Bytes, BytesMut};
+use bytes::Bytes;
+use clap::builder::TypedValueParser;
 use eyre::Error as EyreError;
 use hex::ToHex;
 use hyperlane_core::H256;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::WithdrawalId;
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
+    ProgressIndication, TransactionOutpoint as ProtoTransactionOutpoint, WithdrawalId,
+};
+use hyperlane_cosmos_rs::dymensionxyz::hyperlane::kaspa::{
+    ConfirmationFxg as ProtoConfirmationFXG, ConfirmationVersion::ConfirmationVersion1,
+};
 use hyperlane_cosmos_rs::prost::Message;
 use kaspa_consensus_core::tx::TransactionOutpoint;
 use std::str::FromStr;
 
 #[derive(Debug, Clone)]
-pub struct ConfirmationFXGCache {
+pub struct ConfirmationFXG {
+    pub progress_indication: ProgressIndication,
     /// a sequence of chronological outpoints where the first is the old outpoint on the progres indication
     /// and the last is the new one
     pub outpoints: Vec<TransactionOutpoint>,
 }
 
-#[derive(Debug, Clone)]
-pub struct ConfirmationFXG {
-    pub progress_indication: ProgressIndication,
-    pub cache: ConfirmationFXGCache,
-}
-
 impl ConfirmationFXG {
-    pub fn new(progress_indication: ProgressIndication, cache: ConfirmationFXGCache) -> Self {
+    pub fn new(
+        progress_indication: ProgressIndication,
+        outpoints: Vec<TransactionOutpoint>,
+    ) -> Self {
         Self {
             progress_indication,
-            cache,
+            outpoints,
         }
     }
 
@@ -63,7 +63,7 @@ impl ConfirmationFXG {
             processed_withdrawals: withdrawal_ids,
         };
 
-        Self::new(progress_indication, ConfirmationFXGCache { outpoints })
+        Self::new(progress_indication, outpoints)
     }
 
     pub fn msgs(&self) -> Vec<MessageID> {
@@ -75,54 +75,99 @@ impl ConfirmationFXG {
     }
 }
 
+impl TryFrom<&ConfirmationFXG> for Bytes {
+    type Error = EyreError;
+
+    fn try_from(v: &ConfirmationFXG) -> Result<Self, Self::Error> {
+        let p = ProtoConfirmationFXG::try_from(v)
+            .map_err(|e| eyre::eyre!("ConfirmationFXG serialize: {}", e))?;
+        Ok(Bytes::from(p.encode_to_vec()))
+    }
+}
+
 impl TryFrom<Bytes> for ConfirmationFXG {
     type Error = EyreError;
 
     fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
-        let mut bytes = bytes;
-        if bytes.len() < 4 {
-            return Err(eyre::eyre!("Invalid bytes length"));
+        let p = ProtoConfirmationFXG::decode(bytes)
+            .map_err(|e| eyre::eyre!("ConfirmationFXG deserialize: {}", e))?;
+        Ok(ConfirmationFXG::from(p))
+    }
+}
+
+impl From<&ConfirmationFXG> for ProtoConfirmationFXG {
+    fn from(v: &ConfirmationFXG) -> Self {
+        ProtoConfirmationFXG {
+            version: ConfirmationVersion1 as i32,
+            outpoints: v
+                .outpoints
+                .iter()
+                .map(|o| ProtoTransactionOutpoint {
+                    transaction_id: o.transaction_id.as_bytes().to_vec(),
+                    index: o.index,
+                })
+                .collect(),
+            progress_indication: Some(v.progress_indication.clone()),
         }
-        let len = bytes.get_u32();
-        if bytes.len() < 4 + len as usize {
-            return Err(eyre::eyre!("Invalid bytes length"));
+    }
+}
+
+impl From<ProtoConfirmationFXG> for ConfirmationFXG {
+    fn from(v: ProtoConfirmationFXG) -> Self {
+        ConfirmationFXG {
+            progress_indication: v.progress_indication.unwrap(),
+            outpoints: v
+                .outpoints
+                .iter()
+                .map(|o| TransactionOutpoint {
+                    transaction_id: kaspa_hashes::Hash::from_slice(&o.transaction_id),
+                    index: o.index,
+                })
+                .collect(),
         }
-        let indic_bz = bytes.split_to(len as usize);
-
-        let progress_indication = ProgressIndication::decode(indic_bz.as_ref())?;
-        let cache: ConfirmationFXGCache = ConfirmationFXGCache::try_from(bytes)?;
-        Ok(ConfirmationFXG {
-            progress_indication,
-            cache,
-        })
     }
 }
 
-impl From<&ConfirmationFXG> for Bytes {
-    fn from(x: &ConfirmationFXG) -> Self {
-        let indic = x.progress_indication.encode_to_vec();
-        let cache: Bytes = Bytes::from(&x.cache);
-        let mut bz = BytesMut::with_capacity(4 + indic.len() + cache.len());
-        bz.put_u32(indic.len() as u32);
-        bz.put_slice(&indic);
-        bz.put_slice(&cache);
-        bz.freeze()
-    }
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bytes::Bytes;
+    use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
+        ProgressIndication, TransactionOutpoint as ProtoTransactionOutpoint, WithdrawalId,
+    };
 
-impl TryFrom<Bytes> for ConfirmationFXGCache {
-    type Error = EyreError;
+    #[test]
+    fn test_confirmationfxg_bytes_roundtrip() {
+        let old_outpoint = TransactionOutpoint::new(kaspa_hashes::Hash::default(), 5);
+        let new_outpoint = TransactionOutpoint::new(kaspa_hashes::Hash::default(), 15);
 
-    fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
-        let outpoints = borsh_from_slice(&bytes)?;
-        let cache = ConfirmationFXGCache { outpoints };
-        Ok(cache)
-    }
-}
+        let withdrawal_id = WithdrawalId {
+            message_id: "abc123".to_string(),
+        };
 
-impl From<&ConfirmationFXGCache> for Bytes {
-    fn from(x: &ConfirmationFXGCache) -> Self {
-        let vec = borsh_to_vec(&x.outpoints).unwrap();
-        Bytes::from(vec)
+        let progress_indication = ProgressIndication {
+            old_outpoint: Some(ProtoTransactionOutpoint {
+                transaction_id: old_outpoint.transaction_id.as_bytes().to_vec(),
+                index: old_outpoint.index,
+            }),
+            new_outpoint: Some(ProtoTransactionOutpoint {
+                transaction_id: new_outpoint.transaction_id.as_bytes().to_vec(),
+                index: new_outpoint.index,
+            }),
+            processed_withdrawals: vec![withdrawal_id],
+        };
+
+        let outpoints = vec![old_outpoint, new_outpoint];
+
+        let confirmation = ConfirmationFXG::new(progress_indication.clone(), outpoints.clone());
+
+        let bytes = Bytes::try_from(&confirmation).unwrap();
+        let confirmation2 = ConfirmationFXG::try_from(bytes).unwrap();
+
+        assert_eq!(confirmation.outpoints, confirmation2.outpoints);
+        assert_eq!(
+            confirmation.progress_indication.processed_withdrawals,
+            confirmation2.progress_indication.processed_withdrawals
+        );
     }
 }
