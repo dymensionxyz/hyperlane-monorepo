@@ -153,7 +153,7 @@ impl Mailbox for KaspaMailbox {
         );
 
         loop {
-            if !self.provider.is_there_pending_confirmation() {
+            if !self.provider.has_pending_confirmation() {
                 info!("Kaspa mailbox: No pending confirmation found. Proceeding with batch.");
                 time::sleep(time::Duration::from_secs(5)).await;
                 break; // Exit loop if no pending confirmation
