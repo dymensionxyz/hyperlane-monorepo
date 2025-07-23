@@ -224,8 +224,21 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
         info!("Validator: pskts are valid");
     }
 
-    let bundle = sign_withdrawal_fxg::<fn(&Input) -> bool>(&b, &resources.must_kas_key(), None)
-        .map_err(|e| AppError(e))?;
+    let input_selector = {
+        // only sign escrow inputs
+        let expected_script = resources.must_escrow().redeem_script.clone();
+        |i: &Input| match i.redeem_script.clone() {
+            Some(rs) => rs == expected_script,
+            None => false,
+        }
+    };
+
+    let bundle = sign_withdrawal_fxg::<fn(&Input) -> bool>(
+        &b,
+        &resources.must_kas_key(),
+        Some(input_selector),
+    )
+    .map_err(|e| AppError(e))?;
 
     Ok(Json(bundle))
 }
