@@ -109,6 +109,7 @@ async fn load_wallet(args: &Args, url: Option<&str>) -> Result<EasyKaspaWallet> 
                     wallet_secret: args.wallet_secret.as_ref().unwrap().clone(),
                     rpc_url: full_url.clone(),
                     net: Network::KaspaTest10,
+                    storage_folder: None,
                 })
                 .await;
                 if w.is_ok() {

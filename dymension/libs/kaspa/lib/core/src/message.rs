@@ -3,12 +3,12 @@ use std::io::Cursor;
 use eyre::Result;
 use hyperlane_core::{Decode, Encode, HyperlaneMessage, RawHyperlaneMessage};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
+use hyperlane_cosmos_rs::dymensionxyz::hyperlane::kaspa::TransactionOutpoint;
+
 use hyperlane_warp_route::TokenMessage;
-use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_hashes::Hash;
 use prost::Message;
 pub use secp256k1::Keypair as KaspaSecpKeypair;
-
 pub struct ParsedHL {
     pub hl_message: HyperlaneMessage,
     pub token_message: TokenMessage,
@@ -60,12 +60,12 @@ pub fn add_kaspa_metadata_hl_messsage(
 
     // build TransactionOutpoint from transaction id and utxo index
     let output = TransactionOutpoint {
-        transaction_id: transaction_id,
+        transaction_id: transaction_id.as_bytes().to_vec(),
         index: utxo_index as u32,
     };
 
     // serialze TransactionOutpoint to bytes
-    let output_bytes = bincode::serialize(&output)?;
+    let output_bytes = output.encode_to_vec();
 
     // include TransactionOutpoint to metadata
     let mut metadata: HlMetadata;

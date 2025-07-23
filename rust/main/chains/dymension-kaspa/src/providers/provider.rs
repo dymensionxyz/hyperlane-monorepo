@@ -1,6 +1,7 @@
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
 use dym_kas_relayer::PublicKey;
 
+use crate::util::domain_to_kas_network;
 use eyre::{eyre, Result as EyreResult};
 use kaspa_addresses::Address;
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
@@ -80,6 +81,7 @@ impl KaspaProvider {
             domain.clone(),
             conf.kaspa_rpc_url.clone(),
             conf.wallet_secret.clone(),
+            conf.wallet_dir.clone(),
         )
         .await
         .map_err(|e| eyre::eyre!("Failed to create easy wallet: {}", e))?;
@@ -255,14 +257,13 @@ async fn get_easy_wallet(
     domain: HyperlaneDomain,
     rpc_url: String,
     wallet_secret: String,
+    storage_folder: Option<String>,
 ) -> Result<EasyKaspaWallet> {
     let args = EasyKaspaWalletArgs {
         wallet_secret,
         rpc_url,
-        net: match domain {
-            HyperlaneDomain::Known(KnownHyperlaneDomain::KaspaTest10) => Network::KaspaTest10,
-            _ => todo!("only tn10 supported"),
-        },
+        net: domain_to_kas_network(&domain),
+        storage_folder,
     };
     EasyKaspaWallet::try_new(args).await
 }

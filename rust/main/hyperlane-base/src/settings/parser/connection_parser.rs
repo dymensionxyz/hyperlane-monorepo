@@ -321,6 +321,15 @@ pub fn build_kaspa_connection_conf(
         .parse_string()
         .end()?;
 
+    let wallet_dir = {
+        chain
+            .chain(err)
+            .get_opt_key("walletDir")
+            .parse_string()
+            .end()
+            .map(|s| s.to_string())
+    };
+
     let rpc_url_s = chain
         .chain(err)
         .get_opt_key("kaspaRpcUrl")
@@ -334,16 +343,6 @@ pub fn build_kaspa_connection_conf(
         .end()?;
 
     let rest_url = Url::parse(&rest_url_s).unwrap(); // TODO: avoid unwrap
-
-    // let validator_ids: Vec<H256> = chain
-    //     .chain(err)
-    //     .get_key("validatorHLIDs")
-    //     .parse_string()
-    //     .end()?
-    //     .split(',')
-    //     .map(|s| hex_or_base58_to_h256(s).unwrap()) // TODO: avoid unwrap
-    //     .collect();
-    // let validator_ids: Vec<H256> = vec![];
 
     let validator_hosts: Vec<String> = chain
         .chain(err)
@@ -476,6 +475,7 @@ pub fn build_kaspa_connection_conf(
     Some(ChainConnectionConf::Kaspa(
         dymension_kaspa::ConnectionConf::new(
             wallet_secret.to_owned(),
+            wallet_dir,
             rpc_url_s.to_owned(),
             rest_url,
             validator_hosts,

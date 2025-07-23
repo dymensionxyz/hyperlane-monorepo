@@ -2138,6 +2138,7 @@ dependencies = [
  "derive-new",
  "eyre",
  "futures",
+ "hardcode",
  "hex",
  "http 1.3.1",
  "hyper 0.14.32",
@@ -3751,7 +3752,7 @@ dependencies = [
 [[package]]
 name = "hyperlane-cosmos-dymension-rs"
 version = "0.1.4-dymension-v3.2.1"
-source = "git+https://github.com/dymensionxyz/hyperlane-cosmos-rs?branch=main#fd1c0d3f4ece3fe1a805f0449ec20838a0dc3bf1"
+source = "git+https://github.com/dymensionxyz/hyperlane-cosmos-rs?rev=4ac551e#4ac551ee6664f12b68d2e2a15d50f40ee06d04df"
 dependencies = [
  "cosmrs",
  "prost",

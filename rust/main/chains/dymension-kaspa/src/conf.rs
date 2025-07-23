@@ -15,6 +15,7 @@ pub struct ConnectionConf {
     Should fix
      */
     pub wallet_secret: String,
+    pub wallet_dir: Option<String>, // optionally override default kaspa wallet directory
 
     pub kaspa_rpc_url: String, // direct connection to kaspa DAG node .e.g localhost:17210
     pub kaspa_rest_url: Url, // connection to Kaspa higher level indexer server e.g. https://api.kaspa.org
@@ -76,6 +77,7 @@ impl ConnectionConf {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         wallet_secret: String,
+        wallet_dir: Option<String>,
         kaspa_rpc_url: String,
         kaspa_rest_url: Url,
         validator_hosts: Vec<String>,
@@ -126,6 +128,7 @@ impl ConnectionConf {
 
         Self {
             wallet_secret,
+            wallet_dir,
             kaspa_rpc_url,
             kaspa_rest_url,
             validator_stuff: v,
