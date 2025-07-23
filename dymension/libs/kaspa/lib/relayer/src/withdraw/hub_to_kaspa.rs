@@ -516,7 +516,9 @@ pub fn finalize_pskt(c: PSKT<Combiner>, escrow: &EscrowPublic) -> Result<RpcTran
                             let sig = input
                                 .partial_sigs
                                 .iter()
-                                .filter(|(pk, _sig)| !escrow.has_pub(pk))
+                                .filter(|(pk, _sig)| !escrow.has_pub(pk)
+                                && pk.to_string() != "02eea60b50f48beafdfd737fecf50be79cb2a415f4dc0210931ad8ffcb933e3370"
+                            )
                                 .next()
                                 .unwrap()
                                 .1

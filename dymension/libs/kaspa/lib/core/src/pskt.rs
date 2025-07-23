@@ -10,6 +10,7 @@ use super::payload::{MessageID, MessageIDs};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Input, Signer, PSKT};
+use tracing::info;
 
 use super::wallet::EasyKaspaWallet;
 use super::withdraw::WithdrawFXG;
@@ -37,7 +38,8 @@ where
             input_filter.as_ref().map_or(true, |filter| filter(input))
         })
         .collect();
-
+    
+    info!("ok: {:?}", ok);
     pskt.pass_signature_sync(|tx, sighash| {
         tx.tx
             .inputs
