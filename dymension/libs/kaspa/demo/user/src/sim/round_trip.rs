@@ -27,7 +27,6 @@ pub struct TaskArgs {
     pub token_kas_placeholder: H256,
     pub domain_hub: u32,
     pub token_hub: H256,
-    pub hub_user_addr_hub: H256,
     pub escrow_address: Address,
 }
 
