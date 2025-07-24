@@ -6,6 +6,7 @@ use sim::{SimulateTrafficArgs, TrafficSim};
 mod x;
 
 async fn run(cli: Cli) {
+    tracing_subscriber::fmt::init();
     match cli.command {
         Commands::Recipient(args) => {
             let converted = x::addr::hl_recipient(&args.address);

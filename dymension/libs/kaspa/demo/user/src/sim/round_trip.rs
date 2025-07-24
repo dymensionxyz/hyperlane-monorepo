@@ -76,7 +76,8 @@ impl RoundTrip {
         let w = &self.res.w;
         let s = &w.secret;
         let a = self.res.args.escrow_address.clone();
-        let amt = self.value;
+        // let amt = self.value;
+        let amt = 20000001;
         let payload = make_deposit_payload_easy(
             self.res.args.domain_kas,
             self.res.args.token_kas_placeholder,

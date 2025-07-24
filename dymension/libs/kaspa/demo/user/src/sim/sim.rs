@@ -117,10 +117,9 @@ impl TrafficSim {
             collected_stats
         });
 
+        info!("Starting tasks");
         while start_time.elapsed() < self.params.time_limit {
             let nominal_value = self.params.distr_value().sample(&mut rng) as u64;
-            let sleep_millis = self.params.distr_time().sample(&mut rng) as u64;
-            tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
             let tx_clone = stats_tx.clone();
             let r = self.resources.clone();
             let task_id = total_ops;
@@ -129,6 +128,12 @@ impl TrafficSim {
             });
             total_spend += nominal_value;
             total_ops += 1;
+            let sleep_millis = self.params.distr_time().sample(&mut rng) as u64;
+            if self.params.max_ops > 0 && total_ops >= self.params.max_ops {
+                break;
+            }
+            info!("Sleeping for {} ms", sleep_millis);
+            tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
             info!(
                 "elasped millis {}, interval {}, value {}",
                 start_time.elapsed().as_millis(),
@@ -136,6 +141,7 @@ impl TrafficSim {
                 as_kas(nominal_value)
             );
         }
+        info!("Waiting for tasks to finish");
 
         drop(stats_tx);
         let final_stats = collector_handle.await?;
