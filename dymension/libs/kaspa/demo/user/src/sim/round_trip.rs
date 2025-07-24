@@ -9,6 +9,11 @@ pub struct TaskResources {
     w: EasyKaspaWallet,
 }
 
+/*
+Stages
+
+
+ */
 pub async fn do_round_trip(
     resources: Arc<TaskResources>,
     value: u64,

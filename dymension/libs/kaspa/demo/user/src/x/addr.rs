@@ -13,9 +13,9 @@ pub fn hl_recipient(kaspa_addr: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use corelib::util::get_recipient_address;
     use hyperlane_core::H256;
     use kaspa_addresses::Prefix;
-    use corelib::util::get_recipient_address;
 
     #[test]
     fn test_convert_addr_roundtrip() {

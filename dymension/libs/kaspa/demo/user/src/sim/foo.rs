@@ -1,4 +1,7 @@
+use super::round_trip::do_round_trip;
 use super::round_trip::TaskResources;
+use super::stats::render_stats;
+use super::util::as_kas;
 use corelib::wallet::EasyKaspaWallet;
 use eyre::Result;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
@@ -7,9 +10,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tracing::info;
-use super::stats::render_stats;
-use super::round_trip::do_round_trip;
-use super::util::as_kas;
 
 /*
 Goals

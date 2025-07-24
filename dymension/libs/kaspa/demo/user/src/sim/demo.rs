@@ -1,8 +1,8 @@
 use super::foo::Params;
 use super::util::{as_kas, SOMPI_PER_KAS};
-use std::time::Duration;
 use rand::Rng;
 use rand_distr::Distribution;
+use std::time::Duration;
 
 pub fn do_demo_params() {
     demo_params(Params {

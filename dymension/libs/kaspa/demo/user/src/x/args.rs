@@ -30,7 +30,7 @@ pub enum Commands {
     ValidatorAndEscrow,
     /// Make a user deposit (to escrow)
     Deposit(DepositCli),
-    /// Create a relayer 
+    /// Create a relayer
     Relayer,
     /// Simulate traffic
     #[clap(name = "sim")]

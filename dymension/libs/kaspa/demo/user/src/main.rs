@@ -1,8 +1,8 @@
 use clap::Parser;
 use x::args::{Cli, Commands};
 
-mod x;
 mod sim;
+mod x;
 
 async fn run(cli: Cli) {
     match cli.command {
