@@ -30,8 +30,11 @@ pub enum Commands {
     ValidatorAndEscrow,
     /// Make a user deposit (to escrow)
     Deposit(DepositCli),
-    /// Relayer
+    /// Create a relayer
     Relayer,
+    /// Simulate traffic
+    #[clap(name = "sim")]
+    SimulateTraffic(SimulateTrafficCli),
 }
 
 #[derive(Args, Debug)]
@@ -56,6 +59,12 @@ pub struct RecipientCli {
     /// The address to be converted
     #[arg(required = true, index = 1)]
     pub address: String,
+}
+
+#[derive(Args, Debug)]
+pub struct SimulateTrafficCli {
+    #[arg(required = false, index = 1, default_value = "1")]
+    pub n: u32,
 }
 
 #[derive(Args, Debug, Clone)]
