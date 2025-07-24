@@ -5,7 +5,6 @@ use hyperlane_core::H256;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::network::NetworkId;
 use std::str::FromStr;
-use std::str::FromStr;
 use std::time::Duration;
 
 #[derive(Parser, Debug)]
