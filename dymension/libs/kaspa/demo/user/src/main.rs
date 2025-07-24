@@ -2,6 +2,7 @@ use clap::Parser;
 use x::args::{Cli, Commands};
 
 mod x;
+mod sim;
 
 async fn run(cli: Cli) {
     match cli.command {
@@ -42,6 +43,12 @@ async fn run(cli: Cli) {
             let signer = x::relayer::create_relayer();
             println!("Relayer address: {}", signer.address);
             println!("Relayer private key: {}", signer.private_key);
+        }
+        Commands::SimulateTraffic(args) => {
+            let res = sim::TrafficSim::new(args.n).run().await;
+            if let Err(e) = res {
+                eprintln!("Error: {}", e);
+            }
         }
     }
 }
