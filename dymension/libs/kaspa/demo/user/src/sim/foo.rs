@@ -1,10 +1,10 @@
 use corelib::wallet::EasyKaspaWallet;
 use eyre::Result;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
-use rand::Rng;
 use rand_distr::{Distribution, Exp};
 use std::time::{Duration, Instant};
 use tracing::info;
+use std::sync::Arc;
 
 fn as_kas(sompi: u64) -> String {
     format!("{} KAS", sompi as f64 / SOMPI_PER_KAS as f64)
@@ -50,10 +50,14 @@ impl Params {
     }
 }
 
-pub struct TrafficSim {
-    params: Params,
+struct TaskResources {
     rpc_hub: CosmosGrpcClient,
     w: EasyKaspaWallet,
+}
+
+pub struct TrafficSim {
+    params: Params,
+    resources: Arc<TaskResources>,
 }
 
 impl TrafficSim {
@@ -89,6 +93,10 @@ impl TrafficSim {
     async fn round_trip(&self, value: u64) -> Result<()> {
         Ok(())
     }
+}
+
+async fn do_round_trip(resources: Arc<TaskResources>, value: u64) -> Result<()> {
+    Ok(())
 }
 
 pub fn do_demo_params() {
