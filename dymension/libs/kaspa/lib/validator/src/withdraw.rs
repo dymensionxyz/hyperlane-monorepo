@@ -242,14 +242,7 @@ pub fn validate_pskt_application_semantics(
         return Err(ValidationError::AnchorNotFound { o: must_spend });
     }
 
-    let payload_expect = MessageIDs(
-        expected_messages
-            .iter()
-            .map(|m| MessageID(m.id()))
-            .collect(),
-    )
-    .to_bytes()
-    .map_err(|e| eyre::eyre!("Failed to serialize MessageIDs: {}", e))?;
+    let payload_expect = MessageIDs::from(expected_messages).to_bytes();
 
     let payload_actual = pskt.global.payload.clone().unwrap_or(vec![]);
 
