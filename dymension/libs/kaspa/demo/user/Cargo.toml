@@ -24,3 +24,10 @@ hyperlane-cosmos-native = { path = "../../../../../rust/main/chains/hyperlane-co
 rand = "0.9"
 rand_distr = "0.5"
 tracing = "0.1"
+cosmrs = { version = "0.21.0", default-features = false, features = [
+    "cosmwasm",
+    "rpc",
+    "tokio",
+    "grpc",
+    "getrandom",
+] }

@@ -14,7 +14,7 @@ pub fn make_deposit_payload_easy(
     domain_hub: u32,
     token_hub: H256,
     amt: u64,
-    signer: Signer,
+    signer: &Signer,
 ) -> Vec<u8> {
     make_deposit_payload(
         domain_kas,
