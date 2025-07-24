@@ -81,8 +81,9 @@ impl TrafficSim {
             tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
             let tx_clone = stats_tx.clone();
             let r = self.resources.clone();
+            let task_id = total_ops;
             tokio::spawn(async move {
-                do_round_trip(r, nominal_value, tx_clone).await;
+                do_round_trip(r, nominal_value, tx_clone, task_id).await;
             });
             total_spend += nominal_value;
             total_ops += 1;

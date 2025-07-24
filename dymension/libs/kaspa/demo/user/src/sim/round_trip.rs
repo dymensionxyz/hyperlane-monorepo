@@ -54,7 +54,7 @@ impl RoundTrip {
         let a = self.res.escrow_address.clone();
         let amt = self.value;
         let payload = vec![];
-        let tx_id = deposit_with_payload(&w.wallet, &s, a, amt, payload).await?;
+        let tx_id = deposit_with_payload(&w.wallet, &s, a, amt, payload).await.map_err(|e| e.to_string())?;
         Ok(tx_id)
     }
 
