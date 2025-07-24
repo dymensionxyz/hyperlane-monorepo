@@ -1,8 +1,11 @@
+use crate::message::parse_hyperlane_metadata;
+
 use super::payload::MessageID;
 use bytes::Bytes;
 use eyre::Error as EyreError;
+use hardcode::tx::MINIMUM_WITHDRAWAL_ACCEPTED;
 use hex::ToHex;
-use hyperlane_core::{Encode, H256};
+use hyperlane_core::{Encode, H256, U256};
 use hyperlane_core::{HyperlaneMessage, RawHyperlaneMessage};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
@@ -14,6 +17,7 @@ use hyperlane_cosmos_rs::dymensionxyz::hyperlane::kaspa::{
 use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_wallet_pskt::prelude::Bundle;
 use prost::Message;
+use tracing::error;
 
 /// WithdrawFXG resrents is sequence of PSKT transactions for batch processing and transport as
 /// a single serialized payload. Bundle has mulpible PSKT. Each PSKT is associated with
@@ -204,12 +208,31 @@ pub async fn filter_pending_withdrawals(
 
     // resp.status is a list of the same length as withdrawals. If status == WithdrawalStatus::Unprocessed,
     // then the respective element of withdrawals is Unprocessed.
+    // it filters out all the withdrawals that are not Unprocessed and have an amount below the minimum accepted.
     let pending_withdrawals: Vec<_> = resp
         .status
         .into_iter()
         .enumerate()
         .filter_map(|(idx, status)| match status.try_into() {
-            Ok(WithdrawalStatus::Unprocessed) => Some(withdrawals[idx].clone()),
+            Ok(WithdrawalStatus::Unprocessed) => {
+                let withdrawal: HyperlaneMessage = withdrawals[idx].clone();
+                match parse_hyperlane_metadata(&withdrawal) {
+                    Ok(token_metadata) => {
+                        if token_metadata.amount() >= U256::from(MINIMUM_WITHDRAWAL_ACCEPTED) {
+                            Some(withdrawal)
+                        } else {
+                            error!("withdrawal discarded. amount below minimum accepted. minimum:{} amount:{}", token_metadata.amount(), MINIMUM_WITHDRAWAL_ACCEPTED);
+                            None
+                        }
+                    },
+                    Err(e) => {
+                        // Handle the parsing error. You might log it, or just ignore this withdrawal.
+                        // For now, we'll just ignore it (return None).
+                        error!("Failed to parse Hyperlane metadata for withdrawal at index {}: {:?}", idx, e);
+                        None
+                    }
+                }
+            },
             _ => None, // Ignore other statuses
         })
         .collect();

@@ -1,8 +1,9 @@
 use std::time::Duration;
+use kaspa_consensus_core::constants::SOMPI_PER_KASPA;
 
 pub const DUST_AMOUNT: u64 = 20_000_001;
 pub const RELAYER_FEE: u64 = 20_000; // HARDCODED: empirically saw at least 10500 needed TODO: dynamic
-
+pub const MINIMUM_WITHDRAWAL_ACCEPTED : u64 =  40 * SOMPI_PER_KASPA; // MIN is 40 KAS, which is 4_000_000_000 sompi
 /*
 In Kaspa, every node has a different and eventually converging view of the network.
 Nodes run a local algorithm where they connect gossiped blocks in a DAG. The DAG has a set of blue blocks and a set of red blocks.
