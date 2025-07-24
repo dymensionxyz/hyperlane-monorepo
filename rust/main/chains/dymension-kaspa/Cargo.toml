@@ -32,7 +32,7 @@ tendermint = { workspace = true, features = ["rust-crypto", "secp256k1"] }
 tendermint-rpc = { workspace = true }
 time = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
+tokio = { workspace = true }
 
 tonic = { workspace = true, features = [
     "transport",
