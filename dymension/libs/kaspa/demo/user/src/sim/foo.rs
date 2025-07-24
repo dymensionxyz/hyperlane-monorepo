@@ -7,9 +7,6 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tracing::info;
 
-fn as_kas(sompi: u64) -> String {
-    format!("{} KAS", sompi as f64 / SOMPI_PER_KAS as f64)
-}
 
 /*
 Goals
@@ -23,7 +20,7 @@ Observations
     - Can use a new keypair on the hub for each user
  */
 
-const SOMPI_PER_KAS: u64 = 100_000_000;
+
 
 pub struct Params {
     pub time_limit: Duration, // total target simulation time
@@ -33,20 +30,20 @@ pub struct Params {
 
 impl Params {
     /// Used to draw value of each op, in sompi
-    fn distr_value(&self) -> Exp<f64> {
+    pub fn distr_value(&self) -> Exp<f64> {
         Exp::new(1.0 / self.op_budget()).unwrap()
     }
     /// Used to draw time between ops, in milliseconds
-    fn distr_time(&self) -> Exp<f64> {
+    pub fn distr_time(&self) -> Exp<f64> {
         Exp::new(self.ops_per_second() / 1000.0).unwrap()
     }
-    fn num_ops(&self) -> f64 {
+    pub fn num_ops(&self) -> f64 {
         self.time_limit.as_secs_f64() * self.ops_per_second()
     }
-    fn op_budget(&self) -> f64 {
+    pub fn op_budget(&self) -> f64 {
         self.budget as f64 / self.num_ops()
     }
-    fn ops_per_second(&self) -> f64 {
+    pub fn ops_per_second(&self) -> f64 {
         self.ops_per_minute as f64 / 60.0
     }
 }
@@ -107,48 +104,4 @@ impl TrafficSim {
 
         Ok(())
     }
-}
-
-fn render_stats(stats: Vec<RoundTripStats>, total_spend: u64, total_ops: u64) {}
-
-struct RoundTripStats {}
-
-async fn do_round_trip(
-    resources: Arc<TaskResources>,
-    value: u64,
-    tx: mpsc::Sender<RoundTripStats>,
-) {
-}
-
-pub fn do_demo_params() {
-    demo_params(Params {
-        time_limit: Duration::from_secs(60),
-        budget: 200000 * SOMPI_PER_KAS,
-        ops_per_minute: 90,
-    });
-}
-
-fn demo_params(params: Params) {
-    let mut r = rand::rng();
-    let mut elapsed = 0u128;
-    let mut total_spend = 0;
-    let mut total_ops = 0;
-    while elapsed < params.time_limit.as_millis() {
-        let value = params.distr_value().sample(&mut r) as u64;
-        let time = params.distr_time().sample(&mut r) as u64;
-        elapsed += time as u128;
-        total_spend += value;
-        total_ops += 1;
-        println!(
-            "elaspsed {}, time {}, value {}",
-            elapsed,
-            time,
-            as_kas(value)
-        );
-    }
-    println!(
-        "total_spend: {}, total_ops: {}",
-        as_kas(total_spend),
-        total_ops
-    );
 }
