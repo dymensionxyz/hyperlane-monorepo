@@ -3,6 +3,7 @@ use dym_kas_relayer::PublicKey;
 
 use eyre::{eyre, Result as EyreResult};
 use kaspa_addresses::Address;
+use kaspa_consensus_core::config::params::Params;
 use kaspa_consensus_core::mass;
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
 use kaspa_wallet_core::prelude::DynRpcApi;
@@ -13,7 +14,6 @@ use std::sync::{Arc, Mutex};
 use tonic::async_trait;
 use tracing::warn;
 use url::Url;
-use kaspa_consensus_core::config::params::Params;
 
 use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::withdraw::WithdrawFXG;
@@ -38,6 +38,7 @@ use dym_kas_core::confirmation::ConfirmationFXG;
 use crate::ConnectionConf;
 use crate::ValidatorStuff;
 use dym_kas_core::payload::MessageIDs;
+use dym_kas_hardcode::tx::FINALITY_APPROX_WAIT_TIME;
 use eyre::Result;
 use hyperlane_core::config::OpSubmissionConfig;
 use hyperlane_core::NativeToken;
@@ -45,9 +46,10 @@ use hyperlane_cosmos_native::ConnectionConf as HubConnectionConf;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_native::RawCosmosAmount;
 use hyperlane_cosmos_native::Signer as HyperlaneSigner;
-use kaspa_consensus_core::tx::{MutableTransaction, PopulatedTransaction, Transaction, TransactionOutpoint, UtxoEntry};
+use kaspa_consensus_core::tx::{
+    MutableTransaction, PopulatedTransaction, Transaction, TransactionOutpoint, UtxoEntry,
+};
 use tokio::time;
-use dym_kas_hardcode::tx::FINALITY_APPROX_WAIT_TIME;
 
 /// dococo
 #[derive(Debug, Clone)]

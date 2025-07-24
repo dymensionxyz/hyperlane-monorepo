@@ -208,7 +208,7 @@ where
 
             // consume_pending_confirmation() waits for finality time before sending to hub in case there is a confirmation pending
 
-            if self.provider.has_pending_confirmation(){
+            if self.provider.has_pending_confirmation() {
                 time::sleep(FINALITY_APPROX_WAIT_TIME).await;
             }
             let confirmation = self.provider.consume_pending_confirmation().await;

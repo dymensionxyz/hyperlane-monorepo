@@ -588,7 +588,7 @@ async fn submit_classic_task(
     loop {
         // Prepend failed_ops to the batch for retry
         let mut batch: Vec<QueueOperation> = std::mem::take(&mut failed_ops);
-        if batch.len() < recv_limit  {
+        if batch.len() < recv_limit {
             let mut new_batch = submit_queue.pop_many(recv_limit - batch.len()).await;
             batch.append(&mut new_batch);
         }
@@ -600,21 +600,20 @@ async fn submit_classic_task(
                 */
             let failed_idxs = submit_kaspa_batch(batch.iter().collect()).await;
             failed_ops = batch
-            .into_iter()
-            .enumerate()
-            .filter_map(|(i, op)| {
-                if failed_idxs.contains(&i) {
-                    info!("Kaspa batch, failed to submit op: {}", op.id());
-                    Some(op)
-                } else {
-                    info!("Kaspa batch, successfully submitted op: {}", op.id());
-                    None
-                }
-            })
-            .collect();
-        }  
+                .into_iter()
+                .enumerate()
+                .filter_map(|(i, op)| {
+                    if failed_idxs.contains(&i) {
+                        info!("Kaspa batch, failed to submit op: {}", op.id());
+                        Some(op)
+                    } else {
+                        info!("Kaspa batch, successfully submitted op: {}", op.id());
+                        None
+                    }
+                })
+                .collect();
+        }
         sleep(Duration::from_millis(1000)).await;
-
     }
 }
 
@@ -1056,34 +1055,28 @@ impl SerialSubmitterMetrics {
     }
 }
 
-async fn submit_kaspa_batch(
-    batch: Vec<&Box<dyn PendingOperation>>,
-) -> Vec<usize> {
+async fn submit_kaspa_batch(batch: Vec<&Box<dyn PendingOperation>>) -> Vec<usize> {
     info!("Kaspa batch, submitting batch of size: {}", batch.len());
     // see https://github.com/dymensionxyz/hyperlane-monorepo/blob/8ca01f1ac17f28fb53df63ee2c9c17e59873af69/rust/main/agents/relayer/src/msg/op_batch.rs#L59-L70
     let Some(first_item) = batch.first() else {
-            error!("Kaspa batch, no first item");
-            return Vec::new();
-        };
+        error!("Kaspa batch, no first item");
+        return Vec::new();
+    };
     let Some(mailbox) = first_item.try_get_mailbox() else {
         error!("Kaspa batch, no mailbox");
-            return Vec::new();
+        return Vec::new();
     };
     if !mailbox.supports_batching() {
         panic!("Kaspa must support batching")
     }
     let res = mailbox.process_batch(batch).await;
 
-        match res {
-        Ok(batch_result) => {
-            batch_result.failed_indexes
-        }
+    match res {
+        Ok(batch_result) => batch_result.failed_indexes,
         Err(e) => {
             // shouldn't happen
             error!(error=?e, "Error when submitting kaspa batch");
             return Vec::new();
         }
     }
-
 }
-

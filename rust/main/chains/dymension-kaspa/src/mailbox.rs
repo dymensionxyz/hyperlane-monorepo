@@ -1,11 +1,11 @@
+use super::consts::*;
 use cosmrs::{query, Any};
 use hex::ToHex;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
 use hyperlane_cosmos_rs::prost::{Message, Name};
-use tonic::async_trait;
 use tokio::time;
-use super::consts::*;
+use tonic::async_trait;
 use tracing::{error, info};
 
 use hyperlane_core::{
@@ -152,11 +152,13 @@ impl Mailbox for KaspaMailbox {
             ops.len()
         );
 
-
-       if self.provider.has_pending_confirmation() {
+        if self.provider.has_pending_confirmation() {
             // All indexes are considered failed if there is a pending confirmation. they will be retried later.
             let failed_indexes: Vec<usize> = (0..ops.len()).collect();
-            return Ok(BatchResult {failed_indexes, outcome: None});
+            return Ok(BatchResult {
+                failed_indexes,
+                outcome: None,
+            });
         }
 
         let messages: Vec<HyperlaneMessage> = ops
@@ -184,10 +186,12 @@ impl Mailbox for KaspaMailbox {
                 error!("process_withdrawal_messages failed: {:?}", e);
                 let failed_indexes: Vec<usize> = (0..ops.len()).collect();
                 //failed indexes are returned to be included in later retries.
-                Ok(BatchResult {failed_indexes, outcome: None})
+                Ok(BatchResult {
+                    failed_indexes,
+                    outcome: None,
+                })
             }
-        }   
-
+        }
     }
 
     async fn process_estimate_costs(
