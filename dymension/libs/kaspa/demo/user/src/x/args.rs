@@ -84,26 +84,9 @@ pub struct SimulateTrafficCli {
     pub token_hub: H256,
     #[arg(required = true, index = 8)]
     pub escrow_address: String,
-}
 
-impl SimulateTrafficCli {
-    pub fn to_sim_args(&self) -> SimulateTrafficArgs {
-        let addr = Address::try_from(self.escrow_address.clone()).unwrap();
-        SimulateTrafficArgs {
-            params: Params {
-                time_limit: Duration::from_secs(self.time_limit),
-                budget: self.budget,
-                ops_per_minute: self.ops_per_minute,
-            },
-            task_args: TaskArgs {
-                domain_kas: self.domain_kas,
-                token_kas_placeholder: self.token_kas_placeholder,
-                domain_hub: self.domain_hub,
-                token_hub: self.token_hub,
-                escrow_address: addr,
-            },
-        }
-    }
+    #[command(flatten)]
+    pub wallet: WalletCli,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -120,6 +103,12 @@ pub struct DepositCli {
     #[arg(long, required = false, default_value = "")]
     pub payload: String,
 
+    #[command(flatten)]
+    pub wallet: WalletCli,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct WalletCli {
     /// The wRPC url (like localhost:17210)
     #[arg(long("wrpc-url"), required = true)]
     pub rpc_url: String,
@@ -145,10 +134,10 @@ impl DepositCli {
             escrow_address: self.escrow_address.clone(),
             amount: self.amount.clone(),
             payload: self.payload.clone(),
-            network_id: NetworkId::from_str(&self.network_id).unwrap(),
-            rpc_url: self.rpc_url.clone(),
-            wallet_secret: self.wallet_secret.clone(),
-            wallet_dir: self.wallet_dir.clone(),
+            network_id: NetworkId::from_str(&self.wallet.network_id).unwrap(),
+            rpc_url: self.wallet.rpc_url.clone(),
+            wallet_secret: self.wallet.wallet_secret.clone(),
+            wallet_dir: self.wallet.wallet_dir.clone(),
         }
     }
 }

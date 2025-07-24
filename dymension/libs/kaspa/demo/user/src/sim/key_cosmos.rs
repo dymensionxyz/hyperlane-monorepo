@@ -16,7 +16,6 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
-
 pub struct EasyHubKey {
     k: K256SigningKey,
 }
@@ -31,7 +30,6 @@ impl EasyHubKey {
         Signer::new(priv_k, "dym".to_string(), &AccountAddressType::Ethereum).unwrap()
     }
 }
-
 
 #[cfg(test)]
 mod tests {

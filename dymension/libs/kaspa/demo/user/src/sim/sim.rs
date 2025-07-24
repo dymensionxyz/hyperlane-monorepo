@@ -3,13 +3,19 @@ use super::round_trip::TaskArgs;
 use super::round_trip::TaskResources;
 use super::stats::render_stats;
 use super::util::as_kas;
+use corelib::wallet::get_wallet;
 use corelib::wallet::EasyKaspaWallet;
 use eyre::Result;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
+use kaspa_consensus_core::network::NetworkId;
+use kaspa_wallet_keys::secret::Secret;
 use rand_distr::{Distribution, Exp};
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
+
+use crate::x::args::{SimulateTrafficCli, WalletCli};
 use tracing::info;
 
 pub struct Params {
@@ -41,6 +47,30 @@ impl Params {
 pub struct SimulateTrafficArgs {
     pub params: Params,
     pub task_args: TaskArgs,
+    pub wallet: WalletCli,
+}
+
+impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
+    type Error = eyre::Error;
+
+    fn try_from(cli: SimulateTrafficCli) -> Result<Self, Self::Error> {
+        let addr = kaspa_addresses::Address::try_from(cli.escrow_address.clone())?;
+        Ok(SimulateTrafficArgs {
+            params: Params {
+                time_limit: std::time::Duration::from_secs(cli.time_limit),
+                budget: cli.budget,
+                ops_per_minute: cli.ops_per_minute,
+            },
+            task_args: TaskArgs {
+                domain_kas: cli.domain_kas,
+                token_kas_placeholder: cli.token_kas_placeholder,
+                domain_hub: cli.domain_hub,
+                token_hub: cli.token_hub,
+                escrow_address: addr,
+            },
+            wallet: cli.wallet,
+        })
+    }
 }
 
 pub struct TrafficSim {
@@ -49,7 +79,11 @@ pub struct TrafficSim {
 }
 
 impl TrafficSim {
-    pub fn new(args: SimulateTrafficArgs) -> Self {
+    pub async fn new(args: SimulateTrafficArgs) -> Result<Self> {
+        let s = Secret::from(args.wallet.wallet_secret);
+
+        let network_id = NetworkId::from_str(&args.wallet.network_id).unwrap();
+        let w = get_wallet(&s, network_id, args.wallet.rpc_url, args.wallet.wallet_dir).await?;
         todo!()
     }
 

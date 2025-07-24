@@ -1,4 +1,4 @@
-use super::foo::Params;
+use super::sim::Params;
 use super::util::{as_kas, SOMPI_PER_KAS};
 use rand::Rng;
 use rand_distr::Distribution;

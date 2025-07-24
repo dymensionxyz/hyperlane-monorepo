@@ -1,3 +1,4 @@
+use super::key_cosmos::EasyHubKey;
 use super::stats::RoundTripStats;
 use corelib::user::deposit::deposit_with_payload;
 use corelib::user::payload::make_deposit_payload_easy;
@@ -15,7 +16,6 @@ use rand_core::OsRng;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use super::key_cosmos::EasyHubKey;
 
 pub struct TaskResources {
     // rpc_hub: CosmosGrpcClient,
@@ -62,7 +62,6 @@ struct RoundTrip {
     hub_key: EasyHubKey,
 }
 
-
 impl RoundTrip {
     pub fn new(res: Arc<TaskResources>, value: u64) -> Self {
         let hub_k = EasyHubKey::new();
@@ -107,5 +106,4 @@ impl RoundTrip {
 #[cfg(test)]
 mod tests {
     use super::*;
-
 }
