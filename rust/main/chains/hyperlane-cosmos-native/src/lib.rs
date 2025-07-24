@@ -11,7 +11,7 @@ mod libs;
 pub mod mailbox;
 mod prometheus;
 mod providers;
-mod signers;
+pub mod signers;
 mod trait_builder;
 mod validator_announce;
 

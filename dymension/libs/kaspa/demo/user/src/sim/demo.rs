@@ -1,4 +1,4 @@
-use super::foo::Params;
+use super::sim::Params;
 use super::util::{as_kas, SOMPI_PER_KAS};
 use rand::Rng;
 use rand_distr::Distribution;
@@ -9,6 +9,7 @@ pub fn do_demo_params() {
         time_limit: Duration::from_secs(60),
         budget: 200000 * SOMPI_PER_KAS,
         ops_per_minute: 90,
+        max_ops: 0, // ignored here
     });
 }
 
