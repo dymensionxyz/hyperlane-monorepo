@@ -9,6 +9,7 @@ use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionId;
 use std::str::FromStr;
+use hyperlane_cosmos_native::signers::Signer;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
@@ -54,7 +55,7 @@ struct RoundTrip {
     res: Arc<TaskResources>,
     value: u64,
     stats: RoundTripStats,
-    hub_signer: SigningKey,
+    hub_key: SigningKey,
 }
 
 impl RoundTrip {
@@ -64,9 +65,14 @@ impl RoundTrip {
             res,
             value,
             stats: RoundTripStats::new(),
-            hub_signer,
+            hub_key: hub_signer,
         }
     }
+    fn hub_signer(&self) -> &Signer {
+        let priv_k = self.hub_key.to_bytes();
+        Signer::new(s, "dym", &AccountAddressType::Ethereum)
+    }
+
     async fn deposit(&self) -> Result<TransactionId, String> {
         let w = &self.res.w;
         let s = &w.secret;
@@ -78,7 +84,7 @@ impl RoundTrip {
             self.res.args.domain_hub,
             self.res.args.token_hub,
             amt,
-            &self.hub_signer,
+            &self.hub_key,
         );
         let tx_id = deposit_with_payload(&w.wallet, &s, a, amt, payload)
             .await
