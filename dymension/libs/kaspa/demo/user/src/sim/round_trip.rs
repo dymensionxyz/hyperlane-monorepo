@@ -7,6 +7,7 @@ use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionId;
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use std::str::FromStr;
 
 pub struct TaskResources {
     rpc_hub: CosmosGrpcClient,
@@ -29,11 +30,12 @@ pub async fn do_round_trip(
     tx: mpsc::Sender<RoundTripStats>,
     task_id: u64,
 ) {
-    let mut rt = RoundTrip::new(res, value, tx);
+    let mut rt = RoundTrip::new(res, value);
     rt.deposit().await;
     rt.await_hub_credit().await;
     rt.withdraw().await;
     rt.await_kaspa_credit().await;
+    tx.send(rt.stats).await.unwrap();
 }
 
 struct RoundTrip {
