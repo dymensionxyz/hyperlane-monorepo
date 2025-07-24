@@ -1,8 +1,8 @@
 use corelib::wallet::EasyKaspaWallet;
 use eyre::Result;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
-use probability::distribution::Exponential;
 use rand::Rng;
+use rand_distr::{Distribution, Exp};
 use std::time::{Duration, Instant};
 
 /*
@@ -27,12 +27,12 @@ pub struct Params {
 
 impl Params {
     /// Used to draw value of each op, in sompi
-    fn distr_value(&self) -> Exponential {
-        Exponential::new(1.0 / self.op_budget())
+    fn distr_value(&self) -> Exp<f64> {
+        Exp::new(1.0 / self.op_budget()).unwrap()
     }
     /// Used to draw time between ops, in milliseconds
-    fn distr_time(&self) -> Exponential {
-        Exponential::new(1000.0 / self.ops_per_second())
+    fn distr_time(&self) -> Exp<f64> {
+        Exp::new(1000.0 / self.ops_per_second()).unwrap()
     }
     fn num_ops(&self) -> f64 {
         self.time_limit.as_secs_f64() * self.ops_per_second()
@@ -77,15 +77,17 @@ mod tests {
             budget: 200000 * SOMPI_PER_KAS,
             ops_per_minute: 90,
         };
-        let mut r = rand::thread_rng();
-        let elapsed = 0;
-        let total_spend = 0;
-        let total_ops =0;
-        while elapsed < params.time_limit {
+        let mut r = rand::rng();
+        let mut elapsed = 0u128;
+        let mut total_spend = 0;
+        let mut total_ops = 0;
+        while elapsed < params.time_limit.as_millis() {
             let value = params.distr_value().sample(&mut r) as u64;
             let time = params.distr_time().sample(&mut r) as u64;
+            elapsed += time as u128;
             total_spend += value;
             total_ops += 1;
+            println!("elasped, value, time: {}, {}, {}", elapsed, value, time);
         }
         println!("total_spend: {}, total_ops: {}", total_spend, total_ops);
     }
