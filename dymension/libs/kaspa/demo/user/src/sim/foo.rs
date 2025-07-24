@@ -4,6 +4,11 @@ use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use rand::Rng;
 use rand_distr::{Distribution, Exp};
 use std::time::{Duration, Instant};
+use tracing::info;
+
+fn as_kas(sompi: u64) -> String {
+    format!("{} KAS", sompi as f64 / SOMPI_PER_KAS as f64)
+}
 
 /*
 Goals
@@ -57,39 +62,32 @@ impl TrafficSim {
     }
 
     pub async fn run(&self) -> Result<()> {
-        Ok(())
-    }
-
-    async fn round_trip(&self) -> Result<()> {
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::time::Duration;
-
-    #[test]
-    fn test_params_parameterization() {
-        let params = Params {
-            time_limit: Duration::from_secs(60),
-            budget: 200000 * SOMPI_PER_KAS,
-            ops_per_minute: 90,
-        };
-        let mut r = rand::rng();
-        let mut elapsed = 0u128;
-        let mut total_spend = 0;
+        let mut rng = rand::rng();
+        let start_time = Instant::now();
         let mut total_ops = 0;
-        while elapsed < params.time_limit.as_millis() {
-            let value = params.distr_value().sample(&mut r) as u64;
-            let time = params.distr_time().sample(&mut r) as u64;
-            elapsed += time as u128;
+        let mut total_spend = 0;
+
+        while start_time.elapsed() < self.params.time_limit {
+            let value = self.params.distr_value().sample(&mut rng) as u64;
+            let sleep_millis = self.params.distr_time().sample(&mut rng) as u64;
+            tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
+            tokio::spawn(async move {
+                self.round_trip(value).await;
+            });
             total_spend += value;
             total_ops += 1;
-            println!("elasped, value, time: {}, {}, {}", elapsed, value, time);
+            info!(
+                "elasped millis {}, interval {}, value {}",
+                start_time.elapsed().as_millis(),
+                sleep_millis,
+                as_kas(value)
+            );
         }
-        println!("total_spend: {}, total_ops: {}", total_spend, total_ops);
+        Ok(())
+    }
+
+    async fn round_trip(&self, value: u64) -> Result<()> {
+        Ok(())
     }
 }
 
@@ -99,10 +97,6 @@ pub fn do_demo_params() {
         budget: 200000 * SOMPI_PER_KAS,
         ops_per_minute: 90,
     });
-}
-
-fn as_kas(sompi: u64) -> String {
-    format!("{} KAS", sompi as f64 / SOMPI_PER_KAS as f64)
 }
 
 fn demo_params(params: Params) {

@@ -23,3 +23,6 @@ hyperlane-core = { path = "../../../../../rust/main/hyperlane-core" }
 hyperlane-cosmos-native = { path = "../../../../../rust/main/chains/hyperlane-cosmos-native" }
 rand = "0.9"
 rand_distr = "0.5"
+
+[dev-dependencies]
+tracing = "0.1"
