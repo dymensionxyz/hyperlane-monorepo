@@ -114,12 +114,16 @@ impl KaspaProvider {
     }
 
     /// dococo
-    pub async fn consume_pending_confirmation(&self) -> Option<ConfirmationFXG> {
-        self.pending_confirmation.consume().await
+    pub fn consume_pending_confirmation(&self) -> Option<ConfirmationFXG> {
+        self.pending_confirmation.consume()
     }
 
     pub fn has_pending_confirmation(&self) -> bool {
         self.pending_confirmation.has_pending()
+    }
+
+    pub async fn get_pending_confirmation(&self) -> Option<ConfirmationFXG> {
+        self.pending_confirmation.get_pending()
     }
 
     /// dococo

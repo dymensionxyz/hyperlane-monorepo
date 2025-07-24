@@ -211,7 +211,7 @@ where
             if self.provider.has_pending_confirmation() {
                 time::sleep(FINALITY_APPROX_WAIT_TIME).await;
             }
-            let confirmation = self.provider.consume_pending_confirmation().await;
+            let confirmation = self.provider.get_pending_confirmation().await;
 
             match confirmation {
                 Some(confirmation) => {
@@ -219,6 +219,7 @@ where
                     match res {
                         Ok(_) => {
                             info!("Dymension, confirmed withdrawal on hub: {:?}", confirmation);
+                            self.provider.consume_pending_confirmation();
                         }
                         Err(e) => {
                             error!("Dymension, confirm withdrawal on hub: {:?}", e);
