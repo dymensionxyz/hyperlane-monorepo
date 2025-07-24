@@ -14,26 +14,30 @@ Goals
 Observations
     - Can just use one kaspa whale
     - Can use a new keypair on the hub for each user
-
  */
 
 const SOMPI_PER_KAS: u64 = 100_000_000;
 
 pub struct Params {
-    pub time_limit: Duration,
-    pub budget: u64,
+    pub time_limit: Duration, // total target simulation time
+    pub budget: u64, // in sompi
     pub ops_per_minute: u64, // osmosis does 90 per minute
 }
 
 impl Params {
-    fn expo_lambda(&self) -> Exponential {
+    /// Used to draw value of each op, in sompi
+    fn distr_value(&self) -> Exponential {
         Exponential::new(1.0 / self.op_budget())
     }
-    fn num_ops(&self) -> u64 {
-        self.time_limit.as_secs() * self.ops_per_second()
+    /// Used to draw time between ops, in milliseconds
+    fn distr_time(&self) -> Exponential {
+        Exponential::new(1000.0 / self.ops_per_second())
     }
-    fn op_budget(&self) -> u64 {
-        self.budget / self.num_ops()
+    fn num_ops(&self) -> f64 {
+        self.time_limit.as_secs_f64() * self.ops_per_second()
+    }
+    fn op_budget(&self) -> f64 {
+        self.budget as f64 / self.num_ops()
     }
     fn ops_per_second(&self) -> f64 {
         self.ops_per_minute as f64 / 60.0
