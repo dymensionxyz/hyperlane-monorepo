@@ -1845,6 +1845,7 @@ dependencies = [
  "kaspa-wallet-core",
  "kaspa-wallet-keys",
  "rand 0.9.1",
+ "rand_core 0.6.4",
  "rand_distr",
  "relayer",
  "secp256k1",

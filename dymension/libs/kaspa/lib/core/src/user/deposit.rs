@@ -38,9 +38,9 @@ use api_rs::apis::kaspa_transactions_api::{
     get_transaction_transactions_transaction_id_get,
     GetTransactionTransactionsTransactionIdGetParams,
 };
+use eyre::Result;
 use kaspa_rpc_core::api::rpc::RpcApi;
 use workflow_core::abortable::Abortable;
-use eyre::Result;
 
 pub async fn deposit_with_payload(
     w: &Arc<Wallet>,
