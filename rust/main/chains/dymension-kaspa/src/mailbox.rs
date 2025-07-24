@@ -1,4 +1,4 @@
-use cosmrs::Any;
+use cosmrs::{query, Any};
 use hex::ToHex;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
@@ -6,7 +6,7 @@ use hyperlane_cosmos_rs::prost::{Message, Name};
 use tonic::async_trait;
 use tokio::time;
 use super::consts::*;
-use tracing::info;
+use tracing::{error, info};
 
 use hyperlane_core::{
     utils::bytes_to_hex, BatchItem, BatchResult, ChainCommunicationError, ChainResult,
@@ -152,15 +152,11 @@ impl Mailbox for KaspaMailbox {
             ops.len()
         );
 
-        loop {
-            if !self.provider.has_pending_confirmation() {
-                info!("Kaspa mailbox: No pending confirmation found. Proceeding with batch.");
-                time::sleep(time::Duration::from_secs(5)).await;
-                break; // Exit loop if no pending confirmation
-            }
-            info!("Kaspa mailbox: Pending confirmation found. Waiting before re-checking.");
-            // Use tokio::time::sleep for async waiting
-            time::sleep(time::Duration::from_secs(1)).await;
+
+       if self.provider.has_pending_confirmation() {
+            // All indexes are considered failed if there is a pending confirmation. they will be retried later.
+            let failed_indexes: Vec<usize> = (0..ops.len()).collect();
+            return Ok(BatchResult {failed_indexes, outcome: None});
         }
 
         let messages: Vec<HyperlaneMessage> = ops
@@ -168,22 +164,30 @@ impl Mailbox for KaspaMailbox {
             .map(|op| op.try_batch().map(|item| item.data)) // TODO: please work...
             .collect::<ChainResult<Vec<HyperlaneMessage>>>()?;
 
-        let _ = self.provider.process_withdrawal_messages(messages).await?;
-        info!("Kaspa mailbox, processed withdrawals TXs");
+        match self.provider.process_withdrawal_messages(messages).await {
+            Ok(()) => {
+                info!("Kaspa mailbox, processed withdrawals TXs");
+                // Note: this return value doesn't really correspond well to what we did, since we sent (possibly) multiple TXs to Kaspa
+                // however, since the TXs must go in sequence, we can take the last one, knowing all the prior ones were accepted
+                // failed indexes should say which hyperlane messages were accepted
+                Ok(BatchResult {
+                    outcome: Some(TxOutcome {
+                        transaction_id: H512::zero(),
+                        executed: false,
+                        gas_used: U256::zero(),
+                        gas_price: FixedPointNumber::from(0),
+                    }),
+                    failed_indexes: vec![],
+                })
+            }
+            Err(e) => {
+                error!("process_withdrawal_messages failed: {:?}", e);
+                let failed_indexes: Vec<usize> = (0..ops.len()).collect();
+                //failed indexes are returned to be included in later retries.
+                Ok(BatchResult {failed_indexes, outcome: None})
+            }
+        }   
 
-        // Note: this return value doesn't really correspond well to what we did, since we sent (possibly) multiple TXs to Kaspa
-        // however, since the TXs must go in sequence, we can take the last one, knowing all the prior ones were accepted
-        // failed indexes should say which hyperlane messages were accepted
-
-        Ok(BatchResult {
-            outcome: Some(TxOutcome {
-                transaction_id: H512::zero(),
-                executed: false,
-                gas_used: U256::zero(),
-                gas_price: FixedPointNumber::from(0),
-            }),
-            failed_indexes: vec![],
-        })
     }
 
     async fn process_estimate_costs(

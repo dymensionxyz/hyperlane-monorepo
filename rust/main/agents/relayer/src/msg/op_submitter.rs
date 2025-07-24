@@ -583,45 +583,38 @@ async fn submit_classic_task(
     metrics: SerialSubmitterMetrics,
 ) {
     let recv_limit = max_batch_size as usize;
+    let mut failed_ops: Vec<QueueOperation> = Vec::new();
 
     loop {
-        let mut batch = submit_queue.pop_many(recv_limit).await;
+        // Prepend failed_ops to the batch for retry
+        let mut batch: Vec<QueueOperation> = std::mem::take(&mut failed_ops);
+        if batch.len() < recv_limit  {
+            let mut new_batch = submit_queue.pop_many(recv_limit - batch.len()).await;
+            batch.append(&mut new_batch);
+        }
 
         if is_kas(&domain.clone()) && batch.len() > 0 {
             /*
             We do this here rather than in OperationBatch::submit because here we have better control over error handling. The regular batch flow
             has some oddities like retrying all failed messages individually.
-              */
-            submit_kaspa_batch(
-                &domain,
-                &mut prepare_queue,
-                &mut submit_queue,
-                &mut confirm_queue,
-                max_batch_size,
-                &metrics,
-                batch.iter().collect(),
-            )
-            .await;
+                */
+            let failed_idxs = submit_kaspa_batch(batch.iter().collect()).await;
+            failed_ops = batch
+            .into_iter()
+            .enumerate()
+            .filter_map(|(i, op)| {
+                if failed_idxs.contains(&i) {
+                    info!("Kaspa batch, failed to submit op: {}", op.id());
+                    Some(op)
+                } else {
+                    info!("Kaspa batch, successfully submitted op: {}", op.id());
+                    None
+                }
+            })
+            .collect();
+        }  
+        sleep(Duration::from_millis(1000)).await;
 
-            continue;
-        }
-
-        match batch.len().cmp(&1) {
-            std::cmp::Ordering::Less => {
-                // The queue is empty, so give some time before checking again to prevent burning CPU
-                sleep(Duration::from_millis(100)).await;
-                continue;
-            }
-            std::cmp::Ordering::Equal => {
-                let op = batch.pop().unwrap();
-                submit_single_operation(op, &mut prepare_queue, &mut confirm_queue, &metrics).await;
-            }
-            std::cmp::Ordering::Greater => {
-                OperationBatch::new(batch, domain.clone())
-                    .submit(&mut prepare_queue, &mut confirm_queue, &metrics)
-                    .await;
-            }
-        }
     }
 }
 
@@ -1063,83 +1056,34 @@ impl SerialSubmitterMetrics {
     }
 }
 
-#[instrument(skip_all, fields(%domain))]
 async fn submit_kaspa_batch(
-    domain: &HyperlaneDomain,
-    prepare_queue: &mut OpQueue,
-    submit_queue: &mut OpQueue,
-    confirm_queue: &mut OpQueue,
-    max_batch_size: u32,
-    metrics: &SerialSubmitterMetrics,
     batch: Vec<&Box<dyn PendingOperation>>,
-) {
+) -> Vec<usize> {
     info!("Kaspa batch, submitting batch of size: {}", batch.len());
     // see https://github.com/dymensionxyz/hyperlane-monorepo/blob/8ca01f1ac17f28fb53df63ee2c9c17e59873af69/rust/main/agents/relayer/src/msg/op_batch.rs#L59-L70
     let Some(first_item) = batch.first() else {
-        error!("Kaspa batch, no first item");
-        return;
-    };
+            error!("Kaspa batch, no first item");
+            return Vec::new();
+        };
     let Some(mailbox) = first_item.try_get_mailbox() else {
         error!("Kaspa batch, no mailbox");
-        return;
+            return Vec::new();
     };
     if !mailbox.supports_batching() {
         panic!("Kaspa must support batching")
     }
-    let res = mailbox.process_batch(batch.clone()).await;
-    /*
-    for processed items, we need to mimic
-        https://github.com/dymensionxyz/hyperlane-monorepo/blob/f55a096adf07a6d445a01d3a862e6da2a5720c69/rust/main/agents/relayer/src/msg/op_batch.rs#L132-L141
-    unprocessed items aren't explicitly handled by the existing batch processor, so we can't directly mimic it
-        https://github.com/dymensionxyz/hyperlane-monorepo/blob/f55a096adf07a6d445a01d3a862e6da2a5720c69/rust/main/agents/relayer/src/msg/op_batch.rs#L49
-    our best bet is to mimic the single submission
-        https://github.com/dymensionxyz/hyperlane-monorepo/blob/f55a096adf07a6d445a01d3a862e6da2a5720c69/rust/main/agents/relayer/src/msg/op_submitter.rs#L738-L762
-     */
-    // TODO: handle errors
-    match res {
+    let res = mailbox.process_batch(batch).await;
+
+        match res {
         Ok(batch_result) => {
-            let (sent_ops, excluded_ops): (Vec<_>, Vec<_>) = batch
-                .clone()
-                .into_iter()
-                .enumerate()
-                .partition_map(|(i, op)| {
-                    if !batch_result.failed_indexes.contains(&i) {
-                        info!("Kaspa batch, successfully submitted op: {}", op.id());
-                        Either::Left(op)
-                    } else {
-                        info!("Kaspa batch, failed to submit op: {}", op.id());
-                        Either::Right(op)
-                    }
-                });
-            // TODO: handle batch result
-            if let Some(outcome) = batch_result.outcome {
-                for op in sent_ops {
-                    let cost = U256::from(0); // TODO: fix
-                                              // op.set_operation_outcome(outcome.clone(), cost);
-                                              // op.set_next_attempt_after(CONFIRM_DELAY);
-                                              // TODO: do we actually want to do this... maybe we dont want to use confirm queue?
-                                              // confirm_queue
-                                              //     .push(
-                                              //         op,
-                                              //         Some(PendingOperationStatus::Confirm(
-                                              //             ConfirmReason::SubmittedBySelf,
-                                              //         )),
-                                              //     )
-                                              //     .await;
-                }
-            }
-            /*
-            TODO: here, according to batch submission (https://github.com/dymensionxyz/hyperlane-monorepo/blob/a490602276d561829d0b4e1104b561e07550dba9/rust/main/agents/relayer/src/msg/op_batch.rs#L49)
-            need to handle like this (https://github.com/dymensionxyz/hyperlane-monorepo/blob/a490602276d561829d0b4e1104b561e07550dba9/rust/main/agents/relayer/src/msg/op_submitter.rs#L741-L763), however:
-            1. we never submitted singularly, so  we cant get a pendingOperationResult.
-            2. We will probably never care about reprepare, or notready
-            3. Drop we should probably deal with!
-            4. we should deal/figure out the confirmation branch(??)
-             */
+            batch_result.failed_indexes
         }
         Err(e) => {
             // shouldn't happen
             error!(error=?e, "Error when submitting kaspa batch");
+            return Vec::new();
         }
     }
+
 }
+
