@@ -2,6 +2,7 @@ use super::deposit::DepositArgs;
 use clap::{Args, Parser, Subcommand};
 use kaspa_consensus_core::network::NetworkId;
 use std::str::FromStr;
+use crate::sim::SimulateTrafficArgs;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -65,6 +66,21 @@ pub struct RecipientCli {
 pub struct SimulateTrafficCli {
     #[arg(required = false, index = 1, default_value = "1")]
     pub n: u32,
+}
+
+impl SimulateTrafficCli {
+    pub fn to_sim_args(&self) -> SimulateTrafficArgs {
+        SimulateTrafficArgs {
+            params: Params {
+                time_limit: Duration::from_secs(self.time_limit),
+                budget: self.budget,
+                ops_per_minute: self.ops_per_minute,
+            },
+            task_args: TaskArgs {
+                n: self.n,
+            },
+        }
+    }
 }
 
 #[derive(Args, Debug, Clone)]

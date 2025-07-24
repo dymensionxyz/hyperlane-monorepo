@@ -10,6 +10,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tracing::info;
+use super::round_trip::TaskArgs;
 
 /*
 Goals
@@ -49,13 +50,18 @@ impl Params {
     }
 }
 
+pub struct SimulateTrafficArgs {
+    pub params: Params,
+    pub task_args: TaskArgs,
+}
+
 pub struct TrafficSim {
     params: Params,
     resources: Arc<TaskResources>,
 }
 
 impl TrafficSim {
-    pub fn new() -> Self {
+    pub fn new(args: SimulateTrafficArgs) -> Self {
         todo!()
     }
 

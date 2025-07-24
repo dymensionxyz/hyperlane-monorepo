@@ -17,7 +17,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 
 pub struct TaskResources {
-    rpc_hub: CosmosGrpcClient,
+    // rpc_hub: CosmosGrpcClient,
     w: EasyKaspaWallet,
     args: TaskArgs,
 }
@@ -41,6 +41,7 @@ Stages
  */
 pub async fn do_round_trip(
     res: Arc<TaskResources>,
+
     value: u64,
     tx: mpsc::Sender<RoundTripStats>,
     task_id: u64,
