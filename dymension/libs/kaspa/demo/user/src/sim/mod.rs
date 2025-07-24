@@ -1,8 +1,9 @@
+mod key_cosmos;
 mod demo;
-mod foo;
+mod sim;
 mod round_trip;
 mod stats;
 mod util;
 pub use demo::do_demo_params;
-pub use foo::*;
+pub use sim::*;
 pub use round_trip::TaskArgs;

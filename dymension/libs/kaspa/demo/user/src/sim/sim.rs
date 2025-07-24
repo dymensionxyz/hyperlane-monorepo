@@ -1,4 +1,5 @@
 use super::round_trip::do_round_trip;
+use super::round_trip::TaskArgs;
 use super::round_trip::TaskResources;
 use super::stats::render_stats;
 use super::util::as_kas;
@@ -10,19 +11,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tracing::info;
-use super::round_trip::TaskArgs;
-
-/*
-Goals
-    - Do deposits from n users, to n users on the hub
-    - Withdraw from those users on hub back to kaspa
-    - Vary nominal amounts by some distribution
-    - Measure latency of each direction
-
-Observations
-    - Can just use one kaspa whale
-    - Can use a new keypair on the hub for each user
- */
 
 pub struct Params {
     pub time_limit: Duration, // total target simulation time

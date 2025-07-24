@@ -15,6 +15,7 @@ use rand_core::OsRng;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use super::key_cosmos::EasyHubKey;
 
 pub struct TaskResources {
     // rpc_hub: CosmosGrpcClient,
@@ -61,20 +62,6 @@ struct RoundTrip {
     hub_key: EasyHubKey,
 }
 
-struct EasyHubKey {
-    k: K256SigningKey,
-}
-
-impl EasyHubKey {
-    pub fn new() -> Self {
-        let hub_k = K256SigningKey::random(&mut OsRng);
-        Self { k: hub_k }
-    }
-    pub fn signer(&self) -> Signer {
-        let priv_k = self.k.to_bytes().to_vec();
-        Signer::new(priv_k, "dym".to_string(), &AccountAddressType::Ethereum).unwrap()
-    }
-}
 
 impl RoundTrip {
     pub fn new(res: Arc<TaskResources>, value: u64) -> Self {
@@ -86,11 +73,8 @@ impl RoundTrip {
             hub_key: hub_k,
         }
     }
-    fn hub_signer(&self) -> Signer {
-        self.hub_key.signer()
-    }
 
-    async fn deposit(&self) -> Result<TransactionId, String> {
+    async fn deposit(&self) -> Result<TransactionId> {
         let w = &self.res.w;
         let s = &w.secret;
         let a = self.res.args.escrow_address.clone();
@@ -101,11 +85,9 @@ impl RoundTrip {
             self.res.args.domain_hub,
             self.res.args.token_hub,
             amt,
-            &self.hub_signer(),
+            &self.hub_key.signer(),
         );
-        let tx_id = deposit_with_payload(&w.wallet, &s, a, amt, payload)
-            .await
-            .map_err(|e| e.to_string())?;
+        let tx_id = deposit_with_payload(&w.wallet, &s, a, amt, payload).await?;
         Ok(tx_id)
     }
 
@@ -126,14 +108,4 @@ impl RoundTrip {
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn test_hub_key() {
-        let hub_key = EasyHubKey::new();
-        let signer = hub_key.signer();
-        let addr = signer.address_string;
-        let priv_k = hub_key.k.to_bytes().to_vec();
-        let priv_k_hex = hex::encode(priv_k);
-        println!("priv_k_hex: {}", priv_k_hex);
-        println!("addr: {}", addr);
-    }
 }
