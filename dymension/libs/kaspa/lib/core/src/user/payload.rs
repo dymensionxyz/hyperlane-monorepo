@@ -1,4 +1,6 @@
-use hyperlane_core::{HyperlaneMessage, TokenMessage, H256, U256};
+use hyperlane_core::{Encode, HyperlaneMessage, H256, U256};
+use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
+use hyperlane_warp_route::TokenMessage;
 
 pub fn make_deposit_payload(
     domain_kas: u32,
@@ -19,8 +21,14 @@ pub fn make_deposit_payload(
     let mut buf = vec![];
     token_message.write_to(&mut buf).unwrap();
     m.body = buf;
+
+    let mut buf = vec![];
     m.write_to(&mut buf).unwrap();
     buf
 }
 
-fn make_deposit_payload_meta() -> Vec<u8> {}
+fn make_deposit_payload_meta() -> Vec<u8> {
+    let buf = vec![];
+    // TODO:
+    buf
+}
