@@ -20,5 +20,5 @@ kaspa-wallet-keys = { workspace = true }
 kaspa-consensus-core = { workspace = true }
 kaspa-addresses = { workspace = true }
 hyperlane-core = { path = "../../../../../rust/main/hyperlane-core" }
-
+hyperlane-cosmos-native = { path = "../../../../../rust/main/chains/hyperlane-cosmos-native" }
 

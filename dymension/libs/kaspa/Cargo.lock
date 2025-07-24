@@ -1836,6 +1836,7 @@ dependencies = [
  "eyre",
  "hex",
  "hyperlane-core",
+ "hyperlane-cosmos-native",
  "kaspa-addresses",
  "kaspa-consensus-core",
  "kaspa-core",
