@@ -1838,6 +1838,7 @@ dependencies = [
  "hex",
  "hyperlane-core",
  "hyperlane-cosmos-native",
+ "k256 0.13.4",
  "kaspa-addresses",
  "kaspa-consensus-core",
  "kaspa-core",

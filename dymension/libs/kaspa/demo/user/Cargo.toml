@@ -31,3 +31,4 @@ cosmrs = { version = "0.21.0", default-features = false, features = [
     "grpc",
     "getrandom",
 ] }
+k256 = { version = "0.13.4", features = ["arithmetic", "std", "ecdsa"] }

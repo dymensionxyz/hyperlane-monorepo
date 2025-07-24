@@ -5,13 +5,16 @@ use corelib::wallet::EasyKaspaWallet;
 use cosmrs::crypto::secp256k1::SigningKey;
 use eyre::Result;
 use hyperlane_core::H256;
+use hyperlane_cosmos_native::signers::Signer;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
+use k256::ecdsa::SigningKey as K256SigningKey;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionId;
 use std::str::FromStr;
-use hyperlane_cosmos_native::signers::Signer;
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use hyperlane_core::AccountAddressType;
+use rand_core::OsRng;
 
 pub struct TaskResources {
     rpc_hub: CosmosGrpcClient,
@@ -55,22 +58,22 @@ struct RoundTrip {
     res: Arc<TaskResources>,
     value: u64,
     stats: RoundTripStats,
-    hub_key: SigningKey,
+    hub_key: K256SigningKey,
 }
 
 impl RoundTrip {
     pub fn new(res: Arc<TaskResources>, value: u64) -> Self {
-        let hub_signer = SigningKey::random();
+        let hub_k = K256SigningKey::random(&mut OsRng);
         Self {
             res,
             value,
             stats: RoundTripStats::new(),
-            hub_key: hub_signer,
+            hub_key: hub_k,
         }
     }
-    fn hub_signer(&self) -> &Signer {
-        let priv_k = self.hub_key.to_bytes();
-        Signer::new(s, "dym", &AccountAddressType::Ethereum)
+    fn hub_signer(&self) -> Signer {
+        let priv_k = self.hub_key.to_bytes().to_vec();
+        Signer::new(priv_k, "dym".to_string(), &AccountAddressType::Ethereum).unwrap()
     }
 
     async fn deposit(&self) -> Result<TransactionId, String> {
@@ -84,7 +87,7 @@ impl RoundTrip {
             self.res.args.domain_hub,
             self.res.args.token_hub,
             amt,
-            &self.hub_key,
+            &self.hub_signer(),
         );
         let tx_id = deposit_with_payload(&w.wallet, &s, a, amt, payload)
             .await
