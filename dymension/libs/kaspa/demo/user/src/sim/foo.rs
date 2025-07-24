@@ -2,9 +2,10 @@ use corelib::wallet::EasyKaspaWallet;
 use eyre::Result;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use rand_distr::{Distribution, Exp};
-use std::time::{Duration, Instant};
-use tracing::info;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tokio::sync::mpsc;
+use tracing::info;
 
 fn as_kas(sompi: u64) -> String {
     format!("{} KAS", sompi as f64 / SOMPI_PER_KAS as f64)
@@ -71,32 +72,52 @@ impl TrafficSim {
         let mut total_ops = 0;
         let mut total_spend = 0;
 
+        let (stats_tx, mut stats_rx) = mpsc::channel(100);
+
+        let collector_handle = tokio::spawn(async move {
+            let mut collected_stats = Vec::new();
+            while let Some(stats) = stats_rx.recv().await {
+                collected_stats.push(stats);
+            }
+            collected_stats
+        });
+
         while start_time.elapsed() < self.params.time_limit {
-            let value = self.params.distr_value().sample(&mut rng) as u64;
+            let nominal_value = self.params.distr_value().sample(&mut rng) as u64;
             let sleep_millis = self.params.distr_time().sample(&mut rng) as u64;
             tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
+            let tx_clone = stats_tx.clone();
+            let r = self.resources.clone();
             tokio::spawn(async move {
-                self.round_trip(value).await;
+                do_round_trip(r, nominal_value, tx_clone).await;
             });
-            total_spend += value;
+            total_spend += nominal_value;
             total_ops += 1;
             info!(
                 "elasped millis {}, interval {}, value {}",
                 start_time.elapsed().as_millis(),
                 sleep_millis,
-                as_kas(value)
+                as_kas(nominal_value)
             );
         }
-        Ok(())
-    }
 
-    async fn round_trip(&self, value: u64) -> Result<()> {
+        drop(stats_tx);
+        let final_stats = collector_handle.await?;
+        render_stats(final_stats, total_spend, total_ops);
+
         Ok(())
     }
 }
 
-async fn do_round_trip(resources: Arc<TaskResources>, value: u64) -> Result<()> {
-    Ok(())
+fn render_stats(stats: Vec<RoundTripStats>, total_spend: u64, total_ops: u64) {}
+
+struct RoundTripStats {}
+
+async fn do_round_trip(
+    resources: Arc<TaskResources>,
+    value: u64,
+    tx: mpsc::Sender<RoundTripStats>,
+) {
 }
 
 pub fn do_demo_params() {
