@@ -1843,6 +1843,7 @@ dependencies = [
  "kaspa-wallet-core",
  "kaspa-wallet-keys",
  "probability",
+ "rand 0.8.5",
  "relayer",
  "secp256k1",
  "serde",

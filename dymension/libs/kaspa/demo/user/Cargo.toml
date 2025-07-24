@@ -22,3 +22,4 @@ kaspa-addresses = { workspace = true }
 hyperlane-core = { path = "../../../../../rust/main/hyperlane-core" }
 hyperlane-cosmos-native = { path = "../../../../../rust/main/chains/hyperlane-cosmos-native" }
 probability = "0.20.3"
+rand = "0.8.5"

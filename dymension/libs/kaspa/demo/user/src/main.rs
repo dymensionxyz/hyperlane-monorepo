@@ -45,7 +45,7 @@ async fn run(cli: Cli) {
             println!("Relayer private key: {}", signer.private_key);
         }
         Commands::SimulateTraffic(args) => {
-            let res = sim::TrafficSim::new(args.n).run().await;
+            let res = sim::TrafficSim::new().run().await;
             if let Err(e) = res {
                 eprintln!("Error: {}", e);
             }

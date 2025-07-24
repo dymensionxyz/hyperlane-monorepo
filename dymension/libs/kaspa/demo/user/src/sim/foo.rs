@@ -2,7 +2,8 @@ use corelib::wallet::EasyKaspaWallet;
 use eyre::Result;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use probability::distribution::Exponential;
-use std::time::Duration;
+use rand::Rng;
+use std::time::{Duration, Instant};
 
 /*
 Goals
@@ -20,8 +21,8 @@ const SOMPI_PER_KAS: u64 = 100_000_000;
 
 pub struct Params {
     pub time_limit: Duration, // total target simulation time
-    pub budget: u64, // in sompi
-    pub ops_per_minute: u64, // osmosis does 90 per minute
+    pub budget: u64,          // in sompi
+    pub ops_per_minute: u64,  // osmosis does 90 per minute
 }
 
 impl Params {
@@ -52,7 +53,7 @@ pub struct TrafficSim {
 
 impl TrafficSim {
     pub fn new() -> Self {
-        Self {}
+        todo!()
     }
 
     pub async fn run(&self) -> Result<()> {
@@ -60,7 +61,32 @@ impl TrafficSim {
     }
 
     async fn round_trip(&self) -> Result<()> {
-        let distr_cost = Exp::new(1.0 / self.params.ops_per_minute as f64);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn test_params_parameterization() {
+        let params = Params {
+            time_limit: Duration::from_secs(60),
+            budget: 200000 * SOMPI_PER_KAS,
+            ops_per_minute: 90,
+        };
+        let mut r = rand::thread_rng();
+        let elapsed = 0;
+        let total_spend = 0;
+        let total_ops =0;
+        while elapsed < params.time_limit {
+            let value = params.distr_value().sample(&mut r) as u64;
+            let time = params.distr_time().sample(&mut r) as u64;
+            total_spend += value;
+            total_ops += 1;
+        }
+        println!("total_spend: {}, total_ops: {}", total_spend, total_ops);
     }
 }
