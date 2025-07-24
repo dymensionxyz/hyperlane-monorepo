@@ -30,8 +30,11 @@ pub enum Commands {
     ValidatorAndEscrow,
     /// Make a user deposit (to escrow)
     Deposit(DepositCli),
-    /// Relayer
+    /// Create a relayer
     Relayer,
+    /// Simulate traffic
+    #[clap(name = "sim")]
+    SimulateTraffic(SimulateTrafficCli),
 }
 
 #[derive(Args, Debug)]
@@ -56,6 +59,12 @@ pub struct RecipientCli {
     /// The address to be converted
     #[arg(required = true, index = 1)]
     pub address: String,
+}
+
+#[derive(Args, Debug)]
+pub struct SimulateTrafficCli {
+    #[arg(required = false, index = 1, default_value = "1")]
+    pub n: u32,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -85,6 +94,10 @@ pub struct DepositCli {
     /// Local kaspa wallet keychain secret (not private key)
     #[arg(long("wallet-secret"), required = true)]
     pub wallet_secret: String,
+
+    /// Local kaspa wallet directory
+    #[arg(long("wallet-dir"), required = false)]
+    pub wallet_dir: Option<String>,
 }
 
 impl DepositCli {
@@ -96,6 +109,7 @@ impl DepositCli {
             network_id: NetworkId::from_str(&self.network_id).unwrap(),
             rpc_url: self.rpc_url.clone(),
             wallet_secret: self.wallet_secret.clone(),
+            wallet_dir: self.wallet_dir.clone(),
         }
     }
 }

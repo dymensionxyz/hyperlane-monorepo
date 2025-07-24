@@ -2,13 +2,18 @@ use super::payload::MessageID;
 use bytes::Bytes;
 use eyre::Error as EyreError;
 use hex::ToHex;
-use hyperlane_core::HyperlaneMessage;
-use hyperlane_core::H256;
+use hyperlane_core::{Encode, H256};
+use hyperlane_core::{HyperlaneMessage, RawHyperlaneMessage};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
+    TransactionOutpoint as ProtoTransactionOutpoint, WithdrawalId, WithdrawalStatus,
+};
+use hyperlane_cosmos_rs::dymensionxyz::hyperlane::kaspa::{
+    HyperlaneMessages as ProtoHyperlaneMessages, WithdrawFxg as ProtoWithdrawFXG, WithdrawalVersion,
+};
 use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_wallet_pskt::prelude::Bundle;
-use serde::{Deserialize, Serialize};
+use prost::Message;
 
 /// WithdrawFXG resrents is sequence of PSKT transactions for batch processing and transport as
 /// a single serialized payload. Bundle has mulpible PSKT. Each PSKT is associated with
@@ -39,7 +44,7 @@ use serde::{Deserialize, Serialize};
 ///    |        |
 ///    |        |
 /// Anchor1  Anchor2
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct WithdrawFXG {
     pub bundle: Bundle,
     pub messages: Vec<Vec<HyperlaneMessage>>,
@@ -83,8 +88,9 @@ impl TryFrom<Bytes> for WithdrawFXG {
     type Error = EyreError;
 
     fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
-        let wire = WireWithdrawFXG::try_from(bytes)?;
-        WithdrawFXG::try_from(wire)
+        let p = ProtoWithdrawFXG::decode(bytes)
+            .map_err(|e| eyre::eyre!("WithdrawFXG deserialize: {}", e))?;
+        WithdrawFXG::try_from(p)
     }
 }
 
@@ -92,63 +98,68 @@ impl TryFrom<&WithdrawFXG> for Bytes {
     type Error = EyreError;
 
     fn try_from(x: &WithdrawFXG) -> Result<Self, Self::Error> {
-        let wire: WireWithdrawFXG = WireWithdrawFXG::try_from(x)?;
-        Bytes::try_from(&wire)
+        let p = ProtoWithdrawFXG::try_from(x)
+            .map_err(|e| eyre::eyre!("WithdrawFXG serialize: {}", e))?;
+        Ok(Bytes::from(p.encode_to_vec()))
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct WireWithdrawFXG {
-    pub bundle: String,
-    pub messages: Vec<Vec<HyperlaneMessage>>,
-    pub anchors: Vec<TransactionOutpoint>,
-}
-
-impl TryFrom<WireWithdrawFXG> for WithdrawFXG {
+impl TryFrom<ProtoWithdrawFXG> for WithdrawFXG {
     type Error = EyreError;
 
-    fn try_from(wire: WireWithdrawFXG) -> Result<Self, Self::Error> {
-        let bundle = Bundle::deserialize(&wire.bundle)
-            .map_err(|e| eyre::eyre!("bundle deserialize: {e}"))?;
+    fn try_from(pb: ProtoWithdrawFXG) -> Result<Self, Self::Error> {
         Ok(WithdrawFXG {
-            bundle,
-            messages: wire.messages,
-            anchors: wire.anchors,
+            bundle: Bundle::try_from(pb.pskt_bundle)
+                .map_err(|e| eyre::eyre!("pskt deserialize: {}", e))?,
+            messages: pb
+                .messages
+                .into_iter()
+                .map(|inner_vec| {
+                    inner_vec
+                        .messages
+                        .into_iter()
+                        .map(HyperlaneMessage::from)
+                        .collect()
+                })
+                .collect(),
+            anchors: pb
+                .anchors
+                .into_iter()
+                .map(|a| TransactionOutpoint {
+                    transaction_id: kaspa_hashes::Hash::from_slice(&a.transaction_id),
+                    index: a.index,
+                })
+                .collect(),
         })
     }
 }
 
-impl TryFrom<&WithdrawFXG> for WireWithdrawFXG {
+impl TryFrom<&WithdrawFXG> for ProtoWithdrawFXG {
     type Error = EyreError;
 
-    fn try_from(fxg: &WithdrawFXG) -> Result<Self, Self::Error> {
-        let bundle = fxg
-            .bundle
-            .serialize()
-            .map_err(|e| eyre::eyre!("bundle serialize: {e}"))?;
-        Ok(WireWithdrawFXG {
-            bundle,
-            messages: fxg.messages.clone(),
-            anchors: fxg.anchors.clone(),
+    fn try_from(v: &WithdrawFXG) -> Result<Self, Self::Error> {
+        Ok(ProtoWithdrawFXG {
+            version: WithdrawalVersion::WithdrawalVersion1 as i32,
+            pskt_bundle: v
+                .bundle
+                .serialize()
+                .map_err(|e| eyre::eyre!("bundle serialize: {}", e))?,
+            messages: v
+                .messages
+                .iter()
+                .map(|inner_vec| ProtoHyperlaneMessages {
+                    messages: inner_vec.iter().map(HyperlaneMessage::to_vec).collect(),
+                })
+                .collect(),
+            anchors: v
+                .anchors
+                .iter()
+                .map(|a| ProtoTransactionOutpoint {
+                    transaction_id: a.transaction_id.as_bytes().to_vec(),
+                    index: a.index,
+                })
+                .collect(),
         })
-    }
-}
-
-impl TryFrom<Bytes> for WireWithdrawFXG {
-    type Error = EyreError;
-
-    fn try_from(bytes: Bytes) -> Result<Self, Self::Error> {
-        postcard::from_bytes(&bytes).map_err(|e| eyre::eyre!("wirewithdrawfxg deserialize: {e}"))
-    }
-}
-
-impl TryFrom<&WireWithdrawFXG> for Bytes {
-    type Error = EyreError;
-
-    fn try_from(x: &WireWithdrawFXG) -> Result<Self, Self::Error> {
-        let bytes_vec =
-            postcard::to_allocvec(x).map_err(|e| eyre::eyre!("wirewithdrawfxg serialize: {e}"))?;
-        Ok(Bytes::from(bytes_vec))
     }
 }
 
@@ -216,14 +227,30 @@ pub async fn filter_pending_withdrawals(
 mod tests {
     use super::*;
     use bytes::Bytes;
+    use kaspa_wallet_pskt::prelude::PSKT;
+    use kaspa_wallet_pskt::wasm::pskt::State::Creator;
 
     #[test]
     fn test_withdrawfxg_bytes_roundtrip() {
         let msg = HyperlaneMessage::default();
-        let messages = vec![vec![msg]];
-        let bundle = Bundle::new();
+        let messages = vec![
+            vec![msg.clone()],
+            vec![msg.clone(), msg.clone()],
+            vec![msg.clone(), msg.clone(), msg.clone()],
+        ];
+
+        let pskt = PSKT::<kaspa_wallet_pskt::prelude::Creator>::default()
+            .constructor()
+            .payload(msg.clone().to_vec())
+            .no_more_outputs()
+            .no_more_inputs()
+            .signer();
+
+        let bundle = Bundle::from(pskt);
+
         let old = TransactionOutpoint::new(kaspa_hashes::Hash::default(), 10);
         let new = TransactionOutpoint::new(kaspa_hashes::Hash::default(), 20);
+
         let fxg = WithdrawFXG::new(bundle, messages, vec![old, new]);
 
         let bytes = Bytes::try_from(&fxg).unwrap();

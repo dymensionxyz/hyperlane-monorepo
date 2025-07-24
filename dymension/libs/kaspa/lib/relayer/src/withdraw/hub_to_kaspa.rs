@@ -9,6 +9,7 @@ use corelib::consts::KEY_MESSAGE_IDS;
 use corelib::escrow::EscrowPublic;
 use corelib::payload::MessageID;
 use corelib::payload::MessageIDs;
+use corelib::wallet::SigningResources;
 use hardcode::tx::DUST_AMOUNT;
 use hex::ToHex;
 use hyperlane_core::{Decode, HyperlaneMessage, H256};
@@ -191,7 +192,7 @@ pub fn build_withdrawal_pskt(
     // Multiply the fee by 1.1 to give some space for adding change UTXOs.
     // TODO: use feerate.
     let tx_fee =
-        estimate_fee(inputs.clone(), outputs.clone(), payload.clone(), network_id) * 11 / 10;
+        estimate_fee(inputs.clone(), outputs.clone(), payload.clone(), network_id) * 13 / 10;
 
     if relayer_balance < tx_fee {
         return Err(eyre::eyre!(
@@ -211,7 +212,7 @@ pub fn build_withdrawal_pskt(
         value: relayer_change_amt,
         script_public_key: ScriptPublicKey::from(pay_to_address_script(relayer_addr)),
     };
-    if is_transaction_output_dust(&relayer_change) {
+    if is_dust(&relayer_change) {
         return Err(eyre::eyre!(
             "Insufficient relayer funds to cover tx fee: {} < {}, only leaves dust {}",
             relayer_balance,
@@ -227,7 +228,7 @@ pub fn build_withdrawal_pskt(
         value: escrow_change_amt,
         script_public_key: escrow.p2sh.clone(),
     };
-    if is_transaction_output_dust(&escrow_change) {
+    if is_dust(&escrow_change) {
         return Err(eyre::eyre!(
             "Insufficient escrow funds to cover withdrawals and avoid dust change: {} < {}, only leaves dust {}, should never happen due to seed",
             escrow_balance,
@@ -240,6 +241,10 @@ pub fn build_withdrawal_pskt(
     outputs.extend(vec![relayer_change, escrow_change]);
 
     create_withdrawal_pskt(inputs, outputs, payload)
+}
+
+fn is_dust(tx_out: &TransactionOutput) -> bool {
+    return tx_out.value < DUST_AMOUNT || is_transaction_output_dust(tx_out);
 }
 
 /// CONTRACT:
@@ -311,8 +316,8 @@ pub fn filter_outputs_from_msgs(
 
         let o = TransactionOutput::new(tm.amount().as_u64(), recipient);
 
-        if is_transaction_output_dust(&o) {
-            info!("Kaspa relayer, withdrawal amount is less than dust amount, skipping");
+        if is_dust(&o) {
+            info!("Kaspa relayer, withdrawal amount is less than dust amount, skipping, amount: {}, message id: {:?}", o.value, m.id());
             continue;
         }
 
@@ -420,20 +425,24 @@ pub async fn combine_bundles_with_fee(
         bundles_validators
     };
     let txs_signed = combine_all_bundles(all_bundles)?;
-    let finalized = finalize_txs(txs_signed, fxg.messages.clone(), escrow)?;
+    let finalized = finalize_txs(
+        txs_signed,
+        fxg.messages.clone(),
+        escrow,
+        easy_wallet.pub_key().await?,
+    )?;
     Ok(finalized)
 }
 
 async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> Result<Bundle> {
-    let wallet = easy_wallet.wallet.clone();
-    let secret = easy_wallet.secret.clone();
+    let resources = easy_wallet.signing_resources().await?;
 
     let mut signed = Vec::new();
     // Iterate over (PSKT; associated HL messages) pairs
     for (pskt, messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
         let pskt = PSKT::<Signer>::from(pskt.clone());
 
-        signed.push(sign_pay_fee(pskt, &wallet, &secret).await?);
+        signed.push(sign_pay_fee(pskt, &resources).await?);
     }
     Ok(Bundle::from(signed))
 }
@@ -483,11 +492,12 @@ fn finalize_txs(
     txs_sigs: Vec<PSKT<Combiner>>,
     messages: Vec<Vec<HyperlaneMessage>>,
     escrow: &EscrowPublic,
+    relayer_pub_key: secp256k1::PublicKey,
 ) -> Result<Vec<RpcTransaction>> {
     let transactions_result: Result<Vec<RpcTransaction>, _> = txs_sigs
         .into_iter()
         .zip(messages.into_iter())
-        .map(|(tx, _)| finalize_pskt(tx, escrow))
+        .map(|(tx, _)| finalize_pskt(tx, escrow, &relayer_pub_key))
         .collect();
 
     let transactions: Vec<RpcTransaction> = transactions_result?;
@@ -496,7 +506,11 @@ fn finalize_txs(
 }
 
 // used by multisig demo AND real code
-pub fn finalize_pskt(c: PSKT<Combiner>, escrow: &EscrowPublic) -> Result<RpcTransaction> {
+pub fn finalize_pskt(
+    c: PSKT<Combiner>,
+    escrow: &EscrowPublic,
+    relayer_pub_key: &secp256k1::PublicKey,
+) -> Result<RpcTransaction> {
     let finalized_pskt = c
         .finalizer()
         .finalize_sync(|inner: &Inner| -> Result<Vec<Vec<u8>>, String> {
@@ -512,7 +526,7 @@ pub fn finalize_pskt(c: PSKT<Combiner>, escrow: &EscrowPublic) -> Result<RpcTran
                             let sig = input
                                 .partial_sigs
                                 .iter()
-                                .filter(|(pk, _sig)| !escrow.has_pub(pk))
+                                .filter(|(pk, _sig)| pk == &relayer_pub_key)
                                 .next()
                                 .unwrap()
                                 .1
@@ -581,39 +595,12 @@ pub fn finalize_pskt(c: PSKT<Combiner>, escrow: &EscrowPublic) -> Result<RpcTran
     Ok(rpc_tx)
 }
 
-pub async fn sign_pay_fee(pskt: PSKT<Signer>, w: &Arc<Wallet>, s: &Secret) -> Result<PSKT<Signer>> {
-    // The code above combines `Account.pskb_sign` and `pskb_signer_for_address` functions.
-    // It's a hack allowing to sign PSKT with a custom payload.
-    // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/pskb.rs#L154
-    // https://github.com/kaspanet/rusty-kaspa/blob/eb71df4d284593fccd1342094c37edc8c000da85/wallet/core/src/account/mod.rs#L383
-
-    let derivation = w.account()?.as_derivation_capable()?;
-    let keydata = w.account()?.prv_key_data(s.clone()).await?;
-    let addr = w.account()?.change_address()?;
-    let (receive, change) = derivation.derivation().addresses_indexes(&[&addr])?;
-    let pks = derivation.create_private_keys(&keydata, &None, &receive, &change)?;
-    let (_, priv_key) = pks.first().unwrap();
-
-    let xprv = keydata.get_xprv(None)?;
-    let key_pair = secp256k1::Keypair::from_secret_key(secp256k1::SECP256K1, priv_key);
-
-    // Get derivation path for the account. build_derivate_paths returns receive and change paths, respectively.
-    // Use receive one as it is used in `Account.pskb_sign`.
-    let (derivation_path, _) = build_derivate_paths(
-        &derivation.account_kind(),
-        derivation.account_index(),
-        derivation.cosigner_index(),
-    )?;
-
-    let key_fingerprint = xprv.public_key().fingerprint();
-
+pub async fn sign_pay_fee(pskt: PSKT<Signer>, r: &SigningResources) -> Result<PSKT<Signer>> {
     corelib::pskt::sign_pskt(
         pskt,
-        &key_pair,
-        Some(KeySource {
-            key_fingerprint,
-            derivation_path: derivation_path.clone(),
-        }),
+        &r.key_pair,
+        Some(r.key_source.clone()),
+        None::<fn(&Input) -> bool>,
     )
 }
 

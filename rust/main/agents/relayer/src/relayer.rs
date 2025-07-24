@@ -50,7 +50,7 @@ use lander::{
 };
 
 use super::msg::metadata::dymension_kaspa::PendingMessageMetadataGetter;
-use dymension_kaspa::{is_kas, kas_domains, KaspaMailbox, KaspaProvider};
+use dymension_kaspa::{is_dym, is_kas, kas_domains, KaspaMailbox, KaspaProvider};
 use hyperlane_base::kas_hack::logic_loop::Foo as KaspaBridgeFoo;
 use hyperlane_cosmos_native::CosmosNativeMailbox;
 
@@ -1480,31 +1480,12 @@ impl Relayer {
     async fn get_dymension_kaspa_args(
         mailboxes: &HashMap<HyperlaneDomain, Arc<dyn Mailbox>>,
     ) -> Result<Option<DymensionKaspaArgs>> {
-        let kas_domain = kas_domains()
-            .into_iter()
-            .find(|d| mailboxes.contains_key(d));
-
-        if kas_domain.is_none() {
-            return Ok(None);
-        }
-
-        let kas_mailbox_trait = mailboxes.get(&kas_domain.unwrap()).unwrap();
+        let kas_mailbox_trait = { mailboxes.iter().find(|(d, _)| is_kas(d)).unwrap().1.clone() };
         let kas_provider_trait = kas_mailbox_trait.provider();
         let kas_provider = kas_provider_trait.downcast::<KaspaProvider>().unwrap();
 
-        let dym_domain = HyperlaneDomain::Unknown {
-            domain_id: 1260813472,
-            domain_name: "dymension".to_string(),
-            domain_type: HyperlaneDomainType::Unknown,
-            domain_protocol: HyperlaneDomainProtocol::CosmosNative,
-            domain_technical_stack: HyperlaneDomainTechnicalStack::Other,
-        };
+        let dym_mailbox_trait = { mailboxes.iter().find(|(d, _)| is_dym(d)).unwrap().1.clone() };
 
-        if !mailboxes.contains_key(&dym_domain) {
-            return Ok(None);
-        }
-
-        let dym_mailbox_trait = mailboxes.get(&dym_domain).unwrap().clone(); // TODO: clone is right here? got a warning
         let dym_mailbox = dym_mailbox_trait
             .downcast_arc::<CosmosNativeMailbox>()
             .unwrap();

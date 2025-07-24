@@ -54,7 +54,7 @@ mod relayer_validator_flow_tests {
 
     impl TestContext {
         fn new() -> Result<Self> {
-            let escrow_public = Escrow::new(1).public(Prefix::Simnet);
+            let escrow_public = Escrow::new(1, 1).public(Prefix::Simnet);
             let relayer_address = Address::constructor(RELAYER_ADDR);
             let current_anchor =
                 TransactionOutpoint::new(TransactionId::from_str(MOCK_TX_ID_1)?, 0);

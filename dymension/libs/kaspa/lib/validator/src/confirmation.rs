@@ -64,7 +64,7 @@ pub async fn validate_confirmed_withdrawals(
     };
 
     // Validate the progress indication is correct according to the cache
-    let outpoint_sequence = &fxg.cache.outpoints;
+    let outpoint_sequence = &fxg.outpoints;
     if outpoint_sequence.len() < 2 {
         return Err(ValidationError::SystemError(eyre::eyre!(
             "Validator: Insufficient outpoints in cache for validation"

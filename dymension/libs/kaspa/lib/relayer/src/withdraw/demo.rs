@@ -1,22 +1,16 @@
 use corelib::escrow::*;
-use eyre::{eyre, Result};
+use eyre::Result;
 
 use std::sync::Arc;
 
 use kaspa_addresses::Address;
-use kaspa_consensus_core::hashing::sighash_type::{
-    SigHashType, SIG_HASH_ALL, SIG_HASH_ANY_ONE_CAN_PAY,
-};
 use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint, UtxoEntry};
-use kaspa_core::info;
 use kaspa_wallet_core::error::Error;
 use kaspa_wallet_core::utxo::UtxoIterator;
 
 use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_pskt::prelude::*;
 
-use super::hub_to_kaspa::finalize_pskt;
-use super::hub_to_kaspa::sign_pay_fee;
 use kaspa_txscript::standard::pay_to_address_script;
 
 use corelib::util::input_sighash_type;

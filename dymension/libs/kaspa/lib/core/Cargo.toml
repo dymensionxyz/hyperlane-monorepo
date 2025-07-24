@@ -28,7 +28,6 @@ tokio = { workspace = true }
 url = { workspace = true }
 eyre = { workspace = true }
 bytes = { workspace = true }
-#hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", version = "0.1.4-dymension-v3.2.1" , git = "https://github.com/dymensionxyz/hyperlane-cosmos-rs"}
 hyperlane-cosmos-rs = { workspace = true }
 hyperlane-cosmos-native = { path = "../../../../../rust/main/chains/hyperlane-cosmos-native" }
 hyperlane-warp-route = { path = "../../../../../rust/main/applications/hyperlane-warp-route" }

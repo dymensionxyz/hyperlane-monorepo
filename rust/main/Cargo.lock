@@ -6390,7 +6390,6 @@ dependencies = [
  "hardcode",
  "hyperlane-core",
  "hyperlane-cosmos",
- "hyperlane-cosmos-dymension-rs",
  "hyperlane-cosmos-native",
  "hyperlane-ethereum",
  "hyperlane-fuel",
@@ -6530,7 +6529,7 @@ dependencies = [
 [[package]]
 name = "hyperlane-cosmos-dymension-rs"
 version = "0.1.4-dymension-v3.2.1"
-source = "git+https://github.com/dymensionxyz/hyperlane-cosmos-rs?branch=main#fd1c0d3f4ece3fe1a805f0449ec20838a0dc3bf1"
+source = "git+https://github.com/dymensionxyz/hyperlane-cosmos-rs?rev=202b77f#202b77fcff0478b684ac34db72f916685a1f592e"
 dependencies = [
  "cosmrs",
  "prost 0.13.4",

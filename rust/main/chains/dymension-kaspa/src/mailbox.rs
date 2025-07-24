@@ -166,32 +166,35 @@ impl Mailbox for KaspaMailbox {
             .map(|op| op.try_batch().map(|item| item.data)) // TODO: please work...
             .collect::<ChainResult<Vec<HyperlaneMessage>>>()?;
 
-        match self.provider.process_withdrawal_messages(messages).await {
-            Ok(()) => {
-                info!("Kaspa mailbox, processed withdrawals TXs");
-                // Note: this return value doesn't really correspond well to what we did, since we sent (possibly) multiple TXs to Kaspa
-                // however, since the TXs must go in sequence, we can take the last one, knowing all the prior ones were accepted
-                // failed indexes should say which hyperlane messages were accepted
-                Ok(BatchResult {
-                    outcome: Some(TxOutcome {
-                        transaction_id: H512::zero(),
-                        executed: false,
-                        gas_used: U256::zero(),
-                        gas_price: FixedPointNumber::from(0),
-                    }),
-                    failed_indexes: vec![],
-                })
+        let processed_messages = self
+            .provider
+            .process_withdrawal_messages(messages.clone())
+            .await?;
+        info!("Kaspa mailbox, processed withdrawals TXs");
+
+        // Note: this return value doesn't really correspond well to what we did, since we sent (possibly) multiple TXs to Kaspa
+        // however, since the TXs must go in sequence, we can take the last one, knowing all the prior ones were accepted
+        // failed indexes should say which hyperlane messages were accepted
+
+        let failed = {
+            let mut failed = vec![];
+            for (i, msg) in messages.iter().enumerate() {
+                if !processed_messages.contains(msg) {
+                    failed.push(i);
+                }
             }
-            Err(e) => {
-                error!("process_withdrawal_messages failed: {:?}", e);
-                let failed_indexes: Vec<usize> = (0..ops.len()).collect();
-                //failed indexes are returned to be included in later retries.
-                Ok(BatchResult {
-                    failed_indexes,
-                    outcome: None,
-                })
-            }
-        }
+            failed
+        };
+
+        Ok(BatchResult {
+            outcome: Some(TxOutcome {
+                transaction_id: H512::zero(),
+                executed: false,
+                gas_used: U256::zero(),
+                gas_price: FixedPointNumber::from(0),
+            }),
+            failed_indexes: failed,
+        })
     }
 
     async fn process_estimate_costs(

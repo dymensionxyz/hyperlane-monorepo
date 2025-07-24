@@ -1,6 +1,7 @@
 use clap::Parser;
 use x::args::{Cli, Commands};
 
+mod sim;
 mod x;
 
 async fn run(cli: Cli) {
@@ -42,6 +43,9 @@ async fn run(cli: Cli) {
             let signer = x::relayer::create_relayer();
             println!("Relayer address: {}", signer.address);
             println!("Relayer private key: {}", signer.private_key);
+        }
+        Commands::SimulateTraffic(args) => {
+            sim::do_demo_params();
         }
     }
 }

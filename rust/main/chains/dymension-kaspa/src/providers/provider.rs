@@ -1,6 +1,7 @@
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
 use dym_kas_relayer::PublicKey;
 
+use crate::util::domain_to_kas_network;
 use eyre::{eyre, Result as EyreResult};
 use kaspa_addresses::Address;
 use kaspa_consensus_core::config::params::Params;
@@ -87,8 +88,10 @@ impl KaspaProvider {
             domain.clone(),
             conf.kaspa_rpc_url.clone(),
             conf.wallet_secret.clone(),
+            conf.wallet_dir.clone(),
         )
-        .await?;
+        .await
+        .map_err(|e| eyre::eyre!("Failed to create easy wallet: {}", e))?;
 
         let kas_key = match &conf.validator_stuff {
             Some(v) => {
@@ -154,9 +157,12 @@ impl KaspaProvider {
 
     /// dococo
     /// Returns next outpoint
-    pub async fn process_withdrawal_messages(&self, msgs: Vec<HyperlaneMessage>) -> Result<()> {
+    pub async fn process_withdrawal_messages(
+        &self,
+        msgs: Vec<HyperlaneMessage>,
+    ) -> Result<Vec<HyperlaneMessage>> {
         let res = on_new_withdrawals(
-            msgs,
+            msgs.clone(),
             self.easy_wallet.clone(),
             self.cosmos_rpc.clone(),
             self.escrow(),
@@ -167,7 +173,7 @@ impl KaspaProvider {
 
         if res.is_none() {
             info!("On new withdrawals decided not to handle withdrawal messages");
-            return Ok(());
+            return Ok(msgs);
         }
 
         let fxg = res.unwrap();
@@ -191,7 +197,7 @@ impl KaspaProvider {
             .push(ConfirmationFXG::from_msgs_outpoints(fxg.ids(), fxg.anchors));
         info!("Kaspa provider, added to progress indication work queue");
 
-        Ok(())
+        Ok(fxg.messages.iter().flatten().cloned().collect())
     }
 
     async fn submit_txs(&self, txs: Vec<RpcTransaction>) -> Result<Vec<RpcTransactionId>> {
@@ -265,14 +271,13 @@ async fn get_easy_wallet(
     domain: HyperlaneDomain,
     rpc_url: String,
     wallet_secret: String,
+    storage_folder: Option<String>,
 ) -> Result<EasyKaspaWallet> {
     let args = EasyKaspaWalletArgs {
         wallet_secret,
         rpc_url,
-        net: match domain {
-            HyperlaneDomain::Known(KnownHyperlaneDomain::KaspaTest10) => Network::KaspaTest10,
-            _ => todo!("only tn10 supported"),
-        },
+        net: domain_to_kas_network(&domain),
+        storage_folder,
     };
     EasyKaspaWallet::try_new(args).await
 }

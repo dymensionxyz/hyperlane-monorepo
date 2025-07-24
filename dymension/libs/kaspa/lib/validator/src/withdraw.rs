@@ -14,6 +14,7 @@ use corelib::payload::{MessageID, MessageIDs};
 use corelib::util;
 use corelib::util::{get_recipient_address, get_recipient_script_pubkey, is_valid_sighash_type};
 use corelib::wallet::EasyKaspaWallet;
+
 use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use eyre::{Report, Result};
 use hardcode::hl::ALLOWED_HL_MESSAGE_VERSION;
@@ -340,12 +341,16 @@ pub fn validate_pskt_application_semantics(
     Ok(next_anchor_idx.ok_or(ValidationError::NextAnchorNotFound)?)
 }
 
-pub fn sign_withdrawal_fxg(bundle: &Bundle, keypair: &SecpKeypair) -> Result<Bundle> {
+pub fn sign_withdrawal_fxg(
+    bundle: &Bundle,
+    keypair: &SecpKeypair,
+    input_filter: Option<impl Fn(&Input) -> bool>,
+) -> Result<Bundle> {
     let mut signed = Vec::new();
     for (pskt) in bundle.iter() {
         let pskt = PSKT::<Signer>::from(pskt.clone());
 
-        let signed_pskt = corelib::pskt::sign_pskt(pskt, keypair, None)?;
+        let signed_pskt = corelib::pskt::sign_pskt(pskt, keypair, None, input_filter.as_ref())?;
 
         signed.push(signed_pskt);
     }
