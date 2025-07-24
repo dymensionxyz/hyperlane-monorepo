@@ -2,6 +2,7 @@ use clap::Parser;
 use x::args::{Cli, Commands};
 
 mod sim;
+use sim::{SimulateTrafficArgs, TrafficSim};
 mod x;
 
 async fn run(cli: Cli) {
@@ -45,7 +46,9 @@ async fn run(cli: Cli) {
             println!("Relayer private key: {}", signer.private_key);
         }
         Commands::SimulateTraffic(args) => {
-            sim::do_demo_params();
+            let sim = SimulateTrafficArgs::try_from(args).unwrap();
+            let sim = TrafficSim::new(sim).await.unwrap();
+            sim.run().await.unwrap();
         }
     }
 }

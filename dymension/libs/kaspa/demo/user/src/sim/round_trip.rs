@@ -19,8 +19,8 @@ use tokio::sync::mpsc;
 
 pub struct TaskResources {
     // rpc_hub: CosmosGrpcClient,
-    w: EasyKaspaWallet,
-    args: TaskArgs,
+    pub w: EasyKaspaWallet,
+    pub args: TaskArgs,
 }
 
 pub struct TaskArgs {
@@ -42,7 +42,6 @@ Stages
  */
 pub async fn do_round_trip(
     res: Arc<TaskResources>,
-
     value: u64,
     tx: mpsc::Sender<RoundTripStats>,
     task_id: u64,
@@ -73,7 +72,7 @@ impl RoundTrip {
         }
     }
 
-    async fn deposit(&self) -> Result<TransactionId> {
+    async fn deposit(&mut self) -> Result<TransactionId> {
         let w = &self.res.w;
         let s = &w.secret;
         let a = self.res.args.escrow_address.clone();
@@ -87,6 +86,7 @@ impl RoundTrip {
             &self.hub_key.signer(),
         );
         let tx_id = deposit_with_payload(&w.wallet, &s, a, amt, payload).await?;
+        self.stats.kaspa_deposit_tx_id = tx_id;
         Ok(tx_id)
     }
 

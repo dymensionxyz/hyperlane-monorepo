@@ -67,26 +67,29 @@ pub struct RecipientCli {
 
 #[derive(Args, Debug)]
 pub struct SimulateTrafficCli {
-    #[arg(required = true, index = 1)]
+    #[arg(long, required = true)]
     pub time_limit: u64,
-    #[arg(required = true, index = 2)]
+    #[arg(long, required = true)]
     pub budget: u64,
-    #[arg(required = true, index = 3)]
+    #[arg(long, required = true)]
     pub ops_per_minute: u64,
 
-    #[arg(required = true, index = 4)]
+    #[arg(long, required = true)]
     pub domain_kas: u32,
-    #[arg(required = true, index = 5)]
+    #[arg(long, required = true)]
     pub token_kas_placeholder: H256,
-    #[arg(required = true, index = 6)]
+    #[arg(long, required = true)]
     pub domain_hub: u32,
-    #[arg(required = true, index = 7)]
+    #[arg(long, required = true)]
     pub token_hub: H256,
-    #[arg(required = true, index = 8)]
+    #[arg(long, required = true)]
     pub escrow_address: String,
 
     #[command(flatten)]
     pub wallet: WalletCli,
+
+    #[arg(long, required = false, default_value = "0")]
+    pub max_ops: u64,
 }
 
 #[derive(Args, Debug, Clone)]

@@ -16,17 +16,20 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
 use crate::x::args::{SimulateTrafficCli, WalletCli};
+use corelib::wallet::{EasyKaspaWalletArgs, Network};
 use tracing::info;
 
 pub struct Params {
     pub time_limit: Duration, // total target simulation time
     pub budget: u64,          // in sompi
     pub ops_per_minute: u64,  // osmosis does 90 per minute
+    pub max_ops: u64,         // max number of ops to run, disregarding distributions
 }
 
 impl Params {
     /// Used to draw value of each op, in sompi
     pub fn distr_value(&self) -> Exp<f64> {
+        // TODO: need to use some clamping/minimum
         Exp::new(1.0 / self.op_budget()).unwrap()
     }
     /// Used to draw time between ops, in milliseconds
@@ -60,6 +63,7 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
                 time_limit: std::time::Duration::from_secs(cli.time_limit),
                 budget: cli.budget,
                 ops_per_minute: cli.ops_per_minute,
+                max_ops: cli.max_ops,
             },
             task_args: TaskArgs {
                 domain_kas: cli.domain_kas,
@@ -80,11 +84,21 @@ pub struct TrafficSim {
 
 impl TrafficSim {
     pub async fn new(args: SimulateTrafficArgs) -> Result<Self> {
-        let s = Secret::from(args.wallet.wallet_secret);
-
-        let network_id = NetworkId::from_str(&args.wallet.network_id).unwrap();
-        let w = get_wallet(&s, network_id, args.wallet.rpc_url, args.wallet.wallet_dir).await?;
-        todo!()
+        let w = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
+            wallet_secret: args.wallet.wallet_secret,
+            rpc_url: "localhost:17210".to_string(),
+            net: Network::KaspaTest10,
+            storage_folder: None,
+        })
+        .await?;
+        let resources = Arc::new(TaskResources {
+            w: w.clone(),
+            args: args.task_args,
+        });
+        Ok(TrafficSim {
+            params: args.params,
+            resources,
+        })
     }
 
     pub async fn run(&self) -> Result<()> {
