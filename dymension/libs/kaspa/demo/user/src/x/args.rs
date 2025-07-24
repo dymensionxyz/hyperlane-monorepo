@@ -1,8 +1,12 @@
 use super::deposit::DepositArgs;
+use crate::sim::{Params, SimulateTrafficArgs, TaskArgs};
 use clap::{Args, Parser, Subcommand};
+use hyperlane_core::H256;
+use kaspa_addresses::Address;
 use kaspa_consensus_core::network::NetworkId;
 use std::str::FromStr;
-use crate::sim::SimulateTrafficArgs;
+use std::str::FromStr;
+use std::time::Duration;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -64,12 +68,28 @@ pub struct RecipientCli {
 
 #[derive(Args, Debug)]
 pub struct SimulateTrafficCli {
-    #[arg(required = false, index = 1, default_value = "1")]
-    pub n: u32,
+    #[arg(required = true, index = 1)]
+    pub time_limit: u64,
+    #[arg(required = true, index = 2)]
+    pub budget: u64,
+    #[arg(required = true, index = 3)]
+    pub ops_per_minute: u64,
+
+    #[arg(required = true, index = 4)]
+    pub domain_kas: u32,
+    #[arg(required = true, index = 5)]
+    pub token_kas_placeholder: H256,
+    #[arg(required = true, index = 6)]
+    pub domain_hub: u32,
+    #[arg(required = true, index = 7)]
+    pub token_hub: H256,
+    #[arg(required = true, index = 8)]
+    pub escrow_address: String,
 }
 
 impl SimulateTrafficCli {
     pub fn to_sim_args(&self) -> SimulateTrafficArgs {
+        let addr = Address::try_from(self.escrow_address.clone()).unwrap();
         SimulateTrafficArgs {
             params: Params {
                 time_limit: Duration::from_secs(self.time_limit),
@@ -77,7 +97,11 @@ impl SimulateTrafficCli {
                 ops_per_minute: self.ops_per_minute,
             },
             task_args: TaskArgs {
-                n: self.n,
+                domain_kas: self.domain_kas,
+                token_kas_placeholder: self.token_kas_placeholder,
+                domain_hub: self.domain_hub,
+                token_hub: self.token_hub,
+                escrow_address: addr,
             },
         }
     }
