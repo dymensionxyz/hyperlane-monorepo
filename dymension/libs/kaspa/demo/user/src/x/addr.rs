@@ -15,7 +15,7 @@ mod tests {
     use super::*;
     use hyperlane_core::H256;
     use kaspa_addresses::Prefix;
-    use relayer::withdraw_construction::get_recipient_address;
+    use corelib::util::get_recipient_address;
 
     #[test]
     fn test_convert_addr_roundtrip() {

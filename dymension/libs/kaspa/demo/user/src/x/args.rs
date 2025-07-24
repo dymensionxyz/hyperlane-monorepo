@@ -33,6 +33,7 @@ pub enum Commands {
     /// Create a relayer 
     Relayer,
     /// Simulate traffic
+    #[clap(name = "sim")]
     SimulateTraffic(SimulateTrafficCli),
 }
 
@@ -62,7 +63,7 @@ pub struct RecipientCli {
 
 #[derive(Args, Debug)]
 pub struct SimulateTrafficCli {
-    #[arg(required = true, index = 1)]
+    #[arg(required = false, index = 1, default_value = "1")]
     pub n: u32,
 }
 
