@@ -1,4 +1,4 @@
 pub const SOMPI_PER_KAS: u64 = 100_000_000;
-fn as_kas(sompi: u64) -> String {
+pub fn as_kas(sompi: u64) -> String {
     format!("{} KAS", sompi as f64 / SOMPI_PER_KAS as f64)
 }

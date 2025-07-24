@@ -1,3 +1,4 @@
+use super::round_trip::TaskResources;
 use corelib::wallet::EasyKaspaWallet;
 use eyre::Result;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
@@ -6,7 +7,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tracing::info;
-
+use super::stats::render_stats;
+use super::round_trip::do_round_trip;
+use super::util::as_kas;
 
 /*
 Goals
@@ -19,8 +22,6 @@ Observations
     - Can just use one kaspa whale
     - Can use a new keypair on the hub for each user
  */
-
-
 
 pub struct Params {
     pub time_limit: Duration, // total target simulation time
@@ -46,11 +47,6 @@ impl Params {
     pub fn ops_per_second(&self) -> f64 {
         self.ops_per_minute as f64 / 60.0
     }
-}
-
-struct TaskResources {
-    rpc_hub: CosmosGrpcClient,
-    w: EasyKaspaWallet,
 }
 
 pub struct TrafficSim {

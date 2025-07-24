@@ -1,4 +1,4 @@
-use super::stats::{RoundTripStats, Stats};
+use super::stats::RoundTripStats;
 use corelib::wallet::EasyKaspaWallet;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use std::sync::Arc;

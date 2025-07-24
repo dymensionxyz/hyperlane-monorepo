@@ -1,4 +1,5 @@
-use super::foo::{Params, SOMPI_PER_KAS};
+use super::foo::Params;
+use super::util::{as_kas, SOMPI_PER_KAS};
 use std::time::Duration;
 use rand::Rng;
 use rand_distr::Distribution;
