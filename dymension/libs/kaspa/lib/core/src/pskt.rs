@@ -33,7 +33,6 @@ pub fn sign_pskt(
         .map(|input| input_filter.as_ref().map_or(true, |filter| filter(input)))
         .collect();
 
-    info!("ok: {:?}", ok);
     pskt.pass_signature_sync(|tx, sighash| {
         tx.tx
             .inputs
