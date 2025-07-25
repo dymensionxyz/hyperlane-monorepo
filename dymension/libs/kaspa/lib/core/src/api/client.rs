@@ -14,6 +14,8 @@ use std::time::Duration;
 use kaspa_consensus_core::tx::TransactionId;
 use kaspa_hashes::Hash as KaspaHash;
 
+use api_rs::apis::kaspa_addresses_api::get_balance_from_kaspa_address_addresses_kaspa_address_balance_get as get_balance;
+use api_rs::apis::kaspa_addresses_api::GetBalanceFromKaspaAddressAddressesKaspaAddressBalanceGetParams;
 use api_rs::apis::kaspa_addresses_api::{
     get_full_transactions_for_address_page_addresses_kaspa_address_full_transactions_page_get as transactions_page,
     GetFullTransactionsForAddressPageAddressesKaspaAddressFullTransactionsPageGetParams as args,
@@ -228,6 +230,21 @@ impl HttpClient {
             .blue_score
             .ok_or(eyre::eyre!("Blue score is missing"))?;
         Ok(blue_score)
+    }
+
+    pub async fn get_balance_by_address(&self, address: &str) -> Result<i64> {
+        let c = self.get_config();
+        let res = get_balance(
+            &c,
+            GetBalanceFromKaspaAddressAddressesKaspaAddressBalanceGetParams {
+                kaspa_address: address.to_string(),
+            },
+        )
+        .await?;
+        match res.balance {
+            Some(balance) => Ok(balance),
+            None => Err(eyre::eyre!("Balance is missing")),
+        }
     }
 }
 

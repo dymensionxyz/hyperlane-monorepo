@@ -1,6 +1,7 @@
 use super::key_cosmos::EasyHubKey;
 use super::stats::RoundTripStats;
 use crate::x;
+use corelib::api::client::HttpClient;
 use corelib::user::deposit::deposit_with_payload;
 use corelib::user::payload::make_deposit_payload_easy;
 use corelib::wallet::EasyKaspaWallet;
@@ -28,6 +29,7 @@ pub struct TaskResources {
     pub hub: CosmosNativeProvider,
     pub w: EasyKaspaWallet,
     pub args: TaskArgs,
+    pub kas_rest: HttpClient,
 }
 
 #[derive(Debug, Clone)]
@@ -57,15 +59,16 @@ pub async fn do_round_trip(
     hub_key: EasyHubKey,
 ) {
     let mut rt = RoundTrip::new(res, value, task_id, hub_key);
-    let (tx_id, deposit_time) = match rt.deposit().await {
-        Ok((tx_id, deposit_time)) => (tx_id, deposit_time),
+    match rt.deposit().await {
+        Ok((tx_id, deposit_time)) => {
+            rt.stats.kaspa_deposit_tx_id = Some(tx_id);
+            rt.stats.kaspa_deposit_tx_time = Some(deposit_time);
+        }
         Err(e) => {
             error!("deposit failed: {:?}", e);
             return;
         }
     };
-    rt.stats.kaspa_deposit_tx_id = Some(tx_id);
-    rt.stats.kaspa_deposit_tx_time = Some(deposit_time);
     match rt.await_hub_credit().await {
         Ok(()) => {
             rt.stats.deposit_credit_time = Some(Instant::now());
@@ -151,8 +154,8 @@ impl RoundTrip {
             }
             if balance != U256::from(self.value) {
                 let e = RoundTripError::HubBalanceMismatch {
-                    balance,
-                    expected: U256::from(self.value),
+                    balance: balance.as_u64() as i64,
+                    expected: self.value as i64,
                 };
                 return Err(e.into());
             }
@@ -198,6 +201,27 @@ impl RoundTrip {
     }
 
     async fn await_kaspa_credit(&self) -> Result<()> {
+        loop {
+            let balance = self
+                .res
+                .kas_rest
+                .get_balance_by_address(&self.res.args.escrow_address.to_string())
+                .await?;
+            if balance == 0 {
+                // TODO: should avoid looping forever
+                tokio::time::sleep(Duration::from_millis(1000)).await;
+                continue;
+            }
+            if balance != self.value as i64 {
+                let e = RoundTripError::KaspaBalanceMismatch {
+                    balance,
+                    expected: self.value as i64,
+                };
+                return Err(e.into());
+            }
+            break;
+        }
+
         Ok(())
     }
 }
@@ -205,7 +229,9 @@ impl RoundTrip {
 #[derive(Debug, thiserror::Error)]
 pub enum RoundTripError {
     #[error("hub balance mismatch: {balance} != {expected}")]
-    HubBalanceMismatch { balance: U256, expected: U256 },
+    HubBalanceMismatch { balance: i64, expected: i64 },
+    #[error("kaspa balance mismatch: {balance} != {expected}")]
+    KaspaBalanceMismatch { balance: i64, expected: i64 },
     #[error("withdrawal tx fail")]
     WithdrawalTxFailed,
 }

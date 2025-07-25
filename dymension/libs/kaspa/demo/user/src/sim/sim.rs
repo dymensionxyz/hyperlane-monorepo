@@ -4,6 +4,8 @@ use super::round_trip::TaskArgs;
 use super::round_trip::TaskResources;
 use super::stats::render_stats;
 use super::util::som_to_kas;
+use corelib::api::base::RateLimitConfig;
+use corelib::api::client::HttpClient;
 use corelib::wallet::get_wallet;
 use corelib::wallet::EasyKaspaWallet;
 use eyre::Result;
@@ -147,6 +149,10 @@ impl TrafficSim {
             w: w.clone(),
             args: args.task_args,
             hub: cosmos_provider().await?,
+            kas_rest: HttpClient::new(
+                "https://api-tn10.kaspa.org/".to_string(),
+                RateLimitConfig::default(),
+            ),
         };
         Ok(TrafficSim {
             params: args.params,
