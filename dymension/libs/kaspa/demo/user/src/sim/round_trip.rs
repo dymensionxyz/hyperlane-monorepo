@@ -19,6 +19,7 @@ use std::time::Duration;
 use std::time::Instant;
 use tokio::sync::mpsc;
 use tracing::error;
+use tendermint::abci::types::Code;
 
 #[derive(Debug, Clone)]
 pub struct TaskResources {
@@ -51,8 +52,9 @@ pub async fn do_round_trip(
     value: u64,
     tx: &mpsc::Sender<RoundTripStats>,
     task_id: u64,
+    hub_key: EasyHubKey,
 ) {
-    let mut rt = RoundTrip::new(res, value, task_id);
+    let mut rt = RoundTrip::new(res, value, task_id, hub_key);
     let (tx_id, deposit_time) = match rt.deposit().await {
         Ok((tx_id, deposit_time)) => (tx_id, deposit_time),
         Err(e) => {
@@ -98,8 +100,7 @@ struct RoundTrip {
 }
 
 impl RoundTrip {
-    pub fn new(res: TaskResources, value: u64, task_id: u64) -> Self {
-        let hub_k = EasyHubKey::new();
+    pub fn new(res: TaskResources, value: u64, task_id: u64, hub_key: EasyHubKey) -> Self {
         res.hub.rpc().set_signer(hub_k.signer());
         Self {
             res,

@@ -175,6 +175,8 @@ impl TrafficSim {
             let tx_clone = stats_tx.clone();
             let r = self.resources.clone();
             let task_id = total_ops;
+            let hub_key = EasyHubKey::new();
+            fund_hub_addr(&hub_key, &r.hub).await?;
             tokio::spawn(async move {
                 do_round_trip(r, nominal_value, &tx_clone, task_id).await;
                 drop(tx_clone); // TODO: needed?
@@ -202,4 +204,13 @@ impl TrafficSim {
 
         Ok(())
     }
+}
+
+
+async fn fund_hub_addr(hub_key: &EasyHubKey, hub: &CosmosNativeProvider) -> Result<()> {
+    let hub_addr = hub_key.signer().address_string.clone();
+    let amount = 1000000000000000000;
+    let denom = "adym".to_string();
+    let tx = hub.send_tx(vec![], amount, denom).await?;
+    Ok(())
 }
