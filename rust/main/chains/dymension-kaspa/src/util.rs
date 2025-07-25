@@ -1,5 +1,5 @@
 use hyperlane_core::{
-    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneDomainType, KnownHyperlaneDomain,
+    HyperlaneDomain, HyperlaneDomainProtocol,
 };
 
 use dym_kas_core::wallet::Network;

@@ -23,13 +23,13 @@ pub use dym_kas_validator::KaspaSecpKeypair;
 use eyre::Report;
 use hyperlane_core::{
     Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable,
-    SignedCheckpointWithMessageId, SignedType, H256,
+    SignedCheckpointWithMessageId, H256,
 };
 use hyperlane_core::{HyperlaneChain, HyperlaneDomain, Signature as HLCoreSignature};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use hyperlane_cosmos_rs::prost::Message;
-use kaspa_wallet_core::{prelude::DynRpcApi, utxo::NetworkParams};
+use kaspa_wallet_core::prelude::DynRpcApi;
 use kaspa_wallet_pskt::prelude::*;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha3::{digest::Update, Digest, Keccak256};
