@@ -1,26 +1,17 @@
-use eyre::Result;
-
-use kaspa_consensus_core::hashing::sighash::{
-    calc_schnorr_signature_hash, SigHashReusedValuesUnsync,
-};
-use kaspa_wallet_core::derivation::build_derivate_paths;
-
-use corelib::consts::KEY_MESSAGE_IDS;
 use corelib::escrow::EscrowPublic;
-use corelib::payload::MessageID;
-use corelib::payload::MessageIDs;
+use corelib::finality;
+use corelib::util::{get_recipient_script_pubkey, input_sighash_type};
+use corelib::wallet::EasyKaspaWallet;
 use corelib::wallet::SigningResources;
+use corelib::withdraw::WithdrawFXG;
+use eyre::eyre;
+use eyre::Result;
 use hardcode::tx::DUST_AMOUNT;
-use hex::ToHex;
-use hyperlane_core::{Decode, HyperlaneMessage, H256};
-use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
+use hyperlane_core::{Decode, HyperlaneMessage};
 use hyperlane_warp_route::TokenMessage;
+use kaspa_addresses::Prefix;
 use kaspa_consensus_core::config::params::Params;
 use kaspa_consensus_core::constants::TX_VERSION;
-use kaspa_consensus_core::hashing::sighash_type::{
-    SigHashType, SIG_HASH_ALL, SIG_HASH_ANY_ONE_CAN_PAY,
-};
 use kaspa_consensus_core::mass;
 use kaspa_consensus_core::network::NetworkId;
 use kaspa_consensus_core::subnets::SUBNETWORK_ID_NATIVE;
@@ -28,31 +19,16 @@ use kaspa_consensus_core::tx::{PopulatedTransaction, ScriptPublicKey, UtxoEntry}
 use kaspa_consensus_core::tx::{
     Transaction, TransactionInput, TransactionOutpoint, TransactionOutput,
 };
-use kaspa_hashes;
-use kaspa_rpc_core::{RpcTransaction, RpcUtxoEntry, RpcUtxosByAddressesEntry};
+use kaspa_rpc_core::{RpcTransaction, RpcUtxosByAddressesEntry};
 use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_txscript::{opcodes::codes::OpData65, script_builder::ScriptBuilder};
-use kaspa_wallet_core::account::pskb::PSKBSigner;
-use kaspa_wallet_core::account::Account;
 use kaspa_wallet_core::prelude::DynRpcApi;
-use kaspa_wallet_core::prelude::*;
-use kaspa_wallet_core::utxo::NetworkParams;
-use kaspa_wallet_pskt::prelude::*;
-use kaspa_wallet_pskt::prelude::{Signer, PSKT};
-use secp256k1::PublicKey;
-use std::io::Cursor;
-use std::sync::Arc;
-
-use corelib::finality;
-use corelib::util;
-use corelib::util::{get_recipient_script_pubkey, input_sighash_type};
-use corelib::wallet::EasyKaspaWallet;
-use corelib::withdraw::WithdrawFXG;
-use eyre::eyre;
-use kaspa_addresses::{AddressError, Prefix};
-use kaspa_rpc_core::model::RpcTransactionId;
 use kaspa_wallet_core::tx::is_transaction_output_dust;
 use kaspa_wallet_pskt::prelude::Bundle;
+use kaspa_wallet_pskt::prelude::*;
+use kaspa_wallet_pskt::prelude::{Signer, PSKT};
+use std::io::Cursor;
+use std::sync::Arc;
 use tracing::info;
 
 /// Fetches escrow and relayer balances and a combined list of all inputs
@@ -439,7 +415,7 @@ async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> R
 
     let mut signed = Vec::new();
     // Iterate over (PSKT; associated HL messages) pairs
-    for (pskt, messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
+    for pskt in fxg.bundle.iter() {
         let pskt = PSKT::<Signer>::from(pskt.clone());
 
         signed.push(sign_pay_fee(pskt, &resources).await?);
@@ -517,8 +493,7 @@ pub fn finalize_pskt(
             Ok(inner
                 .inputs
                 .iter()
-                .enumerate()
-                .map(|(i, input)| -> Vec<u8> {
+                .map(|input| -> Vec<u8> {
                     match &input.redeem_script {
                         None => {
                             // relayer UTXO
@@ -589,7 +564,7 @@ pub fn finalize_pskt(
         .unwrap()
         .extract_tx()
         .map_err(|e: ExtractError| eyre::eyre!("Extract kaspa tx: {:?}", e))?;
-    let (mut tx, _) = finalize_fn(mass);
+    let (tx, _) = finalize_fn(mass);
 
     let rpc_tx = (&tx).into();
     Ok(rpc_tx)

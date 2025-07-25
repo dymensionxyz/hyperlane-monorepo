@@ -1,18 +1,3 @@
-use anyhow::Result;
-use hyperlane_cosmos_native::CosmosNativeProvider;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
-    ProgressIndication, QueryOutpointRequest, WithdrawalId,
-};
-
-use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionId, TransactionOutpoint, UtxoEntry};
-use kaspa_rpc_core::api::rpc::RpcApi;
-
-use kaspa_addresses::Address;
-
-use api_rs::models::{TxInput, TxModel, TxOutput};
-
-use super::recursive_trace_transactions;
-
 #[cfg(test)]
 mod tests {
     use super::*;

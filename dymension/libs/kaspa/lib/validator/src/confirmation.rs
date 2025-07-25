@@ -1,11 +1,7 @@
 use crate::error::ValidationError;
-use corelib::confirmation::ConfirmationFXG;
-use std::cmp::min;
-
-use corelib::api::client::HttpClient;
-
 use api_rs::models::{TxModel, TxOutput};
-use corelib::escrow::EscrowPublic;
+use corelib::api::client::HttpClient;
+use corelib::confirmation::ConfirmationFXG;
 use corelib::finality;
 use corelib::payload::{MessageID, MessageIDs};
 use corelib::util;
@@ -22,6 +18,7 @@ use std::collections::HashSet;
 use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{info, warn};
+
 // FIXME: add address validation
 
 /// Validator is given a progress indication to sign, and a cache of outpoints,

@@ -1,10 +1,10 @@
+/// Cosmos Native Mailbox
+
 use cosmrs::Any;
 use hex::ToHex;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{MsgIndicateProgress, ProgressIndication};
 use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
 use hyperlane_cosmos_rs::prost::{Message, Name};
-use std::any::Any as StdAny;
-use std::sync::Arc;
 use tonic::async_trait;
 
 use hyperlane_core::{
