@@ -6,6 +6,7 @@ use super::util::som_to_kas;
 use corelib::wallet::get_wallet;
 use corelib::wallet::EasyKaspaWallet;
 use eyre::Result;
+use hardcode;
 use hyperlane_cosmos_native::ConnectionConf as CosmosConnectionConf;
 use hyperlane_cosmos_native::CosmosNativeProvider;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
@@ -62,6 +63,7 @@ pub struct Params {
     pub budget: u64,          // in sompi
     pub ops_per_minute: u64,  // osmosis does 90 per minute
     pub max_ops: u64,         // max number of ops to run, disregarding distributions
+    pub min_value: u64,       // in sompi
 }
 
 impl Params {
@@ -69,6 +71,15 @@ impl Params {
     pub fn distr_value(&self) -> Exp<f64> {
         // TODO: need to use some clamping/minimum
         Exp::new(1.0 / self.op_budget()).unwrap()
+    }
+    pub fn sample_value(&self) -> u64 {
+        // TODO: use proper clamping, or this will blow the budget
+        let v = self.distr_value().sample(&mut rand::rng()) as u64;
+        if v < self.min_value {
+            self.min_value
+        } else {
+            v
+        }
     }
     /// Used to draw time between ops, in milliseconds
     pub fn distr_time(&self) -> Exp<f64> {
@@ -102,6 +113,7 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
                 budget: cli.budget,
                 ops_per_minute: cli.ops_per_minute,
                 max_ops: cli.max_ops,
+                min_value: hardcode::tx::MIN_DEPOSIT_AMOUNT,
             },
             task_args: TaskArgs {
                 domain_kas: cli.domain_kas,
@@ -159,7 +171,7 @@ impl TrafficSim {
 
         info!("Starting tasks");
         while start_time.elapsed() < self.params.time_limit {
-            let nominal_value = self.params.distr_value().sample(&mut rng) as u64;
+            let nominal_value = self.params.sample_value();
             let tx_clone = stats_tx.clone();
             let r = self.resources.clone();
             let task_id = total_ops;

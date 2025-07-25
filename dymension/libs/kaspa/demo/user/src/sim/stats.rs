@@ -21,7 +21,6 @@ pub struct RoundTripStats {
     pub deposit_credit_error: Option<String>,
 }
 
-
 #[derive(Debug, Clone, Copy)]
 enum Stage {
     PreDeposit,

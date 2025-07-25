@@ -10,6 +10,7 @@ pub fn do_demo_params() {
         budget: 200000 * SOMPI_PER_KAS,
         ops_per_minute: 90,
         max_ops: 0, // ignored here
+        min_value: hardcode::tx::MIN_DEPOSIT_AMOUNT,
     });
 }
 

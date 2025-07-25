@@ -7,11 +7,13 @@ use eyre::Result;
 use hyperlane_core::H256;
 use hyperlane_core::U256;
 use hyperlane_cosmos_native::CosmosNativeProvider;
-use std::time::Instant;
 use kaspa_addresses::Address;
+use kaspa_consensus_core::tx::TransactionId;
 use std::sync::Arc;
 use std::time::Duration;
+use std::time::Instant;
 use tokio::sync::mpsc;
+use tracing::error;
 
 pub struct TaskResources {
     // rpc_hub: CosmosGrpcClient,
@@ -45,8 +47,22 @@ pub async fn do_round_trip(
     task_id: u64,
 ) {
     let mut rt = RoundTrip::new(res, value, task_id);
-    rt.deposit().await;
-    rt.await_hub_credit().await;
+    let (tx_id, deposit_time) = match rt.deposit().await {
+        Ok((tx_id, deposit_time)) => (tx_id, deposit_time),
+        Err(e) => {
+            error!("deposit failed: {:?}", e);
+            return;
+        }
+    };
+    rt.stats.kaspa_deposit_tx_id = Some(tx_id);
+    rt.stats.deposit_time = Some(deposit_time);
+    match rt.await_hub_credit().await {
+        Ok(()) => (),
+        Err(e) => {
+            rt.stats.deposit_credit_error = Some(e.to_string());
+            return;
+        }
+    }
     rt.withdraw().await;
     rt.await_kaspa_credit().await;
     tx.send(rt.stats).await.unwrap();
@@ -72,12 +88,11 @@ impl RoundTrip {
         }
     }
 
-    async fn deposit(&mut self) -> Result<()> {
+    async fn deposit(&mut self) -> Result<(TransactionId, Instant)> {
         let w = &self.res.w;
         let s = &w.secret;
         let a = self.res.args.escrow_address.clone();
-        // let amt = self.value;
-        let amt = 20000001;
+        let amt = self.value;
         let payload = make_deposit_payload_easy(
             self.res.args.domain_kas,
             self.res.args.token_kas_placeholder,
@@ -87,9 +102,7 @@ impl RoundTrip {
             &self.hub_key.signer(),
         );
         let tx_id = deposit_with_payload(&w.wallet, &s, a, amt, payload).await?;
-        self.stats.kaspa_deposit_tx_id = Some(tx_id);
-        self.stats.deposit_time = Some(Instant::now());
-        Ok(())
+        Ok((tx_id, Instant::now()))
     }
 
     async fn await_hub_credit(&mut self) -> Result<()> {
@@ -102,6 +115,7 @@ impl RoundTrip {
                 .get_balance_denom(a.clone(), self.res.args.hl_token_denom.clone())
                 .await?;
             if balance == U256::from(0) {
+                // TODO: should avoid looping forever
                 tokio::time::sleep(Duration::from_millis(1000)).await;
                 continue;
             }
@@ -110,7 +124,6 @@ impl RoundTrip {
                     balance,
                     expected: U256::from(self.value),
                 };
-                self.stats.deposit_credit_error = Some(e.to_string());
                 return Err(e.into());
             }
             break;
@@ -135,5 +148,4 @@ pub enum RoundTripError {
 }
 
 #[cfg(test)]
-mod tests {
-}
+mod tests {}
