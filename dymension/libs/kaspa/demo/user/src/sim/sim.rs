@@ -109,6 +109,7 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
                 domain_hub: cli.domain_hub,
                 token_hub: cli.token_hub,
                 escrow_address: addr,
+                hl_token_denom: cli.hl_token_denom,
             },
             wallet: cli.wallet,
         })
@@ -164,7 +165,7 @@ impl TrafficSim {
             let task_id = total_ops;
             tokio::spawn(async move {
                 do_round_trip(r, nominal_value, &tx_clone, task_id).await;
-                drop(tx_clone);
+                drop(tx_clone); // TODO: needed?
             });
             total_spend += nominal_value;
             total_ops += 1;

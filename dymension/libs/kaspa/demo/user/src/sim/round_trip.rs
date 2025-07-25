@@ -3,19 +3,12 @@ use super::stats::RoundTripStats;
 use corelib::user::deposit::deposit_with_payload;
 use corelib::user::payload::make_deposit_payload_easy;
 use corelib::wallet::EasyKaspaWallet;
-use cosmrs::crypto::secp256k1::SigningKey;
 use eyre::Result;
-use hyperlane_core::AccountAddressType;
 use hyperlane_core::H256;
 use hyperlane_core::U256;
-use hyperlane_cosmos_native::signers::Signer;
 use hyperlane_cosmos_native::CosmosNativeProvider;
-use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
-use k256::ecdsa::SigningKey as K256SigningKey;
+use std::time::Instant;
 use kaspa_addresses::Address;
-use kaspa_consensus_core::tx::TransactionId;
-use rand_core::OsRng;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -33,6 +26,7 @@ pub struct TaskArgs {
     pub domain_hub: u32,
     pub token_hub: H256,
     pub escrow_address: Address,
+    pub hl_token_denom: String,
 }
 
 /*
@@ -94,17 +88,32 @@ impl RoundTrip {
         );
         let tx_id = deposit_with_payload(&w.wallet, &s, a, amt, payload).await?;
         self.stats.kaspa_deposit_tx_id = Some(tx_id);
+        self.stats.deposit_time = Some(Instant::now());
         Ok(())
     }
 
-    async fn await_hub_credit(&self) -> Result<()> {
+    async fn await_hub_credit(&mut self) -> Result<()> {
         let a = self.hub_key.signer().address_string;
         loop {
-            let balance = self.res.hub.rpc().get_balance(a.clone()).await?;
+            let balance = self
+                .res
+                .hub
+                .rpc()
+                .get_balance_denom(a.clone(), self.res.args.hl_token_denom.clone())
+                .await?;
             if balance == U256::from(0) {
                 tokio::time::sleep(Duration::from_millis(1000)).await;
                 continue;
             }
+            if balance != U256::from(self.value) {
+                let e = RoundTripError::HubBalanceMismatch {
+                    balance,
+                    expected: U256::from(self.value),
+                };
+                self.stats.deposit_credit_error = Some(e.to_string());
+                return Err(e.into());
+            }
+            break;
         }
 
         Ok(())
@@ -119,7 +128,12 @@ impl RoundTrip {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum RoundTripError {
+    #[error("hub balance mismatch: {balance} != {expected}")]
+    HubBalanceMismatch { balance: U256, expected: U256 },
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
 }
