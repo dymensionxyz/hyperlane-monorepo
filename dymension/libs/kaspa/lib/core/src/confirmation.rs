@@ -1,6 +1,5 @@
 use super::payload::MessageID;
 use bytes::Bytes;
-use clap::builder::TypedValueParser;
 use eyre::Error as EyreError;
 use hex::ToHex;
 use hyperlane_core::H256;
@@ -75,13 +74,10 @@ impl ConfirmationFXG {
     }
 }
 
-impl TryFrom<&ConfirmationFXG> for Bytes {
-    type Error = EyreError;
-
-    fn try_from(v: &ConfirmationFXG) -> Result<Self, Self::Error> {
-        let p = ProtoConfirmationFXG::try_from(v)
-            .map_err(|e| eyre::eyre!("ConfirmationFXG serialize: {}", e))?;
-        Ok(Bytes::from(p.encode_to_vec()))
+impl From<&ConfirmationFXG> for Bytes {
+    fn from(v: &ConfirmationFXG) -> Self {
+        let p = ProtoConfirmationFXG::from(v);
+        Bytes::from(p.encode_to_vec())
     }
 }
 

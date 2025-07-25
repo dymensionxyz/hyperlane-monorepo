@@ -1,16 +1,12 @@
-use std::ops::RangeInclusive;
-
-use tonic::async_trait;
-use tracing::instrument;
-
+use super::KaspaEventIndexer;
+use crate::{KaspaProvider, RestProvider};
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneMessage, Indexed, Indexer,
     LogMeta, SequenceAwareIndexer, H256, H512,
 };
-
-use crate::{HyperlaneKaspaError, KaspaProvider, RestProvider};
-
-use super::KaspaEventIndexer;
+use std::ops::RangeInclusive;
+use tonic::async_trait;
+use tracing::instrument;
 
 /// Dispatch indexer to check if a new hyperlane message was dispatched
 #[derive(Debug, Clone)]
@@ -45,7 +41,7 @@ impl Indexer<HyperlaneMessage> for KaspaDispatch {
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn fetch_logs_in_range(
         &self,
-        range: RangeInclusive<u32>,
+        _range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
         Err(ChainCommunicationError::from_other_str("not implemented"))
     }
@@ -56,7 +52,7 @@ impl Indexer<HyperlaneMessage> for KaspaDispatch {
 
     async fn fetch_logs_by_tx_hash(
         &self,
-        tx_hash: H512,
+        _tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
         Err(ChainCommunicationError::from_other_str("not implemented"))
     }

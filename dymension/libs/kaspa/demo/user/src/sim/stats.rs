@@ -1,6 +1,6 @@
 use kaspa_consensus_core::tx::TransactionId;
 
-pub fn render_stats(stats: Vec<RoundTripStats>, total_spend: u64, total_ops: u64) {
+pub fn render_stats(stats: Vec<RoundTripStats>, _: u64, _: u64) {
     for s in stats {
         println!("kaspa_deposit_tx_id: {}", s.kaspa_deposit_tx_id);
     }

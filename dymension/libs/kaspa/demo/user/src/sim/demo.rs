@@ -1,9 +1,9 @@
 use super::sim::Params;
 use super::util::{as_kas, SOMPI_PER_KAS};
-use rand::Rng;
 use rand_distr::Distribution;
 use std::time::Duration;
 
+#[allow(dead_code)]
 pub fn do_demo_params() {
     demo_params(Params {
         time_limit: Duration::from_secs(60),

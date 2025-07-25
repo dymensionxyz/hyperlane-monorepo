@@ -3,17 +3,10 @@ use super::stats::RoundTripStats;
 use corelib::user::deposit::deposit_with_payload;
 use corelib::user::payload::make_deposit_payload_easy;
 use corelib::wallet::EasyKaspaWallet;
-use cosmrs::crypto::secp256k1::SigningKey;
 use eyre::Result;
-use hyperlane_core::AccountAddressType;
 use hyperlane_core::H256;
-use hyperlane_cosmos_native::signers::Signer;
-use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
-use k256::ecdsa::SigningKey as K256SigningKey;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionId;
-use rand_core::OsRng;
-use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
@@ -40,33 +33,26 @@ Stages
 
     Measure the time gaps, and record failures
  */
-pub async fn do_round_trip(
-    res: Arc<TaskResources>,
-    value: u64,
-    tx: mpsc::Sender<RoundTripStats>,
-    task_id: u64,
-) {
-    let mut rt = RoundTrip::new(res, value);
-    rt.deposit().await;
-    rt.await_hub_credit().await;
-    rt.withdraw().await;
-    rt.await_kaspa_credit().await;
+pub async fn do_round_trip(res: Arc<TaskResources>, tx: mpsc::Sender<RoundTripStats>) {
+    let mut rt = RoundTrip::new(res);
+    let _ = rt.deposit().await;
+    let _ = rt.await_hub_credit().await;
+    let _ = rt.withdraw().await;
+    let _ = rt.await_kaspa_credit().await;
     tx.send(rt.stats).await.unwrap();
 }
 
 struct RoundTrip {
     res: Arc<TaskResources>,
-    value: u64,
     stats: RoundTripStats,
     hub_key: EasyHubKey,
 }
 
 impl RoundTrip {
-    pub fn new(res: Arc<TaskResources>, value: u64) -> Self {
+    pub fn new(res: Arc<TaskResources>) -> Self {
         let hub_k = EasyHubKey::new();
         Self {
             res,
-            value,
             stats: RoundTripStats::new(),
             hub_key: hub_k,
         }
@@ -86,7 +72,7 @@ impl RoundTrip {
             amt,
             &self.hub_key.signer(),
         );
-        let tx_id = deposit_with_payload(&w.wallet, &s, a, amt, payload).await?;
+        let tx_id = deposit_with_payload(&w.wallet, s, a, amt, payload).await?;
         self.stats.kaspa_deposit_tx_id = tx_id;
         Ok(tx_id)
     }

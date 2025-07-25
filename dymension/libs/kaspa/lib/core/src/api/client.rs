@@ -1,19 +1,6 @@
-use api_rs::apis::configuration::Configuration;
-use tracing::info;
-
-use url::Url;
-
-use eyre::{Error, Result};
-
 use super::base::RateLimitConfig;
-use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
-use std::hash::{BuildHasher, Hash, Hasher, RandomState};
-use std::str::FromStr;
-use std::time::Duration;
-
-use kaspa_consensus_core::tx::TransactionId;
-use kaspa_hashes::Hash as KaspaHash;
-
+use super::base::{get_client, get_config};
+use api_rs::apis::configuration::Configuration;
 use api_rs::apis::kaspa_addresses_api::{
     get_full_transactions_for_address_page_addresses_kaspa_address_full_transactions_page_get as transactions_page,
     GetFullTransactionsForAddressPageAddressesKaspaAddressFullTransactionsPageGetParams as args,
@@ -24,8 +11,13 @@ use api_rs::apis::kaspa_transactions_api::{
     GetTransactionTransactionsTransactionIdGetParams as get_tx_by_id_params,
 };
 use api_rs::models::{AcceptanceMode, TxModel, TxOutput};
-
-use super::base::{get_client, get_config};
+use eyre::{Error, Result};
+use kaspa_consensus_core::tx::TransactionId;
+use kaspa_hashes::Hash as KaspaHash;
+use reqwest_middleware::ClientWithMiddleware;
+use std::hash::{Hash, Hasher};
+use std::str::FromStr;
+use tracing::info;
 
 #[derive(Debug, Clone)]
 pub struct Deposit {
@@ -86,13 +78,13 @@ impl TryFrom<TxModel> for Deposit {
         Ok(Deposit {
             id: tx_hash,
             payload: tx.payload,
-            accepted: accepted,
-            outputs: outputs,
-            time: time,
-            accepting_block_hash: accepting_block_hash,
-            accepting_block_time: accepting_block_time,
-            accepting_block_blue_score: accepting_block_blue_score,
-            block_hashes: block_hashes,
+            accepted,
+            outputs,
+            time,
+            accepting_block_hash,
+            accepting_block_time,
+            accepting_block_blue_score,
+            block_hashes,
         })
     }
 }
@@ -162,21 +154,20 @@ impl HttpClient {
         }
 
         // return txs filtered by txs that include utxos with destination escrow address and including a payload
-        Ok(txs
-            .into_iter()
+        txs.into_iter()
             .filter(|tx| {
                 is_valid_escrow_transfer(tx, &address.to_string()).expect("unable to validate txs")
                     && tx.payload.is_some()
                     && tx.is_accepted.unwrap_or(false)
             })
             .map(Deposit::try_from)
-            .collect::<Result<Vec<Deposit>>>()?)
+            .collect::<Result<Vec<Deposit>>>()
     }
 
     pub fn get_config(&self) -> Configuration {
         let u = self.url.clone();
         let url = u.strip_suffix("/").unwrap();
-        get_config(&url, self.client.clone())
+        get_config(url, self.client.clone())
     }
 
     // TODO: we should pass block hash hint in validator (he can get it from relayer)
@@ -244,19 +235,8 @@ fn is_valid_escrow_transfer(tx: &TxModel, address: &String) -> Result<bool> {
     Ok(false)
 }
 
-fn is_retryable(e: &Error) -> bool {
-    if let Some(reqwest_error) = e.downcast_ref::<reqwest::Error>() {
-        if reqwest_error.is_connect() {
-            return true;
-        }
-    }
-    false
-}
-
 #[cfg(test)]
 mod tests {
-    use kaspa_core::time::unix_now;
-
     use super::*;
 
     #[tokio::test]

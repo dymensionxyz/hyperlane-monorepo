@@ -17,13 +17,11 @@ pub fn get_recipient_address(recipient: H256, prefix: Prefix) -> Address {
 }
 
 pub fn get_recipient_script_pubkey(recipient: H256, prefix: Prefix) -> ScriptPublicKey {
-    ScriptPublicKey::from(pay_to_address_script(&get_recipient_address(
-        recipient, prefix,
-    )))
+    pay_to_address_script(&get_recipient_address(recipient, prefix))
 }
 
 pub fn get_recipient_script_pubkey_address(address: &Address) -> ScriptPublicKey {
-    ScriptPublicKey::from(pay_to_address_script(address))
+    pay_to_address_script(address)
 }
 
 pub fn input_sighash_type() -> SigHashType {
@@ -31,7 +29,7 @@ pub fn input_sighash_type() -> SigHashType {
 }
 
 pub fn is_valid_sighash_type(t: SigHashType) -> bool {
-    return t.to_u8() == input_sighash_type().to_u8();
+    t.to_u8() == input_sighash_type().to_u8()
 }
 
 /// Find the first duplicate if any.
