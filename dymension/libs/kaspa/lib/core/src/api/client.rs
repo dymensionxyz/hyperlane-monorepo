@@ -1,12 +1,14 @@
 use super::base::RateLimitConfig;
-use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
-use std::hash::{BuildHasher, Hash, Hasher, RandomState};
+use reqwest_middleware::ClientBuilder;
+use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 use std::time::Duration;
 
 use kaspa_consensus_core::tx::TransactionId;
 use kaspa_hashes::Hash as KaspaHash;
 
+use super::base::{get_client, get_config};
+use api_rs::apis::configuration::Configuration;
 use api_rs::apis::kaspa_addresses_api::get_balance_from_kaspa_address_addresses_kaspa_address_balance_get as get_balance;
 use api_rs::apis::kaspa_addresses_api::GetBalanceFromKaspaAddressAddressesKaspaAddressBalanceGetParams;
 use api_rs::apis::kaspa_addresses_api::{
@@ -20,11 +22,7 @@ use api_rs::apis::kaspa_transactions_api::{
 };
 use api_rs::models::{AcceptanceMode, TxModel, TxOutput};
 use eyre::{Error, Result};
-use kaspa_consensus_core::tx::TransactionId;
-use kaspa_hashes::Hash as KaspaHash;
 use reqwest_middleware::ClientWithMiddleware;
-use std::hash::{Hash, Hasher};
-use std::str::FromStr;
 use tracing::info;
 
 #[derive(Debug, Clone)]
