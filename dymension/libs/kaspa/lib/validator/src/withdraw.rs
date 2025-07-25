@@ -139,11 +139,11 @@ pub async fn validate_withdrawal_batch(
 }
 
 async fn validate_messages(
-    messages: &Vec<Vec<HyperlaneMessage>>,
+    messages: &[Vec<HyperlaneMessage>],
     cosmos_client: &CosmosGrpcClient,
     must_match: &MustMatch,
 ) -> Result<TransactionOutpoint, ValidationError> {
-    let messages: Vec<HyperlaneMessage> = messages.clone().into_iter().flatten().collect();
+    let messages: Vec<HyperlaneMessage> = messages.to_owned().into_iter().flatten().collect();
     let num_msgs = messages.len();
     debug!(
         "Starting withdrawal validation for messages, num_msgs: {}",
@@ -187,7 +187,7 @@ async fn validate_messages(
 
 pub fn validate_pskts(
     bundle: &Bundle,
-    messages: &Vec<Vec<HyperlaneMessage>>,
+    messages: &[Vec<HyperlaneMessage>],
     hub_anchor: TransactionOutpoint,
     must_match: MustMatch,
 ) -> Result<(), ValidationError> {
