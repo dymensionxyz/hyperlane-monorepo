@@ -1,42 +1,26 @@
 // We call the signers 'validators'
 
-use corelib::escrow::*;
-use std::collections::hash_map::Entry;
-
-use kaspa_core;
-use kaspa_wallet_core::error::Error;
-
-use kaspa_wallet_pskt::prelude::*;
-use secp256k1::Keypair as SecpKeypair;
-
 use crate::error::ValidationError;
-use corelib::payload::{MessageID, MessageIDs};
+use corelib::escrow::*;
+use corelib::payload::MessageIDs;
 use corelib::util;
-use corelib::util::{get_recipient_address, get_recipient_script_pubkey, is_valid_sighash_type};
-use corelib::wallet::EasyKaspaWallet;
-
-use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
+use corelib::util::{get_recipient_script_pubkey, is_valid_sighash_type};
+use corelib::withdraw::filter_pending_withdrawals;
 use eyre::{Report, Result};
 use hardcode::hl::ALLOWED_HL_MESSAGE_VERSION;
 use hex::ToHex;
-use hyperlane_core::HyperlaneDomainConfigError::DomainNameMismatch;
-use hyperlane_core::{Decode, HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, H256, U256};
+use hyperlane_core::{Decode, HyperlaneMessage, H256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use hyperlane_warp_route::TokenMessage;
-use kaspa_addresses::{Address as KaspaAddress, Prefix as KaspaAddrPrefix};
-use kaspa_consensus_core::hashing::sighash::{
-    calc_schnorr_signature_hash, SigHashReusedValuesUnsync,
-};
-use kaspa_consensus_core::mass::transaction_output_estimated_serialized_size;
-use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint, TransactionOutput};
-use kaspa_hashes;
-use kaspa_txscript::pay_to_address_script;
-use kaspa_wallet_core::utxo::NetworkParams;
-use kaspa_wallet_pskt::pskt::{Global, Inner, Input, Output, Signer, Version, PSKT};
+use kaspa_addresses::Prefix as KaspaAddrPrefix;
+use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint};
+use kaspa_wallet_pskt::prelude::*;
+use kaspa_wallet_pskt::pskt::{Inner, Input, Signer, PSKT};
+use secp256k1::Keypair as SecpKeypair;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::io::Cursor;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 
 #[derive(Clone)]
 pub struct MustMatch {
@@ -370,7 +354,7 @@ pub fn sign_withdrawal_fxg(
     input_filter: Option<impl Fn(&Input) -> bool>,
 ) -> Result<Bundle> {
     let mut signed = Vec::new();
-    for (pskt) in bundle.iter() {
+    for pskt in bundle.iter() {
         let pskt = PSKT::<Signer>::from(pskt.clone());
 
         let signed_pskt = corelib::pskt::sign_pskt(pskt, keypair, None, input_filter.as_ref())?;

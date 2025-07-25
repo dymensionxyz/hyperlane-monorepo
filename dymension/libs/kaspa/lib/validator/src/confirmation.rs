@@ -4,20 +4,12 @@ use corelib::api::client::HttpClient;
 use corelib::confirmation::ConfirmationFXG;
 use corelib::finality;
 use corelib::payload::{MessageID, MessageIDs};
-use corelib::util;
-use corelib::wallet::NetworkInfo;
-use eyre::eyre;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use kaspa_addresses::Address;
-use kaspa_consensus_core::network::NetworkId;
-use kaspa_consensus_core::tx::{TransactionId, TransactionInput, TransactionOutpoint};
+use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_hashes::Hash as KaspaHash;
-use kaspa_rpc_core::RpcHash;
-use kaspa_wallet_core::prelude::DynRpcApi;
 use std::collections::HashSet;
-use std::str::FromStr;
-use std::sync::Arc;
-use tracing::{info, warn};
+use tracing::info;
 
 // FIXME: add address validation
 

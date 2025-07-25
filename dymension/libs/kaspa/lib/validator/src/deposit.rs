@@ -1,33 +1,21 @@
-use corelib::deposit::DepositFXG;
-
-use kaspa_wallet_core::prelude::DynRpcApi;
-
-use tracing::error;
-
-use kaspa_wallet_core::utxo::NetworkParams;
-
-use corelib::message::{add_kaspa_metadata_hl_messsage, parse_hyperlane_metadata, ParsedHL};
-use std::str::FromStr;
-
-use corelib::escrow::EscrowPublic;
-use corelib::finality;
-use corelib::wallet::NetworkInfo;
-use kaspa_addresses::Address;
-use kaspa_rpc_core::{api::rpc::RpcApi, RpcBlock};
-use kaspa_rpc_core::{RpcHash, RpcTransaction, RpcTransactionOutput};
-use kaspa_wrpc_client::prelude::{NetworkId, NetworkType};
-use std::sync::Arc;
-
-use eyre::Result;
-use hyperlane_core::U256;
-use kaspa_txscript::extract_script_pub_key_address;
-
 use corelib::api::client::HttpClient;
-use corelib::{confirmation::ConfirmationFXG, util, withdraw::WithdrawFXG};
+use corelib::deposit::DepositFXG;
+use corelib::finality;
+use corelib::message::{add_kaspa_metadata_hl_messsage, ParsedHL};
+use corelib::wallet::NetworkInfo;
+use eyre::Result;
 use hardcode::hl::ALLOWED_HL_MESSAGE_VERSION;
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::H256;
+use hyperlane_core::U256;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
+use kaspa_addresses::Address;
+use kaspa_rpc_core::{api::rpc::RpcApi, RpcBlock};
+use kaspa_rpc_core::{RpcHash, RpcTransaction, RpcTransactionOutput};
+use kaspa_txscript::extract_script_pub_key_address;
+use kaspa_wallet_core::prelude::DynRpcApi;
+use std::sync::Arc;
+use tracing::error;
 
 #[derive(Clone, Default)]
 pub struct MustMatch {
