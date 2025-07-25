@@ -30,6 +30,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false }
 tracing-error = "0.2"
 tracing-futures = "0.2"
+hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", git = "https://github.com/dymensionxyz/hyperlane-cosmos-rs", rev = "d7fcf4b" }
 cosmrs = { version = "0.21.0", default-features = false, features = [
     "cosmwasm",
     "rpc",

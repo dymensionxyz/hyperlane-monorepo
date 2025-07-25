@@ -12,11 +12,15 @@ use kaspa_consensus_core::tx::TransactionId;
 use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
+use hyperlane_cosmos_native::remote_transfer::CosmosNativeRemoteTransfer;
+use hyperlane_core::ContractLocator;
 use tokio::sync::mpsc;
 use tracing::error;
+use hyperlane_core::HyperlaneDomain;
+use hyperlane_core::KnownHyperlaneDomain;
+use hyperlane_cosmos_rs::hyperlane::warp::v1::MsgRemoteTransfer;
 
 pub struct TaskResources {
-    // rpc_hub: CosmosGrpcClient,
     pub hub: CosmosNativeProvider,
     pub w: EasyKaspaWallet,
     pub args: TaskArgs,
@@ -133,6 +137,16 @@ impl RoundTrip {
     }
 
     async fn withdraw(&self) -> Result<()> {
+        
+        let d = HyperlaneDomain::Known(KnownHyperlaneDomain::Osmosis);
+        let l = ContractLocator::new(&d, H256::zero());
+        let rtc = CosmosNativeRemoteTransfer::new(self.res.hub.clone(), l);
+        let req = MsgRemoteTransfer {
+            sender: self.hub_key.signer().address_string.clone(),
+            token_id: self.res.args.hl_token_denom.clone(),
+            destination_domain: self.res.args.domain_hub,
+            recipient: self.res.args.escrow_address.clone(),
+        };
         Ok(())
     }
 

@@ -1838,6 +1838,7 @@ dependencies = [
  "hardcode",
  "hex",
  "hyperlane-core",
+ "hyperlane-cosmos-dymension-rs",
  "hyperlane-cosmos-native",
  "hyperlane-metric",
  "k256 0.13.4",
