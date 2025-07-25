@@ -315,6 +315,10 @@ impl RpcProvider {
             .ok_or(ChainCommunicationError::SignerUnavailable)
     }
 
+    pub fn set_signer(&mut self, signer: Signer) {
+        self.signer = Some(signer);
+    }
+
     async fn get_account(&self, address: String) -> ChainResult<BaseAccount> {
         let response: QueryAccountResponse = self
             .abci_query(
