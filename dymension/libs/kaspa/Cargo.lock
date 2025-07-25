@@ -1854,6 +1854,7 @@ dependencies = [
  "secp256k1",
  "serde",
  "serde_json",
+ "tendermint",
  "thiserror 2.0.12",
  "tokio",
  "tracing",

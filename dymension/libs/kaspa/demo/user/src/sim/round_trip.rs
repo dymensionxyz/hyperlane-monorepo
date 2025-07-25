@@ -1,8 +1,10 @@
 use super::key_cosmos::EasyHubKey;
 use super::stats::RoundTripStats;
+use crate::x;
 use corelib::user::deposit::deposit_with_payload;
 use corelib::user::payload::make_deposit_payload_easy;
 use corelib::wallet::EasyKaspaWallet;
+use cosmrs::Any;
 use eyre::Result;
 use hyperlane_core::ContractLocator;
 use hyperlane_core::HyperlaneDomain;
@@ -12,14 +14,17 @@ use hyperlane_core::U256;
 use hyperlane_cosmos_native::remote_transfer::CosmosNativeRemoteTransfer;
 use hyperlane_cosmos_native::CosmosNativeProvider;
 use hyperlane_cosmos_rs::hyperlane::warp::v1::MsgRemoteTransfer;
+use hyperlane_cosmos_rs::prost::{Message, Name};
+use hyperlane_cosmos_rs::prost::cosmos_sdk::v1::Coin;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionId;
 use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
+use tendermint::abci::types::Code;
+use tendermint::hash::Hash as TendermintHash;
 use tokio::sync::mpsc;
 use tracing::error;
-use tendermint::abci::types::Code;
 
 #[derive(Debug, Clone)]
 pub struct TaskResources {
@@ -92,7 +97,7 @@ pub async fn do_round_trip(
 }
 
 struct RoundTrip {
-    res: Arc<TaskResources>,
+    res: TaskResources,
     value: u64,
     task_id: u64,
     stats: RoundTripStats,
@@ -100,7 +105,7 @@ struct RoundTrip {
 }
 
 impl RoundTrip {
-    pub fn new(res: TaskResources, value: u64, task_id: u64, hub_key: EasyHubKey) -> Self {
+    pub fn new(res: TaskResources, value: u64, task_id: u64, hub_k: EasyHubKey) -> Self {
         res.hub.rpc().set_signer(hub_k.signer());
         Self {
             res,
@@ -155,7 +160,7 @@ impl RoundTrip {
         Ok(())
     }
 
-    async fn withdraw(&self) -> Result<(TendermintHash)> {
+    async fn withdraw(&self) -> Result<(TendermintHash, Instant)> {
         let rpc = self.res.hub.rpc();
 
         let d = HyperlaneDomain::Known(KnownHyperlaneDomain::Osmosis);
@@ -165,7 +170,7 @@ impl RoundTrip {
         let recipient = x::addr::hl_recipient(&self.res.args.escrow_address.clone().to_string());
         let req = MsgRemoteTransfer {
             sender: rpc.get_signer()?.address_string.clone(),
-            token_id: self.res.args.token_hub.clone(),
+            token_id: self.res.args.token_hub.to_string(),
             destination_domain: self.res.args.domain_hub,
             recipient,
             amount,
@@ -186,14 +191,11 @@ impl RoundTrip {
         let i = Instant::now();
         match response.tx_result.code {
             Code::Ok => {
-                let tx_id = response.tx_result.tx_hash.clone();
+                let tx_id = response.hash.clone();
                 Ok((tx_id, i))
             }
-            _ => {
-                return Err(RoundTripError::WithdrawalTxFailed.into());
-            }
+            _ => Err(RoundTripError::WithdrawalTxFailed.into()),
         }
-        Ok(())
     }
 
     async fn await_kaspa_credit(&self) -> Result<()> {

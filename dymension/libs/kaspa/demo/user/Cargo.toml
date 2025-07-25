@@ -41,3 +41,4 @@ cosmrs = { version = "0.21.0", default-features = false, features = [
 k256 = { version = "0.13.4", features = ["arithmetic", "std", "ecdsa"] }
 url = "2.3"
 thiserror = "2.0"
+tendermint = "0.40.4"

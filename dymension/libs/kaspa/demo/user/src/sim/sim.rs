@@ -12,6 +12,7 @@ use hyperlane_cosmos_native::CosmosNativeProvider;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use kaspa_consensus_core::network::NetworkId;
 use kaspa_wallet_keys::secret::Secret;
+use super::key_cosmos::EasyHubKey;
 use rand_distr::{Distribution, Exp};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -208,9 +209,9 @@ impl TrafficSim {
 
 
 async fn fund_hub_addr(hub_key: &EasyHubKey, hub: &CosmosNativeProvider) -> Result<()> {
-    let hub_addr = hub_key.signer().address_string.clone();
-    let amount = 1000000000000000000;
-    let denom = "adym".to_string();
-    let tx = hub.send_tx(vec![], amount, denom).await?;
+    // let hub_addr = hub_key.signer().address_string.clone();
+    // let amount = 1000000000000000000;
+    // let denom = "adym".to_string();
+    // let tx = hub.send_tx(vec![], amount, denom).await?;
     Ok(())
 }
