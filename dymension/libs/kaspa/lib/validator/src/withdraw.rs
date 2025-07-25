@@ -143,7 +143,7 @@ async fn validate_messages(
     cosmos_client: &CosmosGrpcClient,
     must_match: &MustMatch,
 ) -> Result<TransactionOutpoint, ValidationError> {
-    let messages: Vec<HyperlaneMessage> = messages.to_owned().into_iter().flatten().collect();
+    let messages: Vec<HyperlaneMessage> = messages.iter().cloned().flatten().collect();
     let num_msgs = messages.len();
     debug!(
         "Starting withdrawal validation for messages, num_msgs: {}",

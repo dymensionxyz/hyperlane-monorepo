@@ -68,19 +68,21 @@ impl WithdrawFXG {
         }
     }
 
-    pub fn default() -> Self {
-        Self {
-            bundle: Bundle::new(),
-            messages: vec![],
-            anchors: vec![],
-        }
-    }
-
     pub fn ids(&self) -> Vec<MessageID> {
         self.messages
             .iter()
             .flat_map(|m| m.iter().map(|m| MessageID(m.id())))
             .collect()
+    }
+}
+
+impl Default for WithdrawFXG {
+    fn default() -> Self {
+        Self {
+            bundle: Bundle::new(),
+            messages: vec![],
+            anchors: vec![],
+        }
     }
 }
 
