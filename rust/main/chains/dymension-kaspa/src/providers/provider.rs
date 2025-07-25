@@ -158,7 +158,7 @@ impl KaspaProvider {
         let finalized = combine_bundles_with_fee(
             bundles_validators,
             &fxg,
-            self.conf.multisig_threshold_kaspa as usize,
+            self.conf.multisig_threshold_kaspa,
             &self.escrow(),
             &self.easy_wallet,
         )

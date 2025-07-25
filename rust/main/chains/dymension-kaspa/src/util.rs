@@ -9,13 +9,13 @@ use dym_kas_hardcode::hl::{
 
 /// is it a kaspa domain?
 pub fn is_kas(d: &HyperlaneDomain) -> bool {
-    match d {
+    matches!(
+        d,
         HyperlaneDomain::Unknown {
             domain_protocol: HyperlaneDomainProtocol::Kaspa,
             ..
-        } => true,
-        _ => false,
-    }
+        }
+    )
 }
 
 /// is it a dym domain?
@@ -47,10 +47,7 @@ pub fn domain_to_kas_network(d: &HyperlaneDomain) -> Network {
 }
 
 /// List of kas domain.
-pub const KAS_DOMAINS: [u32; 2] = [
-    HL_DOMAIN_KASPA_MAINNET,
-    HL_DOMAIN_KASPA_TEST10,
-];
+pub const KAS_DOMAINS: [u32; 2] = [HL_DOMAIN_KASPA_MAINNET, HL_DOMAIN_KASPA_TEST10];
 
 /// List of dym domain.
 pub const HUB_DOMAINS: [u32; 4] = [

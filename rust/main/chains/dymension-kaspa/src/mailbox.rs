@@ -68,7 +68,7 @@ impl Mailbox for KaspaMailbox {
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
         info!("Kaspa mailbox, checking if message is delivered already (querying hub), id: {id:?}");
         let wid = WithdrawalId {
-            message_id: bytes_to_hex(&id.as_ref()),
+            message_id: bytes_to_hex(id.as_ref()),
         };
         let res = self
             .provider

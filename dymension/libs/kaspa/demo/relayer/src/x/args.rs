@@ -81,10 +81,10 @@ impl Args {
                 .get_one::<String>("rpcserver")
                 .cloned()
                 .unwrap_or("localhost:16210".to_owned()),
-            only_deposit: only_deposit,
+            only_deposit,
             payload: m.get_one::<String>("payload").cloned(),
             escrow_address: m.get_one::<String>("escrow-address").cloned(),
-            amount: amount,
+            amount,
         }
     }
 }
