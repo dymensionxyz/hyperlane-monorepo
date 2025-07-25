@@ -4,6 +4,7 @@ use crate::x;
 use corelib::user::deposit::deposit_with_payload;
 use corelib::user::payload::make_deposit_payload_easy;
 use corelib::wallet::EasyKaspaWallet;
+use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
 use cosmrs::Any;
 use eyre::Result;
 use hyperlane_core::ContractLocator;
@@ -14,10 +15,8 @@ use hyperlane_core::U256;
 use hyperlane_cosmos_native::CosmosNativeProvider;
 use hyperlane_cosmos_rs::hyperlane::warp::v1::MsgRemoteTransfer;
 use hyperlane_cosmos_rs::prost::{Message, Name};
-use hyperlane_cosmos_rs::prost::cosmos_sdk::v1::Coin;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionId;
-use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
 use tendermint::abci::Code;
@@ -105,7 +104,7 @@ struct RoundTrip {
 
 impl RoundTrip {
     pub fn new(res: TaskResources, value: u64, task_id: u64, hub_k: EasyHubKey) -> Self {
-        res.hub.rpc().set_signer(hub_k.signer());
+        let rpc = res.hub.rpc().with_signer(hub_k.signer());
         Self {
             res,
             value,

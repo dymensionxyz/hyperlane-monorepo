@@ -1,3 +1,4 @@
+use super::key_cosmos::EasyHubKey;
 use super::round_trip::do_round_trip;
 use super::round_trip::TaskArgs;
 use super::round_trip::TaskResources;
@@ -12,7 +13,6 @@ use hyperlane_cosmos_native::CosmosNativeProvider;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use kaspa_consensus_core::network::NetworkId;
 use kaspa_wallet_keys::secret::Secret;
-use super::key_cosmos::EasyHubKey;
 use rand_distr::{Distribution, Exp};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -206,7 +206,6 @@ impl TrafficSim {
         Ok(())
     }
 }
-
 
 async fn fund_hub_addr(hub_key: &EasyHubKey, hub: &CosmosNativeProvider) -> Result<()> {
     // let hub_addr = hub_key.signer().address_string.clone();

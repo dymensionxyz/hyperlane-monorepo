@@ -2,8 +2,8 @@ use crate::sim::util::som_to_kas;
 use eyre::Error;
 use kaspa_consensus_core::tx::TransactionId;
 use std::time::Instant;
-use tracing::info;
 use tendermint::hash::Hash as TendermintHash;
+use tracing::info;
 
 pub fn render_stats(stats: Vec<RoundTripStats>, total_spend: u64, total_ops: u64) {
     info!("Total spend: {}", som_to_kas(total_spend));
