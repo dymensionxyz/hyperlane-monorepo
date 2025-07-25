@@ -154,8 +154,7 @@ impl HttpClient {
         }
 
         // return txs filtered by txs that include utxos with destination escrow address and including a payload
-        txs
-            .into_iter()
+        txs.into_iter()
             .filter(|tx| {
                 is_valid_escrow_transfer(tx, &address.to_string()).expect("unable to validate txs")
                     && tx.payload.is_some()

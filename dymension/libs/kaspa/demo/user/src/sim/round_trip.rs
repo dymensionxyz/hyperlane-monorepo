@@ -33,10 +33,7 @@ Stages
 
     Measure the time gaps, and record failures
  */
-pub async fn do_round_trip(
-    res: Arc<TaskResources>,
-    tx: mpsc::Sender<RoundTripStats>,
-) {
+pub async fn do_round_trip(res: Arc<TaskResources>, tx: mpsc::Sender<RoundTripStats>) {
     let mut rt = RoundTrip::new(res);
     let _ = rt.deposit().await;
     let _ = rt.await_hub_credit().await;

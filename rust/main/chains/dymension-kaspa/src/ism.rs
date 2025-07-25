@@ -1,4 +1,3 @@
-
 use super::consts::KASPA_ISM_ADDRESS;
 use tonic::async_trait;
 

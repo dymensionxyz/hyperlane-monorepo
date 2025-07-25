@@ -580,11 +580,11 @@ pub async fn sign_pay_fee(pskt: PSKT<Signer>, r: &SigningResources) -> Result<PS
 mod tests {
     use super::*;
     use bytes::Bytes;
+    use corelib::payload::MessageIDs;
     use corelib::util::is_valid_sighash_type;
     use corelib::withdraw::WithdrawFXG;
-    use std::collections::BTreeMap;
-    use corelib::payload::MessageIDs;
     use hyperlane_core::H256;
+    use std::collections::BTreeMap;
 
     #[test]
     fn test_kaspa_address_conversion() {

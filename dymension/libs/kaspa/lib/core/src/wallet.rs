@@ -3,17 +3,17 @@ use kaspa_addresses::{Prefix, Version};
 use kaspa_consensus_core::network::{NetworkId, NetworkType};
 use kaspa_core::info;
 use kaspa_wallet_core::api::WalletApi;
+use kaspa_wallet_core::derivation::build_derivate_paths;
 use kaspa_wallet_core::error::Error;
+use kaspa_wallet_core::prelude::*;
+use kaspa_wallet_core::storage::local::set_default_storage_folder as unsafe_set_default_storage_folder_kaspa; // Import the prelude for easy access to traits/structs
 use kaspa_wallet_core::utxo::NetworkParams;
 use kaspa_wallet_core::wallet::Wallet;
 use kaspa_wallet_keys::secret::Secret;
 use kaspa_wallet_pskt::prelude::KeySource;
-use std::fmt;
-use kaspa_wallet_core::derivation::build_derivate_paths;
-use kaspa_wallet_core::prelude::*;
-use kaspa_wallet_core::storage::local::set_default_storage_folder as unsafe_set_default_storage_folder_kaspa; // Import the prelude for easy access to traits/structs
-use std::sync::Arc;
 use kaspa_wrpc_client::Resolver;
+use std::fmt;
+use std::sync::Arc;
 
 pub async fn get_wallet(
     s: &Secret,
@@ -215,8 +215,8 @@ impl NetworkInfo {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
     use super::*;
+    use std::str::FromStr;
     use std::sync::Arc;
 
     #[test]

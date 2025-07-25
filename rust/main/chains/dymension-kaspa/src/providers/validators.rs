@@ -1,7 +1,8 @@
 use tonic::async_trait;
 
 use hyperlane_core::{
-    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, Signature, SignedCheckpointWithMessageId,
+    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, Signature,
+    SignedCheckpointWithMessageId,
 };
 
 use bytes::Bytes;

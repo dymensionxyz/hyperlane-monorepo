@@ -1,5 +1,4 @@
 /// Cosmos Native Mailbox
-
 use cosmrs::Any;
 use hex::ToHex;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{MsgIndicateProgress, ProgressIndication};

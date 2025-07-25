@@ -17,9 +17,7 @@ pub fn get_recipient_address(recipient: H256, prefix: Prefix) -> Address {
 }
 
 pub fn get_recipient_script_pubkey(recipient: H256, prefix: Prefix) -> ScriptPublicKey {
-    pay_to_address_script(&get_recipient_address(
-        recipient, prefix,
-    ))
+    pay_to_address_script(&get_recipient_address(recipient, prefix))
 }
 
 pub fn get_recipient_script_pubkey_address(address: &Address) -> ScriptPublicKey {

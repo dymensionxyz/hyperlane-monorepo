@@ -139,7 +139,6 @@ impl<S: HyperlaneSignerExt + Send + Sync + 'static> Default for ValidatorServerR
     }
 }
 
-
 async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'static>(
     State(resources): State<Arc<ValidatorServerResources<S>>>,
     body: Bytes,

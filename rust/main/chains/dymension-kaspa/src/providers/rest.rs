@@ -1,5 +1,3 @@
-
-
 use hyperlane_core::{
     rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, FixedPointNumber,
 };
