@@ -19,6 +19,10 @@ pub struct RoundTripStats {
     pub kaspa_deposit_tx_id: Option<TransactionId>,
     pub deposit_time: Option<Instant>,
     pub deposit_credit_error: Option<String>,
+    pub withdrawal_tx_id: Option<TransactionId>,
+    pub withdrawal_time: Option<Instant>,
+    pub withdrawal_tx_error: Option<String>,
+
 }
 
 #[derive(Debug, Clone, Copy)]

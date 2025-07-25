@@ -130,7 +130,7 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
 
 pub struct TrafficSim {
     params: Params,
-    resources: Arc<TaskResources>,
+    resources: TaskResources,
 }
 
 impl TrafficSim {
@@ -142,11 +142,11 @@ impl TrafficSim {
             storage_folder: None,
         })
         .await?;
-        let resources = Arc::new(TaskResources {
+        let resources = TaskResources {
             w: w.clone(),
             args: args.task_args,
             hub: cosmos_provider().await?,
-        });
+        };
         Ok(TrafficSim {
             params: args.params,
             resources,

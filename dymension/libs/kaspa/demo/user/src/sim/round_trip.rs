@@ -4,28 +4,30 @@ use corelib::user::deposit::deposit_with_payload;
 use corelib::user::payload::make_deposit_payload_easy;
 use corelib::wallet::EasyKaspaWallet;
 use eyre::Result;
+use hyperlane_core::ContractLocator;
+use hyperlane_core::HyperlaneDomain;
+use hyperlane_core::KnownHyperlaneDomain;
 use hyperlane_core::H256;
 use hyperlane_core::U256;
+use hyperlane_cosmos_native::remote_transfer::CosmosNativeRemoteTransfer;
 use hyperlane_cosmos_native::CosmosNativeProvider;
+use hyperlane_cosmos_rs::hyperlane::warp::v1::MsgRemoteTransfer;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionId;
 use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
-use hyperlane_cosmos_native::remote_transfer::CosmosNativeRemoteTransfer;
-use hyperlane_core::ContractLocator;
 use tokio::sync::mpsc;
 use tracing::error;
-use hyperlane_core::HyperlaneDomain;
-use hyperlane_core::KnownHyperlaneDomain;
-use hyperlane_cosmos_rs::hyperlane::warp::v1::MsgRemoteTransfer;
 
+#[derive(Debug, Clone)]
 pub struct TaskResources {
     pub hub: CosmosNativeProvider,
     pub w: EasyKaspaWallet,
     pub args: TaskArgs,
 }
 
+#[derive(Debug, Clone)]
 pub struct TaskArgs {
     pub domain_kas: u32,
     pub token_kas_placeholder: H256,
@@ -45,7 +47,7 @@ Stages
     Measure the time gaps, and record failures
  */
 pub async fn do_round_trip(
-    res: Arc<TaskResources>,
+    res: TaskResources,
     value: u64,
     tx: &mpsc::Sender<RoundTripStats>,
     task_id: u64,
@@ -67,7 +69,13 @@ pub async fn do_round_trip(
             return;
         }
     }
-    rt.withdraw().await;
+    match rt.withdraw().await {
+        Ok((tx_id, withdrawal_time)) => {
+            rt.stats.kaspa_withdrawal_tx_id = Some(tx_id);
+            rt.stats.withdrawal_time = Some(withdrawal_time);
+        }
+        Err(e) => {
+    }
     rt.await_kaspa_credit().await;
     tx.send(rt.stats).await.unwrap();
 }
@@ -81,8 +89,9 @@ struct RoundTrip {
 }
 
 impl RoundTrip {
-    pub fn new(res: Arc<TaskResources>, value: u64, task_id: u64) -> Self {
+    pub fn new(res: TaskResources, value: u64, task_id: u64) -> Self {
         let hub_k = EasyHubKey::new();
+        res.hub.rpc().set_signer(hub_k.signer());
         Self {
             res,
             value,
@@ -136,17 +145,44 @@ impl RoundTrip {
         Ok(())
     }
 
-    async fn withdraw(&self) -> Result<()> {
-        
+    async fn withdraw(&self) -> Result<(TendermintHash)> {
+        let rpc = self.res.hub.rpc();
+
         let d = HyperlaneDomain::Known(KnownHyperlaneDomain::Osmosis);
         let l = ContractLocator::new(&d, H256::zero());
         let rtc = CosmosNativeRemoteTransfer::new(self.res.hub.clone(), l);
+        let amount = self.value.to_string();
+        let recipient = x::addr::hl_recipient(&self.res.args.escrow_address.clone().to_string());
         let req = MsgRemoteTransfer {
-            sender: self.hub_key.signer().address_string.clone(),
-            token_id: self.res.args.hl_token_denom.clone(),
+            sender: rpc.get_signer()?.address_string.clone(),
+            token_id: self.res.args.token_hub.clone(),
             destination_domain: self.res.args.domain_hub,
-            recipient: self.res.args.escrow_address.clone(),
+            recipient,
+            amount,
+            custom_hook_id: "".to_string(),
+            gas_limit: "".to_string(),
+            max_fee: Some(Coin {
+                denom: "adym".to_string(),
+                amount: "1000".to_string(),
+            }),
+            custom_hook_metadata: "".to_string(),
         };
+        let a = Any {
+            type_url: MsgRemoteTransfer::type_url(),
+            value: req.encode_to_vec(),
+        };
+        let gas_limit = None;
+        let response = rpc.send(vec![a], gas_limit).await?;
+        let i = Instant::now();
+        match response.tx_result.code {
+            Code::Ok => {
+                let tx_id = response.tx_result.tx_hash.clone();
+                Ok((tx_id, i))
+            }
+            _ => {
+                return Err(RoundTripError::WithdrawalTxFailed.into());
+            }
+        }
         Ok(())
     }
 
@@ -159,6 +195,8 @@ impl RoundTrip {
 pub enum RoundTripError {
     #[error("hub balance mismatch: {balance} != {expected}")]
     HubBalanceMismatch { balance: U256, expected: U256 },
+    #[error("withdrawal tx fail")]
+    WithdrawalTxFailed,
 }
 
 #[cfg(test)]
