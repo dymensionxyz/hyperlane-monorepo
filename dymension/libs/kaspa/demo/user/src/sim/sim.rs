@@ -2,7 +2,7 @@ use super::round_trip::do_round_trip;
 use super::round_trip::TaskArgs;
 use super::round_trip::TaskResources;
 use super::stats::render_stats;
-use super::util::as_kas;
+use super::util::som_to_kas;
 use corelib::wallet::get_wallet;
 use corelib::wallet::EasyKaspaWallet;
 use eyre::Result;
@@ -138,7 +138,7 @@ impl TrafficSim {
                 "elasped millis {}, interval {}, value {}",
                 start_time.elapsed().as_millis(),
                 sleep_millis,
-                as_kas(nominal_value)
+                som_to_kas(nominal_value)
             );
         }
         info!("Waiting for tasks to finish");

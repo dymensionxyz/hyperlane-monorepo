@@ -1,5 +1,5 @@
 use super::sim::Params;
-use super::util::{as_kas, SOMPI_PER_KAS};
+use super::util::{som_to_kas, SOMPI_PER_KAS};
 use rand::Rng;
 use rand_distr::Distribution;
 use std::time::Duration;
@@ -28,12 +28,12 @@ fn demo_params(params: Params) {
             "elaspsed {}, time {}, value {}",
             elapsed,
             time,
-            as_kas(value)
+            som_to_kas(value)
         );
     }
     println!(
         "total_spend: {}, total_ops: {}",
-        as_kas(total_spend),
+        som_to_kas(total_spend),
         total_ops
     );
 }
