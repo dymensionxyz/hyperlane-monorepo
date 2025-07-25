@@ -8,6 +8,7 @@ use eyre::Result;
 use hyperlane_core::AccountAddressType;
 use hyperlane_core::H256;
 use hyperlane_cosmos_native::signers::Signer;
+use hyperlane_cosmos_native::CosmosNativeProvider;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use k256::ecdsa::SigningKey as K256SigningKey;
 use kaspa_addresses::Address;
@@ -19,6 +20,7 @@ use tokio::sync::mpsc;
 
 pub struct TaskResources {
     // rpc_hub: CosmosGrpcClient,
+    pub hub: CosmosNativeProvider,
     pub w: EasyKaspaWallet,
     pub args: TaskArgs,
 }
@@ -72,7 +74,7 @@ impl RoundTrip {
         }
     }
 
-    async fn deposit(&mut self) -> Result<TransactionId> {
+    async fn deposit(&mut self) -> Result<()> {
         let w = &self.res.w;
         let s = &w.secret;
         let a = self.res.args.escrow_address.clone();
@@ -88,7 +90,7 @@ impl RoundTrip {
         );
         let tx_id = deposit_with_payload(&w.wallet, &s, a, amt, payload).await?;
         self.stats.kaspa_deposit_tx_id = tx_id;
-        Ok(tx_id)
+        Ok(())
     }
 
     async fn await_hub_credit(&self) -> Result<()> {
