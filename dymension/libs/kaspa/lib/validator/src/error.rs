@@ -17,6 +17,9 @@ pub enum ValidationError {
     #[error("Message is for another bridge: {message_id}")]
     MessageWrongBridge { message_id: String },
 
+    #[error("Failed general verification: {reason}")]
+    FailedGeneralVerification { reason: String },
+
     #[error("Some of the messages are not in the unprocessed status on the Hub")]
     MessagesNotUnprocessed,
 

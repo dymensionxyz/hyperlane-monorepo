@@ -1833,23 +1833,36 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "core",
+ "cosmos-sdk-proto",
+ "cosmrs",
  "eyre",
+ "hardcode",
  "hex",
  "hyperlane-core",
+ "hyperlane-cosmos-dymension-rs",
  "hyperlane-cosmos-native",
+ "hyperlane-metric",
+ "k256 0.13.4",
  "kaspa-addresses",
  "kaspa-consensus-core",
  "kaspa-core",
  "kaspa-wallet-core",
  "kaspa-wallet-keys",
  "rand 0.9.1",
+ "rand_core 0.6.4",
  "rand_distr",
  "relayer",
  "secp256k1",
  "serde",
  "serde_json",
+ "tendermint",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
+ "tracing-error",
+ "tracing-futures",
+ "tracing-subscriber",
+ "url",
  "validator",
 ]
 
@@ -3756,7 +3769,7 @@ dependencies = [
 [[package]]
 name = "hyperlane-cosmos-dymension-rs"
 version = "0.1.4-dymension-v3.2.1"
-source = "git+https://github.com/dymensionxyz/hyperlane-cosmos-rs?rev=202b77f#202b77fcff0478b684ac34db72f916685a1f592e"
+source = "git+https://github.com/dymensionxyz/hyperlane-cosmos-rs?rev=d7fcf4b#d7fcf4bc475f8f393ea1205dbbe2bd1baf37d3ea"
 dependencies = [
  "cosmrs",
  "prost",

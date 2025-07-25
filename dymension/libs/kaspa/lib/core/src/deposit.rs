@@ -1,6 +1,5 @@
 use bytes::Bytes;
 use eyre::Result;
-use hyperlane_core::H256;
 use hyperlane_core::{Encode, HyperlaneMessage, U256};
 use hyperlane_cosmos_rs::dymensionxyz::hyperlane::kaspa::{
     DepositFxg as ProtoDepositFXG, DepositVersion,
@@ -59,7 +58,7 @@ impl TryFrom<Bytes> for DepositFXG {
             eyre::Report::new(e).wrap_err("Failed to deserialize proto DepositFXG from bytes")
         })?;
 
-        DepositFXG::try_from(protodeposit)
+        Ok(DepositFXG::from(protodeposit))
     }
 }
 
@@ -84,18 +83,16 @@ impl From<&DepositFXG> for ProtoDepositFXG {
     }
 }
 
-impl TryFrom<ProtoDepositFXG> for DepositFXG {
-    type Error = eyre::Report;
-
-    fn try_from(pb_deposit: ProtoDepositFXG) -> Result<Self, Self::Error> {
-        Ok(DepositFXG {
+impl From<ProtoDepositFXG> for DepositFXG {
+    fn from(pb_deposit: ProtoDepositFXG) -> Self {
+        DepositFXG {
             amount: U256::from_little_endian(&pb_deposit.amount.to_vec()),
             tx_id: pb_deposit.tx_id,
             utxo_index: pb_deposit.utxo_index as usize,
             accepting_block_hash: pb_deposit.accepting_block_hash,
             hl_message: HyperlaneMessage::from(pb_deposit.hl_message),
             containing_block_hash: pb_deposit.containing_block_hash,
-        })
+        }
     }
 }
 
@@ -105,7 +102,7 @@ mod tests {
     use super::*;
     use bytes::Bytes;
     use eyre::Result as EyreResult;
-
+    use hyperlane_core::H256;
     // --- Test Cases for DepositFXG Conversions ---
 
     #[tokio::test]

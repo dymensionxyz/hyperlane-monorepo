@@ -1,19 +1,10 @@
 use corelib::deposit::DepositFXG;
+use corelib::message::ParsedHL;
 use corelib::{api::client::Deposit, message::add_kaspa_metadata_hl_messsage};
 use eyre::Result;
-
-use tracing::info;
-
-// Re-export the main function for easier access
-use hyperlane_cosmos_rs::dymensionxyz::dymension::forward::HlMetadata;
-use prost::Message;
-
-use corelib::message::{parse_hyperlane_message, parse_hyperlane_metadata, ParsedHL};
-use hyperlane_core::{Encode, HyperlaneMessage, RawHyperlaneMessage, U256};
-use hyperlane_warp_route::TokenMessage;
-use kaspa_consensus_core::tx::TransactionOutpoint;
+use hyperlane_core::U256;
 pub use secp256k1::PublicKey;
-use std::error::Error;
+use tracing::info;
 
 pub async fn on_new_deposit(escrow_address: &str, deposit: &Deposit) -> Result<Option<DepositFXG>> {
     // decode payload into Hyperlane message
@@ -38,14 +29,14 @@ pub async fn on_new_deposit(escrow_address: &str, deposit: &Deposit) -> Result<O
 
     let hl_message_new = add_kaspa_metadata_hl_messsage(parsed_hl, deposit.id, utxo_index)?;
 
-    if deposit.block_hashes.len() == 0 {
+    if deposit.block_hashes.is_empty() {
         return Err(eyre::eyre!("kaspa deposit had no block hashes"));
     }
 
     // build response for validator
     let tx = DepositFXG {
         tx_id: deposit.id.to_string(),
-        utxo_index: utxo_index,
+        utxo_index,
         amount: amt_hl,
         accepting_block_hash: deposit.accepting_block_hash.clone(),
         containing_block_hash: deposit.block_hashes[0].clone(), // used by validator to find tx by block

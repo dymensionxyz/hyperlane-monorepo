@@ -99,11 +99,11 @@ async fn load_wallet(args: &Args, url: Option<&str>) -> Result<EasyKaspaWallet> 
         "184.190.99.128",
         "157.90.201.188",
     ] {
-        for pre in vec!["", "http://", "https://", "ws://", "wss://"] {
-            for suf in vec!["", ":16210", ":17210"] {
+        for pre in ["", "http://", "https://", "ws://", "wss://"] {
+            for suf in ["", ":16210", ":17210"] {
                 let full_url: String = match url {
                     Some(url) => url.to_string(),
-                    None => format!("{}{}{}", pre, u, suf),
+                    None => format!("{pre}{u}{suf}"),
                 };
                 let w = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
                     wallet_secret: args.wallet_secret.as_ref().unwrap().clone(),
@@ -113,8 +113,8 @@ async fn load_wallet(args: &Args, url: Option<&str>) -> Result<EasyKaspaWallet> 
                 })
                 .await;
                 if w.is_ok() {
-                    println!("Connected to wallet at {}", full_url);
-                    return Ok(w.unwrap());
+                    println!("Connected to wallet at {full_url}");
+                    return w;
                 }
             }
         }
@@ -153,7 +153,7 @@ async fn demo() -> Result<()> {
 
     let hl_msg = HyperlaneMessage::default();
 
-    let payload = MessageIDs::from(vec![hl_msg.id()]).to_bytes()?;
+    let payload = MessageIDs::from(vec![hl_msg.id()]).to_bytes();
 
     let current_anchor = TransactionOutpoint::new(tx_id, 0);
 
@@ -239,6 +239,6 @@ async fn demo() -> Result<()> {
 #[tokio::main]
 async fn main() {
     if let Err(e) = demo().await {
-        eprintln!("Error: {}", e);
+        eprintln!("Error: {e}");
     }
 }

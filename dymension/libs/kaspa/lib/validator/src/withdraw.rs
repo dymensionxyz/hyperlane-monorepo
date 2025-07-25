@@ -1,42 +1,26 @@
 // We call the signers 'validators'
 
-use corelib::escrow::*;
-use std::collections::hash_map::Entry;
-
-use kaspa_core;
-use kaspa_wallet_core::error::Error;
-
-use kaspa_wallet_pskt::prelude::*;
-use secp256k1::Keypair as SecpKeypair;
-
 use crate::error::ValidationError;
-use corelib::payload::{MessageID, MessageIDs};
+use corelib::escrow::*;
+use corelib::payload::MessageIDs;
 use corelib::util;
-use corelib::util::{get_recipient_address, get_recipient_script_pubkey, is_valid_sighash_type};
-use corelib::wallet::EasyKaspaWallet;
-
-use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
+use corelib::util::{get_recipient_script_pubkey, is_valid_sighash_type};
+use corelib::withdraw::filter_pending_withdrawals;
 use eyre::{Report, Result};
 use hardcode::hl::ALLOWED_HL_MESSAGE_VERSION;
 use hex::ToHex;
-use hyperlane_core::HyperlaneDomainConfigError::DomainNameMismatch;
-use hyperlane_core::{Decode, HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, H256, U256};
+use hyperlane_core::{Decode, HyperlaneMessage, H256};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use hyperlane_warp_route::TokenMessage;
-use kaspa_addresses::{Address as KaspaAddress, Prefix as KaspaAddrPrefix};
-use kaspa_consensus_core::hashing::sighash::{
-    calc_schnorr_signature_hash, SigHashReusedValuesUnsync,
-};
-use kaspa_consensus_core::mass::transaction_output_estimated_serialized_size;
-use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint, TransactionOutput};
-use kaspa_hashes;
-use kaspa_txscript::pay_to_address_script;
-use kaspa_wallet_core::utxo::NetworkParams;
-use kaspa_wallet_pskt::pskt::{Global, Inner, Input, Output, Signer, Version, PSKT};
+use kaspa_addresses::Prefix as KaspaAddrPrefix;
+use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint};
+use kaspa_wallet_pskt::prelude::*;
+use kaspa_wallet_pskt::pskt::{Inner, Input, Signer, PSKT};
+use secp256k1::Keypair as SecpKeypair;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::io::Cursor;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 
 #[derive(Clone)]
 pub struct MustMatch {
@@ -72,12 +56,43 @@ impl MustMatch {
         }
     }
 
-    fn is_match(&self, other: &HyperlaneMessage) -> bool {
-        self.partial_message.version == other.version
-            && self.partial_message.origin == other.origin
-            && self.partial_message.sender == other.sender
-            && self.partial_message.destination == other.destination
-            && self.partial_message.recipient == other.recipient
+    fn is_match(&self, other: &HyperlaneMessage) -> Result<()> {
+        if self.partial_message.version != other.version {
+            return Err(eyre::eyre!(
+                "version is incorrect, expected: {}, got: {}",
+                other.version,
+                self.partial_message.version
+            ));
+        }
+        if self.partial_message.origin != other.origin {
+            return Err(eyre::eyre!(
+                "origin is incorrect, expected: {}, got: {}",
+                other.origin,
+                self.partial_message.origin
+            ));
+        }
+        if self.partial_message.sender != other.sender {
+            return Err(eyre::eyre!(
+                "sender is incorrect, expected: {}, got: {}",
+                other.sender,
+                self.partial_message.sender
+            ));
+        }
+        if self.partial_message.destination != other.destination {
+            return Err(eyre::eyre!(
+                "destination is incorrect, expected: {}, got: {}",
+                other.destination,
+                self.partial_message.destination
+            ));
+        }
+        if self.partial_message.recipient != other.recipient {
+            return Err(eyre::eyre!(
+                "recipient is incorrect, expected: {}, got: {}",
+                other.recipient,
+                self.partial_message.recipient
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -95,8 +110,8 @@ impl MustMatch {
 ///      - The Kaspa TXs have corresponding message IDs in their payload (msg ID == msg hash).
 ///        Consequence: Each message actually hashes to the hash stored in the payload.
 ///      - Correct sighash type in inputs
-///      - No lock time
-///      - TX version
+///      - We validate agains the safe bundle (see `safe_bundle`), so assume that
+///        the relayer must use no lock time and a default TX version
 /// (7)  TX UTXO spends actually correspond to the message content.
 /// (8)  No message use escrow as a recipient.
 /// (9)  Each PSKT has exactly one anchor.
@@ -104,7 +119,7 @@ impl MustMatch {
 /// CONTRACT: the first anchor of `fxg.anchors` is the Hub anchor.
 pub async fn validate_withdrawal_batch(
     bundle: &Bundle,
-    messages: &Vec<Vec<HyperlaneMessage>>,
+    messages: &[Vec<HyperlaneMessage>],
     cosmos_client: &CosmosGrpcClient,
     must_match: MustMatch,
 ) -> Result<(), ValidationError> {
@@ -124,11 +139,11 @@ pub async fn validate_withdrawal_batch(
 }
 
 async fn validate_messages(
-    messages: &Vec<Vec<HyperlaneMessage>>,
+    messages: &[Vec<HyperlaneMessage>],
     cosmos_client: &CosmosGrpcClient,
     must_match: &MustMatch,
 ) -> Result<TransactionOutpoint, ValidationError> {
-    let messages: Vec<HyperlaneMessage> = messages.clone().into_iter().flatten().collect();
+    let messages: Vec<HyperlaneMessage> = messages.iter().flatten().cloned().collect();
     let num_msgs = messages.len();
     debug!(
         "Starting withdrawal validation for messages, num_msgs: {}",
@@ -140,9 +155,9 @@ async fn validate_messages(
         return Err(ValidationError::DoubleSpending { message_id });
     }
     for msg in messages.iter() {
-        if !must_match.is_match(&msg) {
-            return Err(ValidationError::MessageWrongBridge {
-                message_id: msg.id().encode_hex(),
+        if let Err(e) = must_match.is_match(msg) {
+            return Err(ValidationError::FailedGeneralVerification {
+                reason: e.to_string(),
             });
         }
     }
@@ -154,7 +169,6 @@ async fn validate_messages(
 
         // Delivered is a confusing name. `delivered` is just the name of the network query.
         let was_dispatched_on_hub = res.delivered;
-        info!("was_dispatched_on_hub: {}", was_dispatched_on_hub);
         if !was_dispatched_on_hub {
             let message_id = id.encode_hex();
             return Err(ValidationError::MessageNotDispatched { message_id });
@@ -173,7 +187,7 @@ async fn validate_messages(
 
 pub fn validate_pskts(
     bundle: &Bundle,
-    messages: &Vec<Vec<HyperlaneMessage>>,
+    messages: &[Vec<HyperlaneMessage>],
     hub_anchor: TransactionOutpoint,
     must_match: MustMatch,
 ) -> Result<(), ValidationError> {
@@ -230,7 +244,7 @@ pub fn validate_pskt_application_semantics(
     expected_messages: &Vec<HyperlaneMessage>,
     must_match: MustMatch,
 ) -> Result<u32, ValidationError> {
-    if expected_messages.len() == 0 {
+    if expected_messages.is_empty() {
         return Err(ValidationError::NoMessages);
     }
 
@@ -242,16 +256,9 @@ pub fn validate_pskt_application_semantics(
         return Err(ValidationError::AnchorNotFound { o: must_spend });
     }
 
-    let payload_expect = MessageIDs(
-        expected_messages
-            .iter()
-            .map(|m| MessageID(m.id()))
-            .collect(),
-    )
-    .to_bytes()
-    .map_err(|e| eyre::eyre!("Failed to serialize MessageIDs: {}", e))?;
+    let payload_expect = MessageIDs::from(expected_messages).to_bytes();
 
-    let payload_actual = pskt.global.payload.clone().unwrap_or(vec![]);
+    let payload_actual = pskt.global.payload.clone().unwrap_or_default();
 
     if payload_actual != payload_expect {
         return Err(ValidationError::PayloadMismatch);
@@ -262,11 +269,11 @@ pub fn validate_pskt_application_semantics(
     let escrow_inputs_sum = pskt.inputs.iter().fold(0, |acc, i| {
         // redeem_script is None for relayer input
         let rs = i.redeem_script.clone().unwrap_or_default();
-        return if rs == must_match.escrow_public.redeem_script {
+        if rs == must_match.escrow_public.redeem_script {
             acc + i.utxo_entry.as_ref().unwrap().amount
         } else {
             acc
-        };
+        }
     });
 
     // Construct a multiset of expected outputs from HL messages.
@@ -338,7 +345,7 @@ pub fn validate_pskt_application_semantics(
         });
     }
 
-    Ok(next_anchor_idx.ok_or(ValidationError::NextAnchorNotFound)?)
+    next_anchor_idx.ok_or(ValidationError::NextAnchorNotFound)
 }
 
 pub fn sign_withdrawal_fxg(
@@ -347,7 +354,7 @@ pub fn sign_withdrawal_fxg(
     input_filter: Option<impl Fn(&Input) -> bool>,
 ) -> Result<Bundle> {
     let mut signed = Vec::new();
-    for (pskt) in bundle.iter() {
+    for pskt in bundle.iter() {
         let pskt = PSKT::<Signer>::from(pskt.clone());
 
         let signed_pskt = corelib::pskt::sign_pskt(pskt, keypair, None, input_filter.as_ref())?;
@@ -359,14 +366,15 @@ pub fn sign_withdrawal_fxg(
     Ok(bundle)
 }
 
-// Load only the interesting fields of the PSKT which should be there
-// This means we don't have to validate all the other uninteresting fields one by one
+/// Load only the interesting fields of the PSKT which should be there
+/// This means we don't have to validate all the other uninteresting fields one by one
+/// The relayer should use no lock time and a default TX version
 fn safe_pskt(unstrusted_inner: Inner) -> Result<PSKT<Signer>> {
     let mut inner = Inner::default();
     inner.global.input_count = unstrusted_inner.inputs.len();
     inner.global.output_count = unstrusted_inner.outputs.len();
     inner.global.payload = unstrusted_inner.global.payload;
-    for (i, input) in unstrusted_inner.inputs.iter().enumerate() {
+    for input in unstrusted_inner.inputs.iter() {
         let mut b = InputBuilder::default();
         if let Some(utxo_entry) = &input.utxo_entry {
             b.utxo_entry(utxo_entry.clone());
@@ -382,7 +390,7 @@ fn safe_pskt(unstrusted_inner: Inner) -> Result<PSKT<Signer>> {
         inner.inputs.push(b.build()?);
     }
 
-    for (i, output) in unstrusted_inner.outputs.iter().enumerate() {
+    for output in unstrusted_inner.outputs.iter() {
         let mut b = OutputBuilder::default();
         b.amount(output.amount);
         b.script_public_key(output.script_public_key.clone());
