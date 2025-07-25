@@ -21,8 +21,9 @@ use dymension_kaspa::is_kas;
 use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::{
-    ConfirmReason, HyperlaneDomain, HyperlaneDomainProtocol, PendingOperation,
-    PendingOperationResult, PendingOperationStatus, QueueOperation, ReprepareReason, U256,
+    BatchResult, ChainCommunicationError, ConfirmReason, HyperlaneDomain, HyperlaneDomainProtocol,
+    PendingOperation, PendingOperationResult, PendingOperationStatus, QueueOperation,
+    ReprepareReason, U256,
 };
 use lander::{
     DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadId, PayloadStatus,

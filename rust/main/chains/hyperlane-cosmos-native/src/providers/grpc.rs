@@ -310,7 +310,9 @@ impl GrpcProvider {
         let ws_res = self.withdrawal_status(vec![], None).await;
         match ws_res {
             Ok(_) => Ok(true),
-            Err(e) => Err(e),
+            Err(e) => {
+                return Err(e);
+            }
         }
     }
 }

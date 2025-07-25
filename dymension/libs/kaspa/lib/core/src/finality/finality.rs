@@ -2,7 +2,10 @@ use crate::api::client::HttpClient;
 use eyre::Result;
 use hardcode::tx::REQUIRED_FINALITY_BLUE_SCORE_CONFIRMATIONS;
 use kaspa_consensus_core::network::NetworkId;
+use kaspa_rpc_core::RpcHash;
+use kaspa_wallet_core::prelude::DynRpcApi;
 use kaspa_wallet_core::utxo::NetworkParams;
+use std::sync::Arc;
 
 /// Returns true if the block is unlikely to be reorged
 /// Suitable only for sending transactions to Kaspa: the tranaction will fail if any input

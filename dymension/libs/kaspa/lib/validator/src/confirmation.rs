@@ -1,16 +1,27 @@
 use crate::error::ValidationError;
-use api_rs::models::{TxModel, TxOutput};
-use corelib::api::client::HttpClient;
 use corelib::confirmation::ConfirmationFXG;
+use std::cmp::min;
+
+use corelib::api::client::HttpClient;
+
+use api_rs::models::{TxModel, TxOutput};
+use corelib::escrow::EscrowPublic;
 use corelib::finality;
 use corelib::payload::{MessageID, MessageIDs};
+use corelib::util;
+use corelib::wallet::NetworkInfo;
+use eyre::eyre;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use kaspa_addresses::Address;
-use kaspa_consensus_core::tx::TransactionOutpoint;
+use kaspa_consensus_core::network::NetworkId;
+use kaspa_consensus_core::tx::{TransactionId, TransactionInput, TransactionOutpoint};
 use kaspa_hashes::Hash as KaspaHash;
+use kaspa_rpc_core::RpcHash;
+use kaspa_wallet_core::prelude::DynRpcApi;
 use std::collections::HashSet;
-use tracing::info;
-
+use std::str::FromStr;
+use std::sync::Arc;
+use tracing::{info, warn};
 // FIXME: add address validation
 
 /// Validator is given a progress indication to sign, and a cache of outpoints,
@@ -121,7 +132,7 @@ pub async fn validate_confirmed_withdrawals(
         if i == outpoint_sequence.len() - 1 {
             let hint = match tx.block_hash {
                 Some(block_hashes) => {
-                    if !block_hashes.is_empty() {
+                    if 0 < block_hashes.len() {
                         Some(block_hashes[0].clone())
                     } else {
                         None
@@ -129,7 +140,7 @@ pub async fn validate_confirmed_withdrawals(
                 }
                 None => None,
             };
-            if !finality::is_safe_against_reorg(client_rest, tx_id, hint).await? {
+            if !finality::is_safe_against_reorg(client_rest, &tx_id, hint).await? {
                 return Err(ValidationError::NotSafeAgainstReorg {
                     tx_id: tx_id.clone(),
                 });
@@ -207,7 +218,7 @@ fn escrow_outpoint_in_outputs(
 
     if recipient_actual != escrow_address.address_to_string() {
         return Err(ValidationError::NonEscrowAnchor {
-            o: *escrow_outpoint_unstrusted,
+            o: escrow_outpoint_unstrusted.clone(),
         });
     }
 

@@ -1,5 +1,6 @@
 use bytes::Bytes;
 use eyre::Result;
+use hyperlane_core::H256;
 use hyperlane_core::{Encode, HyperlaneMessage, U256};
 use hyperlane_cosmos_rs::dymensionxyz::hyperlane::kaspa::{
     DepositFxg as ProtoDepositFXG, DepositVersion,
@@ -102,7 +103,7 @@ mod tests {
     use super::*;
     use bytes::Bytes;
     use eyre::Result as EyreResult;
-    use hyperlane_core::H256;
+
     // --- Test Cases for DepositFXG Conversions ---
 
     #[tokio::test]

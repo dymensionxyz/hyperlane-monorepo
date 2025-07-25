@@ -2,8 +2,8 @@ use super::payload::MessageID;
 use bytes::Bytes;
 use eyre::Error as EyreError;
 use hex::ToHex;
-use hyperlane_core::Encode;
-use hyperlane_core::HyperlaneMessage;
+use hyperlane_core::{Encode, H256};
+use hyperlane_core::{HyperlaneMessage, RawHyperlaneMessage};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
     TransactionOutpoint as ProtoTransactionOutpoint, WithdrawalId, WithdrawalStatus,
@@ -68,21 +68,19 @@ impl WithdrawFXG {
         }
     }
 
-    pub fn ids(&self) -> Vec<MessageID> {
-        self.messages
-            .iter()
-            .flat_map(|m| m.iter().map(|m| MessageID(m.id())))
-            .collect()
-    }
-}
-
-impl Default for WithdrawFXG {
-    fn default() -> Self {
+    pub fn default() -> Self {
         Self {
             bundle: Bundle::new(),
             messages: vec![],
             anchors: vec![],
         }
+    }
+
+    pub fn ids(&self) -> Vec<MessageID> {
+        self.messages
+            .iter()
+            .flat_map(|m| m.iter().map(|m| MessageID(m.id())))
+            .collect()
     }
 }
 

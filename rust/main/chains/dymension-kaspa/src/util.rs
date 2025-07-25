@@ -1,4 +1,6 @@
-use hyperlane_core::{HyperlaneDomain, HyperlaneDomainProtocol};
+use hyperlane_core::{
+    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneDomainType, KnownHyperlaneDomain,
+};
 
 use dym_kas_core::wallet::Network;
 use dym_kas_hardcode::hl::{
@@ -9,21 +11,19 @@ use dym_kas_hardcode::hl::{
 
 /// is it a kaspa domain?
 pub fn is_kas(d: &HyperlaneDomain) -> bool {
-    matches!(
-        d,
+    match d {
         HyperlaneDomain::Unknown {
             domain_protocol: HyperlaneDomainProtocol::Kaspa,
             ..
-        }
-    )
+        } => true,
+        _ => false,
+    }
 }
 
-/// is it a dym domain?
 pub fn is_dym(d: &HyperlaneDomain) -> bool {
-    HUB_DOMAINS.contains(&d.id())
+    hub_domains().contains(&d.id())
 }
 
-/// domain to kas network
 pub fn domain_to_kas_network(d: &HyperlaneDomain) -> Network {
     match d {
         HyperlaneDomain::Unknown {
@@ -46,13 +46,19 @@ pub fn domain_to_kas_network(d: &HyperlaneDomain) -> Network {
     }
 }
 
-/// List of kas domain.
-pub const KAS_DOMAINS: [u32; 2] = [HL_DOMAIN_KASPA_MAINNET, HL_DOMAIN_KASPA_TEST10];
+pub fn kas_domains() -> Vec<u32> {
+    vec![
+        HL_DOMAIN_KASPA_MAINNET,
+        HL_DOMAIN_KASPA_TEST10,
+        HL_DOMAIN_KASPA_TEST10_LEGACY, // TODO: remove
+    ]
+}
 
-/// List of dym domain.
-pub const HUB_DOMAINS: [u32; 4] = [
-    HL_DOMAIN_DYM_LOCAL,
-    HL_DOMAIN_DYM_MAINNET,
-    HL_DOMAIN_DYM_TESTNET_BLUMBUS,
-    HL_DOMAIN_DYM_PLAYGROUND_202507,
-];
+pub fn hub_domains() -> Vec<u32> {
+    vec![
+        HL_DOMAIN_DYM_LOCAL,
+        HL_DOMAIN_DYM_MAINNET,
+        HL_DOMAIN_DYM_TESTNET_BLUMBUS,
+        HL_DOMAIN_DYM_PLAYGROUND_202507,
+    ]
+}

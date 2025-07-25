@@ -1,9 +1,14 @@
 use kaspa_addresses::{Address, Prefix};
 use kaspa_consensus_core::tx::ScriptPublicKey;
+
 use kaspa_txscript::{
     extract_script_pub_key_address, multisig_redeem_script, pay_to_script_hash_script,
 };
+
+use eyre::Result;
+use kaspa_rpc_core::RpcScriptPublicKey;
 use secp256k1::{rand::thread_rng, Keypair, PublicKey};
+use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 pub fn generate_escrow_priv_key() -> Keypair {
@@ -78,11 +83,11 @@ impl EscrowPublic {
         let addr = extract_script_pub_key_address(&p2sh, prefix).unwrap();
 
         EscrowPublic {
-            required_signatures,
+            required_signatures: required_signatures,
             redeem_script,
             p2sh,
             addr,
-            pubs,
+            pubs: pubs,
         }
     }
 

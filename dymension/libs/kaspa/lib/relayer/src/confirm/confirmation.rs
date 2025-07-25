@@ -1,10 +1,15 @@
-use corelib::api::client::HttpClient;
-use corelib::{confirmation::ConfirmationFXG, payload::MessageID};
 use eyre::Result;
-use hex;
-use kaspa_consensus_core::tx::TransactionOutpoint;
-use kaspa_wallet_core::error::Error;
 use tracing::info;
+
+use api_rs::models::TxModel;
+use kaspa_consensus_core::tx::TransactionOutpoint;
+
+use kaspa_wallet_core::error::Error;
+
+use corelib::api::client::HttpClient;
+
+use corelib::{confirmation::ConfirmationFXG, payload::MessageID};
+use hex;
 
 /// WARNING: ONLY FOR UNHAPPY PATH
 ///

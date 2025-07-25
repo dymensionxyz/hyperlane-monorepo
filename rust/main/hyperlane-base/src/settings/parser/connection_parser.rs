@@ -7,7 +7,11 @@ use url::Url;
 use h_eth::TransactionOverrides;
 
 use hyperlane_core::config::{ConfigErrResultExt, OpSubmissionConfig};
-use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol, NativeToken, H256};
+use hyperlane_core::{
+    config::ConfigParsingError, utils::hex_or_base58_to_h256, HyperlaneDomainProtocol, NativeToken,
+    H256,
+};
+use kaspa_core::time::unix_now;
 
 use hyperlane_starknet as h_starknet;
 
@@ -306,7 +310,7 @@ pub fn build_cosmos_native_connection_conf(
 }
 
 pub fn build_kaspa_connection_conf(
-    _rpcs: &[Url],
+    rpcs: &[Url],
     chain: &ValueParser,
     err: &mut ConfigParsingError,
     operation_batch: OpSubmissionConfig,

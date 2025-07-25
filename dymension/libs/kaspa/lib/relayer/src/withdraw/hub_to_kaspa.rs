@@ -1,34 +1,58 @@
-use corelib::escrow::EscrowPublic;
-use corelib::finality;
-use corelib::util::{get_recipient_script_pubkey, input_sighash_type};
-use corelib::wallet::EasyKaspaWallet;
-use corelib::wallet::SigningResources;
-use corelib::withdraw::WithdrawFXG;
-use eyre::eyre;
 use eyre::Result;
+
+use kaspa_consensus_core::hashing::sighash::{
+    calc_schnorr_signature_hash, SigHashReusedValuesUnsync,
+};
+use kaspa_wallet_core::derivation::build_derivate_paths;
+
+use corelib::consts::KEY_MESSAGE_IDS;
+use corelib::escrow::EscrowPublic;
+use corelib::payload::MessageID;
+use corelib::payload::MessageIDs;
+use corelib::wallet::SigningResources;
 use hardcode::tx::DUST_AMOUNT;
-use hyperlane_core::{Decode, HyperlaneMessage};
+use hex::ToHex;
+use hyperlane_core::{Decode, HyperlaneMessage, H256};
+use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use hyperlane_warp_route::TokenMessage;
-use kaspa_addresses::Prefix;
 use kaspa_consensus_core::config::params::Params;
 use kaspa_consensus_core::constants::TX_VERSION;
+use kaspa_consensus_core::hashing::sighash_type::{
+    SigHashType, SIG_HASH_ALL, SIG_HASH_ANY_ONE_CAN_PAY,
+};
 use kaspa_consensus_core::mass;
 use kaspa_consensus_core::network::NetworkId;
 use kaspa_consensus_core::subnets::SUBNETWORK_ID_NATIVE;
-use kaspa_consensus_core::tx::{PopulatedTransaction, UtxoEntry};
+use kaspa_consensus_core::tx::{PopulatedTransaction, ScriptPublicKey, UtxoEntry};
 use kaspa_consensus_core::tx::{
     Transaction, TransactionInput, TransactionOutpoint, TransactionOutput,
 };
-use kaspa_rpc_core::{RpcTransaction, RpcUtxosByAddressesEntry};
+use kaspa_hashes;
+use kaspa_rpc_core::{RpcTransaction, RpcUtxoEntry, RpcUtxosByAddressesEntry};
 use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_txscript::{opcodes::codes::OpData65, script_builder::ScriptBuilder};
+use kaspa_wallet_core::account::pskb::PSKBSigner;
+use kaspa_wallet_core::account::Account;
 use kaspa_wallet_core::prelude::DynRpcApi;
-use kaspa_wallet_core::tx::is_transaction_output_dust;
-use kaspa_wallet_pskt::prelude::Bundle;
+use kaspa_wallet_core::prelude::*;
+use kaspa_wallet_core::utxo::NetworkParams;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
+use secp256k1::PublicKey;
 use std::io::Cursor;
 use std::sync::Arc;
+
+use corelib::finality;
+use corelib::util;
+use corelib::util::{get_recipient_script_pubkey, input_sighash_type};
+use corelib::wallet::EasyKaspaWallet;
+use corelib::withdraw::WithdrawFXG;
+use eyre::eyre;
+use kaspa_addresses::{AddressError, Prefix};
+use kaspa_rpc_core::model::RpcTransactionId;
+use kaspa_wallet_core::tx::is_transaction_output_dust;
+use kaspa_wallet_pskt::prelude::Bundle;
 use tracing::info;
 
 /// Fetches escrow and relayer balances and a combined list of all inputs
@@ -186,7 +210,7 @@ pub fn build_withdrawal_pskt(
     // check if relayer_change is dust
     let relayer_change = TransactionOutput {
         value: relayer_change_amt,
-        script_public_key: pay_to_address_script(relayer_addr),
+        script_public_key: ScriptPublicKey::from(pay_to_address_script(relayer_addr)),
     };
     if is_dust(&relayer_change) {
         return Err(eyre::eyre!(
@@ -220,7 +244,7 @@ pub fn build_withdrawal_pskt(
 }
 
 fn is_dust(tx_out: &TransactionOutput) -> bool {
-    tx_out.value < DUST_AMOUNT || is_transaction_output_dust(tx_out)
+    return tx_out.value < DUST_AMOUNT || is_transaction_output_dust(tx_out);
 }
 
 /// CONTRACT:
@@ -339,11 +363,11 @@ fn estimate_fee(
 ) -> u64 {
     let inputs = populated_inputs
         .iter()
-        .map(|(input, _)| input.clone())
+        .map(|(input, _)| input.clone().into())
         .collect();
     let utxo_entries = populated_inputs
         .iter()
-        .map(|(_, entry)| entry.clone())
+        .map(|(_, entry)| entry.clone().into())
         .collect();
 
     let tx = Transaction::new(
@@ -368,8 +392,10 @@ fn estimate_fee(
     // Otherwise this function should never fail. As in our case.
     let cm = m.calc_contextual_masses(&ptx).unwrap();
 
+    let mass = cm.max(ncm);
+
     // TODO: Apply current feerate. It can be fetched from https://api.kaspa.org/info/fee-estimate.
-    cm.max(ncm)
+    mass
 }
 
 pub async fn combine_bundles_with_fee(
@@ -413,7 +439,7 @@ async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> R
 
     let mut signed = Vec::new();
     // Iterate over (PSKT; associated HL messages) pairs
-    for pskt in fxg.bundle.iter() {
+    for (pskt, messages) in fxg.bundle.iter().zip(fxg.messages.clone().into_iter()) {
         let pskt = PSKT::<Signer>::from(pskt.clone());
 
         signed.push(sign_pay_fee(pskt, &resources).await?);
@@ -470,7 +496,7 @@ fn finalize_txs(
 ) -> Result<Vec<RpcTransaction>> {
     let transactions_result: Result<Vec<RpcTransaction>, _> = txs_sigs
         .into_iter()
-        .zip(messages)
+        .zip(messages.into_iter())
         .map(|(tx, _)| finalize_pskt(tx, escrow, &relayer_pub_key))
         .collect();
 
@@ -491,7 +517,8 @@ pub fn finalize_pskt(
             Ok(inner
                 .inputs
                 .iter()
-                .map(|input| -> Vec<u8> {
+                .enumerate()
+                .map(|(i, input)| -> Vec<u8> {
                     match &input.redeem_script {
                         None => {
                             // relayer UTXO
@@ -499,7 +526,8 @@ pub fn finalize_pskt(
                             let sig = input
                                 .partial_sigs
                                 .iter()
-                                .find(|(pk, _sig)| pk == &relayer_pub_key)
+                                .filter(|(pk, _sig)| pk == &relayer_pub_key)
+                                .next()
                                 .unwrap()
                                 .1
                                 .into_bytes();
@@ -530,7 +558,7 @@ pub fn finalize_pskt(
                                 .iter()
                                 .take(escrow.m())
                                 .flat_map(|kp| {
-                                    let sig = input.partial_sigs.get(kp).unwrap().into_bytes();
+                                    let sig = input.partial_sigs.get(&kp).unwrap().into_bytes();
                                     std::iter::once(OpData65)
                                         .chain(sig)
                                         .chain([input.sighash_type.to_u8()])
@@ -561,7 +589,7 @@ pub fn finalize_pskt(
         .unwrap()
         .extract_tx()
         .map_err(|e: ExtractError| eyre::eyre!("Extract kaspa tx: {:?}", e))?;
-    let (tx, _) = finalize_fn(mass);
+    let (mut tx, _) = finalize_fn(mass);
 
     let rpc_tx = (&tx).into();
     Ok(rpc_tx)
@@ -580,10 +608,8 @@ pub async fn sign_pay_fee(pskt: PSKT<Signer>, r: &SigningResources) -> Result<PS
 mod tests {
     use super::*;
     use bytes::Bytes;
-    use corelib::payload::MessageIDs;
     use corelib::util::is_valid_sighash_type;
     use corelib::withdraw::WithdrawFXG;
-    use hyperlane_core::H256;
     use std::collections::BTreeMap;
 
     #[test]
@@ -611,6 +637,116 @@ mod tests {
 
         assert_eq!(true, kaspa_addresses::Address::validate(output.as_str()));
         assert_eq!(input, output.as_str());
+    }
+
+    /// Verify that after creating PSKT with a custom global field, these fields remain presented
+    /// after serialization and deserialization.
+    #[test]
+    fn test_pskt_global_proprietaries_persistence() {
+        // Step 1: Create a new Global with custom proprietaries
+        let test_msg_ids = vec![
+            MessageID(H256::from([1u8; 32])),
+            MessageID(H256::from([2u8; 32])),
+            MessageID(H256::from([3u8; 32])),
+        ];
+
+        let message_ids = MessageIDs::new(test_msg_ids.clone());
+        let msg_ids_value = message_ids
+            .into_value()
+            .expect("Failed to serialize test MessageIDs");
+
+        let test_proprietaries = BTreeMap::from([(
+            corelib::consts::KEY_MESSAGE_IDS.to_string(),
+            msg_ids_value.clone(),
+        )]);
+
+        let global = GlobalBuilder::default()
+            .proprietaries(test_proprietaries.clone())
+            .build()
+            .expect("Failed to build Global");
+
+        // Step 2: Create Inner with our custom Global
+        let mut inner: Inner = Default::default();
+        inner.global = global;
+
+        // Step 3: Create PSKT::Creator, convert to constructor, then to signer
+        let pskt_creator = PSKT::<Creator>::from(inner);
+        let pskt_constructor = pskt_creator.constructor();
+        let pskt_signer = pskt_constructor.no_more_inputs().no_more_outputs().signer();
+
+        // Verify the proprietaries exist in the signer PSKT
+        assert!(pskt_signer
+            .global
+            .proprietaries
+            .contains_key(corelib::consts::KEY_MESSAGE_IDS));
+
+        // Step 4: Create WithdrawFXG using Bundle::from(pskt)
+        let bundle = Bundle::from(pskt_signer);
+        let withdraw_fxg = WithdrawFXG::new(
+            bundle,
+            vec![],
+            vec![
+                TransactionOutpoint::default(),
+                TransactionOutpoint::default(),
+            ],
+        );
+
+        // Step 5: Convert WithdrawFXG to Bytes
+        let serialized_bytes =
+            Bytes::try_from(&withdraw_fxg).expect("Failed to serialize WithdrawFXG to Bytes");
+
+        // === DESERIALIZATION PROCESS STARTS ===
+
+        // Step 6: Convert Bytes back to WithdrawFXG
+        let deserialized_withdraw_fxg = WithdrawFXG::try_from(serialized_bytes)
+            .expect("Failed to deserialize WithdrawFXG from Bytes");
+
+        // Step 7: Convert WithdrawFXG to vector of Inner
+        let inners: Vec<Inner> = deserialized_withdraw_fxg.bundle.iter().cloned().collect();
+
+        // Step 8: Create PSKT::Combiner from all Inners and convert to Signer
+        // For this test, we only have one Inner, but the process should work for multiple
+        assert!(!inners.is_empty(), "Should have at least one Inner");
+
+        let first_pskt = PSKT::<Signer>::from(inners[0].clone());
+
+        // If there were multiple Inners, we would combine them here
+        let mut combiner = first_pskt.combiner();
+        for inner in inners.iter().skip(1) {
+            let pskt_signer = PSKT::<Signer>::from(inner.clone());
+            combiner = (combiner + pskt_signer).expect("Failed to combine PSKTs");
+        }
+
+        let final_pskt = combiner.signer();
+
+        // Step 9: Verify the expected values exist and are the same
+        let recovered_proprietaries = &final_pskt.global.proprietaries;
+
+        // Check that our message IDs are still there
+        assert!(
+            recovered_proprietaries.contains_key(corelib::consts::KEY_MESSAGE_IDS),
+            "MessageIDs key should be present after serialization/deserialization"
+        );
+
+        // Verify the MessageIDs value is the same
+        let recovered_msg_ids_value = recovered_proprietaries
+            .get(corelib::consts::KEY_MESSAGE_IDS)
+            .expect("MessageIDs should be present");
+
+        let recovered_message_ids = MessageIDs::from_value(recovered_msg_ids_value.clone())
+            .expect("Failed to deserialize recovered MessageIDs");
+
+        assert_eq!(
+            recovered_message_ids.0, test_msg_ids,
+            "MessageIDs should be identical after round-trip"
+        );
+
+        // Verify that the original and recovered proprietaries are equivalent
+        assert_eq!(
+            recovered_proprietaries.len(),
+            test_proprietaries.len(),
+            "Number of proprietaries should be preserved"
+        );
     }
 
     #[test]

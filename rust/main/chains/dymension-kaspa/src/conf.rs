@@ -3,7 +3,9 @@ use std::str::FromStr;
 use derive_new::new;
 use url::Url;
 
-use hyperlane_core::{config::OpSubmissionConfig, ChainCommunicationError, FixedPointNumber, H256};
+use hyperlane_core::{
+    config::OpSubmissionConfig, ChainCommunicationError, FixedPointNumber, NativeToken, H256,
+};
 
 /// Kaspa connection configuration
 #[derive(Debug, Clone)]
@@ -60,8 +62,8 @@ pub struct ValidationConf {
     pub withdrawal_confirmation_enabled: bool,
 }
 
-impl Default for ValidationConf {
-    fn default() -> Self {
+impl ValidationConf {
+    pub fn default() -> Self {
         Self {
             deposit_enabled: true,
             withdrawal_enabled: true,

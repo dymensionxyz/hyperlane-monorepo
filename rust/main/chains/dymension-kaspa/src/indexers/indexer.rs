@@ -1,8 +1,11 @@
-use crate::RestProvider;
-use hyperlane_core::{ChainCommunicationError, ChainResult, Indexed, Indexer, LogMeta, H256, H512};
 use std::fmt::Debug;
 use std::ops::RangeInclusive;
+
 use tonic::async_trait;
+
+use hyperlane_core::{ChainCommunicationError, ChainResult, Indexed, Indexer, LogMeta, H256, H512};
+
+use crate::RestProvider;
 
 #[derive(Debug, Eq, PartialEq)]
 /// An event parsed from the RPC response.
@@ -49,7 +52,7 @@ where
     /// Fetch list of logs between blocks `from` and `to`, inclusive.
     async fn fetch_logs_by_tx_hash(
         &self,
-        _tx_hash: H512,
+        tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {
         Err(ChainCommunicationError::from_other_str("not implemented"))
     }
@@ -57,7 +60,7 @@ where
     /// Fetch list of logs emitted in a transaction with the given hash.
     async fn fetch_logs_in_range(
         &self,
-        _range: RangeInclusive<u32>,
+        range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<T>, LogMeta)>> {
         Err(ChainCommunicationError::from_other_str("not implemented"))
     }

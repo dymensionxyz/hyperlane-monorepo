@@ -1,16 +1,24 @@
+use std::future::Future;
+use std::time::Instant;
+
+use std::time::Duration;
+
 use hyperlane_core::{
-    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, FixedPointNumber,
+    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, FixedPointNumber, H512,
+    U256,
 };
 use hyperlane_metric::prometheus_metric::{
     ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
 };
 use tonic::async_trait;
+use url::Url;
 
 use dym_kas_api::apis::configuration::Configuration;
+use dym_kas_api::models::TxModel;
 pub use dym_kas_core::api::base::{get_config, RateLimitConfig};
 pub use dym_kas_core::api::client::*;
 
-use crate::ConnectionConf;
+use crate::{ConnectionConf, HyperlaneKaspaError};
 use hyperlane_cosmos_native::Signer;
 
 #[derive(Debug)]
@@ -95,7 +103,7 @@ impl RestProvider {
         metrics: PrometheusClientMetrics,
         chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
-        let clients = [conf.clone().kaspa_rest_url]
+        let clients = vec![conf.clone().kaspa_rest_url]
             .iter()
             .map(|url| {
                 let metrics_config =

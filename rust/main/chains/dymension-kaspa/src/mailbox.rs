@@ -1,13 +1,21 @@
-use super::consts::*;
-use crate::KaspaProvider;
-use hyperlane_core::{
-    utils::bytes_to_hex, BatchResult, ChainResult, ContractLocator, FixedPointNumber,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    Mailbox, QueueOperation, ReorgPeriod, TxCostEstimate, TxOutcome, H256, H512, U256,
-};
+use cosmrs::Any;
+use hex::ToHex;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
+use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
+use hyperlane_cosmos_rs::prost::{Message, Name};
 use tonic::async_trait;
+
+use super::consts::*;
 use tracing::info;
+
+use hyperlane_core::{
+    utils::bytes_to_hex, BatchItem, BatchResult, ChainCommunicationError, ChainResult,
+    ContractLocator, FixedPointNumber, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneMessage, HyperlaneProvider, Mailbox, QueueOperation, RawHyperlaneMessage, ReorgPeriod,
+    TxCostEstimate, TxOutcome, H256, H512, U256,
+};
+
+use crate::KaspaProvider;
 
 // pretends to be a mailbox
 #[derive(Debug, Clone)]
@@ -34,6 +42,28 @@ impl KaspaMailbox {
             address: self.address,
         }
     }
+
+    // TODO: where used?
+    fn encode_hyperlane_message(
+        &self,
+        message: &HyperlaneMessage,
+        metadata: &[u8],
+    ) -> ChainResult<Any> {
+        let mailbox_id: String = self.address.encode_hex();
+        let message = hex::encode(RawHyperlaneMessage::from(message));
+        let metadata = hex::encode(metadata);
+        let signer = self.provider.rest().get_signer()?.address_string.clone();
+        let process = MsgProcessMessage {
+            mailbox_id: "0x".to_string() + &mailbox_id,
+            metadata,
+            message,
+            relayer: signer,
+        };
+        Ok(Any {
+            type_url: MsgProcessMessage::type_url(),
+            value: process.encode_to_vec(),
+        })
+    }
 }
 
 impl HyperlaneChain for KaspaMailbox {
@@ -58,7 +88,7 @@ impl HyperlaneContract for KaspaMailbox {
 impl Mailbox for KaspaMailbox {
     // TODO: not sure where used
     // it should return the number of dispatched messages so far
-    async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         return Ok(0);
     }
 
@@ -68,7 +98,7 @@ impl Mailbox for KaspaMailbox {
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
         info!("Kaspa mailbox, checking if message is delivered already (querying hub), id: {id:?}");
         let wid = WithdrawalId {
-            message_id: bytes_to_hex(id.as_ref()),
+            message_id: bytes_to_hex(&id.as_ref()),
         };
         let res = self
             .provider
@@ -98,9 +128,9 @@ impl Mailbox for KaspaMailbox {
 
     async fn process(
         &self,
-        _message: &HyperlaneMessage,
-        _metadata: &[u8], // contains sigs etc
-        _tx_gas_limit: Option<U256>,
+        message: &HyperlaneMessage,
+        metadata: &[u8], // contains sigs etc
+        tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         /*
         There is a flow where the relayer will try to submit a batch and any failures will get retried via this method
