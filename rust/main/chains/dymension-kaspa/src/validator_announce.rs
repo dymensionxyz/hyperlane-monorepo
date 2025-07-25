@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-
 use hyperlane_core::{
     Announcement, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H256, H512, U256,
@@ -46,10 +45,7 @@ impl HyperlaneChain for KaspaValidatorAnnounce {
 impl ValidatorAnnounce for KaspaValidatorAnnounce {
     // called by validator to check he announced before he starts
     // needs to return the location for the calling validator at least
-    async fn get_announced_storage_locations(
-        &self,
-        validators: &[H256],
-    ) -> ChainResult<Vec<Vec<String>>> {
+    async fn get_announced_storage_locations(&self, _: &[H256]) -> ChainResult<Vec<Vec<String>>> {
         /*
         This just has to match the value that was passed to the agent on the CLI on boot, it's not really used semantically
          */
@@ -57,7 +53,7 @@ impl ValidatorAnnounce for KaspaValidatorAnnounce {
         Ok(vec![vec![format!("file://{}", c)]])
     }
 
-    async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
+    async fn announce(&self, _: SignedType<Announcement>) -> ChainResult<TxOutcome> {
         Ok(TxOutcome {
             transaction_id: H512::from_slice(
                 b"0x0000000000000000000000000000000000000000000000000000000000000000",

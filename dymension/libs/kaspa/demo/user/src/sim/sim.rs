@@ -116,9 +116,8 @@ impl TrafficSim {
             let nominal_value = self.params.distr_value().sample(&mut rng) as u64;
             let tx_clone = stats_tx.clone();
             let r = self.resources.clone();
-            let task_id = total_ops;
             tokio::spawn(async move {
-                do_round_trip(r, nominal_value, tx_clone, task_id).await;
+                do_round_trip(r, tx_clone).await;
             });
             total_spend += nominal_value;
             total_ops += 1;

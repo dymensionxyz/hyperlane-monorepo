@@ -18,7 +18,6 @@ mod validator_announce;
 
 mod endpoints;
 
-mod libs;
 mod util;
 
 // Direct reexports of lib stuff:

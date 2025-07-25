@@ -35,31 +35,27 @@ Stages
  */
 pub async fn do_round_trip(
     res: Arc<TaskResources>,
-    value: u64,
     tx: mpsc::Sender<RoundTripStats>,
-    task_id: u64,
 ) {
-    let mut rt = RoundTrip::new(res, value);
-    rt.deposit().await;
-    rt.await_hub_credit().await;
-    rt.withdraw().await;
-    rt.await_kaspa_credit().await;
+    let mut rt = RoundTrip::new(res);
+    let _ = rt.deposit().await;
+    let _ = rt.await_hub_credit().await;
+    let _ = rt.withdraw().await;
+    let _ = rt.await_kaspa_credit().await;
     tx.send(rt.stats).await.unwrap();
 }
 
 struct RoundTrip {
     res: Arc<TaskResources>,
-    value: u64,
     stats: RoundTripStats,
     hub_key: EasyHubKey,
 }
 
 impl RoundTrip {
-    pub fn new(res: Arc<TaskResources>, value: u64) -> Self {
+    pub fn new(res: Arc<TaskResources>) -> Self {
         let hub_k = EasyHubKey::new();
         Self {
             res,
-            value,
             stats: RoundTripStats::new(),
             hub_key: hub_k,
         }
