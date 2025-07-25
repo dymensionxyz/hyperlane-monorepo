@@ -599,10 +599,8 @@ async fn submit_classic_task(
                 &mut confirm_queue,
                 max_batch_size,
                 &metrics,
-                batch.iter().collect(),
-            )
-            .await;
-
+                batch).await;
+            
             continue;
         }
 
@@ -1069,7 +1067,7 @@ async fn submit_kaspa_batch(
     confirm_queue: &mut OpQueue,
     max_batch_size: u32,
     metrics: &SerialSubmitterMetrics,
-    batch: Vec<&Box<dyn PendingOperation>>,
+    batch: Vec<Box<dyn PendingOperation>>,
 ) {
     info!("Kaspa batch, submitting batch of size: {}", batch.len());
     // see https://github.com/dymensionxyz/hyperlane-monorepo/blob/8ca01f1ac17f28fb53df63ee2c9c17e59873af69/rust/main/agents/relayer/src/msg/op_batch.rs#L59-L70
@@ -1084,7 +1082,7 @@ async fn submit_kaspa_batch(
     if !mailbox.supports_batching() {
         panic!("Kaspa must support batching")
     }
-    let res = mailbox.process_batch(batch.clone()).await;
+    let res = mailbox.process_batch(batch.iter().collect()).await;
     /*
     for processed items, we need to mimic
         https://github.com/dymensionxyz/hyperlane-monorepo/blob/f55a096adf07a6d445a01d3a862e6da2a5720c69/rust/main/agents/relayer/src/msg/op_batch.rs#L132-L141
@@ -1112,8 +1110,12 @@ async fn submit_kaspa_batch(
             for op in excluded_ops {
                 metrics.ops_failed.inc();
                 prepare_queue
-                    .push(op.clone(), Some(PendingOperationStatus::Retry(ReprepareReason::ErrorSubmitting)))
+                    .push(op, Some(PendingOperationStatus::Retry(ReprepareReason::ErrorSubmitting)))
                     .await;
+            }
+            if sent_ops.is_empty() {
+                info!("Kaspa batch, no operations were successfully submitted");
+                sleep(Duration::from_millis(1000)).await;
             }
             // TODO: handle batch result
             /*if let Some(outcome) = batch_result.outcome {
