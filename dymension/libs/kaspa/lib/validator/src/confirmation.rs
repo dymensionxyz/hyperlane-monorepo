@@ -121,7 +121,7 @@ pub async fn validate_confirmed_withdrawals(
         if i == outpoint_sequence.len() - 1 {
             let hint = match tx.block_hash {
                 Some(block_hashes) => {
-                    if 0 < block_hashes.len() {
+                    if !block_hashes.is_empty() {
                         Some(block_hashes[0].clone())
                     } else {
                         None
@@ -129,7 +129,7 @@ pub async fn validate_confirmed_withdrawals(
                 }
                 None => None,
             };
-            if !finality::is_safe_against_reorg(client_rest, &tx_id, hint).await? {
+            if !finality::is_safe_against_reorg(client_rest, tx_id, hint).await? {
                 return Err(ValidationError::NotSafeAgainstReorg {
                     tx_id: tx_id.clone(),
                 });
@@ -207,7 +207,7 @@ fn escrow_outpoint_in_outputs(
 
     if recipient_actual != escrow_address.address_to_string() {
         return Err(ValidationError::NonEscrowAnchor {
-            o: escrow_outpoint_unstrusted.clone(),
+            o: *escrow_outpoint_unstrusted,
         });
     }
 

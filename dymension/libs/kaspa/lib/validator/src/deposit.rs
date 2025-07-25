@@ -148,7 +148,7 @@ pub async fn validate_new_deposit_inner(
         return Ok(false);
     }
 
-    if !d_untrusted.tx_id_rpc().is_ok() {
+    if d_untrusted.tx_id_rpc().is_err() {
         error!("Deposit tx hash is not valid");
         return Ok(false);
     }

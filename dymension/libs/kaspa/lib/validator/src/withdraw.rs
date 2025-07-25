@@ -155,7 +155,7 @@ async fn validate_messages(
         return Err(ValidationError::DoubleSpending { message_id });
     }
     for msg in messages.iter() {
-        if let Err(e) = must_match.is_match(&msg) {
+        if let Err(e) = must_match.is_match(msg) {
             return Err(ValidationError::FailedGeneralVerification {
                 reason: e.to_string(),
             });
@@ -244,7 +244,7 @@ pub fn validate_pskt_application_semantics(
     expected_messages: &Vec<HyperlaneMessage>,
     must_match: MustMatch,
 ) -> Result<u32, ValidationError> {
-    if expected_messages.len() == 0 {
+    if expected_messages.is_empty() {
         return Err(ValidationError::NoMessages);
     }
 
@@ -258,7 +258,7 @@ pub fn validate_pskt_application_semantics(
 
     let payload_expect = MessageIDs::from(expected_messages).to_bytes();
 
-    let payload_actual = pskt.global.payload.clone().unwrap_or(vec![]);
+    let payload_actual = pskt.global.payload.clone().unwrap_or_default();
 
     if payload_actual != payload_expect {
         return Err(ValidationError::PayloadMismatch);
@@ -269,11 +269,11 @@ pub fn validate_pskt_application_semantics(
     let escrow_inputs_sum = pskt.inputs.iter().fold(0, |acc, i| {
         // redeem_script is None for relayer input
         let rs = i.redeem_script.clone().unwrap_or_default();
-        return if rs == must_match.escrow_public.redeem_script {
+        if rs == must_match.escrow_public.redeem_script {
             acc + i.utxo_entry.as_ref().unwrap().amount
         } else {
             acc
-        };
+        }
     });
 
     // Construct a multiset of expected outputs from HL messages.
@@ -345,7 +345,7 @@ pub fn validate_pskt_application_semantics(
         });
     }
 
-    Ok(next_anchor_idx.ok_or(ValidationError::NextAnchorNotFound)?)
+    next_anchor_idx.ok_or(ValidationError::NextAnchorNotFound)
 }
 
 pub fn sign_withdrawal_fxg(
