@@ -75,35 +75,35 @@ impl MustMatch {
     fn is_match(&self, other: &HyperlaneMessage) -> Result<()> {
         if self.partial_message.version != other.version {
             return Err(eyre::eyre!(
-                "Message version mismatch, expected: {}, got: {}",
+                "version is incorrect, expected: {}, got: {}",
                 other.version,
                 self.partial_message.version
             ));
         }
         if self.partial_message.origin != other.origin {
             return Err(eyre::eyre!(
-                "Message origin mismatch, expected: {}, got: {}",
+                "origin is incorrect, expected: {}, got: {}",
                 other.origin,
                 self.partial_message.origin
             ));
         }
         if self.partial_message.sender != other.sender {
             return Err(eyre::eyre!(
-                "Message sender mismatch, expected: {}, got: {}",
+                "sender is incorrect, expected: {}, got: {}",
                 other.sender,
                 self.partial_message.sender
             ));
         }
         if self.partial_message.destination != other.destination {
             return Err(eyre::eyre!(
-                "Message destination mismatch, expected: {}, got: {}",
+                "destination is incorrect, expected: {}, got: {}",
                 other.destination,
                 self.partial_message.destination
             ));
         }
         if self.partial_message.recipient != other.recipient {
             return Err(eyre::eyre!(
-                "Message recipient mismatch, expected: {}, got: {}",
+                "recipient is incorrect, expected: {}, got: {}",
                 other.recipient,
                 self.partial_message.recipient
             ));
