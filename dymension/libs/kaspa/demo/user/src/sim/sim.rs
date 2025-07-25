@@ -6,6 +6,8 @@ use super::util::som_to_kas;
 use corelib::wallet::get_wallet;
 use corelib::wallet::EasyKaspaWallet;
 use eyre::Result;
+use hyperlane_cosmos_native::ConnectionConf as CosmosConnectionConf;
+use hyperlane_cosmos_native::CosmosNativeProvider;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use kaspa_consensus_core::network::NetworkId;
 use kaspa_wallet_keys::secret::Secret;
@@ -17,7 +19,43 @@ use tokio::sync::mpsc;
 
 use crate::x::args::{SimulateTrafficCli, WalletCli};
 use corelib::wallet::{EasyKaspaWalletArgs, Network};
+use hyperlane_core::ContractLocator;
+use hyperlane_core::HyperlaneDomain;
+use hyperlane_core::KnownHyperlaneDomain;
+use hyperlane_core::H256;
+use hyperlane_cosmos_native::RawCosmosAmount;
+use hyperlane_core::config::OpSubmissionConfig;
+use hyperlane_core::NativeToken;
+use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use tracing::info;
+use url::Url;
+
+async fn cosmos_provider() -> Result<CosmosNativeProvider> {
+    let conf = CosmosConnectionConf::new(
+        vec![Url::parse("https://rpc-dymension-playground35.mzonder.com:443").unwrap()],
+        vec![Url::parse("https://grpc-dymension-playground35.mzonder.com:443").unwrap()],
+        "dymension_3405-1".to_string(),
+        "dym".to_string(),
+        "adym".to_string(),
+        RawCosmosAmount {
+            amount: "100000000000.0".to_string(),
+            denom: "adym".to_string(),
+        },
+        1.0,
+        32,
+        OpSubmissionConfig::default(),
+        NativeToken {
+            decimals: 18,
+            denom: "adym".to_string(),
+        },
+    );
+    let d = HyperlaneDomain::Known(KnownHyperlaneDomain::Osmosis);
+    let locator = ContractLocator::new(&d, H256::zero());
+    let signer = None;
+    let metrics = PrometheusClientMetrics::default();
+    let chain = None;
+    CosmosNativeProvider::new(&conf, &locator, signer, metrics, chain).map_err(eyre::Report::from)
+}
 
 pub struct Params {
     pub time_limit: Duration, // total target simulation time

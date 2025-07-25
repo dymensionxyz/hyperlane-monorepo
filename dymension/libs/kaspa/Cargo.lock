@@ -1838,6 +1838,7 @@ dependencies = [
  "hex",
  "hyperlane-core",
  "hyperlane-cosmos-native",
+ "hyperlane-metric",
  "k256 0.13.4",
  "kaspa-addresses",
  "kaspa-consensus-core",
@@ -1856,6 +1857,7 @@ dependencies = [
  "tracing-error",
  "tracing-futures",
  "tracing-subscriber",
+ "url",
  "validator",
 ]
 
