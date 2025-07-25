@@ -23,13 +23,13 @@ pub use dym_kas_validator::KaspaSecpKeypair;
 use eyre::Report;
 use hyperlane_core::{
     Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable,
-    SignedCheckpointWithMessageId, SignedType, H256,
+    SignedCheckpointWithMessageId, H256,
 };
 use hyperlane_core::{HyperlaneChain, HyperlaneDomain, Signature as HLCoreSignature};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use hyperlane_cosmos_rs::prost::Message;
-use kaspa_wallet_core::{prelude::DynRpcApi, utxo::NetworkParams};
+use kaspa_wallet_core::prelude::DynRpcApi;
 use kaspa_wallet_pskt::prelude::*;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha3::{digest::Update, Digest, Keccak256};
@@ -73,7 +73,7 @@ pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(
 }
 
 async fn respond_kaspa_ping<S: HyperlaneSignerExt + Send + Sync + 'static>(
-    State(resources): State<Arc<ValidatorServerResources<S>>>,
+    State(_): State<Arc<ValidatorServerResources<S>>>,
     _body: Bytes,
 ) -> HandlerResult<Json<String>> {
     warn!("VALIDATOR SERVER, GOT KASPA PING");
@@ -86,6 +86,7 @@ pub struct ValidatorServerResources<S: HyperlaneSignerExt + Send + Sync + 'stati
     ism_signer: Option<Arc<S>>,
     kas_provider: Option<Box<KaspaProvider>>, // TODO: box, need multithread object? need to lock when signing?
 }
+
 impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> {
     /// dococo
     pub fn new(signer: Arc<S>, kas_provider: Box<KaspaProvider>) -> Self {
@@ -127,8 +128,10 @@ impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> 
     fn must_val_stuff(&self) -> &ValidatorStuff {
         self.kas_provider.as_ref().unwrap().must_validator_stuff()
     }
+}
 
-    pub fn default() -> Self {
+impl<S: HyperlaneSignerExt + Send + Sync + 'static> Default for ValidatorServerResources<S> {
+    fn default() -> Self {
         Self {
             ism_signer: None,
             kas_provider: None,
@@ -146,7 +149,7 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
     if resources.must_val_stuff().toggles.deposit_enabled
         && !validate_new_deposit(
             &resources.must_api(),
-            &resources.must_rest_client(),
+            resources.must_rest_client(),
             &deposits,
             &resources.must_wallet().net,
             &resources.must_escrow().addr,
@@ -159,7 +162,7 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
             ),
         )
         .await
-        .map_err(|e| AppError(e))?
+        .map_err(AppError)?
     {
         // TODO: return reasons and use them
         return Err(AppError(eyre::eyre!("Validator G() function rejected")));
@@ -200,7 +203,7 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
     info!("Validator: signing pskts");
     let fxg: WithdrawFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
-    let b = safe_bundle(&fxg.bundle).map_err(|e| AppError(e))?; // !! Safe bundle can be considered part of the validation, strictly speaking
+    let b = safe_bundle(&fxg.bundle).map_err(AppError)?; // !! Safe bundle can be considered part of the validation, strictly speaking
     let m = fxg.messages;
 
     // Call to validator.G()
@@ -234,7 +237,7 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
     };
 
     let bundle = sign_withdrawal_fxg(&b, &resources.must_kas_key(), Some(input_selector))
-        .map_err(|e| AppError(e))?;
+        .map_err(AppError)?;
 
     Ok(Json(bundle))
 }

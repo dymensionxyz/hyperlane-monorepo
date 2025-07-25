@@ -3,7 +3,6 @@ use eyre::Error as EyreError;
 use hyperlane_core::{Encode, HyperlaneMessage, H256};
 use hyperlane_cosmos_rs::dymensionxyz::hyperlane::kaspa::MessageIDs as ProtoMessageIDs;
 use prost::Message;
-use std::io::Read;
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub struct MessageID(pub H256);
@@ -27,7 +26,7 @@ impl MessageIDs {
     // Parse the payload string to extract the message ID
     pub fn from_tx_payload(payload: &str) -> Result<Self, eyre::Error> {
         let unhexed_payload =
-            hex::decode(&payload).map_err(|e| eyre::eyre!("Failed to decode payload: {}", e))?;
+            hex::decode(payload).map_err(|e| eyre::eyre!("Failed to decode payload: {}", e))?;
         Self::try_from(Bytes::from(unhexed_payload))
     }
 }

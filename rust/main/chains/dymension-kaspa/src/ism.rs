@@ -1,18 +1,13 @@
-use std::str::FromStr;
-
 use super::consts::KASPA_ISM_ADDRESS;
-use hyperlane_cosmos_rs::{
-    hyperlane::core::interchain_security::v1::MerkleRootMultisigIsm, prost::Name,
-};
 use tonic::async_trait;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType,
-    MultisigIsm, RoutingIsm, H160, H256, U256,
+    MultisigIsm, RoutingIsm, H256, U256,
 };
 
-use crate::{HyperlaneKaspaError, KaspaProvider};
+use crate::KaspaProvider;
 
 /// Kaspa Native ISM
 #[derive(Debug)]
@@ -92,7 +87,7 @@ impl MultisigIsm for KaspaIsm {
 #[async_trait]
 impl RoutingIsm for KaspaIsm {
     /// Returns the ISM needed to verify message
-    async fn route(&self, message: &HyperlaneMessage) -> ChainResult<H256> {
+    async fn route(&self, _message: &HyperlaneMessage) -> ChainResult<H256> {
         // We are only bridging Dymension to Kaspa
         Ok(KASPA_ISM_ADDRESS)
     }

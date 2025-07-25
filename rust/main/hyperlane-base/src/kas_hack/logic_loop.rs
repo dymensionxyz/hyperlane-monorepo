@@ -1,31 +1,24 @@
+use crate::contract_sync::cursors::Indexable;
+use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG};
+use dym_kas_hardcode::tx::FINALITY_APPROX_WAIT_TIME;
+use dym_kas_relayer::confirm::expensive_trace_transactions;
+use dym_kas_relayer::deposit::on_new_deposit as relayer_on_new_deposit;
+use dymension_kaspa::{Deposit, KaspaProvider};
 use eyre::Result;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, Checkpoint, CheckpointWithMessageId, HyperlaneDomain,
-    HyperlaneLogStore, HyperlaneMessage, Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint,
-    Signature, SignedCheckpointWithMessageId, TxOutcome, H256,
+    ChainCommunicationError, ChainResult, Checkpoint, CheckpointWithMessageId, HyperlaneLogStore,
+    Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint, Signature, SignedCheckpointWithMessageId,
+    TxOutcome, H256,
 };
+use hyperlane_cosmos_native::mailbox::CosmosNativeMailbox;
+use kaspa_consensus_core::tx::TransactionOutpoint;
+use kaspa_core::time::unix_now;
 use std::{collections::HashSet, fmt::Debug, hash::Hash, sync::Arc, time::Duration};
 use tokio::{sync::Mutex, task::JoinHandle, time};
 use tokio_metrics::TaskMonitor;
 use tracing::{error, info, info_span, warn, Instrument};
 
-use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG};
-use dym_kas_relayer::deposit::on_new_deposit as relayer_on_new_deposit;
-use dymension_kaspa::{Deposit, KaspaProvider};
-
-use crate::{contract_sync::cursors::Indexable, db::HyperlaneRocksDB};
-
-use hyperlane_cosmos_native::mailbox::CosmosNativeMailbox;
-use kaspa_core::time::unix_now;
-
-use api_rs::apis::configuration::Configuration;
-use dym_kas_hardcode::tx::FINALITY_APPROX_WAIT_TIME;
-use dym_kas_relayer::confirm::expensive_trace_transactions;
-use kaspa_consensus_core::tx::{TransactionId, TransactionOutpoint};
-
 pub struct Foo<C: MetadataConstructor> {
-    domain: HyperlaneDomain,
-    kdb: HyperlaneRocksDB,
     provider: Box<KaspaProvider>,
     hub_mailbox: Arc<CosmosNativeMailbox>,
     metadata_constructor: C,
@@ -37,15 +30,11 @@ where
     C: Send + Sync + 'static,
 {
     pub fn new(
-        domain: HyperlaneDomain,
-        kdb: HyperlaneRocksDB,
         provider: Box<KaspaProvider>,
         hub_mailbox: Arc<CosmosNativeMailbox>,
         metadata_constructor: C,
     ) -> Self {
         Self {
-            domain,
-            kdb,
             provider,
             hub_mailbox,
             metadata_constructor,
@@ -251,7 +240,7 @@ where
 
     /// TODO: unused for now because we skirt the usual DB management
     /// if bringing back, see https://github.com/dymensionxyz/hyperlane-monorepo/blob/093dba37d696acc0c4440226c68f80dc85e42ce6/rust/main/hyperlane-base/src/kas_hack/logic_loop.rs#L92-L94
-    async fn deposits_to_logs<T>(&self, _deposits: Vec<Deposit>) -> Vec<(Indexed<T>, LogMeta)>
+    async fn _deposits_to_logs<T>(&self, _deposits: Vec<Deposit>) -> Vec<(Indexed<T>, LogMeta)>
     where
         T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
     {
@@ -259,7 +248,7 @@ where
     }
 
     /// TODO: unused for now because we skirt the usual DB management
-    async fn dedupe_and_store_logs<T, S>(
+    async fn _dedupe_and_store_logs<T, S>(
         &self,
         store: &S,
         logs: Vec<(Indexed<T>, LogMeta)>,

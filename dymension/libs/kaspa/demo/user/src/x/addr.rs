@@ -6,7 +6,7 @@ pub fn hl_recipient(kaspa_addr: &str) -> String {
     let addr = Address::try_from(kaspa_addr).unwrap();
     let bz = addr.payload.as_slice();
     let bz_hex = hex::encode(bz);
-    let s = format!("0x{}", bz_hex);
+    let s = format!("0x{bz_hex}");
     s
 }
 

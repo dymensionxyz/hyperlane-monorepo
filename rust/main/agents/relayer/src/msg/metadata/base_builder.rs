@@ -316,6 +316,7 @@ impl BaseMetadataBuilder {
 #[derive(new, Debug)]
 pub struct DummyBuildsBaseMetadata;
 
+#[allow(unused_variables)]
 #[async_trait::async_trait]
 impl BuildsBaseMetadata for DummyBuildsBaseMetadata {
     fn origin_domain(&self) -> &HyperlaneDomain {

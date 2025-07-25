@@ -1,10 +1,9 @@
+/// Cosmos Native Mailbox
 use cosmrs::Any;
 use hex::ToHex;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{MsgIndicateProgress, ProgressIndication};
 use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
 use hyperlane_cosmos_rs::prost::{Message, Name};
-use std::any::Any as StdAny;
-use std::sync::Arc;
 use tonic::async_trait;
 
 use hyperlane_core::{
@@ -18,6 +17,7 @@ use crate::CosmosNativeProvider;
 /// Cosmos Native Mailbox
 #[derive(Debug, Clone)]
 pub struct CosmosNativeMailbox {
+    /// CosmosNativeProvider
     pub provider: CosmosNativeProvider,
     domain: HyperlaneDomain,
     address: H256,
@@ -207,7 +207,7 @@ impl CosmosNativeMailbox {
     ) -> ChainResult<TxOutcome> {
         let msg = MsgIndicateProgress {
             signer: self.provider.rpc().get_signer()?.address_string.clone(),
-            metadata: metadata.to_vec().into(),
+            metadata: metadata.to_vec(),
             payload: Some(u.clone()),
         };
         let a = Any {

@@ -4,9 +4,6 @@ use api_rs::apis::configuration;
 use kaspa_addresses::{Prefix, Version};
 use kaspa_consensus_core::network::{NetworkId, NetworkType};
 
-use reqwest::Client;
-use reqwest_middleware::ClientBuilder;
-
 pub const NETWORK: NetworkType = NetworkType::Testnet;
 pub const NETWORK_ID: NetworkId = NetworkId::with_suffix(NETWORK, 10);
 pub const ADDRESS_PREFIX: Prefix = Prefix::Testnet;
