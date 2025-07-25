@@ -61,16 +61,46 @@ impl MustMatch {
         self.enable_validation = enable_validation;
     }
 
-    fn is_match(&self, other: &HyperlaneMessage) -> bool {
+    fn is_match(&self, other: &HyperlaneMessage) -> Result<()> {
         if !self.enable_validation {
-            return true;
+            return Ok(());
         }
-
-        self.partial_message.version == other.version
-            && self.partial_message.origin == other.origin
-            && self.partial_message.sender == other.sender
-            && self.partial_message.destination == other.destination
-            && self.partial_message.recipient == other.recipient
+        if self.partial_message.version != other.version {
+            return Err(eyre::eyre!(
+                "version is incorrect, expected: {}, got: {}",
+                self.partial_message.version,
+                other.version
+            ));
+        }
+        if self.partial_message.origin != other.origin {
+            return Err(eyre::eyre!(
+                "origin is incorrect, expected: {}, got: {}",
+                self.partial_message.origin,
+                other.origin
+            ));
+        }
+        if self.partial_message.sender != other.sender {
+            return Err(eyre::eyre!(
+                "sender is incorrect, expected: {}, got: {}",
+                self.partial_message.sender,
+                other.sender
+            ));
+        }
+        if self.partial_message.destination == other.destination {
+            return Err(eyre::eyre!(
+                "destination is incorrect, expected: {}, got: {}",
+                self.partial_message.destination,
+                other.destination
+            ));
+        }
+        if self.partial_message.recipient != other.recipient {
+            return Err(eyre::eyre!(
+                "recipient is incorrect, expected: {}, got: {}",
+                self.partial_message.recipient,
+                other.recipient
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -172,10 +202,10 @@ pub async fn validate_new_deposit_inner(
         d_untrusted.utxo_index,
     )?;
 
-    if !must_match.is_match(&actual_hl_message_with_injected_info) {
-        error!("Relayed HL message does not pass common validaion: version, origin, sender, destination, or recipient is incorrect");
+    if let Err(e) = must_match.is_match(&actual_hl_message_with_injected_info) {
+        error!("Relayed HL message does not pass common validaion: {}", e);
         return Ok(false);
-    }
+    };
 
     // validate the original HL message included in the Kaspa Tx its the same than the HL message relayed, after adding the metadata.
     if d_untrusted.hl_message.id() != actual_hl_message_with_injected_info.id() {

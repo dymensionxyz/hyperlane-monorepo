@@ -62,9 +62,7 @@ pub async fn on_new_withdrawals(
     .await
     .map_err(|e| eyre::eyre!("Fetch input UTXOs: {}", e))?;
 
-    let payload = MessageIDs(valid_msgs.iter().map(|m| MessageID(m.id())).collect())
-        .to_bytes()
-        .map_err(|e| eyre::eyre!("Failed to serialize MessageIDs: {}", e))?;
+    let payload = MessageIDs::from(&valid_msgs).to_bytes();
 
     let pskt = build_withdrawal_pskt(
         inputs,

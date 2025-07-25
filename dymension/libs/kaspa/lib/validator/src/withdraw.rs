@@ -72,12 +72,43 @@ impl MustMatch {
         }
     }
 
-    fn is_match(&self, other: &HyperlaneMessage) -> bool {
-        self.partial_message.version == other.version
-            && self.partial_message.origin == other.origin
-            && self.partial_message.sender == other.sender
-            && self.partial_message.destination == other.destination
-            && self.partial_message.recipient == other.recipient
+    fn is_match(&self, other: &HyperlaneMessage) -> Result<()> {
+        if self.partial_message.version != other.version {
+            return Err(eyre::eyre!(
+                "version is incorrect, expected: {}, got: {}",
+                other.version,
+                self.partial_message.version
+            ));
+        }
+        if self.partial_message.origin != other.origin {
+            return Err(eyre::eyre!(
+                "origin is incorrect, expected: {}, got: {}",
+                other.origin,
+                self.partial_message.origin
+            ));
+        }
+        if self.partial_message.sender != other.sender {
+            return Err(eyre::eyre!(
+                "sender is incorrect, expected: {}, got: {}",
+                other.sender,
+                self.partial_message.sender
+            ));
+        }
+        if self.partial_message.destination != other.destination {
+            return Err(eyre::eyre!(
+                "destination is incorrect, expected: {}, got: {}",
+                other.destination,
+                self.partial_message.destination
+            ));
+        }
+        if self.partial_message.recipient != other.recipient {
+            return Err(eyre::eyre!(
+                "recipient is incorrect, expected: {}, got: {}",
+                other.recipient,
+                self.partial_message.recipient
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -95,8 +126,8 @@ impl MustMatch {
 ///      - The Kaspa TXs have corresponding message IDs in their payload (msg ID == msg hash).
 ///        Consequence: Each message actually hashes to the hash stored in the payload.
 ///      - Correct sighash type in inputs
-///      - No lock time
-///      - TX version
+///      - We validate agains the safe bundle (see `safe_bundle`), so assume that
+///        the relayer must use no lock time and a default TX version
 /// (7)  TX UTXO spends actually correspond to the message content.
 /// (8)  No message use escrow as a recipient.
 /// (9)  Each PSKT has exactly one anchor.
@@ -140,9 +171,9 @@ async fn validate_messages(
         return Err(ValidationError::DoubleSpending { message_id });
     }
     for msg in messages.iter() {
-        if !must_match.is_match(&msg) {
-            return Err(ValidationError::MessageWrongBridge {
-                message_id: msg.id().encode_hex(),
+        if let Err(e) = must_match.is_match(&msg) {
+            return Err(ValidationError::FailedGeneralVerification {
+                reason: e.to_string(),
             });
         }
     }
@@ -154,7 +185,6 @@ async fn validate_messages(
 
         // Delivered is a confusing name. `delivered` is just the name of the network query.
         let was_dispatched_on_hub = res.delivered;
-        info!("was_dispatched_on_hub: {}", was_dispatched_on_hub);
         if !was_dispatched_on_hub {
             let message_id = id.encode_hex();
             return Err(ValidationError::MessageNotDispatched { message_id });
@@ -242,14 +272,7 @@ pub fn validate_pskt_application_semantics(
         return Err(ValidationError::AnchorNotFound { o: must_spend });
     }
 
-    let payload_expect = MessageIDs(
-        expected_messages
-            .iter()
-            .map(|m| MessageID(m.id()))
-            .collect(),
-    )
-    .to_bytes()
-    .map_err(|e| eyre::eyre!("Failed to serialize MessageIDs: {}", e))?;
+    let payload_expect = MessageIDs::from(expected_messages).to_bytes();
 
     let payload_actual = pskt.global.payload.clone().unwrap_or(vec![]);
 
@@ -359,8 +382,9 @@ pub fn sign_withdrawal_fxg(
     Ok(bundle)
 }
 
-// Load only the interesting fields of the PSKT which should be there
-// This means we don't have to validate all the other uninteresting fields one by one
+/// Load only the interesting fields of the PSKT which should be there
+/// This means we don't have to validate all the other uninteresting fields one by one
+/// The relayer should use no lock time and a default TX version
 fn safe_pskt(unstrusted_inner: Inner) -> Result<PSKT<Signer>> {
     let mut inner = Inner::default();
     inner.global.input_count = unstrusted_inner.inputs.len();
