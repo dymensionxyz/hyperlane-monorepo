@@ -1,7 +1,6 @@
 use ethers::signers::{LocalWallet, Signer};
 use ethers::utils::hex;
-use secp256k1::{rand::thread_rng, Keypair, PublicKey};
-use serde::Serialize;
+use secp256k1::rand::thread_rng;
 
 pub struct EthereumStyleSigner {
     pub address: String,
@@ -13,7 +12,7 @@ pub fn get_ethereum_style_signer() -> Result<EthereumStyleSigner, eyre::Error> {
     let wallet = LocalWallet::new(&mut thread_rng());
 
     let private_key_bytes = wallet.signer().to_bytes();
-    let private_key_hex = format!("{}", hex::encode(private_key_bytes));
+    let private_key_hex = hex::encode(private_key_bytes).to_string();
 
     let address = wallet.address();
 

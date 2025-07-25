@@ -10,12 +10,12 @@ async fn run(cli: Cli) {
     match cli.command {
         Commands::Recipient(args) => {
             let converted = x::addr::hl_recipient(&args.address);
-            println!("{}", converted);
+            println!("{converted}",);
         }
         Commands::Deposit(args) => {
             let res = x::deposit::do_deposit(args.to_deposit_args()).await;
             if let Err(e) = res {
-                eprintln!("Error: {}", e);
+                eprintln!("Error: {e}");
             }
         }
         Commands::Escrow(args) => {
@@ -25,7 +25,7 @@ async fn run(cli: Cli) {
                 .map(|s| s.trim())
                 .collect::<Vec<_>>();
             let e = x::escrow::get_escrow_address(pub_keys, args.required_signatures);
-            println!("Escrow address: {}", e);
+            println!("Escrow address: {e}");
         }
         Commands::Validator(args) => {
             let mut infos = vec![];
