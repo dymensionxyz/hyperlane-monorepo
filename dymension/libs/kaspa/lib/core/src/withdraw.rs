@@ -1,11 +1,8 @@
-use crate::message::parse_hyperlane_metadata;
-
 use super::payload::MessageID;
 use bytes::Bytes;
 use eyre::Error as EyreError;
-use hardcode::tx::MINIMUM_WITHDRAWAL_ACCEPTED;
 use hex::ToHex;
-use hyperlane_core::{Encode, H256, U256};
+use hyperlane_core::{Encode, H256};
 use hyperlane_core::{HyperlaneMessage, RawHyperlaneMessage};
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
@@ -17,7 +14,6 @@ use hyperlane_cosmos_rs::dymensionxyz::hyperlane::kaspa::{
 use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_wallet_pskt::prelude::Bundle;
 use prost::Message;
-use tracing::error;
 
 /// WithdrawFXG resrents is sequence of PSKT transactions for batch processing and transport as
 /// a single serialized payload. Bundle has mulpible PSKT. Each PSKT is associated with
@@ -214,9 +210,7 @@ pub async fn filter_pending_withdrawals(
         .into_iter()
         .enumerate()
         .filter_map(|(idx, status)| match status.try_into() {
-            Ok(WithdrawalStatus::Unprocessed) => {
-                Some(withdrawals[idx].clone())
-            },
+            Ok(WithdrawalStatus::Unprocessed) =>  Some(withdrawals[idx].clone()),
             _ => None, // Ignore other statuses
         })
         .collect();
