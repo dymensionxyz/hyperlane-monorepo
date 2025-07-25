@@ -119,7 +119,7 @@ impl MustMatch {
 /// CONTRACT: the first anchor of `fxg.anchors` is the Hub anchor.
 pub async fn validate_withdrawal_batch(
     bundle: &Bundle,
-    messages: &Vec<Vec<HyperlaneMessage>>,
+    messages: &[Vec<HyperlaneMessage>],
     cosmos_client: &CosmosGrpcClient,
     must_match: MustMatch,
 ) -> Result<(), ValidationError> {
@@ -143,7 +143,7 @@ async fn validate_messages(
     cosmos_client: &CosmosGrpcClient,
     must_match: &MustMatch,
 ) -> Result<TransactionOutpoint, ValidationError> {
-    let messages: Vec<HyperlaneMessage> = messages.iter().cloned().flatten().collect();
+    let messages: Vec<HyperlaneMessage> = messages.iter().flatten().cloned().collect();
     let num_msgs = messages.len();
     debug!(
         "Starting withdrawal validation for messages, num_msgs: {}",

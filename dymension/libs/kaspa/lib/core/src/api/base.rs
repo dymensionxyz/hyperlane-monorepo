@@ -26,7 +26,10 @@ impl RateLimitConfig {
             max_req_per_second: max_req_per_minute,
         }
     }
-    pub fn default() -> Self {
+}
+
+impl Default for RateLimitConfig {
+    fn default() -> Self {
         Self::new(10)
     }
 }
@@ -39,22 +42,22 @@ pub fn get_client(config: RateLimitConfig) -> ClientWithMiddleware {
     let rl = FooRateLimiter {
         limiter: Arc::new(governor_limiter),
     };
-    let client = ClientBuilder::new(base)
+
+    ClientBuilder::new(base)
         .with(reqwest_ratelimit::all(rl))
         .with(reqwest_retry::RetryTransientMiddleware::new_with_policy(
             ExponentialBackoff::builder()
                 .retry_bounds(Duration::from_millis(200), Duration::from_secs(10))
                 .build_with_max_retries(10),
         ))
-        .build();
-    client
+        .build()
 }
 
 pub fn get_config(url: &str, client: ClientWithMiddleware) -> Configuration {
     Configuration {
         base_path: url.to_string(),
         user_agent: Some("OpenAPI-Generator/a6a9569/rust".to_owned()),
-        client: client,
+        client,
         basic_auth: None,
         oauth_access_token: None,
         bearer_access_token: None,

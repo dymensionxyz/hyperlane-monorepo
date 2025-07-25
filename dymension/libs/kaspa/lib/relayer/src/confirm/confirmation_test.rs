@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use corelib::api::base::RateLimitConfig;
     use corelib::api::client::HttpClient;
     use hex;

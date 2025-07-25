@@ -1,5 +1,3 @@
-#![allow(unused)] // TODO: remove
-
 use eyre::Result;
 use kaspa_addresses::{Prefix, Version};
 use kaspa_consensus_core::network::{NetworkId, NetworkType};
@@ -10,16 +8,11 @@ use kaspa_wallet_core::utxo::NetworkParams;
 use kaspa_wallet_core::wallet::Wallet;
 use kaspa_wallet_keys::secret::Secret;
 use kaspa_wallet_pskt::prelude::KeySource;
-use secp256k1::Keypair as KaspaSecpKeypair;
 use std::fmt;
-use std::str::FromStr;
-
 use kaspa_wallet_core::derivation::build_derivate_paths;
 use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_core::storage::local::set_default_storage_folder as unsafe_set_default_storage_folder_kaspa; // Import the prelude for easy access to traits/structs
-
 use std::sync::Arc;
-
 use kaspa_wrpc_client::Resolver;
 
 pub async fn get_wallet(
@@ -33,22 +26,22 @@ pub async fn get_wallet(
     }
 
     let local_store = Wallet::local_store()
-        .map_err(|e| Error::from(format!("Failed to open wallet local store: {}", e)))?;
+        .map_err(|e| Error::from(format!("Failed to open wallet local store: {e}")))?;
 
     let w = Arc::new(
         Wallet::try_new(local_store, Some(Resolver::default()), Some(network_id))
-            .map_err(|e| Error::from(format!("Failed to create wallet: {}", e)))?,
+            .map_err(|e| Error::from(format!("Failed to create wallet: {e}")))?,
     );
 
     // Start background services (UTXO processor, event handling).
     w.start()
         .await
-        .map_err(|e| Error::from(format!("Failed to start wallet: {}", e)))?;
+        .map_err(|e| Error::from(format!("Failed to start wallet: {e}")))?;
 
     w.clone()
         .connect(Some(url), &network_id)
         .await
-        .map_err(|e| Error::from(format!("Failed to connect wallet: {}", e)))?;
+        .map_err(|e| Error::from(format!("Failed to connect wallet: {e}")))?;
 
     let is_c = w.is_connected();
     info!("connected: {:?}", is_c);
@@ -58,15 +51,15 @@ pub async fn get_wallet(
     w.clone()
         .wallet_open(s.clone(), None, true, false)
         .await
-        .map_err(|e| Error::from(format!("Failed to open wallet: {}", e)))?;
+        .map_err(|e| Error::from(format!("Failed to open wallet: {e}")))?;
 
     let accounts = w
         .clone()
         .accounts_enumerate()
         .await
-        .map_err(|e| Error::from(format!("Failed to enumerate accounts: {}", e)))?;
+        .map_err(|e| Error::from(format!("Failed to enumerate accounts: {e}")))?;
 
-    let account_descriptor = accounts.get(0).ok_or("Wallet has no accounts.")?;
+    let account_descriptor = accounts.first().ok_or("Wallet has no accounts.")?;
 
     let account_id = account_descriptor.account_id;
     info!(
@@ -77,12 +70,12 @@ pub async fn get_wallet(
     w.clone()
         .accounts_select(Some(account_id))
         .await
-        .map_err(|e| Error::from(format!("Failed to select wallet account: {}", e)))?;
+        .map_err(|e| Error::from(format!("Failed to select wallet account: {e}")))?;
 
     w.clone()
         .accounts_activate(Some(vec![account_id]))
         .await
-        .map_err(|e| Error::from(format!("Failed to activate wallet account: {}", e)))?;
+        .map_err(|e| Error::from(format!("Failed to activate wallet account: {e}")))?;
 
     Ok(w)
 }

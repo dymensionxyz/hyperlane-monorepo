@@ -17,7 +17,7 @@ pub fn sign_pskt(
     let ok: Vec<bool> = pskt
         .inputs
         .iter()
-        .map(|input| input_filter.as_ref().map_or(true, |filter| filter(input)))
+        .map(|input| input_filter.as_ref().is_none_or(|filter| filter(input)))
         .collect();
 
     pskt.pass_signature_sync(|tx, sighash| {

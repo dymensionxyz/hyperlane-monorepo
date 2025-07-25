@@ -78,13 +78,13 @@ impl TryFrom<TxModel> for Deposit {
         Ok(Deposit {
             id: tx_hash,
             payload: tx.payload,
-            accepted: accepted,
-            outputs: outputs,
-            time: time,
-            accepting_block_hash: accepting_block_hash,
-            accepting_block_time: accepting_block_time,
-            accepting_block_blue_score: accepting_block_blue_score,
-            block_hashes: block_hashes,
+            accepted,
+            outputs,
+            time,
+            accepting_block_hash,
+            accepting_block_time,
+            accepting_block_blue_score,
+            block_hashes,
         })
     }
 }
@@ -154,7 +154,7 @@ impl HttpClient {
         }
 
         // return txs filtered by txs that include utxos with destination escrow address and including a payload
-        Ok(txs
+        txs
             .into_iter()
             .filter(|tx| {
                 is_valid_escrow_transfer(tx, &address.to_string()).expect("unable to validate txs")
@@ -162,13 +162,13 @@ impl HttpClient {
                     && tx.is_accepted.unwrap_or(false)
             })
             .map(Deposit::try_from)
-            .collect::<Result<Vec<Deposit>>>()?)
+            .collect::<Result<Vec<Deposit>>>()
     }
 
     pub fn get_config(&self) -> Configuration {
         let u = self.url.clone();
         let url = u.strip_suffix("/").unwrap();
-        get_config(&url, self.client.clone())
+        get_config(url, self.client.clone())
     }
 
     // TODO: we should pass block hash hint in validator (he can get it from relayer)

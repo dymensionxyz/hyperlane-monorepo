@@ -78,11 +78,11 @@ impl EscrowPublic {
         let addr = extract_script_pub_key_address(&p2sh, prefix).unwrap();
 
         EscrowPublic {
-            required_signatures: required_signatures,
+            required_signatures,
             redeem_script,
             p2sh,
             addr,
-            pubs: pubs,
+            pubs,
         }
     }
 

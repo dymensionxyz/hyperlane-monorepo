@@ -33,20 +33,23 @@ pub fn make_deposit_payload(
     amt: u64,
     hub_user_addr_hub: H256,
 ) -> Vec<u8> {
-    let mut m = HyperlaneMessage::default();
-    m.origin = domain_kas;
-    m.sender = token_kas_placeholder;
-    m.destination = domain_hub;
-    m.recipient = token_hub;
-    m.body = vec![];
     let meta = make_deposit_payload_meta();
     let token_message = TokenMessage::new(hub_user_addr_hub, U256::from(amt), meta);
     let mut buf = vec![];
     token_message.write_to(&mut buf).unwrap();
-    m.body = buf;
+
+    let m = HyperlaneMessage {
+        origin: domain_kas,
+        sender: token_kas_placeholder,
+        destination: domain_hub,
+        recipient: token_hub,
+        body: buf,
+        ..Default::default()
+    };
 
     let mut buf = vec![];
     m.write_to(&mut buf).unwrap();
+
     buf
 }
 
