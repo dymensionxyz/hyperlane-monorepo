@@ -204,13 +204,12 @@ pub async fn filter_pending_withdrawals(
 
     // resp.status is a list of the same length as withdrawals. If status == WithdrawalStatus::Unprocessed,
     // then the respective element of withdrawals is Unprocessed.
-    // it filters out 
     let pending_withdrawals: Vec<_> = resp
         .status
         .into_iter()
         .enumerate()
         .filter_map(|(idx, status)| match status.try_into() {
-            Ok(WithdrawalStatus::Unprocessed) =>  Some(withdrawals[idx].clone()),
+            Ok(WithdrawalStatus::Unprocessed) => Some(withdrawals[idx].clone()),
             _ => None, // Ignore other statuses
         })
         .collect();
