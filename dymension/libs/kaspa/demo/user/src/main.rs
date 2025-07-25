@@ -1,9 +1,12 @@
 use clap::Parser;
 use x::args::{Cli, Commands};
 
+mod sim;
+use sim::{SimulateTrafficArgs, TrafficSim};
 mod x;
 
 async fn run(cli: Cli) {
+    tracing_subscriber::fmt::init();
     match cli.command {
         Commands::Recipient(args) => {
             let converted = x::addr::hl_recipient(&args.address);
@@ -42,6 +45,11 @@ async fn run(cli: Cli) {
             let signer = x::relayer::create_relayer();
             println!("Relayer address: {}", signer.address);
             println!("Relayer private key: {}", signer.private_key);
+        }
+        Commands::SimulateTraffic(args) => {
+            let sim = SimulateTrafficArgs::try_from(args).unwrap();
+            let sim = TrafficSim::new(sim).await.unwrap();
+            sim.run().await.unwrap();
         }
     }
 }
