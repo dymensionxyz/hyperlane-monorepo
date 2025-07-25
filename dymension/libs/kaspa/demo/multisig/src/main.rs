@@ -153,7 +153,7 @@ async fn demo() -> Result<()> {
 
     let hl_msg = HyperlaneMessage::default();
 
-    let payload = MessageIDs::from(vec![hl_msg.id()]).to_bytes()?;
+    let payload = MessageIDs::from(vec![hl_msg.id()]).to_bytes();
 
     let current_anchor = TransactionOutpoint::new(tx_id, 0);
 
