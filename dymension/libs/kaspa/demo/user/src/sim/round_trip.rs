@@ -75,7 +75,7 @@ impl RoundTrip {
             amt,
             &self.hub_key.signer(),
         );
-        let tx_id = deposit_with_payload(&w.wallet, &s, a, amt, payload).await?;
+        let tx_id = deposit_with_payload(&w.wallet, s, a, amt, payload).await?;
         self.stats.kaspa_deposit_tx_id = tx_id;
         Ok(tx_id)
     }
