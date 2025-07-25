@@ -208,30 +208,14 @@ pub async fn filter_pending_withdrawals(
 
     // resp.status is a list of the same length as withdrawals. If status == WithdrawalStatus::Unprocessed,
     // then the respective element of withdrawals is Unprocessed.
-    // it filters out all the withdrawals that are not Unprocessed and have an amount below the minimum accepted.
+    // it filters out 
     let pending_withdrawals: Vec<_> = resp
         .status
         .into_iter()
         .enumerate()
         .filter_map(|(idx, status)| match status.try_into() {
             Ok(WithdrawalStatus::Unprocessed) => {
-                let withdrawal: HyperlaneMessage = withdrawals[idx].clone();
-                match parse_hyperlane_metadata(&withdrawal) {
-                    Ok(token_metadata) => {
-                        if token_metadata.amount() >= U256::from(MINIMUM_WITHDRAWAL_ACCEPTED) {
-                            Some(withdrawal)
-                        } else {
-                            error!("withdrawal discarded. amount below minimum accepted. minimum:{} amount:{}", token_metadata.amount(), MINIMUM_WITHDRAWAL_ACCEPTED);
-                            None
-                        }
-                    },
-                    Err(e) => {
-                        // Handle the parsing error. You might log it, or just ignore this withdrawal.
-                        // For now, we'll just ignore it (return None).
-                        error!("Failed to parse Hyperlane metadata for withdrawal at index {}: {:?}", idx, e);
-                        None
-                    }
-                }
+                Some(withdrawals[idx].clone())
             },
             _ => None, // Ignore other statuses
         })

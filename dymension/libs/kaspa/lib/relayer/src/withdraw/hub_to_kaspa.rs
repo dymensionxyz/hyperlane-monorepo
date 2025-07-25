@@ -1,5 +1,8 @@
+use corelib::message::parse_hyperlane_metadata;
 use eyre::Result;
 
+use hardcode::tx::MINIMUM_WITHDRAWAL_ACCEPTED;
+use hyperlane_core::U256;
 use kaspa_consensus_core::hashing::sighash::{
     calc_schnorr_signature_hash, SigHashReusedValuesUnsync,
 };
@@ -301,8 +304,18 @@ pub fn filter_outputs_from_msgs(
     let mut hl_msgs: Vec<HyperlaneMessage> = Vec::new();
     let mut outputs: Vec<TransactionOutput> = Vec::new();
     for m in messages {
-        let tm = match TokenMessage::read_from(&mut Cursor::new(&m.body)) {
-            Ok(tm) => tm,
+        let tm = match parse_hyperlane_metadata(&m) {
+            Ok(tm) => {
+                if tm.amount() < U256::from(MINIMUM_WITHDRAWAL_ACCEPTED) {
+                    info!(
+                        "Kaspa relayer, withdrawal amount is less than dust amount, skipping, amount: {}, message id: {:?}",
+                        tm.amount(),
+                        m.id()
+                    );
+                    continue;
+                }
+                tm
+            }
             Err(e) => {
                 info!(
                     "Kaspa relayer, can't get TokenMessage from HyperlaneMessage body, skipping: {}",
