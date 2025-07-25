@@ -1,39 +1,34 @@
-use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs};
-
+use super::confirmation_queue::PendingConfirmation;
+use super::validators::ValidatorsClient;
+use super::RestProvider;
 use crate::util::domain_to_kas_network;
+use crate::ConnectionConf;
+use crate::ValidatorStuff;
+use dym_kas_core::confirmation::ConfirmationFXG;
+use dym_kas_core::escrow::EscrowPublic;
+use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs};
+use dym_kas_relayer::withdraw::hub_to_kaspa::combine_bundles_with_fee;
+use dym_kas_relayer::withdraw::messages::on_new_withdrawals;
+pub use dym_kas_validator::KaspaSecpKeypair;
+use eyre::Result;
+use hyperlane_core::config::OpSubmissionConfig;
+use hyperlane_core::NativeToken;
+use hyperlane_core::{
+    BlockInfo, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneMessage,
+    HyperlaneProvider, HyperlaneProviderError, TxnInfo, H256, H512, U256,
+};
+use hyperlane_cosmos_native::ConnectionConf as HubConnectionConf;
+use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
+use hyperlane_cosmos_native::RawCosmosAmount;
+use hyperlane_cosmos_native::Signer as HyperlaneSigner;
+use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use kaspa_addresses::Address;
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
 use kaspa_wallet_core::prelude::DynRpcApi;
 use std::sync::Arc;
 use tonic::async_trait;
-use url::Url;
-
-use dym_kas_core::escrow::EscrowPublic;
-use dym_kas_relayer::withdraw::hub_to_kaspa::combine_bundles_with_fee;
-use dym_kas_relayer::withdraw::messages::on_new_withdrawals;
-pub use dym_kas_validator::KaspaSecpKeypair;
-use hyperlane_core::{
-    BlockInfo, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProvider, HyperlaneProviderError, TxnInfo, H256, H512, U256,
-};
-use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
-use kaspa_rpc_core::api::rpc::RpcApi;
 use tracing::info;
-
-use super::confirmation_queue::PendingConfirmation;
-use super::validators::ValidatorsClient;
-use super::RestProvider;
-use dym_kas_core::confirmation::ConfirmationFXG;
-
-use crate::ConnectionConf;
-use crate::ValidatorStuff;
-use eyre::Result;
-use hyperlane_core::config::OpSubmissionConfig;
-use hyperlane_core::NativeToken;
-use hyperlane_cosmos_native::ConnectionConf as HubConnectionConf;
-use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
-use hyperlane_cosmos_native::RawCosmosAmount;
-use hyperlane_cosmos_native::Signer as HyperlaneSigner;
+use url::Url;
 
 /// dococo
 #[derive(Debug, Clone)]
@@ -236,7 +231,7 @@ impl HyperlaneProvider for KaspaProvider {
         return Ok(true);
     }
 
-    async fn get_balance(&self, address: String) -> ChainResult<U256> {
+    async fn get_balance(&self, _address: String) -> ChainResult<U256> {
         // TODO: maybe I can return just a larger number here?
         return Ok(0.into());
     }

@@ -3,7 +3,6 @@ use eyre::Error as EyreError;
 use hyperlane_core::{Encode, HyperlaneMessage, H256};
 use hyperlane_cosmos_rs::dymensionxyz::hyperlane::kaspa::MessageIDs as ProtoMessageIDs;
 use prost::Message;
-use std::io::Read;
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub struct MessageID(pub H256);

@@ -1203,7 +1203,7 @@ impl ChainConf {
             .ok_or_else(|| eyre!("Starknet requires a signer to construct contract instances"))
     }
 
-    pub async fn cosmos_native_signer(&self) -> Result<Option<h_cosmos_native::Signer>> {
+    async fn cosmos_native_signer(&self) -> Result<Option<h_cosmos_native::Signer>> {
         self.signer().await
     }
 
@@ -1268,7 +1268,7 @@ impl ChainConf {
         cfg
     }
 
-    pub fn locator(&self, address: H256) -> ContractLocator {
+    fn locator(&self, address: H256) -> ContractLocator {
         ContractLocator {
             domain: &self.domain,
             address,
@@ -1379,7 +1379,7 @@ fn build_cosmos_wasm_provider(
     )
 }
 
-pub fn build_cosmos_native_provider(
+fn build_cosmos_native_provider(
     chain_conf: &ChainConf,
     connection_conf: &h_cosmos_native::ConnectionConf,
     metrics: &CoreMetrics,

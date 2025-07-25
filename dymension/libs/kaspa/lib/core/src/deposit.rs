@@ -1,6 +1,5 @@
 use bytes::Bytes;
 use eyre::Result;
-use hyperlane_core::H256;
 use hyperlane_core::{Encode, HyperlaneMessage, U256};
 use hyperlane_cosmos_rs::dymensionxyz::hyperlane::kaspa::{
     DepositFxg as ProtoDepositFXG, DepositVersion,

@@ -374,7 +374,7 @@ fn safe_pskt(unstrusted_inner: Inner) -> Result<PSKT<Signer>> {
     inner.global.input_count = unstrusted_inner.inputs.len();
     inner.global.output_count = unstrusted_inner.outputs.len();
     inner.global.payload = unstrusted_inner.global.payload;
-    for (i, input) in unstrusted_inner.inputs.iter().enumerate() {
+    for input in unstrusted_inner.inputs.iter() {
         let mut b = InputBuilder::default();
         if let Some(utxo_entry) = &input.utxo_entry {
             b.utxo_entry(utxo_entry.clone());
@@ -390,7 +390,7 @@ fn safe_pskt(unstrusted_inner: Inner) -> Result<PSKT<Signer>> {
         inner.inputs.push(b.build()?);
     }
 
-    for (i, output) in unstrusted_inner.outputs.iter().enumerate() {
+    for output in unstrusted_inner.outputs.iter() {
         let mut b = OutputBuilder::default();
         b.amount(output.amount);
         b.script_public_key(output.script_public_key.clone());

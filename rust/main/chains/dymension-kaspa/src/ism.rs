@@ -88,7 +88,7 @@ impl MultisigIsm for KaspaIsm {
 #[async_trait]
 impl RoutingIsm for KaspaIsm {
     /// Returns the ISM needed to verify message
-    async fn route(&self, message: &HyperlaneMessage) -> ChainResult<H256> {
+    async fn route(&self, _message: &HyperlaneMessage) -> ChainResult<H256> {
         // We are only bridging Dymension to Kaspa
         Ok(KASPA_ISM_ADDRESS)
     }

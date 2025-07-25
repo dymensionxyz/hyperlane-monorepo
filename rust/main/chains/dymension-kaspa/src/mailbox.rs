@@ -1,21 +1,13 @@
-use cosmrs::Any;
-use hex::ToHex;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
-use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
-use hyperlane_cosmos_rs::prost::{Message, Name};
-use tonic::async_trait;
-
 use super::consts::*;
-use tracing::info;
-
-use hyperlane_core::{
-    utils::bytes_to_hex, BatchResult, ChainResult,
-    ContractLocator, FixedPointNumber, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, Mailbox, QueueOperation, RawHyperlaneMessage, ReorgPeriod,
-    TxCostEstimate, TxOutcome, H256, H512, U256,
-};
-
 use crate::KaspaProvider;
+use hyperlane_core::{
+    utils::bytes_to_hex, BatchResult, ChainResult, ContractLocator, FixedPointNumber,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
+    Mailbox, QueueOperation, ReorgPeriod, TxCostEstimate, TxOutcome, H256, H512, U256,
+};
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
+use tonic::async_trait;
+use tracing::info;
 
 // pretends to be a mailbox
 #[derive(Debug, Clone)]
@@ -66,7 +58,7 @@ impl HyperlaneContract for KaspaMailbox {
 impl Mailbox for KaspaMailbox {
     // TODO: not sure where used
     // it should return the number of dispatched messages so far
-    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+    async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         return Ok(0);
     }
 
@@ -106,9 +98,9 @@ impl Mailbox for KaspaMailbox {
 
     async fn process(
         &self,
-        message: &HyperlaneMessage,
-        metadata: &[u8], // contains sigs etc
-        tx_gas_limit: Option<U256>,
+        _message: &HyperlaneMessage,
+        _metadata: &[u8], // contains sigs etc
+        _tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         /*
         There is a flow where the relayer will try to submit a batch and any failures will get retried via this method

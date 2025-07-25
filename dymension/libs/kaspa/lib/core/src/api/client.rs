@@ -1,19 +1,6 @@
-use api_rs::apis::configuration::Configuration;
-use tracing::info;
-
-use url::Url;
-
-use eyre::{Error, Result};
-
 use super::base::RateLimitConfig;
-use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
-use std::hash::{BuildHasher, Hash, Hasher, RandomState};
-use std::str::FromStr;
-use std::time::Duration;
-
-use kaspa_consensus_core::tx::TransactionId;
-use kaspa_hashes::Hash as KaspaHash;
-
+use super::base::{get_client, get_config};
+use api_rs::apis::configuration::Configuration;
 use api_rs::apis::kaspa_addresses_api::{
     get_full_transactions_for_address_page_addresses_kaspa_address_full_transactions_page_get as transactions_page,
     GetFullTransactionsForAddressPageAddressesKaspaAddressFullTransactionsPageGetParams as args,
@@ -24,8 +11,13 @@ use api_rs::apis::kaspa_transactions_api::{
     GetTransactionTransactionsTransactionIdGetParams as get_tx_by_id_params,
 };
 use api_rs::models::{AcceptanceMode, TxModel, TxOutput};
-
-use super::base::{get_client, get_config};
+use eyre::{Error, Result};
+use kaspa_consensus_core::tx::TransactionId;
+use kaspa_hashes::Hash as KaspaHash;
+use reqwest_middleware::ClientWithMiddleware;
+use std::hash::{Hash, Hasher};
+use std::str::FromStr;
+use tracing::info;
 
 #[derive(Debug, Clone)]
 pub struct Deposit {
@@ -244,19 +236,8 @@ fn is_valid_escrow_transfer(tx: &TxModel, address: &String) -> Result<bool> {
     Ok(false)
 }
 
-fn is_retryable(e: &Error) -> bool {
-    if let Some(reqwest_error) = e.downcast_ref::<reqwest::Error>() {
-        if reqwest_error.is_connect() {
-            return true;
-        }
-    }
-    false
-}
-
 #[cfg(test)]
 mod tests {
-    use kaspa_core::time::unix_now;
-
     use super::*;
 
     #[tokio::test]

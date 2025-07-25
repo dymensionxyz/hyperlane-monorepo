@@ -10,7 +10,7 @@ use hyperlane_core::H256;
 use hyperlane_core::U256;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use kaspa_addresses::Address;
-use kaspa_rpc_core::{api::rpc::RpcApi, RpcBlock};
+use kaspa_rpc_core::RpcBlock;
 use kaspa_rpc_core::{RpcHash, RpcTransaction, RpcTransactionOutput};
 use kaspa_txscript::extract_script_pub_key_address;
 use kaspa_wallet_core::prelude::DynRpcApi;

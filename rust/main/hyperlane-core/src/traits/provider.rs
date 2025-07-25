@@ -2,7 +2,6 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 use auto_impl::auto_impl;
-use std::any::Any;
 use thiserror::Error;
 
 use downcast_rs::{impl_downcast, DowncastSync};

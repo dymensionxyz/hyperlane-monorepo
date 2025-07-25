@@ -1,14 +1,11 @@
-use std::ops::RangeInclusive;
-
-use tonic::async_trait;
-
+use crate::{ConnectionConf, KaspaEventIndexer, KaspaProvider, RestProvider};
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster,
     InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, H512,
 };
-
-use crate::{ConnectionConf, KaspaEventIndexer, KaspaProvider, RestProvider};
+use std::ops::RangeInclusive;
+use tonic::async_trait;
 
 /// delivery indexer to check if a message was delivered
 #[derive(Debug, Clone)]
@@ -24,7 +21,7 @@ impl KaspaGas {
     ///  Gas Payment Indexer
     pub fn new(
         provider: KaspaProvider,
-        conf: &ConnectionConf,
+        _conf: &ConnectionConf,
         locator: ContractLocator,
     ) -> ChainResult<Self> {
         Ok(KaspaGas {
@@ -68,7 +65,7 @@ impl HyperlaneContract for KaspaGas {
 impl Indexer<InterchainGasPayment> for KaspaGas {
     async fn fetch_logs_in_range(
         &self,
-        range: RangeInclusive<u32>,
+        _range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
         Err(ChainCommunicationError::from_other_str("not implemented"))
     }
@@ -79,7 +76,7 @@ impl Indexer<InterchainGasPayment> for KaspaGas {
 
     async fn fetch_logs_by_tx_hash(
         &self,
-        tx_hash: H512,
+        _tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
         Err(ChainCommunicationError::from_other_str("not implemented"))
     }

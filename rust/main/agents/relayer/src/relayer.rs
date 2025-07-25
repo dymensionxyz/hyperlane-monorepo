@@ -3,10 +3,8 @@ use std::{
     fmt::{Debug, Formatter},
     hash::Hash,
     sync::Arc,
-    time::{Instant, SystemTime, UNIX_EPOCH},
+    time::Instant,
 };
-
-use eyre::eyre;
 
 use async_trait::async_trait;
 use derive_more::AsRef;
@@ -30,19 +28,15 @@ use hyperlane_base::{
     cursors::Indexable,
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, ChainSpecificMetricsUpdater},
-    settings::{build_cosmos_native_provider, build_kaspa_provider},
-    settings::{
-        ChainConf, ChainConnectionConf, IndexSettings, SequenceIndexer, TryFromWithMetrics,
-    },
+    settings::{ChainConf, IndexSettings, SequenceIndexer, TryFromWithMetrics},
     AgentMetadata, BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics,
     HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneDomainTechnicalStack, HyperlaneDomainType,
-    HyperlaneLogStore, HyperlaneMessage, HyperlaneSequenceAwareIndexerStoreReader,
-    HyperlaneWatermarkedLogStore, InterchainGasPayment, KnownHyperlaneDomain, Mailbox,
-    MerkleTreeInsertion, QueueOperation, SubmitterType, ValidatorAnnounce, H256, H512, U256,
+    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneLogStore, HyperlaneMessage,
+    HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, InterchainGasPayment,
+    Mailbox, MerkleTreeInsertion, QueueOperation, SubmitterType, ValidatorAnnounce, H512, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 use lander::{
@@ -50,7 +44,7 @@ use lander::{
 };
 
 use super::msg::metadata::dymension_kaspa::PendingMessageMetadataGetter;
-use dymension_kaspa::{is_dym, is_kas, KaspaMailbox, KaspaProvider};
+use dymension_kaspa::{is_dym, is_kas, KaspaProvider};
 use hyperlane_base::kas_hack::logic_loop::Foo as KaspaBridgeFoo;
 use hyperlane_cosmos_native::CosmosNativeMailbox;
 
@@ -61,8 +55,8 @@ use crate::{
         blacklist::AddressBlacklist,
         gas_payment::GasPaymentEnforcer,
         metadata::{
-            multisig::MessageIdMultisigMetadataBuilder, BaseMetadataBuilder, DefaultIsmCache,
-            IsmAwareAppContextClassifier, IsmCachePolicyClassifier, MessageMetadataBuilder,
+            BaseMetadataBuilder, DefaultIsmCache, IsmAwareAppContextClassifier,
+            IsmCachePolicyClassifier,
         },
         op_submitter::{SerialSubmitter, SerialSubmitterMetrics},
         pending_message::MessageContext,
@@ -1444,8 +1438,6 @@ impl Relayer {
         task_monitor: TaskMonitor,
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
     ) {
-        let kas_db = self.dbs.get(origin).unwrap();
-
         let args = self.dymension_kaspa_args.as_ref().unwrap();
 
         let kas_provider = args.kas_provider.clone();
@@ -1453,13 +1445,7 @@ impl Relayer {
 
         let metadata_getter = PendingMessageMetadataGetter::new();
 
-        let b = KaspaBridgeFoo::new(
-            origin.clone(),
-            kas_db.clone().to_owned(),
-            kas_provider.clone(),
-            hub_mailbox.clone(),
-            metadata_getter,
-        );
+        let b = KaspaBridgeFoo::new(kas_provider.clone(), hub_mailbox.clone(), metadata_getter);
 
         // sync relayer before starting other tasks
         b.sync_hub_if_needed().await.unwrap();

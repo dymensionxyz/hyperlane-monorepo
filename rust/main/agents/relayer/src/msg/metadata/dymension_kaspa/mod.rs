@@ -1,6 +1,3 @@
-use async_trait::async_trait;
-use tracing::{info, instrument, warn};
-
 use super::{
     base::{MessageMetadataBuildParams, MetadataBuildError},
     message_builder::MessageMetadataBuilder,
@@ -12,25 +9,23 @@ use crate::msg::{
     },
     metadata::DummyBuildsBaseMetadata,
 };
-use hyperlane_core::{
-    utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, HyperlaneSignerExt, RawHyperlaneMessage,
-    Signable, H160, H256,
-};
-
+use async_trait::async_trait;
 use hyperlane_base::kas_hack::logic_loop::MetadataConstructor;
 use hyperlane_core::MultisigSignedCheckpoint;
+use hyperlane_core::{HyperlaneMessage, H256};
 use std::sync::Arc;
+use tracing::instrument;
 pub struct KaspaMetadataBuilder;
 
 impl KaspaMetadataBuilder {
-    pub fn new(message_builder: MessageMetadataBuilder) -> Self {
+    pub fn new(_message_builder: MessageMetadataBuilder) -> Self {
         Self {}
     }
 }
 
 #[async_trait]
 impl MetadataBuilder for KaspaMetadataBuilder {
-    #[instrument(err, skip(self, message, _params))]
+    #[instrument(err, skip(self, _message, _params))]
     async fn build(
         &self,
         _ism_address: H256,

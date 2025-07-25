@@ -73,7 +73,7 @@ pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(
 }
 
 async fn respond_kaspa_ping<S: HyperlaneSignerExt + Send + Sync + 'static>(
-    State(resources): State<Arc<ValidatorServerResources<S>>>,
+    State(_): State<Arc<ValidatorServerResources<S>>>,
     _body: Bytes,
 ) -> HandlerResult<Json<String>> {
     warn!("VALIDATOR SERVER, GOT KASPA PING");

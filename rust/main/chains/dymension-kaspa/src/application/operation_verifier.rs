@@ -1,4 +1,3 @@
-
 use async_trait::async_trait;
 use derive_new::new;
 
@@ -15,8 +14,8 @@ pub struct KaspaApplicationOperationVerifier {}
 impl ApplicationOperationVerifier for KaspaApplicationOperationVerifier {
     async fn verify(
         &self,
-        app_context: &Option<String>,
-        message: &HyperlaneMessage,
+        _app_context: &Option<String>,
+        _message: &HyperlaneMessage,
     ) -> Option<ApplicationOperationVerifierReport> {
         return None;
     }

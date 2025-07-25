@@ -1,6 +1,5 @@
 use super::payload::MessageID;
 use bytes::Bytes;
-use clap::builder::TypedValueParser;
 use eyre::Error as EyreError;
 use hex::ToHex;
 use hyperlane_core::H256;
