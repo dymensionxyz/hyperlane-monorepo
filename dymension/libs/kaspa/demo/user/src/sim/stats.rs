@@ -17,12 +17,11 @@ pub fn render_stats(stats: Vec<RoundTripStats>, total_spend: u64, total_ops: u64
 pub struct RoundTripStats {
     pub op_id: u64,
     pub kaspa_deposit_tx_id: Option<TransactionId>,
-    pub deposit_time: Option<Instant>,
+    pub kaspa_deposit_tx_time: Option<Instant>,
     pub deposit_credit_error: Option<String>,
-    pub withdrawal_tx_id: Option<TransactionId>,
-    pub withdrawal_time: Option<Instant>,
-    pub withdrawal_tx_error: Option<String>,
-
+    pub hub_withdraw_tx_id: Option<TransactionId>,
+    pub hub_withdraw_tx_time: Option<Instant>,
+    pub withdraw_credit_error: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -31,6 +30,7 @@ enum Stage {
     PostDepositNotCredited,
     PreWithdrawal,
     PostWithdrawalNotCredited,
+    Complete,
 }
 
 impl RoundTripStats {
@@ -40,12 +40,18 @@ impl RoundTripStats {
         d
     }
     pub fn stage(&self) -> Stage {
-        if !self.deposit_time.is_some() {
+        if !self.kaspa_deposit_tx_time.is_some() {
             return Stage::PreDeposit;
         }
         if self.deposit_credit_error.is_some() {
             return Stage::PostDepositNotCredited;
         }
-        Stage::PreWithdrawal
+        if !self.hub_withdraw_tx_time.is_some() {
+            return Stage::PreWithdrawal;
+        }
+        if self.withdraw_credit_error.is_some() {
+            return Stage::PostWithdrawalNotCredited;
+        }
+        Stage::Complete
     }
 }

@@ -61,22 +61,31 @@ pub async fn do_round_trip(
         }
     };
     rt.stats.kaspa_deposit_tx_id = Some(tx_id);
-    rt.stats.deposit_time = Some(deposit_time);
+    rt.stats.kaspa_deposit_tx_time = Some(deposit_time);
     match rt.await_hub_credit().await {
         Ok(()) => (),
         Err(e) => {
             rt.stats.deposit_credit_error = Some(e.to_string());
             return;
         }
-    }
+    };
     match rt.withdraw().await {
         Ok((tx_id, withdrawal_time)) => {
-            rt.stats.kaspa_withdrawal_tx_id = Some(tx_id);
-            rt.stats.withdrawal_time = Some(withdrawal_time);
+            rt.stats.hub_withdraw_tx_id = Some(tx_id);
+            rt.stats.hub_withdraw_tx_time = Some(withdrawal_time);
         }
         Err(e) => {
-    }
-    rt.await_kaspa_credit().await;
+            error!("withdrawal failed: {:?}", e);
+            return;
+        }
+    };
+    match rt.await_kaspa_credit().await {
+        Ok(()) => (),
+        Err(e) => {
+            rt.stats.withdraw_credit_error = Some(e.to_string());
+            return;
+        }
+    };
     tx.send(rt.stats).await.unwrap();
 }
 
