@@ -19,13 +19,13 @@ use tokio::sync::mpsc;
 
 use crate::x::args::{SimulateTrafficCli, WalletCli};
 use corelib::wallet::{EasyKaspaWalletArgs, Network};
+use hyperlane_core::config::OpSubmissionConfig;
 use hyperlane_core::ContractLocator;
 use hyperlane_core::HyperlaneDomain;
 use hyperlane_core::KnownHyperlaneDomain;
+use hyperlane_core::NativeToken;
 use hyperlane_core::H256;
 use hyperlane_cosmos_native::RawCosmosAmount;
-use hyperlane_core::config::OpSubmissionConfig;
-use hyperlane_core::NativeToken;
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use tracing::info;
 use url::Url;
@@ -132,6 +132,7 @@ impl TrafficSim {
         let resources = Arc::new(TaskResources {
             w: w.clone(),
             args: args.task_args,
+            hub: cosmos_provider().await?,
         });
         Ok(TrafficSim {
             params: args.params,
