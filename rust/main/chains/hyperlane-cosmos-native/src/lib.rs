@@ -5,7 +5,6 @@
 
 mod error;
 mod indexers;
-mod indicate_process;
 mod ism;
 mod libs;
 /// mailbox
@@ -19,6 +18,6 @@ mod validator_announce;
 
 use self::libs::*;
 pub use {
-    self::error::*, self::indexers::*, self::indicate_process::*, self::ism::*, self::mailbox::*,
-    self::providers::*, self::signers::*, self::trait_builder::*, self::validator_announce::*,
+    self::error::*, self::indexers::*, self::ism::*, self::mailbox::*, self::providers::*,
+    self::signers::*, self::trait_builder::*, self::validator_announce::*,
 };

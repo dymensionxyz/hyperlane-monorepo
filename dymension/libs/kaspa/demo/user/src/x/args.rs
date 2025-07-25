@@ -81,6 +81,8 @@ pub struct SimulateTrafficCli {
     pub token_hub: H256,
     #[arg(long, required = true)]
     pub escrow_address: String,
+    #[arg(long, required = true)]
+    pub hl_token_denom: String,
 
     #[command(flatten)]
     pub wallet: WalletCli,

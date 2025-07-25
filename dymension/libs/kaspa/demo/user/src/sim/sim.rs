@@ -1,23 +1,66 @@
+use super::key_cosmos::EasyHubKey;
 use super::round_trip::do_round_trip;
 use super::round_trip::TaskArgs;
 use super::round_trip::TaskResources;
 use super::stats::render_stats;
-use super::util::as_kas;
-use crate::x::args::{SimulateTrafficCli, WalletCli};
+use super::util::som_to_kas;
+use corelib::api::base::RateLimitConfig;
+use corelib::api::client::HttpClient;
 use corelib::wallet::EasyKaspaWallet;
 use corelib::wallet::{EasyKaspaWalletArgs, Network};
 use eyre::Result;
+use hardcode;
+use hyperlane_cosmos_native::ConnectionConf as CosmosConnectionConf;
+use hyperlane_cosmos_native::CosmosNativeProvider;
 use rand_distr::{Distribution, Exp};
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
+
+use crate::x::args::{SimulateTrafficCli, WalletCli};
+use hyperlane_core::config::OpSubmissionConfig;
+use hyperlane_core::ContractLocator;
+use hyperlane_core::HyperlaneDomain;
+use hyperlane_core::KnownHyperlaneDomain;
+use hyperlane_core::NativeToken;
+use hyperlane_core::H256;
+use hyperlane_cosmos_native::RawCosmosAmount;
+use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use tracing::info;
+use url::Url;
+
+async fn cosmos_provider() -> Result<CosmosNativeProvider> {
+    let conf = CosmosConnectionConf::new(
+        vec![Url::parse("https://rpc-dymension-playground35.mzonder.com:443").unwrap()],
+        vec![Url::parse("https://grpc-dymension-playground35.mzonder.com:443").unwrap()],
+        "dymension_3405-1".to_string(),
+        "dym".to_string(),
+        "adym".to_string(),
+        RawCosmosAmount {
+            amount: "100000000000.0".to_string(),
+            denom: "adym".to_string(),
+        },
+        1.0,
+        32,
+        OpSubmissionConfig::default(),
+        NativeToken {
+            decimals: 18,
+            denom: "adym".to_string(),
+        },
+    );
+    let d = HyperlaneDomain::Known(KnownHyperlaneDomain::Osmosis);
+    let locator = ContractLocator::new(&d, H256::zero());
+    let signer = None;
+    let metrics = PrometheusClientMetrics::default();
+    let chain = None;
+    CosmosNativeProvider::new(&conf, &locator, signer, metrics, chain).map_err(eyre::Report::from)
+}
 
 pub struct Params {
     pub time_limit: Duration, // total target simulation time
     pub budget: u64,          // in sompi
     pub ops_per_minute: u64,  // osmosis does 90 per minute
     pub max_ops: u64,         // max number of ops to run, disregarding distributions
+    pub min_value: u64,       // in sompi
 }
 
 impl Params {
@@ -25,6 +68,15 @@ impl Params {
     pub fn distr_value(&self) -> Exp<f64> {
         // TODO: need to use some clamping/minimum
         Exp::new(1.0 / self.op_budget()).unwrap()
+    }
+    pub fn sample_value(&self) -> u64 {
+        // TODO: use proper clamping, or this will blow the budget
+        let v = self.distr_value().sample(&mut rand::rng()) as u64;
+        if v < self.min_value {
+            self.min_value
+        } else {
+            v
+        }
     }
     /// Used to draw time between ops, in milliseconds
     pub fn distr_time(&self) -> Exp<f64> {
@@ -58,6 +110,7 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
                 budget: cli.budget,
                 ops_per_minute: cli.ops_per_minute,
                 max_ops: cli.max_ops,
+                min_value: hardcode::tx::MIN_DEPOSIT_AMOUNT,
             },
             task_args: TaskArgs {
                 domain_kas: cli.domain_kas,
@@ -65,6 +118,7 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
                 domain_hub: cli.domain_hub,
                 token_hub: cli.token_hub,
                 escrow_address: addr,
+                hl_token_denom: cli.hl_token_denom,
             },
             wallet: cli.wallet,
         })
@@ -73,7 +127,7 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
 
 pub struct TrafficSim {
     params: Params,
-    resources: Arc<TaskResources>,
+    resources: TaskResources,
 }
 
 impl TrafficSim {
@@ -85,10 +139,15 @@ impl TrafficSim {
             storage_folder: None,
         })
         .await?;
-        let resources = Arc::new(TaskResources {
+        let resources = TaskResources {
             w: w.clone(),
             args: args.task_args,
-        });
+            hub: cosmos_provider().await?,
+            kas_rest: HttpClient::new(
+                "https://api-tn10.kaspa.org/".to_string(),
+                RateLimitConfig::default(),
+            ),
+        };
         Ok(TrafficSim {
             params: args.params,
             resources,
@@ -113,11 +172,15 @@ impl TrafficSim {
 
         info!("Starting tasks");
         while start_time.elapsed() < self.params.time_limit {
-            let nominal_value = self.params.distr_value().sample(&mut rng) as u64;
+            let nominal_value = self.params.sample_value();
             let tx_clone = stats_tx.clone();
             let r = self.resources.clone();
+            let task_id = total_ops;
+            let hub_key = EasyHubKey::new();
+            fund_hub_addr(&hub_key, &r.hub).await?;
             tokio::spawn(async move {
-                do_round_trip(r, tx_clone).await;
+                do_round_trip(r, nominal_value, &tx_clone, task_id, hub_key).await;
+                drop(tx_clone); // TODO: needed?
             });
             total_spend += nominal_value;
             total_ops += 1;
@@ -131,15 +194,23 @@ impl TrafficSim {
                 "elasped millis {}, interval {}, value {}",
                 start_time.elapsed().as_millis(),
                 sleep_millis,
-                as_kas(nominal_value)
+                som_to_kas(nominal_value)
             );
         }
         info!("Waiting for tasks to finish");
 
-        drop(stats_tx);
+        drop(stats_tx); // TODO: need to do this on each sender?
         let final_stats = collector_handle.await?;
         render_stats(final_stats, total_spend, total_ops);
 
         Ok(())
     }
+}
+
+async fn fund_hub_addr(hub_key: &EasyHubKey, hub: &CosmosNativeProvider) -> Result<()> {
+    // let hub_addr = hub_key.signer().address_string.clone();
+    // let amount = 1000000000000000000;
+    // let denom = "adym".to_string();
+    // let tx = hub.send_tx(vec![], amount, denom).await?;
+    Ok(())
 }

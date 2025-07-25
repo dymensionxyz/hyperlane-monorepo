@@ -1,6 +1,16 @@
 use super::base::RateLimitConfig;
+use reqwest_middleware::ClientBuilder;
+use std::hash::{Hash, Hasher};
+use std::str::FromStr;
+use std::time::Duration;
+
+use kaspa_consensus_core::tx::TransactionId;
+use kaspa_hashes::Hash as KaspaHash;
+
 use super::base::{get_client, get_config};
 use api_rs::apis::configuration::Configuration;
+use api_rs::apis::kaspa_addresses_api::get_balance_from_kaspa_address_addresses_kaspa_address_balance_get as get_balance;
+use api_rs::apis::kaspa_addresses_api::GetBalanceFromKaspaAddressAddressesKaspaAddressBalanceGetParams;
 use api_rs::apis::kaspa_addresses_api::{
     get_full_transactions_for_address_page_addresses_kaspa_address_full_transactions_page_get as transactions_page,
     GetFullTransactionsForAddressPageAddressesKaspaAddressFullTransactionsPageGetParams as args,
@@ -12,11 +22,7 @@ use api_rs::apis::kaspa_transactions_api::{
 };
 use api_rs::models::{AcceptanceMode, TxModel, TxOutput};
 use eyre::{Error, Result};
-use kaspa_consensus_core::tx::TransactionId;
-use kaspa_hashes::Hash as KaspaHash;
 use reqwest_middleware::ClientWithMiddleware;
-use std::hash::{Hash, Hasher};
-use std::str::FromStr;
 use tracing::info;
 
 #[derive(Debug, Clone)]
@@ -219,6 +225,21 @@ impl HttpClient {
             .blue_score
             .ok_or(eyre::eyre!("Blue score is missing"))?;
         Ok(blue_score)
+    }
+
+    pub async fn get_balance_by_address(&self, address: &str) -> Result<i64> {
+        let c = self.get_config();
+        let res = get_balance(
+            &c,
+            GetBalanceFromKaspaAddressAddressesKaspaAddressBalanceGetParams {
+                kaspa_address: address.to_string(),
+            },
+        )
+        .await?;
+        match res.balance {
+            Some(balance) => Ok(balance),
+            None => Err(eyre::eyre!("Balance is missing")),
+        }
     }
 }
 

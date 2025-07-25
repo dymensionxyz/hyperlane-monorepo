@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 pub const DUST_AMOUNT: u64 = 20_000_001;
+pub const MIN_DEPOSIT_AMOUNT: u64 = 2_000_000_000; // 20 KAS, approx USD 2, allows 200 withdrawals per tx
 pub const RELAYER_FEE: u64 = 20_000; // HARDCODED: empirically saw at least 10500 needed TODO: dynamic
 
 /*
