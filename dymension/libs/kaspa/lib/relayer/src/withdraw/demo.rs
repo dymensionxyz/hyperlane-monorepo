@@ -1,20 +1,15 @@
 use corelib::escrow::*;
-use eyre::Result;
-
-use std::sync::Arc;
-
-use kaspa_addresses::Address;
-use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint, UtxoEntry};
-use kaspa_wallet_core::error::Error;
-use kaspa_wallet_core::utxo::UtxoIterator;
-
-use kaspa_wallet_core::prelude::*;
-use kaspa_wallet_pskt::prelude::*;
-
-use kaspa_txscript::standard::pay_to_address_script;
-
 use corelib::util::input_sighash_type;
+use eyre::Result;
+use kaspa_addresses::Address;
+use kaspa_consensus_core::tx::{TransactionOutpoint, UtxoEntry};
 use kaspa_rpc_core::api::rpc::RpcApi;
+use kaspa_txscript::standard::pay_to_address_script;
+use kaspa_wallet_core::error::Error;
+use kaspa_wallet_core::prelude::*;
+use kaspa_wallet_core::utxo::UtxoIterator;
+use kaspa_wallet_pskt::prelude::*;
+use std::sync::Arc;
 
 // used by multisig demo
 pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
@@ -46,7 +41,7 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
         .sig_op_count(e.n() as u8) // Total possible signers
         .sighash_type(input_sighash_type())
         .build()
-        .map_err(|e| Error::Custom(format!("pskt input e: {}", e)))?;
+        .map_err(|e| Error::Custom(format!("pskt input e: {e}")))?;
 
     let input_r = InputBuilder::default()
         .utxo_entry(utxo_r_entry.clone())
@@ -54,29 +49,27 @@ pub async fn build_withdrawal_tx<T: RpcApi + ?Sized>(
         .sig_op_count(1) // TODO: needed if using p2pk?
         .sighash_type(input_sighash_type())
         .build()
-        .map_err(|e| Error::Custom(format!("pskt input r: {}", e)))?;
+        .map_err(|e| Error::Custom(format!("pskt input r: {e}")))?;
 
     let output_e_to_user = OutputBuilder::default()
         .amount(amt)
-        .script_public_key(ScriptPublicKey::from(pay_to_address_script(&user_address)))
+        .script_public_key(pay_to_address_script(&user_address))
         .build()
-        .map_err(|e| Error::Custom(format!("pskt output e_to_user: {}", e)))?;
+        .map_err(|e| Error::Custom(format!("pskt output e_to_user: {e}")))?;
 
     let output_e_change = OutputBuilder::default()
         .amount(utxo_e_entry.amount - amt)
         .script_public_key(e.p2sh.clone())
         .build()
-        .map_err(|e| Error::Custom(format!("pskt output e_change: {}", e)))?;
+        .map_err(|e| Error::Custom(format!("pskt output e_change: {e}")))?;
 
     _ = output_e_change; // TODO: fix
 
     let output_r_change = OutputBuilder::default()
         .amount(utxo_r_entry.amount - fee)
-        .script_public_key(ScriptPublicKey::from(pay_to_address_script(
-            &a_relayer.change_address()?,
-        )))
+        .script_public_key(pay_to_address_script(&a_relayer.change_address()?))
         .build()
-        .map_err(|e| Error::Custom(format!("pskt output r_change: {}", e)))?;
+        .map_err(|e| Error::Custom(format!("pskt output r_change: {e}")))?;
 
     let pskt = PSKT::<Creator>::default()
         .constructor()

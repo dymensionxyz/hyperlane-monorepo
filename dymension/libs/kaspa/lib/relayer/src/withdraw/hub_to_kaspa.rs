@@ -15,7 +15,7 @@ use kaspa_consensus_core::constants::TX_VERSION;
 use kaspa_consensus_core::mass;
 use kaspa_consensus_core::network::NetworkId;
 use kaspa_consensus_core::subnets::SUBNETWORK_ID_NATIVE;
-use kaspa_consensus_core::tx::{PopulatedTransaction, ScriptPublicKey, UtxoEntry};
+use kaspa_consensus_core::tx::{PopulatedTransaction, UtxoEntry};
 use kaspa_consensus_core::tx::{
     Transaction, TransactionInput, TransactionOutpoint, TransactionOutput,
 };
@@ -186,7 +186,7 @@ pub fn build_withdrawal_pskt(
     // check if relayer_change is dust
     let relayer_change = TransactionOutput {
         value: relayer_change_amt,
-        script_public_key: ScriptPublicKey::from(pay_to_address_script(relayer_addr)),
+        script_public_key: pay_to_address_script(relayer_addr),
     };
     if is_dust(&relayer_change) {
         return Err(eyre::eyre!(
@@ -220,7 +220,7 @@ pub fn build_withdrawal_pskt(
 }
 
 fn is_dust(tx_out: &TransactionOutput) -> bool {
-    return tx_out.value < DUST_AMOUNT || is_transaction_output_dust(tx_out);
+    tx_out.value < DUST_AMOUNT || is_transaction_output_dust(tx_out)
 }
 
 /// CONTRACT:
@@ -339,11 +339,11 @@ fn estimate_fee(
 ) -> u64 {
     let inputs = populated_inputs
         .iter()
-        .map(|(input, _)| input.clone().into())
+        .map(|(input, _)| input.clone())
         .collect();
     let utxo_entries = populated_inputs
         .iter()
-        .map(|(_, entry)| entry.clone().into())
+        .map(|(_, entry)| entry.clone())
         .collect();
 
     let tx = Transaction::new(
@@ -368,10 +368,8 @@ fn estimate_fee(
     // Otherwise this function should never fail. As in our case.
     let cm = m.calc_contextual_masses(&ptx).unwrap();
 
-    let mass = cm.max(ncm);
-
     // TODO: Apply current feerate. It can be fetched from https://api.kaspa.org/info/fee-estimate.
-    mass
+    cm.max(ncm)
 }
 
 pub async fn combine_bundles_with_fee(
@@ -472,7 +470,7 @@ fn finalize_txs(
 ) -> Result<Vec<RpcTransaction>> {
     let transactions_result: Result<Vec<RpcTransaction>, _> = txs_sigs
         .into_iter()
-        .zip(messages.into_iter())
+        .zip(messages)
         .map(|(tx, _)| finalize_pskt(tx, escrow, &relayer_pub_key))
         .collect();
 
@@ -501,8 +499,7 @@ pub fn finalize_pskt(
                             let sig = input
                                 .partial_sigs
                                 .iter()
-                                .filter(|(pk, _sig)| pk == &relayer_pub_key)
-                                .next()
+                                .find(|(pk, _sig)| pk == &relayer_pub_key)
                                 .unwrap()
                                 .1
                                 .into_bytes();
@@ -533,7 +530,7 @@ pub fn finalize_pskt(
                                 .iter()
                                 .take(escrow.m())
                                 .flat_map(|kp| {
-                                    let sig = input.partial_sigs.get(&kp).unwrap().into_bytes();
+                                    let sig = input.partial_sigs.get(kp).unwrap().into_bytes();
                                     std::iter::once(OpData65)
                                         .chain(sig)
                                         .chain([input.sighash_type.to_u8()])
