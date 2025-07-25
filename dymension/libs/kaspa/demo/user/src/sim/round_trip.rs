@@ -7,6 +7,7 @@ use cosmrs::crypto::secp256k1::SigningKey;
 use eyre::Result;
 use hyperlane_core::AccountAddressType;
 use hyperlane_core::H256;
+use hyperlane_core::U256;
 use hyperlane_cosmos_native::signers::Signer;
 use hyperlane_cosmos_native::CosmosNativeProvider;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
@@ -16,6 +17,7 @@ use kaspa_consensus_core::tx::TransactionId;
 use rand_core::OsRng;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::mpsc;
 
 pub struct TaskResources {
@@ -45,10 +47,10 @@ Stages
 pub async fn do_round_trip(
     res: Arc<TaskResources>,
     value: u64,
-    tx: mpsc::Sender<RoundTripStats>,
+    tx: &mpsc::Sender<RoundTripStats>,
     task_id: u64,
 ) {
-    let mut rt = RoundTrip::new(res, value);
+    let mut rt = RoundTrip::new(res, value, task_id);
     rt.deposit().await;
     rt.await_hub_credit().await;
     rt.withdraw().await;
@@ -59,18 +61,20 @@ pub async fn do_round_trip(
 struct RoundTrip {
     res: Arc<TaskResources>,
     value: u64,
+    task_id: u64,
     stats: RoundTripStats,
     hub_key: EasyHubKey,
 }
 
 impl RoundTrip {
-    pub fn new(res: Arc<TaskResources>, value: u64) -> Self {
+    pub fn new(res: Arc<TaskResources>, value: u64, task_id: u64) -> Self {
         let hub_k = EasyHubKey::new();
         Self {
             res,
             value,
-            stats: RoundTripStats::new(),
+            stats: RoundTripStats::new(task_id),
             hub_key: hub_k,
+            task_id,
         }
     }
 
@@ -89,11 +93,20 @@ impl RoundTrip {
             &self.hub_key.signer(),
         );
         let tx_id = deposit_with_payload(&w.wallet, &s, a, amt, payload).await?;
-        self.stats.kaspa_deposit_tx_id = tx_id;
+        self.stats.kaspa_deposit_tx_id = Some(tx_id);
         Ok(())
     }
 
     async fn await_hub_credit(&self) -> Result<()> {
+        let a = self.hub_key.signer().address_string;
+        loop {
+            let balance = self.res.hub.rpc().get_balance(a.clone()).await?;
+            if balance == U256::from(0) {
+                tokio::time::sleep(Duration::from_millis(1000)).await;
+                continue;
+            }
+        }
+
         Ok(())
     }
 
