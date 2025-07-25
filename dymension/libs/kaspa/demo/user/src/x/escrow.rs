@@ -1,9 +1,8 @@
 use corelib::escrow::EscrowPublic;
-use corelib::escrow::{generate_escrow_priv_key, Escrow};
-use corelib::KaspaSecpKeypair;
+use corelib::escrow::generate_escrow_priv_key;
 use kaspa_addresses::Prefix;
 use secp256k1::PublicKey;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::str::FromStr;
 use validator::signer::get_ethereum_style_signer;
 
