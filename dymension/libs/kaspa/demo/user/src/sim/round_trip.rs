@@ -7,7 +7,6 @@ use corelib::wallet::EasyKaspaWallet;
 use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
 use cosmrs::Any;
 use eyre::Result;
-use hyperlane_core::ContractLocator;
 use hyperlane_core::HyperlaneDomain;
 use hyperlane_core::KnownHyperlaneDomain;
 use hyperlane_core::H256;
@@ -68,7 +67,9 @@ pub async fn do_round_trip(
     rt.stats.kaspa_deposit_tx_id = Some(tx_id);
     rt.stats.kaspa_deposit_tx_time = Some(deposit_time);
     match rt.await_hub_credit().await {
-        Ok(()) => (),
+        Ok(()) => {
+            rt.stats.deposit_credit_time = Some(Instant::now());
+        }
         Err(e) => {
             rt.stats.deposit_credit_error = Some(e.to_string());
             return;
@@ -85,7 +86,9 @@ pub async fn do_round_trip(
         }
     };
     match rt.await_kaspa_credit().await {
-        Ok(()) => (),
+        Ok(()) => {
+            rt.stats.withdraw_credit_time = Some(Instant::now());
+        }
         Err(e) => {
             rt.stats.withdraw_credit_error = Some(e.to_string());
             return;
@@ -104,7 +107,8 @@ struct RoundTrip {
 
 impl RoundTrip {
     pub fn new(res: TaskResources, value: u64, task_id: u64, hub_k: EasyHubKey) -> Self {
-        let rpc = res.hub.rpc().with_signer(hub_k.signer());
+        let mut res = res.clone();
+        res.hub.rpc = res.hub.rpc().with_signer(hub_k.signer());
         Self {
             res,
             value,
@@ -114,7 +118,7 @@ impl RoundTrip {
         }
     }
 
-    async fn deposit(&mut self) -> Result<(TransactionId, Instant)> {
+    async fn deposit(&self) -> Result<(TransactionId, Instant)> {
         let w = &self.res.w;
         let s = &w.secret;
         let a = self.res.args.escrow_address.clone();
@@ -131,7 +135,7 @@ impl RoundTrip {
         Ok((tx_id, Instant::now()))
     }
 
-    async fn await_hub_credit(&mut self) -> Result<()> {
+    async fn await_hub_credit(&self) -> Result<()> {
         let a = self.hub_key.signer().address_string;
         loop {
             let balance = self
@@ -161,8 +165,6 @@ impl RoundTrip {
     async fn withdraw(&self) -> Result<(TendermintHash, Instant)> {
         let rpc = self.res.hub.rpc();
 
-        let d = HyperlaneDomain::Known(KnownHyperlaneDomain::Osmosis);
-        let l = ContractLocator::new(&d, H256::zero());
         let amount = self.value.to_string();
         let recipient = x::addr::hl_recipient(&self.res.args.escrow_address.clone().to_string());
         let req = MsgRemoteTransfer {
