@@ -3,9 +3,7 @@ name: test
 on:
   # Triggers the workflow on pushes to main branch
   push:
-    branches:
-      - main
-      - feat/kas-bridge
+    branches: [main]
   # Triggers on pull requests
   pull_request:
     branches:

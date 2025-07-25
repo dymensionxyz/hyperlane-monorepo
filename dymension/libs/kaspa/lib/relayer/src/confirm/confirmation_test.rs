@@ -3,7 +3,9 @@ mod tests {
     use corelib::api::base::RateLimitConfig;
     use corelib::api::client::HttpClient;
     use hex;
+    use kaspa_consensus_core::tx::TransactionOutpoint;
     use kaspa_hashes::Hash;
+    use crate::confirm::recursive_trace_transactions;
 
     #[tokio::test]
     // tested over https://explorer-tn10.kaspa.org/txs/1ffa672605af17906d99ba9506dd49406a2e8a3faa2969ab0c8929373aca51d1

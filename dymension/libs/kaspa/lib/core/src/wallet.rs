@@ -215,6 +215,7 @@ impl NetworkInfo {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
     use super::*;
     use std::sync::Arc;
 

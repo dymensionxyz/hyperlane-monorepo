@@ -136,3 +136,6 @@ jobs:
       - name: Check WASM for hyperlane-core
         run: cargo check --release -p hyperlane-core --features=strum,test-utils --target wasm32-unknown-unknown
         working-directory: ./rust/main
+      - name: Check Dymension Kaspa workspace
+        run: cargo check --release --all-features --all-targets
+        working-directory: ./dymension/libs/kaspa/

@@ -102,7 +102,7 @@ mod tests {
     use super::*;
     use bytes::Bytes;
     use eyre::Result as EyreResult;
-
+    use hyperlane_core::H256;
     // --- Test Cases for DepositFXG Conversions ---
 
     #[tokio::test]
