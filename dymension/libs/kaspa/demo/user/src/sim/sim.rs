@@ -179,7 +179,7 @@ impl TrafficSim {
             let hub_key = EasyHubKey::new();
             fund_hub_addr(&hub_key, &r.hub).await?;
             tokio::spawn(async move {
-                do_round_trip(r, nominal_value, &tx_clone, task_id).await;
+                do_round_trip(r, nominal_value, &tx_clone, task_id, hub_key).await;
                 drop(tx_clone); // TODO: needed?
             });
             total_spend += nominal_value;

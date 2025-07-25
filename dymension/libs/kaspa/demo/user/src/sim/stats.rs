@@ -3,6 +3,7 @@ use eyre::Error;
 use kaspa_consensus_core::tx::TransactionId;
 use std::time::Instant;
 use tracing::info;
+use tendermint::hash::Hash as TendermintHash;
 
 pub fn render_stats(stats: Vec<RoundTripStats>, total_spend: u64, total_ops: u64) {
     info!("Total spend: {}", som_to_kas(total_spend));
@@ -19,7 +20,7 @@ pub struct RoundTripStats {
     pub kaspa_deposit_tx_id: Option<TransactionId>,
     pub kaspa_deposit_tx_time: Option<Instant>,
     pub deposit_credit_error: Option<String>,
-    pub hub_withdraw_tx_id: Option<TransactionId>,
+    pub hub_withdraw_tx_id: Option<TendermintHash>,
     pub hub_withdraw_tx_time: Option<Instant>,
     pub withdraw_credit_error: Option<String>,
 }

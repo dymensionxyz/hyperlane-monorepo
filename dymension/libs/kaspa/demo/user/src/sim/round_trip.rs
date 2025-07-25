@@ -11,7 +11,6 @@ use hyperlane_core::HyperlaneDomain;
 use hyperlane_core::KnownHyperlaneDomain;
 use hyperlane_core::H256;
 use hyperlane_core::U256;
-use hyperlane_cosmos_native::remote_transfer::CosmosNativeRemoteTransfer;
 use hyperlane_cosmos_native::CosmosNativeProvider;
 use hyperlane_cosmos_rs::hyperlane::warp::v1::MsgRemoteTransfer;
 use hyperlane_cosmos_rs::prost::{Message, Name};
@@ -21,7 +20,7 @@ use kaspa_consensus_core::tx::TransactionId;
 use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
-use tendermint::abci::types::Code;
+use tendermint::abci::Code;
 use tendermint::hash::Hash as TendermintHash;
 use tokio::sync::mpsc;
 use tracing::error;
@@ -165,7 +164,6 @@ impl RoundTrip {
 
         let d = HyperlaneDomain::Known(KnownHyperlaneDomain::Osmosis);
         let l = ContractLocator::new(&d, H256::zero());
-        let rtc = CosmosNativeRemoteTransfer::new(self.res.hub.clone(), l);
         let amount = self.value.to_string();
         let recipient = x::addr::hl_recipient(&self.res.args.escrow_address.clone().to_string());
         let req = MsgRemoteTransfer {
