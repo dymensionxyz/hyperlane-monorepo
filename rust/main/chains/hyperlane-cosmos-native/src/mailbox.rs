@@ -208,7 +208,7 @@ impl CosmosNativeMailbox {
     ) -> ChainResult<TxOutcome> {
         let msg = MsgIndicateProgress {
             signer: self.provider.rpc().get_signer()?.address_string.clone(),
-            metadata: metadata.to_vec().into(),
+            metadata: metadata.to_vec(),
             payload: Some(u.clone()),
         };
         let a = Any {
