@@ -582,15 +582,9 @@ async fn submit_classic_task(
     metrics: SerialSubmitterMetrics,
 ) {
     let recv_limit = max_batch_size as usize;
-    let mut failed_ops: Vec<QueueOperation> = Vec::new();
 
     loop {
-        // Prepend failed_ops to the batch for retry
-        let mut batch: Vec<QueueOperation> = std::mem::take(&mut failed_ops);
-        if batch.len() < recv_limit {
-            let mut new_batch = submit_queue.pop_many(recv_limit - batch.len()).await;
-            batch.append(&mut new_batch);
-        }
+        let mut batch = submit_queue.pop_many(recv_limit).await;
 
         if is_kas(&domain.clone()) && batch.len() > 0 {
             /*
@@ -627,7 +621,6 @@ async fn submit_classic_task(
                     .await;
             }
         }
-        sleep(Duration::from_millis(1000)).await;
     }
 }
 
@@ -1150,7 +1143,6 @@ async fn submit_kaspa_batch(
         Err(e) => {
             // shouldn't happen
             error!(error=?e, "Error when submitting kaspa batch");
-            return;
         }
     }
 }
