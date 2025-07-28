@@ -121,6 +121,16 @@ impl Mailbox for KaspaMailbox {
             "Kaspa mailbox, processing/submitting kaspa batch of size: {}",
             ops.len()
         );
+
+        if self.provider.has_pending_confirmation() {
+            // All indexes are considered failed if there is a pending confirmation. they will be retried later.
+            let failed_indexes: Vec<usize> = (0..ops.len()).collect();
+            return Ok(BatchResult {
+                failed_indexes,
+                outcome: None,
+            });
+        }
+
         let messages: Vec<HyperlaneMessage> = ops
             .iter()
             .map(|op| op.try_batch().map(|item| item.data)) // TODO: please work...

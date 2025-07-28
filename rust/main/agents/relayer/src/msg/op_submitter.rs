@@ -590,7 +590,7 @@ async fn submit_classic_task(
             /*
             We do this here rather than in OperationBatch::submit because here we have better control over error handling. The regular batch flow
             has some oddities like retrying all failed messages individually.
-              */
+             */
             submit_kaspa_batch(
                 &domain,
                 &mut prepare_queue,
@@ -598,7 +598,7 @@ async fn submit_classic_task(
                 &mut confirm_queue,
                 max_batch_size,
                 &metrics,
-                batch.iter().collect(),
+                batch,
             )
             .await;
 
@@ -1061,8 +1061,6 @@ impl SerialSubmitterMetrics {
         }
     }
 }
-
-#[instrument(skip_all, fields(%domain))]
 async fn submit_kaspa_batch(
     domain: &HyperlaneDomain,
     prepare_queue: &mut OpQueue,
@@ -1070,7 +1068,7 @@ async fn submit_kaspa_batch(
     confirm_queue: &mut OpQueue,
     max_batch_size: u32,
     metrics: &SerialSubmitterMetrics,
-    batch: Vec<&Box<dyn PendingOperation>>,
+    batch: Vec<Box<dyn PendingOperation>>,
 ) {
     info!("Kaspa batch, submitting batch of size: {}", batch.len());
     // see https://github.com/dymensionxyz/hyperlane-monorepo/blob/8ca01f1ac17f28fb53df63ee2c9c17e59873af69/rust/main/agents/relayer/src/msg/op_batch.rs#L59-L70
@@ -1085,7 +1083,7 @@ async fn submit_kaspa_batch(
     if !mailbox.supports_batching() {
         panic!("Kaspa must support batching")
     }
-    let res = mailbox.process_batch(batch.clone()).await;
+    let res = mailbox.process_batch(batch.iter().collect()).await;
     /*
     for processed items, we need to mimic
         https://github.com/dymensionxyz/hyperlane-monorepo/blob/f55a096adf07a6d445a01d3a862e6da2a5720c69/rust/main/agents/relayer/src/msg/op_batch.rs#L132-L141
@@ -1095,13 +1093,11 @@ async fn submit_kaspa_batch(
         https://github.com/dymensionxyz/hyperlane-monorepo/blob/f55a096adf07a6d445a01d3a862e6da2a5720c69/rust/main/agents/relayer/src/msg/op_submitter.rs#L738-L762
      */
     // TODO: handle errors
+
     match res {
         Ok(batch_result) => {
-            let (sent_ops, excluded_ops): (Vec<_>, Vec<_>) = batch
-                .clone()
-                .into_iter()
-                .enumerate()
-                .partition_map(|(i, op)| {
+            let (sent_ops, excluded_ops): (Vec<_>, Vec<_>) =
+                batch.into_iter().enumerate().partition_map(|(i, op)| {
                     if !batch_result.failed_indexes.contains(&i) {
                         info!("Kaspa batch, successfully submitted op: {}", op.id());
                         Either::Left(op)
@@ -1110,8 +1106,16 @@ async fn submit_kaspa_batch(
                         Either::Right(op)
                     }
                 });
+            for op in excluded_ops {
+                send_back_on_failed_submission(op, prepare_queue.clone(), &metrics, None).await;
+                metrics.ops_failed.inc();
+            }
+            if sent_ops.is_empty() {
+                info!("Kaspa batch, no operations were successfully submitted");
+                sleep(Duration::from_millis(1000)).await;
+            }
             // TODO: handle batch result
-            if let Some(outcome) = batch_result.outcome {
+            /*if let Some(outcome) = batch_result.outcome {
                 for op in sent_ops {
                     let cost = U256::from(0); // TODO: fix
                                               // op.set_operation_outcome(outcome.clone(), cost);
@@ -1126,7 +1130,7 @@ async fn submit_kaspa_batch(
                                               //     )
                                               //     .await;
                 }
-            }
+            }*/
             /*
             TODO: here, according to batch submission (https://github.com/dymensionxyz/hyperlane-monorepo/blob/a490602276d561829d0b4e1104b561e07550dba9/rust/main/agents/relayer/src/msg/op_batch.rs#L49)
             need to handle like this (https://github.com/dymensionxyz/hyperlane-monorepo/blob/a490602276d561829d0b4e1104b561e07550dba9/rust/main/agents/relayer/src/msg/op_submitter.rs#L741-L763), however:

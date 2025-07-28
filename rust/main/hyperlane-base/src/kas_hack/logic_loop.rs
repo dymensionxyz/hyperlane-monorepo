@@ -195,15 +195,20 @@ where
             // with the correct outpoints.
             //
             // TODO: what happens if at some point no one is bridging and we have failed confirmations?
-            let confirmation = self.provider.consume_pending_confirmation();
+
+            // we wait for finality time before sending to hub in case there is a confirmation pending, but without consuming first to be able to detect pending confirmations in withdrawal flow
+            if self.provider.has_pending_confirmation() {
+                time::sleep(FINALITY_APPROX_WAIT_TIME).await;
+            }
+            let confirmation = self.provider.get_pending_confirmation().await;
 
             match confirmation {
                 Some(confirmation) => {
-                    time::sleep(FINALITY_APPROX_WAIT_TIME).await;
                     let res = self.confirm_withdrawal_on_hub(confirmation.clone()).await;
                     match res {
                         Ok(_) => {
                             info!("Dymension, confirmed withdrawal on hub: {:?}", confirmation);
+                            self.provider.consume_pending_confirmation();
                         }
                         Err(e) => {
                             error!("Dymension, confirm withdrawal on hub: {:?}", e);

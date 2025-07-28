@@ -96,6 +96,14 @@ impl KaspaProvider {
         self.pending_confirmation.consume()
     }
 
+    pub fn has_pending_confirmation(&self) -> bool {
+        self.pending_confirmation.has_pending()
+    }
+
+    pub async fn get_pending_confirmation(&self) -> Option<ConfirmationFXG> {
+        self.pending_confirmation.get_pending()
+    }
+
     /// dococo
     pub fn must_kas_key(&self) -> KaspaSecpKeypair {
         self.kas_key.unwrap()
