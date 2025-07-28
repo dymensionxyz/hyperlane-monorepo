@@ -1,10 +1,10 @@
 use crate::sim::util::som_to_kas;
 use eyre::Error;
+use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionId;
 use serde::Serialize;
 use std::fs::File;
 use std::time::Duration;
-use kaspa_addresses::Address;
 use std::time::{Instant, SystemTime};
 use tendermint::hash::Hash as TendermintHash;
 use tracing::info;

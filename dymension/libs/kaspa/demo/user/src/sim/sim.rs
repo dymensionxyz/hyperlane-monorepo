@@ -274,12 +274,13 @@ async fn fund_hub_addr(
             if response.tx_result.code.is_ok() {
                 Ok(())
             } else {
-                Err(eyre::eyre!("Failed to fund hub address, non success code: {:?}", response.tx_result.code))
+                Err(eyre::eyre!(
+                    "Failed to fund hub address, non success code: {:?}",
+                    response.tx_result.code
+                ))
             }
         }
-        Err(e) => {
-            Err(eyre::eyre!("Failed to fund hub address: {:?}", e))
-        }
+        Err(e) => Err(eyre::eyre!("Failed to fund hub address: {:?}", e)),
     }
 }
 
