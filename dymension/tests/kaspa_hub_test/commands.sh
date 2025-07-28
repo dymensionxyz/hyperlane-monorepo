@@ -30,16 +30,18 @@
 
 # in libs/kaspa/demo/user
 cargo run validator-with-escrow
-#   "validator_ism_addr": "\"0xc09dddbd26fb6dcea996ba643e8c2685c03cad5a7\"",
-#   "validator_ism_priv_key": "c02e29cb65e55b3af3d8dee5d7a30504ed927436caf2e53e1e965cbd2639aced",
-#   "validator_escrow_secret": "\"11013bc86d1cb199a2324130c808e90ad37d07ae8f490d063b2fb9d9aa2e898f\"",
-#   "validator_escrow_pub_key": "02b1c7b586c8a0387a3c844f6a5471130bb7992346d3e906642cfd5dfce8a8129d",
-#   "multisig_escrow_addr": "kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr"
-VALIDATOR_ISM_ADDR="0xc09dddbd26fb6dcea996ba643e8c2685c03cad5a7"
-VALIDATOR_ISM_PRIV_KEY="c02e29cb65e55b3af3d8dee5d7a30504ed927436caf2e53e1e965cbd2639aced"
-VALIDATOR_ESCROW_SECRET="\"11013bc86d1cb199a2324130c808e90ad37d07ae8f490d063b2fb9d9aa2e898f\""
-VALIDATOR_ESCROW_PUB_KEY="02b1c7b586c8a0387a3c844f6a5471130bb7992346d3e906642cfd5dfce8a8129d"
-ESCROW_ADDR="kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr"
+Validator infos: {
+  "validator_ism_addr": "0x172ed756c7c04f6e5370f9fc181f85b7779643eb",
+  "validator_ism_priv_key": "a4d1c634e1b8cde0fc53013dfc62e1789535b59d15b0bbf4c8fbd2d4e79bc132",
+  "validator_escrow_secret": "\"afa4bcc6e5828eb28d70138ea784a32e0212d3560dfcdfac85bfa1dbabb11ac9\"",
+  "validator_escrow_pub_key": "027b75fcbedee53f82ebc43c19a69697100afad2df27202f107c994c740e9df5b8",
+  "multisig_escrow_addr": "kaspatest:prmapgdl0nsdqjsmd45fjykxuq3242g4npryzkqe3aeqq9yhrp20k20ymjrlk"
+}
+VALIDATOR_ISM_ADDR="0x172ed756c7c04f6e5370f9fc181f85b7779643eb"
+VALIDATOR_ISM_PRIV_KEY="a4d1c634e1b8cde0fc53013dfc62e1789535b59d15b0bbf4c8fbd2d4e79bc132"
+VALIDATOR_ESCROW_SECRET="\"afa4bcc6e5828eb28d70138ea784a32e0212d3560dfcdfac85bfa1dbabb11ac9\""
+VALIDATOR_ESCROW_PUB_KEY="027b75fcbedee53f82ebc43c19a69697100afad2df27202f107c994c740e9df5b8"
+ESCROW_ADDR="kaspatest:prmapgdl0nsdqjsmd45fjykxuq3242g4npryzkqe3aeqq9yhrp20k20ymjrlk"
 # THES VALUES MUST CORRESPOND WITH agent-config.json (in this directory, REQUIRES EDITING)  Do NOT unescape json quotes
 # Update:
 # kaspatest10.validatorPubsKaspa = VALIDATOR_ESCROW_PUB_KEY
@@ -82,7 +84,7 @@ scripts/setup_local.sh
 dymd start --log_level=debug
 
 # setup bridge objects on hub
-REMOTE_ROUTER_ADDRESS="0x0000000000000000000000000000000000000000000000000000000000000000" # no smart contracts on kaspa 
+REMOTE_ROUTER_ADDRESS="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" # no smart contracts on kaspa 
 dymd tx kas setup-bridge --validators "$VALIDATOR_ISM_ADDR" --threshold 1 --remote-router-address "$REMOTE_ROUTER_ADDRESS" "${HUB_FLAGS[@]}"
 
 MAILBOX=$(dymd q hyperlane mailboxes -o json | jq -r '.mailboxes[0].id')

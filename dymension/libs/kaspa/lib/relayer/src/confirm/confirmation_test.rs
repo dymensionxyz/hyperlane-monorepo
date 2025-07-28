@@ -1,24 +1,10 @@
-use anyhow::Result;
-use hyperlane_cosmos_native::CosmosNativeProvider;
-use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{
-    ProgressIndication, QueryOutpointRequest, WithdrawalId,
-};
-
-use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionId, TransactionOutpoint, UtxoEntry};
-use kaspa_rpc_core::api::rpc::RpcApi;
-
-use kaspa_addresses::Address;
-
-use api_rs::models::{TxInput, TxModel, TxOutput};
-
-use super::recursive_trace_transactions;
-
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::confirm::recursive_trace_transactions;
     use corelib::api::base::RateLimitConfig;
     use corelib::api::client::HttpClient;
     use hex;
+    use kaspa_consensus_core::tx::TransactionOutpoint;
     use kaspa_hashes::Hash;
 
     #[tokio::test]
@@ -75,7 +61,7 @@ mod tests {
     fn message_ids_from_payload() {
         let payload = "01000000000000004200000000000000307832376232303463653064656162396638636436303262313165396239323938643964666364323830363237323533353236303937346632616333353637383265";
         let decoded_payload = hex::decode(payload).unwrap();
-        let message_ids = corelib::payload::MessageIDs::from_bytes(&decoded_payload).unwrap();
+        let message_ids = corelib::payload::MessageIDs::from_bytes(decoded_payload).unwrap();
         assert_eq!(message_ids.0.len(), 1);
     }
 }

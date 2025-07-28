@@ -7,6 +7,12 @@ pub struct PendingConfirmation {
     mutex: Mutex<Option<ConfirmationFXG>>,
 }
 
+impl Default for PendingConfirmation {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PendingConfirmation {
     pub fn new() -> Self {
         Self {

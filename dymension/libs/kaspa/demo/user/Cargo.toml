@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 kaspa-core = { workspace = true }
 corelib = { path = "../../lib/core", package = "core" }
+hardcode = { path = "../../lib/hardcode" }
 validator = { path = "../../lib/validator" }
 relayer = { path = "../../lib/relayer" }
 secp256k1 = { workspace = true }
@@ -21,6 +22,24 @@ kaspa-consensus-core = { workspace = true }
 kaspa-addresses = { workspace = true }
 hyperlane-core = { path = "../../../../../rust/main/hyperlane-core" }
 hyperlane-cosmos-native = { path = "../../../../../rust/main/chains/hyperlane-cosmos-native" }
-rand = "0.9"
+hyperlane-metric = { path = "../../../../../rust/main/hyperlane-metric" }
+rand = { version = "0.9" }
 rand_distr = "0.5"
+rand_core = { version = "0.6.4" }
 tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false }
+tracing-error = "0.2"
+tracing-futures = "0.2"
+hyperlane-cosmos-rs = { package = "hyperlane-cosmos-dymension-rs", git = "https://github.com/dymensionxyz/hyperlane-cosmos-rs", rev = "d7fcf4b" }
+cosmrs = { version = "0.21.0", default-features = false, features = [
+    "cosmwasm",
+    "rpc",
+    "tokio",
+    "grpc",
+    "getrandom",
+] }
+k256 = { version = "0.13.4", features = ["arithmetic", "std", "ecdsa"] }
+url = "2.3"
+thiserror = "2.0"
+tendermint = "0.40.4"
+cosmos-sdk-proto = { version = "0.26.1" }

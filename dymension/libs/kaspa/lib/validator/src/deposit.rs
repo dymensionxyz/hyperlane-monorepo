@@ -1,33 +1,21 @@
-use corelib::deposit::DepositFXG;
-
-use kaspa_wallet_core::prelude::DynRpcApi;
-
-use tracing::error;
-
-use kaspa_wallet_core::utxo::NetworkParams;
-
-use corelib::message::{add_kaspa_metadata_hl_messsage, parse_hyperlane_metadata, ParsedHL};
-use std::str::FromStr;
-
-use corelib::escrow::EscrowPublic;
-use corelib::finality;
-use corelib::wallet::NetworkInfo;
-use kaspa_addresses::Address;
-use kaspa_rpc_core::{api::rpc::RpcApi, RpcBlock};
-use kaspa_rpc_core::{RpcHash, RpcTransaction, RpcTransactionOutput};
-use kaspa_wrpc_client::prelude::{NetworkId, NetworkType};
-use std::sync::Arc;
-
-use eyre::Result;
-use hyperlane_core::U256;
-use kaspa_txscript::extract_script_pub_key_address;
-
 use corelib::api::client::HttpClient;
-use corelib::{confirmation::ConfirmationFXG, util, withdraw::WithdrawFXG};
+use corelib::deposit::DepositFXG;
+use corelib::finality;
+use corelib::message::{add_kaspa_metadata_hl_messsage, ParsedHL};
+use corelib::wallet::NetworkInfo;
+use eyre::Result;
 use hardcode::hl::ALLOWED_HL_MESSAGE_VERSION;
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::H256;
+use hyperlane_core::U256;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
+use kaspa_addresses::Address;
+use kaspa_rpc_core::RpcBlock;
+use kaspa_rpc_core::{RpcHash, RpcTransaction, RpcTransactionOutput};
+use kaspa_txscript::extract_script_pub_key_address;
+use kaspa_wallet_core::prelude::DynRpcApi;
+use std::sync::Arc;
+use tracing::error;
 
 #[derive(Clone, Default)]
 pub struct MustMatch {
@@ -61,16 +49,46 @@ impl MustMatch {
         self.enable_validation = enable_validation;
     }
 
-    fn is_match(&self, other: &HyperlaneMessage) -> bool {
+    fn is_match(&self, other: &HyperlaneMessage) -> Result<()> {
         if !self.enable_validation {
-            return true;
+            return Ok(());
         }
-
-        self.partial_message.version == other.version
-            && self.partial_message.origin == other.origin
-            && self.partial_message.sender == other.sender
-            && self.partial_message.destination == other.destination
-            && self.partial_message.recipient == other.recipient
+        if self.partial_message.version != other.version {
+            return Err(eyre::eyre!(
+                "version is incorrect, expected: {}, got: {}",
+                self.partial_message.version,
+                other.version
+            ));
+        }
+        if self.partial_message.origin != other.origin {
+            return Err(eyre::eyre!(
+                "origin is incorrect, expected: {}, got: {}",
+                self.partial_message.origin,
+                other.origin
+            ));
+        }
+        if self.partial_message.sender != other.sender {
+            return Err(eyre::eyre!(
+                "sender is incorrect, expected: {}, got: {}",
+                self.partial_message.sender,
+                other.sender
+            ));
+        }
+        if self.partial_message.destination == other.destination {
+            return Err(eyre::eyre!(
+                "destination is incorrect, expected: {}, got: {}",
+                self.partial_message.destination,
+                other.destination
+            ));
+        }
+        if self.partial_message.recipient != other.recipient {
+            return Err(eyre::eyre!(
+                "recipient is incorrect, expected: {}, got: {}",
+                self.partial_message.recipient,
+                other.recipient
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -130,7 +148,7 @@ pub async fn validate_new_deposit_inner(
         return Ok(false);
     }
 
-    if !d_untrusted.tx_id_rpc().is_ok() {
+    if d_untrusted.tx_id_rpc().is_err() {
         error!("Deposit tx hash is not valid");
         return Ok(false);
     }
@@ -172,10 +190,10 @@ pub async fn validate_new_deposit_inner(
         d_untrusted.utxo_index,
     )?;
 
-    if !must_match.is_match(&actual_hl_message_with_injected_info) {
-        error!("Relayed HL message does not pass common validaion: version, origin, sender, destination, or recipient is incorrect");
+    if let Err(e) = must_match.is_match(&actual_hl_message_with_injected_info) {
+        error!("Relayed HL message does not pass common validaion: {}", e);
         return Ok(false);
-    }
+    };
 
     // validate the original HL message included in the Kaspa Tx its the same than the HL message relayed, after adding the metadata.
     if d_untrusted.hl_message.id() != actual_hl_message_with_injected_info.id() {

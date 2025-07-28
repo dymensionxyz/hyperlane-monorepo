@@ -1,8 +1,8 @@
 use tonic::async_trait;
 
 use hyperlane_core::{
-    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, Checkpoint,
-    CheckpointWithMessageId, Signature, SignedCheckpointWithMessageId, SignedType, H256, U256,
+    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, Signature,
+    SignedCheckpointWithMessageId,
 };
 
 use bytes::Bytes;
@@ -14,8 +14,6 @@ use tracing::{error, info};
 use crate::ConnectionConf;
 
 use crate::endpoints::*;
-use crate::validator_server::SignableProgressIndication;
-use axum::Json;
 use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG, withdraw::WithdrawFXG};
 use futures::future::join_all;
 use kaspa_wallet_pskt::prelude::Bundle;
@@ -66,7 +64,7 @@ impl ValidatorsClient {
 
         let futures = self.hosts().into_iter().map(|host| async move {
             let h = host.to_string();
-            match request_validate_new_deposits(host, &fxg).await {
+            match request_validate_new_deposits(host, fxg).await {
                 Ok(Some(sig)) => {
                     info!("Dymension, got deposit sig response ok, validator: {:?}", h);
                     Ok((h, sig))
@@ -83,7 +81,7 @@ impl ValidatorsClient {
                         "Dymension, got deposit sig response Err, validator: {:?}, error: {:?}",
                         h, e
                     );
-                    Err(e.into())
+                    Err(e)
                 }
             }
         });
@@ -95,7 +93,6 @@ impl ValidatorsClient {
         let hosts = self.hosts();
         let mut sigs_map = sigs
             .into_iter()
-            .map(|(h, sig)| (h, sig))
             .collect::<std::collections::HashMap<_, _>>();
         let sigs = hosts
             .into_iter()
@@ -134,7 +131,7 @@ impl ValidatorsClient {
                     }
                     Err(e) => {
                         error!("Dymension, got confirmation sig response Err, validator: {:?}, error: {:?}", h, e);
-                        Err(e.into())
+                        Err(e)
                     }
                 }
             }
@@ -146,7 +143,6 @@ impl ValidatorsClient {
         let hosts = self.hosts();
         let mut sigs_map = sigs
             .into_iter()
-            .map(|(h, sig)| (h, sig))
             .collect::<std::collections::HashMap<_, _>>();
         let sigs = hosts
             .into_iter()
@@ -165,7 +161,7 @@ impl ValidatorsClient {
 
         let futures = self.hosts().into_iter().map(|host| async move {
             let h = host.to_string();
-            match request_sign_withdrawal_bundle(host, &fxg).await {
+            match request_sign_withdrawal_bundle(host, fxg).await {
                 Ok(Some(bundle)) => {
                     info!(
                         "Dymension, got withdrawal sig response ok, validator: {:?}",
@@ -185,7 +181,7 @@ impl ValidatorsClient {
                         "Dymension, got withdrawal sig response Err, validator: {:?}, error: {:?}",
                         h, e
                     );
-                    Err(e.into())
+                    Err(e)
                 }
             }
         });

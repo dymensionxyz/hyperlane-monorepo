@@ -1,17 +1,12 @@
-use std::ops::RangeInclusive;
-
-use hyperlane_cosmos_rs::{hyperlane::core::v1::EventProcess, prost::Name};
-use tonic::async_trait;
-use tracing::instrument;
-
+use super::KaspaEventIndexer;
+use crate::{KaspaProvider, RestProvider};
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, Indexed, Indexer, LogMeta,
     SequenceAwareIndexer, H256, H512,
 };
-
-use crate::{HyperlaneKaspaError, KaspaProvider, RestProvider};
-
-use super::KaspaEventIndexer;
+use std::ops::RangeInclusive;
+use tonic::async_trait;
+use tracing::instrument;
 
 /// delivery indexer to check if a message was delivered
 #[derive(Debug, Clone)]
@@ -46,7 +41,7 @@ impl Indexer<H256> for KaspaDelivery {
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn fetch_logs_in_range(
         &self,
-        range: RangeInclusive<u32>,
+        _range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
         Err(ChainCommunicationError::from_other_str("not implemented"))
     }
@@ -59,7 +54,7 @@ impl Indexer<H256> for KaspaDelivery {
     //  can disable by setting this none https://github.com/dymensionxyz/hyperlane-monorepo/blob/5f2136acc6a8e12adaac9e053811e9c33623d01e/rust/main/hyperlane-base/src/contract_sync/mod.rs#L379
     async fn fetch_logs_by_tx_hash(
         &self,
-        tx_hash: H512,
+        _tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
         Err(ChainCommunicationError::from_other_str("not implemented"))
     }

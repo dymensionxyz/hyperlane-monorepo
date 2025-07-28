@@ -1,14 +1,17 @@
-use super::foo::Params;
-use super::util::{as_kas, SOMPI_PER_KAS};
+use super::sim::Params;
+use super::util::{som_to_kas, SOMPI_PER_KAS};
 use rand::Rng;
 use rand_distr::Distribution;
 use std::time::Duration;
 
+#[allow(dead_code)]
 pub fn do_demo_params() {
     demo_params(Params {
         time_limit: Duration::from_secs(60),
         budget: 200000 * SOMPI_PER_KAS,
         ops_per_minute: 90,
+        max_ops: 0, // ignored here
+        min_value: hardcode::tx::MIN_DEPOSIT_AMOUNT,
     });
 }
 
@@ -27,12 +30,12 @@ fn demo_params(params: Params) {
             "elaspsed {}, time {}, value {}",
             elapsed,
             time,
-            as_kas(value)
+            som_to_kas(value)
         );
     }
     println!(
         "total_spend: {}, total_ops: {}",
-        as_kas(total_spend),
+        som_to_kas(total_spend),
         total_ops
     );
 }

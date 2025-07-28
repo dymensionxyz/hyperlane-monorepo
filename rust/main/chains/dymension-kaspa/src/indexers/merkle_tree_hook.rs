@@ -1,17 +1,14 @@
-use std::ops::RangeInclusive;
-
+use super::KaspaEventIndexer;
+use crate::{KaspaProvider, RestProvider};
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, CheckpointAtBlock, ContractLocator, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, IncrementalMerkleAtBlock, Indexed,
     Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256,
     H512,
 };
+use std::ops::RangeInclusive;
 use tonic::async_trait;
 use tracing::instrument;
-
-use crate::{KaspaProvider, RestProvider};
-
-use super::KaspaEventIndexer;
 
 /// delivery indexer to check if a message was delivered
 #[derive(Debug, Clone)]
@@ -54,12 +51,12 @@ impl MerkleTreeHook for KaspaMerkle {
     /// Return the incremental merkle tree in storage
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
+    async fn tree(&self, _reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
         Err(ChainCommunicationError::from_other_str("not implemented"))
     }
 
     /// Gets the current leaf count of the merkle tree
-    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+    async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         Ok(0)
     }
 
@@ -74,7 +71,7 @@ impl MerkleTreeHook for KaspaMerkle {
 
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
+    async fn latest_checkpoint_at_block(&self, _height: u64) -> ChainResult<CheckpointAtBlock> {
         Err(ChainCommunicationError::from_other_str("not implemented"))
     }
 }
@@ -96,7 +93,7 @@ impl Indexer<MerkleTreeInsertion> for KaspaMerkle {
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn fetch_logs_in_range(
         &self,
-        range: RangeInclusive<u32>,
+        _range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
         Err(ChainCommunicationError::from_other_str("not implemented"))
     }
@@ -107,7 +104,7 @@ impl Indexer<MerkleTreeInsertion> for KaspaMerkle {
 
     async fn fetch_logs_by_tx_hash(
         &self,
-        tx_hash: H512,
+        _tx_hash: H512,
     ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
         Err(ChainCommunicationError::from_other_str("not implemented"))
     }

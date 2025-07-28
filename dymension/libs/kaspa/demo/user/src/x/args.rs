@@ -1,5 +1,6 @@
 use super::deposit::DepositArgs;
 use clap::{Args, Parser, Subcommand};
+use hyperlane_core::H256;
 use kaspa_consensus_core::network::NetworkId;
 use std::str::FromStr;
 
@@ -63,8 +64,31 @@ pub struct RecipientCli {
 
 #[derive(Args, Debug)]
 pub struct SimulateTrafficCli {
-    #[arg(required = false, index = 1, default_value = "1")]
-    pub n: u32,
+    #[arg(long, required = true)]
+    pub time_limit: u64,
+    #[arg(long, required = true)]
+    pub budget: u64,
+    #[arg(long, required = true)]
+    pub ops_per_minute: u64,
+
+    #[arg(long, required = true)]
+    pub domain_kas: u32,
+    #[arg(long, required = true)]
+    pub token_kas_placeholder: H256,
+    #[arg(long, required = true)]
+    pub domain_hub: u32,
+    #[arg(long, required = true)]
+    pub token_hub: H256,
+    #[arg(long, required = true)]
+    pub escrow_address: String,
+    #[arg(long, required = true)]
+    pub hl_token_denom: String,
+
+    #[command(flatten)]
+    pub wallet: WalletCli,
+
+    #[arg(long, required = false, default_value = "0")]
+    pub max_ops: u64,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -81,6 +105,12 @@ pub struct DepositCli {
     #[arg(long, required = false, default_value = "")]
     pub payload: String,
 
+    #[command(flatten)]
+    pub wallet: WalletCli,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct WalletCli {
     /// The wRPC url (like localhost:17210)
     #[arg(long("wrpc-url"), required = true)]
     pub rpc_url: String,
@@ -106,10 +136,10 @@ impl DepositCli {
             escrow_address: self.escrow_address.clone(),
             amount: self.amount.clone(),
             payload: self.payload.clone(),
-            network_id: NetworkId::from_str(&self.network_id).unwrap(),
-            rpc_url: self.rpc_url.clone(),
-            wallet_secret: self.wallet_secret.clone(),
-            wallet_dir: self.wallet_dir.clone(),
+            network_id: NetworkId::from_str(&self.wallet.network_id).unwrap(),
+            rpc_url: self.wallet.rpc_url.clone(),
+            wallet_secret: self.wallet.wallet_secret.clone(),
+            wallet_dir: self.wallet.wallet_dir.clone(),
         }
     }
 }
