@@ -88,6 +88,7 @@ impl Params {
         // TODO: need to use some clamping/minimum
         Exp::new(1.0 / self.op_budget()).unwrap()
     }
+    /// Sample deposit value
     pub fn sample_value(&self) -> u64 {
         // TODO: use proper clamping, or this will blow the budget
         let v = self.distr_value().sample(&mut rand::rng()) as u64;

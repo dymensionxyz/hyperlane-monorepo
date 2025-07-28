@@ -63,33 +63,56 @@ pub struct RecipientCli {
 }
 
 #[derive(Args, Debug)]
+/// Simulate/benchmark traffic on Kaspa and the Hub
+/// Launches some tasks with amounts and times sampled from realistic (poisson and exponential) distribution.
+/// Each task does a kaspa deposit to a new hub address, and then transfers back to a kaspa address.
+/// In this way errors and latencies can be tracked
 pub struct SimulateTrafficCli {
+    /// The amount to fund each hub address with adym to pay fees on the withdrawal
     #[arg(long, required = true)]
     pub hub_fund_amount: u64,
 
+    /// Filesystem dir to write logs/stats/debuf info from the run
     #[arg(long, required = true)]
     pub output_dir: String,
 
+    /// Hex private key of hub account which has dym funds which can be used to pay fees on the withdrawals
     #[arg(long, required = true)]
     pub hub_whale_priv_key: String,
 
+    /// Approx total time limit to run the simulation in seconds
     #[arg(long, required = true)]
     pub time_limit: u64,
+
+    /// Approx kaspa budget to fund deposits, from the kaspa whale account (in sompi)
     #[arg(long, required = true)]
     pub budget: u64,
+
+    /// Approx number of ops per minute to run. E.g. osmosis does 90 IBC transfers per minute
     #[arg(long, required = true)]
     pub ops_per_minute: u64,
 
+    /// Kaspa HL domain
     #[arg(long, required = true)]
     pub domain_kas: u32,
+
+    /// Kaspa HL token placeholder contract addr (e.g. 0x0000000000000000000000000000000000000000000000000000000000000000)
     #[arg(long, required = true)]
     pub token_kas_placeholder: H256,
+
+    /// Hub HL domain
     #[arg(long, required = true)]
     pub domain_hub: u32,
+
+    /// The HL Warp token ID for kaspa on the Hub
     #[arg(long, required = true)]
     pub token_hub: H256,
+
+    /// Kaspa escrow address
     #[arg(long, required = true)]
     pub escrow_address: String,
+
+    /// The hub balances denom (.e.g hyperlane/0x726f757465725f61707000000000000000000000000000020000000000000000)
     #[arg(long, required = true)]
     pub hl_token_denom: String,
 
@@ -97,6 +120,7 @@ pub struct SimulateTrafficCli {
     pub wallet: WalletCli,
 
     #[arg(long, required = false, default_value = "0")]
+    /// Optional maximum number of deposits to simulate before exiting the simulation
     pub max_ops: u64,
 }
 
