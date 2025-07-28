@@ -107,7 +107,7 @@ struct RoundTrip {
     task_id: u64,
     stats: RoundTripStats,
     hub_key: EasyHubKey,
-    cancel_token: CancellationToken,
+    cancel: CancellationToken,
 }
 
 impl RoundTrip {
@@ -126,7 +126,7 @@ impl RoundTrip {
             stats: RoundTripStats::new(task_id),
             hub_key: hub_k,
             task_id,
-            cancel_token,
+            cancel: cancel_token,
         }
     }
 
@@ -159,7 +159,7 @@ impl RoundTrip {
                 .get_balance_denom(a.clone(), self.res.args.hl_token_denom.clone())
                 .await?;
             if balance == U256::from(0) {
-                if self.cancel_token.is_cancelled() {
+                if self.cancel.is_cancelled() {
                     return Err(RoundTripError::Cancelled.into());
                 }
                 tokio::time::sleep(Duration::from_millis(1000)).await;
@@ -224,7 +224,7 @@ impl RoundTrip {
                 .get_balance_by_address(&self.res.args.escrow_address.to_string())
                 .await?;
             if balance == 0 {
-                if self.cancel_token.is_cancelled() {
+                if self.cancel.is_cancelled() {
                     return Err(RoundTripError::Cancelled.into());
                 }
                 tokio::time::sleep(Duration::from_millis(1000)).await;

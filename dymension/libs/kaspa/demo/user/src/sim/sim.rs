@@ -197,7 +197,7 @@ impl TrafficSim {
         });
 
         info!("Starting tasks");
-        let cancel_token = CancellationToken::new();
+        let cancel = CancellationToken::new();
         while start_time.elapsed() < self.params.time_limit {
             let nominal_value = self.params.sample_value();
             let tx_clone = stats_tx.clone();
@@ -205,7 +205,7 @@ impl TrafficSim {
             let task_id = total_ops;
             let hub_key = EasyHubKey::new();
             fund_hub_addr(&hub_key, &r.hub, self.params.hub_fund_amount).await?;
-            let cancel_token_clone = cancel_token.clone();
+            let cancel_token_clone = cancel.clone();
             tokio::spawn(async move {
                 do_round_trip(
                     r,
@@ -236,7 +236,7 @@ impl TrafficSim {
 
         drop(stats_tx);
         tokio::time::sleep(self.params.max_wait_for_cancel).await; // TODO: should only wait if need to
-        cancel_token.cancel();
+        cancel.cancel();
 
         let final_stats = collector_handle.await?;
         render_stats(final_stats.clone(), total_spend, total_ops);
