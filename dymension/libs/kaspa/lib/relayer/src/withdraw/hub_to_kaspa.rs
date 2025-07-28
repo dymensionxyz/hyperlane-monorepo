@@ -282,8 +282,9 @@ pub fn filter_outputs_from_msgs(
             Ok(tm) => {
                 if tm.amount() < U256::from(MINIMUM_WITHDRAWAL_ACCEPTED) {
                     info!(
-                        "Kaspa relayer, withdrawal amount is less than dust amount, skipping, amount: {}, message id: {:?}",
+                        "Kaspa relayer, withdrawal amount is less than minimum accepted, skipping, amount: {}, minimum: {}, message id: {:?}",
                         tm.amount(),
+                        MINIMUM_WITHDRAWAL_ACCEPTED,
                         m.id()
                     );
                     continue;
