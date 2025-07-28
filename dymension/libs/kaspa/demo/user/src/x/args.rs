@@ -65,6 +65,12 @@ pub struct RecipientCli {
 #[derive(Args, Debug)]
 pub struct SimulateTrafficCli {
     #[arg(long, required = true)]
+    pub hub_fund_amount: u64,
+
+    #[arg(long, required = true)]
+    pub hub_whale_priv_key: String,
+
+    #[arg(long, required = true)]
     pub time_limit: u64,
     #[arg(long, required = true)]
     pub budget: u64,

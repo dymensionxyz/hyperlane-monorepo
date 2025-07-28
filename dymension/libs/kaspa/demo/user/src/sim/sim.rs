@@ -32,7 +32,7 @@ use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use tracing::info;
 use url::Url;
 
-async fn cosmos_provider() -> Result<CosmosNativeProvider> {
+async fn cosmos_provider(signer_key_hex: &str) -> Result<CosmosNativeProvider> {
     let conf = CosmosConnectionConf::new(
         vec![Url::parse("https://rpc-dymension-playground35.mzonder.com:443").unwrap()],
         vec![Url::parse("https://grpc-dymension-playground35.mzonder.com:443").unwrap()],
@@ -53,7 +53,8 @@ async fn cosmos_provider() -> Result<CosmosNativeProvider> {
     );
     let d = HyperlaneDomain::Known(KnownHyperlaneDomain::Osmosis);
     let locator = ContractLocator::new(&d, H256::zero());
-    let signer = None;
+    let hub_key = EasyHubKey::from_hex(signer_key_hex);
+    let signer = Some(hub_key.signer());
     let metrics = PrometheusClientMetrics::default();
     let chain = None;
     CosmosNativeProvider::new(&conf, &locator, signer, metrics, chain).map_err(eyre::Report::from)
@@ -102,6 +103,7 @@ pub struct SimulateTrafficArgs {
     pub params: Params,
     pub task_args: TaskArgs,
     pub wallet: WalletCli,
+    pub hub_whale_priv_key: String, // in hex
 }
 
 impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
@@ -116,7 +118,7 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
                 ops_per_minute: cli.ops_per_minute,
                 max_ops: cli.max_ops,
                 min_value: hardcode::tx::MIN_DEPOSIT_AMOUNT,
-                hub_fund_amount: 200000000000000, // should be enough to pay fees
+                hub_fund_amount: cli.hub_fund_amount,
             },
             task_args: TaskArgs {
                 domain_kas: cli.domain_kas,
@@ -127,6 +129,7 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
                 hl_token_denom: cli.hl_token_denom,
             },
             wallet: cli.wallet,
+            hub_whale_priv_key: cli.hub_whale_priv_key,
         })
     }
 }
@@ -148,7 +151,7 @@ impl TrafficSim {
         let resources = TaskResources {
             w: w.clone(),
             args: args.task_args,
-            hub: cosmos_provider().await?,
+            hub: cosmos_provider(&args.hub_whale_priv_key).await?,
             kas_rest: HttpClient::new(
                 "https://api-tn10.kaspa.org/".to_string(),
                 RateLimitConfig::default(),
@@ -183,7 +186,7 @@ impl TrafficSim {
             let r = self.resources.clone();
             let task_id = total_ops;
             let hub_key = EasyHubKey::new();
-            fund_hub_addr(&hub_key, &r.hub).await?;
+            fund_hub_addr(&hub_key, &r.hub, self.params.hub_fund_amount).await?;
             tokio::spawn(async move {
                 do_round_trip(r, nominal_value, &tx_clone, task_id, hub_key).await;
                 drop(tx_clone); // TODO: needed?
