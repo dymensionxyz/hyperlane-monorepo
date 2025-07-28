@@ -34,8 +34,6 @@ use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use tracing::info;
 use url::Url;
 
-use tokio_util::sync::CancellationToken;
-
 const DEFAULT_RPC_URL: &str = "https://rpc-dymension-playground35.mzonder.com:443";
 const DEFAULT_GRPC_URL: &str = "https://grpc-dymension-playground35.mzonder.com:443";
 const DEFAULT_CHAIN_ID: &str = "dymension_3405-1";

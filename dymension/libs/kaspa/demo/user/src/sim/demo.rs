@@ -1,6 +1,5 @@
 use super::sim::Params;
 use super::util::{som_to_kas, SOMPI_PER_KAS};
-use rand::Rng;
 use rand_distr::Distribution;
 use std::time::Duration;
 
@@ -13,6 +12,7 @@ pub fn do_demo_params() {
         max_ops: 0, // ignored here
         min_value: hardcode::tx::MIN_DEPOSIT_AMOUNT,
         hub_fund_amount: 100000000000000,
+        max_wait_for_cancel: Duration::from_secs(60),
     });
 }
 
