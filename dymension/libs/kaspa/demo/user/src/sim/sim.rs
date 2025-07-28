@@ -16,6 +16,7 @@ use hyperlane_cosmos_native::CosmosNativeProvider;
 use rand_distr::{Distribution, Exp};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 use crate::x::args::{SimulateTrafficCli, WalletCli};
 use cosmos_sdk_proto::cosmos::bank::v1beta1::MsgSend;
@@ -33,6 +34,8 @@ use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use tracing::info;
 use url::Url;
 
+use tokio_util::sync::CancellationToken;
+
 const DEFAULT_RPC_URL: &str = "https://rpc-dymension-playground35.mzonder.com:443";
 const DEFAULT_GRPC_URL: &str = "https://grpc-dymension-playground35.mzonder.com:443";
 const DEFAULT_CHAIN_ID: &str = "dymension_3405-1";
@@ -41,6 +44,7 @@ const DEFAULT_DENOM: &str = "adym";
 const DEFAULT_DECIMALS: u32 = 18;
 const DEFAULT_WRPC_URL: &str = "localhost:17210";
 const DEFAULT_REST_URL: &str = "https://api-tn10.kaspa.org/";
+const MAX_WAIT_FOR_CANCEL: Duration = Duration::from_secs(60);
 
 async fn cosmos_provider(signer_key_hex: &str) -> Result<CosmosNativeProvider> {
     let conf = CosmosConnectionConf::new(
@@ -71,12 +75,13 @@ async fn cosmos_provider(signer_key_hex: &str) -> Result<CosmosNativeProvider> {
 }
 
 pub struct Params {
-    pub time_limit: Duration, // total target simulation time
-    pub budget: u64,          // in sompi
-    pub ops_per_minute: u64,  // osmosis does 90 per minute
-    pub max_ops: u64,         // max number of ops to run, disregarding distributions
-    pub min_value: u64,       // in sompi
-    pub hub_fund_amount: u64, // in adym
+    pub time_limit: Duration,          // total target simulation time
+    pub budget: u64,                   // in sompi
+    pub ops_per_minute: u64,           // osmosis does 90 per minute
+    pub max_ops: u64,                  // max number of ops to run, disregarding distributions
+    pub min_value: u64,                // in sompi
+    pub hub_fund_amount: u64,          // in adym
+    pub max_wait_for_cancel: Duration, // max time to wait for cancel
 }
 
 impl Params {
@@ -114,6 +119,7 @@ pub struct SimulateTrafficArgs {
     pub task_args: TaskArgs,
     pub wallet: WalletCli,
     pub hub_whale_priv_key: String, // in hex
+    pub output_dir: String,
 }
 
 impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
@@ -129,6 +135,7 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
                 max_ops: cli.max_ops,
                 min_value: hardcode::tx::MIN_DEPOSIT_AMOUNT,
                 hub_fund_amount: cli.hub_fund_amount,
+                max_wait_for_cancel: MAX_WAIT_FOR_CANCEL,
             },
             task_args: TaskArgs {
                 domain_kas: cli.domain_kas,
@@ -140,6 +147,7 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
             },
             wallet: cli.wallet,
             hub_whale_priv_key: cli.hub_whale_priv_key,
+            output_dir: cli.output_dir,
         })
     }
 }
@@ -147,6 +155,7 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
 pub struct TrafficSim {
     params: Params,
     resources: TaskResources,
+    output_dir: String,
 }
 
 impl TrafficSim {
@@ -162,14 +171,12 @@ impl TrafficSim {
             w: w.clone(),
             args: args.task_args,
             hub: cosmos_provider(&args.hub_whale_priv_key).await?,
-            kas_rest: HttpClient::new(
-                DEFAULT_REST_URL.to_string(),
-                RateLimitConfig::default(),
-            ),
+            kas_rest: HttpClient::new(DEFAULT_REST_URL.to_string(), RateLimitConfig::default()),
         };
         Ok(TrafficSim {
             params: args.params,
             resources,
+            output_dir: args.output_dir,
         })
     }
 
@@ -190,6 +197,7 @@ impl TrafficSim {
         });
 
         info!("Starting tasks");
+        let cancel_token = CancellationToken::new();
         while start_time.elapsed() < self.params.time_limit {
             let nominal_value = self.params.sample_value();
             let tx_clone = stats_tx.clone();
@@ -197,8 +205,17 @@ impl TrafficSim {
             let task_id = total_ops;
             let hub_key = EasyHubKey::new();
             fund_hub_addr(&hub_key, &r.hub, self.params.hub_fund_amount).await?;
+            let cancel_token_clone = cancel_token.clone();
             tokio::spawn(async move {
-                do_round_trip(r, nominal_value, &tx_clone, task_id, hub_key).await;
+                do_round_trip(
+                    r,
+                    nominal_value,
+                    &tx_clone,
+                    task_id,
+                    hub_key,
+                    cancel_token_clone,
+                )
+                .await;
                 drop(tx_clone); // TODO: needed?
             });
             total_spend += nominal_value;
@@ -217,10 +234,17 @@ impl TrafficSim {
         }
         info!("Waiting for tasks to finish");
 
-        drop(stats_tx); // TODO: need to do this on each sender?
+        drop(stats_tx);
+        tokio::time::sleep(self.params.max_wait_for_cancel).await; // TODO: should only wait if need to
+        cancel_token.cancel();
+
         let final_stats = collector_handle.await?;
         render_stats(final_stats.clone(), total_spend, total_ops);
-        write_stats(final_stats, total_spend, total_ops);
+
+        let random_filename = H256::random();
+        let file_path = format!("{}/stats_{}.json", self.output_dir, random_filename);
+        info!("Writing stats to {}", file_path);
+        write_stats(&file_path, final_stats, total_spend, total_ops);
 
         Ok(())
     }
@@ -251,5 +275,18 @@ async fn fund_hub_addr(
         Ok(())
     } else {
         Err(eyre::eyre!("Failed to fund hub address"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hyperlane_core::H256;
+
+    #[test]
+    fn test_h256_random_stringify() {
+        let h = H256::random();
+        let s = format!("{:?}", h);
+        println!("s: {}", s);
     }
 }

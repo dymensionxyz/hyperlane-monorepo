@@ -1,12 +1,12 @@
 use crate::sim::util::som_to_kas;
 use eyre::Error;
 use kaspa_consensus_core::tx::TransactionId;
+use serde::Serialize;
+use std::fs::File;
 use std::time::Duration;
 use std::time::{Instant, SystemTime};
 use tendermint::hash::Hash as TendermintHash;
 use tracing::info;
-use serde::Serialize;
-use std::fs::File;
 
 pub fn render_stats(stats: Vec<RoundTripStats>, total_spend: u64, total_ops: u64) {
     info!("Total spend: {}", som_to_kas(total_spend));
@@ -23,8 +23,8 @@ pub fn render_stats(stats: Vec<RoundTripStats>, total_spend: u64, total_ops: u64
     }
 }
 
-pub fn write_stats(stats: Vec<RoundTripStats>, total_spend: u64, total_ops: u64) {
-    let mut file = File::create("/Users/danwt/Documents/dym/aaa-dym-notes/all_tasks/tasks/202507_testing_hyperlane/kas/pg/sim/runs/0/stats.json").unwrap();
+pub fn write_stats(file_path: &str, stats: Vec<RoundTripStats>, total_spend: u64, total_ops: u64) {
+    let mut file = File::create(file_path).unwrap();
     serde_json::to_writer_pretty(&mut file, &stats).unwrap();
 }
 
@@ -57,10 +57,16 @@ impl RoundTripStats {
         d
     }
     pub fn deposit_time(&self) -> Duration {
-        self.kaspa_deposit_tx_time.unwrap().duration_since(self.kaspa_deposit_tx_time.unwrap()).unwrap()
+        self.kaspa_deposit_tx_time
+            .unwrap()
+            .duration_since(self.kaspa_deposit_tx_time.unwrap())
+            .unwrap()
     }
     pub fn withdraw_time(&self) -> Duration {
-        self.hub_withdraw_tx_time.unwrap().duration_since(self.hub_withdraw_tx_time.unwrap()).unwrap()
+        self.hub_withdraw_tx_time
+            .unwrap()
+            .duration_since(self.hub_withdraw_tx_time.unwrap())
+            .unwrap()
     }
     pub fn stage(&self) -> Stage {
         if !self.kaspa_deposit_tx_time.is_some() {

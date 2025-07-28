@@ -15,6 +15,7 @@ serde_json = { workspace = true }
 hex = "0.4.3"
 clap = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["full"] }
+tokio-util = { version = "0.7.15"}
 eyre = { workspace = true }
 kaspa-wallet-core = { workspace = true }
 kaspa-wallet-keys = { workspace = true }

@@ -68,6 +68,9 @@ pub struct SimulateTrafficCli {
     pub hub_fund_amount: u64,
 
     #[arg(long, required = true)]
+    pub output_dir: String,
+
+    #[arg(long, required = true)]
     pub hub_whale_priv_key: String,
 
     #[arg(long, required = true)]

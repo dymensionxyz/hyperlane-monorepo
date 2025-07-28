@@ -45,6 +45,9 @@ mod tests {
         let priv_k_hex = hex::encode(priv_k);
         let hub_key_1 = EasyHubKey::from_hex(&priv_k_hex);
         assert_eq!(hub_key_0.private.to_bytes(), hub_key_1.private.to_bytes());
-        assert_eq!(hub_key_0.signer().address_string, hub_key_1.signer().address_string);
+        assert_eq!(
+            hub_key_0.signer().address_string,
+            hub_key_1.signer().address_string
+        );
     }
 }

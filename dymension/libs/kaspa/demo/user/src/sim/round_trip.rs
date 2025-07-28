@@ -8,8 +8,6 @@ use corelib::wallet::EasyKaspaWallet;
 use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
 use cosmrs::Any;
 use eyre::Result;
-use hyperlane_core::HyperlaneDomain;
-use hyperlane_core::KnownHyperlaneDomain;
 use hyperlane_core::H256;
 use hyperlane_core::U256;
 use hyperlane_cosmos_native::CosmosNativeProvider;
@@ -22,6 +20,8 @@ use std::time::{Instant, SystemTime};
 use tendermint::abci::Code;
 use tendermint::hash::Hash as TendermintHash;
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
+use tracing::debug;
 use tracing::error;
 
 #[derive(Debug, Clone)]
@@ -57,8 +57,9 @@ pub async fn do_round_trip(
     tx: &mpsc::Sender<RoundTripStats>,
     task_id: u64,
     hub_key: EasyHubKey,
+    cancel_token: CancellationToken,
 ) {
-    let mut rt = RoundTrip::new(res, value, task_id, hub_key);
+    let mut rt = RoundTrip::new(res, value, task_id, hub_key, cancel_token);
     match rt.deposit().await {
         Ok((tx_id, deposit_time)) => {
             rt.stats.kaspa_deposit_tx_id = Some(tx_id);
@@ -106,10 +107,17 @@ struct RoundTrip {
     task_id: u64,
     stats: RoundTripStats,
     hub_key: EasyHubKey,
+    cancel_token: CancellationToken,
 }
 
 impl RoundTrip {
-    pub fn new(res: TaskResources, value: u64, task_id: u64, hub_k: EasyHubKey) -> Self {
+    pub fn new(
+        res: TaskResources,
+        value: u64,
+        task_id: u64,
+        hub_k: EasyHubKey,
+        cancel_token: CancellationToken,
+    ) -> Self {
         let mut res = res.clone();
         res.hub.rpc = res.hub.rpc().with_signer(hub_k.signer());
         Self {
@@ -118,10 +126,12 @@ impl RoundTrip {
             stats: RoundTripStats::new(task_id),
             hub_key: hub_k,
             task_id,
+            cancel_token,
         }
     }
 
     async fn deposit(&self) -> Result<(TransactionId, SystemTime)> {
+        debug!("start deposit, task_id: {}", self.task_id);
         let w = &self.res.w;
         let s = &w.secret;
         let a = self.res.args.escrow_address.clone();
@@ -139,6 +149,7 @@ impl RoundTrip {
     }
 
     async fn await_hub_credit(&self) -> Result<()> {
+        debug!("start await_hub_credit, task_id: {}", self.task_id);
         let a = self.hub_key.signer().address_string;
         loop {
             let balance = self
@@ -148,7 +159,9 @@ impl RoundTrip {
                 .get_balance_denom(a.clone(), self.res.args.hl_token_denom.clone())
                 .await?;
             if balance == U256::from(0) {
-                // TODO: should avoid looping forever
+                if self.cancel_token.is_cancelled() {
+                    return Err(RoundTripError::Cancelled.into());
+                }
                 tokio::time::sleep(Duration::from_millis(1000)).await;
                 continue;
             }
@@ -166,6 +179,8 @@ impl RoundTrip {
     }
 
     async fn withdraw(&self) -> Result<(TendermintHash, SystemTime)> {
+        debug!("start withdraw, task_id: {}", self.task_id);
+
         let rpc = self.res.hub.rpc();
 
         let amount = self.value.to_string();
@@ -201,6 +216,7 @@ impl RoundTrip {
     }
 
     async fn await_kaspa_credit(&self) -> Result<()> {
+        let addr = debug!("start await_kaspa_credit, task_id: {}", self.task_id);
         loop {
             let balance = self
                 .res
@@ -208,7 +224,9 @@ impl RoundTrip {
                 .get_balance_by_address(&self.res.args.escrow_address.to_string())
                 .await?;
             if balance == 0 {
-                // TODO: should avoid looping forever
+                if self.cancel_token.is_cancelled() {
+                    return Err(RoundTripError::Cancelled.into());
+                }
                 tokio::time::sleep(Duration::from_millis(1000)).await;
                 continue;
             }
@@ -234,6 +252,8 @@ pub enum RoundTripError {
     KaspaBalanceMismatch { balance: i64, expected: i64 },
     #[error("withdrawal tx fail")]
     WithdrawalTxFailed,
+    #[error("cancelled")]
+    Cancelled,
 }
 
 #[cfg(test)]
