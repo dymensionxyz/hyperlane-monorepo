@@ -4,7 +4,7 @@ use secp256k1::{Keypair, Secp256k1};
 
 pub struct EasyKaspaKey {
     keypair: Keypair,
-    address: Address,
+    pub address: Address,
 }
 
 pub fn get_kaspa_keypair() -> EasyKaspaKey {
@@ -12,7 +12,7 @@ pub fn get_kaspa_keypair() -> EasyKaspaKey {
     let mut rng = rand_08::thread_rng();
     let keypair = Keypair::new(&secp, &mut rng);
     let pub_key = keypair.public_key().x_only_public_key().0;
-    let address = Address::new(Prefix::Mainnet, Version::PubKey, &pub_key.serialize());
+    let address = Address::new(Prefix::Testnet, Version::PubKey, &pub_key.serialize());
     EasyKaspaKey { keypair, address }
 }
 

@@ -268,11 +268,18 @@ async fn fund_hub_addr(
         value: msg.encode_to_vec(),
     };
     let gas_limit = None;
-    let response = rpc.send(vec![a], gas_limit).await?;
-    if response.tx_result.code.is_ok() {
-        Ok(())
-    } else {
-        Err(eyre::eyre!("Failed to fund hub address"))
+    let response = rpc.send(vec![a], gas_limit).await;
+    match response {
+        Ok(response) => {
+            if response.tx_result.code.is_ok() {
+                Ok(())
+            } else {
+                Err(eyre::eyre!("Failed to fund hub address, non success code: {:?}", response.tx_result.code))
+            }
+        }
+        Err(e) => {
+            Err(eyre::eyre!("Failed to fund hub address: {:?}", e))
+        }
     }
 }
 

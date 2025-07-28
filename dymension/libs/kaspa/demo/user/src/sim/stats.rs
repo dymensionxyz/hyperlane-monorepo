@@ -4,6 +4,7 @@ use kaspa_consensus_core::tx::TransactionId;
 use serde::Serialize;
 use std::fs::File;
 use std::time::Duration;
+use kaspa_addresses::Address;
 use std::time::{Instant, SystemTime};
 use tendermint::hash::Hash as TendermintHash;
 use tracing::info;
@@ -39,6 +40,8 @@ pub struct RoundTripStats {
     pub hub_withdraw_tx_time: Option<SystemTime>,
     pub withdraw_credit_time: Option<SystemTime>,
     pub withdraw_credit_error: Option<String>,
+    pub deposit_addr_hub: Option<String>,
+    pub withdraw_addr_kaspa: Option<Address>,
 }
 
 #[derive(Debug, Clone, Copy)]

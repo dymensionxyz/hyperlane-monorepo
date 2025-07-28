@@ -1,4 +1,5 @@
 use super::key_cosmos::EasyHubKey;
+use super::key_kaspa::get_kaspa_keypair;
 use super::stats::RoundTripStats;
 use crate::x;
 use corelib::api::client::HttpClient;
@@ -59,7 +60,8 @@ pub async fn do_round_trip(
     hub_key: EasyHubKey,
     cancel_token: CancellationToken,
 ) {
-    let mut rt = RoundTrip::new(res, value, task_id, hub_key, cancel_token);
+    let mut rt = RoundTrip::new(res, value, task_id, hub_key.clone(), cancel_token);
+    rt.stats.deposit_addr_hub = Some(hub_key.signer().address_string.clone());
     match rt.deposit().await {
         Ok((tx_id, deposit_time)) => {
             rt.stats.kaspa_deposit_tx_id = Some(tx_id);
@@ -79,17 +81,17 @@ pub async fn do_round_trip(
             return;
         }
     };
-    match rt.withdraw().await {
-        Ok((tx_id, withdrawal_time)) => {
-            rt.stats.hub_withdraw_tx_id = Some(tx_id);
-            rt.stats.hub_withdraw_tx_time = Some(withdrawal_time);
-        }
-        Err(e) => {
-            error!("withdrawal failed: {:?}", e);
-            return;
-        }
-    };
-    match rt.await_kaspa_credit().await {
+    let withdraw_res = rt.withdraw().await;
+    if !withdraw_res.is_ok() {
+        let e = withdraw_res.err().unwrap();
+        error!("withdrawal failed: {:?}", e);
+        return;
+    }
+    let (kaspa_addr, tx_id, withdrawal_time) = withdraw_res.unwrap();
+    rt.stats.hub_withdraw_tx_id = Some(tx_id);
+    rt.stats.hub_withdraw_tx_time = Some(withdrawal_time);
+    rt.stats.withdraw_addr_kaspa = Some(kaspa_addr.clone());
+    match rt.await_kaspa_credit(kaspa_addr.clone()).await {
         Ok(()) => {
             rt.stats.withdraw_credit_time = Some(SystemTime::now());
         }
@@ -131,7 +133,11 @@ impl RoundTrip {
     }
 
     async fn deposit(&self) -> Result<(TransactionId, SystemTime)> {
-        debug!("start deposit, task_id: {}", self.task_id);
+        debug!(
+            "start deposit, task_id: {}, hub_addr: {}",
+            self.task_id,
+            self.hub_key.signer().address_string
+        );
         let w = &self.res.w;
         let s = &w.secret;
         let a = self.res.args.escrow_address.clone();
@@ -178,13 +184,17 @@ impl RoundTrip {
         Ok(())
     }
 
-    async fn withdraw(&self) -> Result<(TendermintHash, SystemTime)> {
-        debug!("start withdraw, task_id: {}", self.task_id);
+    async fn withdraw(&self) -> Result<(Address, TendermintHash, SystemTime)> {
+        let kaspa_recipient = get_kaspa_keypair();
+        debug!(
+            "start withdraw, task_id: {}, kaspa_addr: {}",
+            self.task_id, kaspa_recipient.address
+        );
 
         let rpc = self.res.hub.rpc();
 
         let amount = self.value.to_string();
-        let recipient = x::addr::hl_recipient(&self.res.args.escrow_address.clone().to_string());
+        let recipient = x::addr::hl_recipient(&kaspa_recipient.address.to_string());
         let req = MsgRemoteTransfer {
             sender: rpc.get_signer()?.address_string.clone(),
             token_id: self.res.args.token_hub.to_string(),
@@ -204,24 +214,27 @@ impl RoundTrip {
             value: req.encode_to_vec(),
         };
         let gas_limit = None;
-        let response = rpc.send(vec![a], gas_limit).await?;
-        let i = SystemTime::now();
-        match response.tx_result.code {
-            Code::Ok => {
-                let tx_id = response.hash.clone();
-                Ok((tx_id, i))
+        let response = rpc.send(vec![a], gas_limit).await;
+        match response {
+            Ok(response) => {
+                if response.tx_result.code.is_ok() {
+                    let tx_id = response.hash.clone();
+                    Ok((kaspa_recipient.address, tx_id, SystemTime::now()))
+                } else {
+                    Err(RoundTripError::WithdrawalTxFailed.into())
+                }
             }
-            _ => Err(RoundTripError::WithdrawalTxFailed.into()),
+            Err(e) => Err(eyre::eyre!("Failed to withdraw: {:?}", e)),
         }
     }
 
-    async fn await_kaspa_credit(&self) -> Result<()> {
-        let addr = debug!("start await_kaspa_credit, task_id: {}", self.task_id);
+    async fn await_kaspa_credit(&self, kaspa_addr: Address) -> Result<()> {
+        debug!("start await_kaspa_credit, task_id: {}", self.task_id);
         loop {
             let balance = self
                 .res
                 .kas_rest
-                .get_balance_by_address(&self.res.args.escrow_address.to_string())
+                .get_balance_by_address(&kaspa_addr.to_string())
                 .await?;
             if balance == 0 {
                 if self.cancel.is_cancelled() {

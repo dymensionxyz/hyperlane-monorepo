@@ -3,6 +3,7 @@ use hyperlane_cosmos_native::signers::Signer;
 use k256::ecdsa::SigningKey as K256SigningKey;
 use rand_core::OsRng;
 
+#[derive(Clone)]
 pub struct EasyHubKey {
     private: K256SigningKey,
 }
