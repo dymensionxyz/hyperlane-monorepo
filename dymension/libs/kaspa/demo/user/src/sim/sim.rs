@@ -17,6 +17,9 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
 use crate::x::args::{SimulateTrafficCli, WalletCli};
+use cosmos_sdk_proto::cosmos::bank::v1beta1::MsgSend;
+use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
+use cosmrs::Any;
 use hyperlane_core::config::OpSubmissionConfig;
 use hyperlane_core::ContractLocator;
 use hyperlane_core::HyperlaneDomain;
@@ -24,6 +27,7 @@ use hyperlane_core::KnownHyperlaneDomain;
 use hyperlane_core::NativeToken;
 use hyperlane_core::H256;
 use hyperlane_cosmos_native::RawCosmosAmount;
+use cosmos_sdk_proto::traits::Message;
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use tracing::info;
 use url::Url;
@@ -207,10 +211,32 @@ impl TrafficSim {
     }
 }
 
-async fn fund_hub_addr(hub_key: &EasyHubKey, hub: &CosmosNativeProvider) -> Result<()> {
-    // let hub_addr = hub_key.signer().address_string.clone();
-    // let amount = 1000000000000000000;
-    // let denom = "adym".to_string();
-    // let tx = hub.send_tx(vec![], amount, denom).await?;
+async fn fund_hub_addr(
+    hub_key: &EasyHubKey,
+    hub: &CosmosNativeProvider,
+    amount: u64,
+) -> Result<()> {
+    let hub_addr = hub_key.signer().address_string.clone();
+    let rpc = hub.rpc();
+    let msg = MsgSend {
+        from_address: rpc.get_signer()?.address_string.clone(),
+        to_address: hub_addr.clone(),
+        amount: vec![Coin {
+            amount: amount.to_string(),
+            denom: "adym".to_string(),
+        }],
+    };
+    let a = Any {
+        type_url: "/cosmos.bank.v1beta1.MsgSend".to_string(),
+        value: msg.encode_to_vec(),
+    };
+    let gas_limit = None;
+    let response = rpc.send(vec![a], gas_limit).await?;
+    if response.tx_result.code.is_ok() {
+        Ok(())
+    } else {
+        Err(eyre::eyre!("Failed to fund hub address"))
+    }
+
     Ok(())
 }
