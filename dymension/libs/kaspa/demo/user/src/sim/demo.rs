@@ -12,6 +12,7 @@ pub fn do_demo_params() {
         ops_per_minute: 90,
         max_ops: 0, // ignored here
         min_value: hardcode::tx::MIN_DEPOSIT_AMOUNT,
+        hub_fund_amount: 100000000000000,
     });
 }
 

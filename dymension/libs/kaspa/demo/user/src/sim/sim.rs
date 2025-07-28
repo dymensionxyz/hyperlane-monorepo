@@ -19,6 +19,7 @@ use tokio::sync::mpsc;
 use crate::x::args::{SimulateTrafficCli, WalletCli};
 use cosmos_sdk_proto::cosmos::bank::v1beta1::MsgSend;
 use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
+use cosmos_sdk_proto::traits::Message;
 use cosmrs::Any;
 use hyperlane_core::config::OpSubmissionConfig;
 use hyperlane_core::ContractLocator;
@@ -27,7 +28,6 @@ use hyperlane_core::KnownHyperlaneDomain;
 use hyperlane_core::NativeToken;
 use hyperlane_core::H256;
 use hyperlane_cosmos_native::RawCosmosAmount;
-use cosmos_sdk_proto::traits::Message;
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use tracing::info;
 use url::Url;
@@ -65,6 +65,7 @@ pub struct Params {
     pub ops_per_minute: u64,  // osmosis does 90 per minute
     pub max_ops: u64,         // max number of ops to run, disregarding distributions
     pub min_value: u64,       // in sompi
+    pub hub_fund_amount: u64, // in adym
 }
 
 impl Params {
@@ -115,6 +116,7 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
                 ops_per_minute: cli.ops_per_minute,
                 max_ops: cli.max_ops,
                 min_value: hardcode::tx::MIN_DEPOSIT_AMOUNT,
+                hub_fund_amount: 200000000000000, // should be enough to pay fees
             },
             task_args: TaskArgs {
                 domain_kas: cli.domain_kas,
@@ -237,6 +239,4 @@ async fn fund_hub_addr(
     } else {
         Err(eyre::eyre!("Failed to fund hub address"))
     }
-
-    Ok(())
 }
