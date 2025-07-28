@@ -3,6 +3,7 @@ use super::round_trip::do_round_trip;
 use super::round_trip::TaskArgs;
 use super::round_trip::TaskResources;
 use super::stats::render_stats;
+use super::stats::write_stats;
 use super::util::som_to_kas;
 use corelib::api::base::RateLimitConfig;
 use corelib::api::client::HttpClient;
@@ -32,23 +33,32 @@ use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use tracing::info;
 use url::Url;
 
+const DEFAULT_RPC_URL: &str = "https://rpc-dymension-playground35.mzonder.com:443";
+const DEFAULT_GRPC_URL: &str = "https://grpc-dymension-playground35.mzonder.com:443";
+const DEFAULT_CHAIN_ID: &str = "dymension_3405-1";
+const DEFAULT_PREFIX: &str = "dym";
+const DEFAULT_DENOM: &str = "adym";
+const DEFAULT_DECIMALS: u32 = 18;
+const DEFAULT_WRPC_URL: &str = "localhost:17210";
+const DEFAULT_REST_URL: &str = "https://api-tn10.kaspa.org/";
+
 async fn cosmos_provider(signer_key_hex: &str) -> Result<CosmosNativeProvider> {
     let conf = CosmosConnectionConf::new(
-        vec![Url::parse("https://rpc-dymension-playground35.mzonder.com:443").unwrap()],
-        vec![Url::parse("https://grpc-dymension-playground35.mzonder.com:443").unwrap()],
-        "dymension_3405-1".to_string(),
-        "dym".to_string(),
-        "adym".to_string(),
+        vec![Url::parse(DEFAULT_RPC_URL).unwrap()],
+        vec![Url::parse(DEFAULT_GRPC_URL).unwrap()],
+        DEFAULT_CHAIN_ID.to_string(),
+        DEFAULT_PREFIX.to_string(),
+        DEFAULT_DENOM.to_string(),
         RawCosmosAmount {
             amount: "100000000000.0".to_string(),
-            denom: "adym".to_string(),
+            denom: DEFAULT_DENOM.to_string(),
         },
         1.0,
         32,
         OpSubmissionConfig::default(),
         NativeToken {
-            decimals: 18,
-            denom: "adym".to_string(),
+            decimals: DEFAULT_DECIMALS,
+            denom: DEFAULT_DENOM.to_string(),
         },
     );
     let d = HyperlaneDomain::Known(KnownHyperlaneDomain::Osmosis);
@@ -143,7 +153,7 @@ impl TrafficSim {
     pub async fn new(args: SimulateTrafficArgs) -> Result<Self> {
         let w = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
             wallet_secret: args.wallet.wallet_secret,
-            rpc_url: "localhost:17210".to_string(),
+            rpc_url: DEFAULT_WRPC_URL.to_string(),
             net: Network::KaspaTest10,
             storage_folder: None,
         })
@@ -153,7 +163,7 @@ impl TrafficSim {
             args: args.task_args,
             hub: cosmos_provider(&args.hub_whale_priv_key).await?,
             kas_rest: HttpClient::new(
-                "https://api-tn10.kaspa.org/".to_string(),
+                DEFAULT_REST_URL.to_string(),
                 RateLimitConfig::default(),
             ),
         };
@@ -197,7 +207,6 @@ impl TrafficSim {
             if self.params.max_ops > 0 && total_ops >= self.params.max_ops {
                 break;
             }
-            info!("Sleeping for {} ms", sleep_millis);
             tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
             info!(
                 "elasped millis {}, interval {}, value {}",
@@ -210,7 +219,8 @@ impl TrafficSim {
 
         drop(stats_tx); // TODO: need to do this on each sender?
         let final_stats = collector_handle.await?;
-        render_stats(final_stats, total_spend, total_ops);
+        render_stats(final_stats.clone(), total_spend, total_ops);
+        write_stats(final_stats, total_spend, total_ops);
 
         Ok(())
     }

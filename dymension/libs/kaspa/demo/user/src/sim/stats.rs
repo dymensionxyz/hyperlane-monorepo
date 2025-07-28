@@ -6,6 +6,7 @@ use std::time::{Instant, SystemTime};
 use tendermint::hash::Hash as TendermintHash;
 use tracing::info;
 use serde::Serialize;
+use std::fs::File;
 
 pub fn render_stats(stats: Vec<RoundTripStats>, total_spend: u64, total_ops: u64) {
     info!("Total spend: {}", som_to_kas(total_spend));
@@ -20,6 +21,11 @@ pub fn render_stats(stats: Vec<RoundTripStats>, total_spend: u64, total_ops: u64
             info!("withdraw credit time: {:?}", s.withdraw_time());
         }
     }
+}
+
+pub fn write_stats(stats: Vec<RoundTripStats>, total_spend: u64, total_ops: u64) {
+    let mut file = File::create("/Users/danwt/Documents/dym/aaa-dym-notes/all_tasks/tasks/202507_testing_hyperlane/kas/pg/sim/runs/0/stats.json").unwrap();
+    serde_json::to_writer_pretty(&mut file, &stats).unwrap();
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
