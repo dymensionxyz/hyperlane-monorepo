@@ -110,7 +110,7 @@ mod tests {
     }
 
     #[tokio::test]
-    // #[ignore]
+    #[ignore]
     async fn test_tx_by_id() {
         let client = t_client();
         let config = client.get_config();

@@ -288,6 +288,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_tx_by_id() {
         let client = HttpClient::new(
             "https://api-tn10.kaspa.org/".to_string(),
