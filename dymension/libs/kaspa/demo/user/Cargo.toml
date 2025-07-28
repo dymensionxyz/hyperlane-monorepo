@@ -25,6 +25,7 @@ hyperlane-core = { path = "../../../../../rust/main/hyperlane-core" }
 hyperlane-cosmos-native = { path = "../../../../../rust/main/chains/hyperlane-cosmos-native" }
 hyperlane-metric = { path = "../../../../../rust/main/hyperlane-metric" }
 rand = { version = "0.9" }
+rand_08 = { version = "0.8.5" , package = "rand"}
 rand_distr = "0.5"
 rand_core = { version = "0.6.4" }
 tracing = "0.1"
