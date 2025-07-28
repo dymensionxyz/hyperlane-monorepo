@@ -9,7 +9,6 @@ use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, Withdrawal
 use tonic::async_trait;
 use tracing::info;
 
-
 // pretends to be a mailbox
 #[derive(Debug, Clone)]
 pub struct KaspaMailbox {

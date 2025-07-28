@@ -598,8 +598,10 @@ async fn submit_classic_task(
                 &mut confirm_queue,
                 max_batch_size,
                 &metrics,
-                batch).await;
-            
+                batch,
+            )
+            .await;
+
             continue;
         }
 
@@ -1094,10 +1096,8 @@ async fn submit_kaspa_batch(
 
     match res {
         Ok(batch_result) => {
-            let (sent_ops, excluded_ops): (Vec<_>, Vec<_>) = batch
-                .into_iter()
-                .enumerate()
-                .partition_map(|(i, op)| {
+            let (sent_ops, excluded_ops): (Vec<_>, Vec<_>) =
+                batch.into_iter().enumerate().partition_map(|(i, op)| {
                     if !batch_result.failed_indexes.contains(&i) {
                         info!("Kaspa batch, successfully submitted op: {}", op.id());
                         Either::Left(op)
@@ -1109,7 +1109,12 @@ async fn submit_kaspa_batch(
             for op in excluded_ops {
                 metrics.ops_failed.inc();
                 prepare_queue
-                    .push(op, Some(PendingOperationStatus::Retry(ReprepareReason::ErrorSubmitting)))
+                    .push(
+                        op,
+                        Some(PendingOperationStatus::Retry(
+                            ReprepareReason::ErrorSubmitting,
+                        )),
+                    )
                     .await;
             }
             if sent_ops.is_empty() {
