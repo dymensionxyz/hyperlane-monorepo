@@ -18,7 +18,7 @@ use hyperlane_cosmos_rs::prost::{Message, Name};
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionId;
 use std::time::Duration;
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
 use tendermint::abci::Code;
 use tendermint::hash::Hash as TendermintHash;
 use tokio::sync::mpsc;
@@ -71,7 +71,7 @@ pub async fn do_round_trip(
     };
     match rt.await_hub_credit().await {
         Ok(()) => {
-            rt.stats.deposit_credit_time = Some(Instant::now());
+            rt.stats.deposit_credit_time = Some(SystemTime::now());
         }
         Err(e) => {
             rt.stats.deposit_credit_error = Some(e.to_string());
@@ -90,7 +90,7 @@ pub async fn do_round_trip(
     };
     match rt.await_kaspa_credit().await {
         Ok(()) => {
-            rt.stats.withdraw_credit_time = Some(Instant::now());
+            rt.stats.withdraw_credit_time = Some(SystemTime::now());
         }
         Err(e) => {
             rt.stats.withdraw_credit_error = Some(e.to_string());
@@ -121,7 +121,7 @@ impl RoundTrip {
         }
     }
 
-    async fn deposit(&self) -> Result<(TransactionId, Instant)> {
+    async fn deposit(&self) -> Result<(TransactionId, SystemTime)> {
         let w = &self.res.w;
         let s = &w.secret;
         let a = self.res.args.escrow_address.clone();
@@ -135,7 +135,7 @@ impl RoundTrip {
             &self.hub_key.signer(),
         );
         let tx_id = deposit_with_payload(&w.wallet, &s, a, amt, payload).await?;
-        Ok((tx_id, Instant::now()))
+        Ok((tx_id, SystemTime::now()))
     }
 
     async fn await_hub_credit(&self) -> Result<()> {
@@ -165,7 +165,7 @@ impl RoundTrip {
         Ok(())
     }
 
-    async fn withdraw(&self) -> Result<(TendermintHash, Instant)> {
+    async fn withdraw(&self) -> Result<(TendermintHash, SystemTime)> {
         let rpc = self.res.hub.rpc();
 
         let amount = self.value.to_string();
@@ -190,7 +190,7 @@ impl RoundTrip {
         };
         let gas_limit = None;
         let response = rpc.send(vec![a], gas_limit).await?;
-        let i = Instant::now();
+        let i = SystemTime::now();
         match response.tx_result.code {
             Code::Ok => {
                 let tx_id = response.hash.clone();

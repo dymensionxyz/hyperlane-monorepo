@@ -90,7 +90,7 @@
       "depositLookBackMins": 120,
       "validateDeposit": true,
       "validateWithdrawal": true,
-      "validateWithdrawalConfirmation": false,
+      "validateWithdrawalConfirmation": true,
       "grpcUrls": [
         {
           "http": "http://127.0.0.1:8090"

@@ -2,9 +2,10 @@ use crate::sim::util::som_to_kas;
 use eyre::Error;
 use kaspa_consensus_core::tx::TransactionId;
 use std::time::Duration;
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
 use tendermint::hash::Hash as TendermintHash;
 use tracing::info;
+use serde::Serialize;
 
 pub fn render_stats(stats: Vec<RoundTripStats>, total_spend: u64, total_ops: u64) {
     info!("Total spend: {}", som_to_kas(total_spend));
@@ -21,16 +22,16 @@ pub fn render_stats(stats: Vec<RoundTripStats>, total_spend: u64, total_ops: u64
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct RoundTripStats {
     pub op_id: u64,
     pub kaspa_deposit_tx_id: Option<TransactionId>,
-    pub kaspa_deposit_tx_time: Option<Instant>,
-    pub deposit_credit_time: Option<Instant>,
+    pub kaspa_deposit_tx_time: Option<SystemTime>,
+    pub deposit_credit_time: Option<SystemTime>,
     pub deposit_credit_error: Option<String>,
     pub hub_withdraw_tx_id: Option<TendermintHash>,
-    pub hub_withdraw_tx_time: Option<Instant>,
-    pub withdraw_credit_time: Option<Instant>,
+    pub hub_withdraw_tx_time: Option<SystemTime>,
+    pub withdraw_credit_time: Option<SystemTime>,
     pub withdraw_credit_error: Option<String>,
 }
 
@@ -50,10 +51,10 @@ impl RoundTripStats {
         d
     }
     pub fn deposit_time(&self) -> Duration {
-        self.kaspa_deposit_tx_time.unwrap() - self.kaspa_deposit_tx_time.unwrap()
+        self.kaspa_deposit_tx_time.unwrap().duration_since(self.kaspa_deposit_tx_time.unwrap()).unwrap()
     }
     pub fn withdraw_time(&self) -> Duration {
-        self.hub_withdraw_tx_time.unwrap() - self.hub_withdraw_tx_time.unwrap()
+        self.hub_withdraw_tx_time.unwrap().duration_since(self.hub_withdraw_tx_time.unwrap()).unwrap()
     }
     pub fn stage(&self) -> Stage {
         if !self.kaspa_deposit_tx_time.is_some() {
