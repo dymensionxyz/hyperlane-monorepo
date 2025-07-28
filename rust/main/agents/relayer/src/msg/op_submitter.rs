@@ -1107,15 +1107,8 @@ async fn submit_kaspa_batch(
                     }
                 });
             for op in excluded_ops {
+                send_back_on_failed_submission(op, prepare_queue.clone(), &metrics, None).await;
                 metrics.ops_failed.inc();
-                prepare_queue
-                    .push(
-                        op,
-                        Some(PendingOperationStatus::Retry(
-                            ReprepareReason::ErrorSubmitting,
-                        )),
-                    )
-                    .await;
             }
             if sent_ops.is_empty() {
                 info!("Kaspa batch, no operations were successfully submitted");
