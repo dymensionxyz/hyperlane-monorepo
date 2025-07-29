@@ -7,7 +7,7 @@ use corelib::wallet::SigningResources;
 use corelib::withdraw::WithdrawFXG;
 use eyre::eyre;
 use eyre::Result;
-use hardcode::tx::{DUST_AMOUNT,MINIMUM_WITHDRAWAL_ACCEPTED};
+use hardcode::tx::{DUST_AMOUNT,MINIMUM_WITHDRAWAL_ACCEPTED, MIN_ESCROW_BALANCE, MIN_RELAY_BALANCE};
 use hyperlane_core::{Decode, HyperlaneMessage, U256};
 use hyperlane_warp_route::TokenMessage;
 use kaspa_addresses::Prefix;
@@ -30,7 +30,7 @@ use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
 use std::io::Cursor;
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, warn};
 
 /// Fetches escrow and relayer balances and a combined list of all inputs
 pub async fn fetch_input_utxos(
@@ -162,6 +162,13 @@ pub fn build_withdrawal_pskt(
         ));
     }
 
+    if escrow_balance < MIN_ESCROW_BALANCE {
+        warn!(
+            "Escrow balance is low: balance: {}, recommended: {}. Please deposit to escrow address to avoid high mass txs.",
+            escrow_balance,
+            MIN_ESCROW_BALANCE
+        );
+    }
     //////////////////
     //     Fee      //
     //////////////////
@@ -177,6 +184,14 @@ pub fn build_withdrawal_pskt(
             relayer_balance,
             tx_fee
         ));
+    }
+
+    if relayer_balance < MIN_RELAY_BALANCE {
+        warn!(
+            "Relayer balance is low: balance: {}, recommended: {}. Please deposit to relayer address to avoid high mass txs.",
+            relayer_balance,
+            MIN_RELAY_BALANCE
+        );
     }
 
     ////////////////
