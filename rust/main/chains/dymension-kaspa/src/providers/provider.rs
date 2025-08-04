@@ -3,6 +3,7 @@ use super::validators::ValidatorsClient;
 use super::RestProvider;
 use crate::util::domain_to_kas_network;
 use crate::ConnectionConf;
+use crate::RelayerStuff;
 use crate::ValidatorStuff;
 use dym_kas_core::confirmation::ConfirmationFXG;
 use dym_kas_core::escrow::EscrowPublic;
@@ -135,6 +136,10 @@ impl KaspaProvider {
 
     pub fn must_validator_stuff(&self) -> &ValidatorStuff {
         self.conf.validator_stuff.as_ref().unwrap()
+    }
+
+    pub fn must_relayer_stuff(&self) -> &RelayerStuff {
+        self.conf.relayer_stuff.as_ref().unwrap()
     }
 
     /// dococo

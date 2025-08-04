@@ -85,11 +85,7 @@ where
         info!("Dymension, starting deposit loop");
         let lower_bound_unix_time: Option<i64> = match self
             .provider
-            .rest()
-            .conf
-            .relayer_stuff
-            .as_ref()
-            .unwrap()
+            .must_relayer_stuff()
             .deposit_look_back_mins
         {
             Some(offset) => {
@@ -103,7 +99,10 @@ where
             let deposits_res = self
                 .provider
                 .rest()
-                .get_deposits(lower_bound_unix_time)
+                .get_deposits(
+                    &self.provider.escrow_address().to_string(),
+                    lower_bound_unix_time,
+                )
                 .await;
             let deposits = match deposits_res {
                 Ok(deposits) => deposits,
