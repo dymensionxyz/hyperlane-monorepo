@@ -599,7 +599,7 @@ impl PendingMessage {
     fn next_attempt_after(num_retries: u32, max_retries: u32) -> Option<Instant> {
         Some(Instant::now() + Duration::from_secs(10))
         // PendingMessage::calculate_msg_backoff(num_retries, max_retries, None)
-            // .map(|dur| Instant::now() + dur)
+        // .map(|dur| Instant::now() + dur)
     }
 
     fn get_retries_or_skip(
