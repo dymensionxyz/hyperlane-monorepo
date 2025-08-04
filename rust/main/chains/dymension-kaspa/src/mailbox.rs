@@ -2,45 +2,14 @@ use super::consts::*;
 use crate::KaspaProvider;
 use dym_kas_relayer::withdraw::minimum::is_small_value;
 use hyperlane_core::{
-    utils::bytes_to_hex, BatchResult, ChainResult, ContractLocator, Decode, FixedPointNumber,
+    utils::bytes_to_hex, BatchResult, ChainResult, ContractLocator, FixedPointNumber,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
     Mailbox, QueueOperation, ReorgPeriod, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
-use kaspa_consensus_core::tx::TransactionOutput;
 use tonic::async_trait;
-use tracing::{debug, info, warn};
+use tracing::info;
 
-// Token message structure for parsing warp transfers
-#[derive(Debug)]
-struct TokenMessage {
-    recipient: H256,
-    amount_or_id: U256,
-    metadata: Vec<u8>,
-}
-
-impl Decode for TokenMessage {
-    fn read_from<R>(reader: &mut R) -> Result<Self, hyperlane_core::HyperlaneProtocolError>
-    where
-        R: std::io::Read,
-    {
-        let mut recipient = H256::zero();
-        reader.read_exact(recipient.as_mut())?;
-
-        let mut amount_or_id = [0_u8; 32];
-        reader.read_exact(&mut amount_or_id)?;
-        let amount_or_id = U256::from_big_endian(&amount_or_id);
-
-        let mut metadata = vec![];
-        reader.read_to_end(&mut metadata)?;
-
-        Ok(Self {
-            recipient,
-            amount_or_id,
-            metadata,
-        })
-    }
-}
 
 // pretends to be a mailbox
 #[derive(Debug, Clone)]
