@@ -1,10 +1,10 @@
 /* For e2e tests and testing only */
 
+use super::tx::DUST_AMOUNT;
 use api_rs::apis::configuration;
+use hyperlane_core::U256;
 use kaspa_addresses::{Prefix, Version};
 use kaspa_consensus_core::network::{NetworkId, NetworkType};
-use hyperlane_core::U256;
-use super::tx::DUST_AMOUNT;
 
 pub const NETWORK: NetworkType = NetworkType::Testnet;
 pub const NETWORK_ID: NetworkId = NetworkId::with_suffix(NETWORK, 10);

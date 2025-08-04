@@ -216,7 +216,10 @@ impl Mailbox for KaspaMailbox {
             }
         };
 
-        if is_small_value(token_msg.amount_or_id.as_u64(), self.provider.get_min_deposit_sompi()) {
+        if is_small_value(
+            token_msg.amount_or_id.as_u64(),
+            self.provider.get_min_deposit_sompi(),
+        ) {
             Ok(TxCostEstimate {
                 gas_limit: U256::MAX,
                 gas_price: FixedPointNumber::from(u128::MAX),

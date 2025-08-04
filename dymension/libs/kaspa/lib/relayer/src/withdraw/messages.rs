@@ -5,9 +5,9 @@ use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use eyre::Result;
 use hyperlane_core::HyperlaneMessage;
+use hyperlane_core::U256;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use kaspa_consensus_core::tx::TransactionOutpoint;
-use hyperlane_core::U256;
 use kaspa_wallet_pskt::prelude::Bundle;
 use tracing::info;
 

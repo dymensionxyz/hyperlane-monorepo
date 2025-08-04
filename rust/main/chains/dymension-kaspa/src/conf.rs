@@ -3,7 +3,9 @@ use std::str::FromStr;
 use derive_new::new;
 use url::Url;
 
-use hyperlane_core::{config::OpSubmissionConfig, ChainCommunicationError, FixedPointNumber, H256, U256};
+use hyperlane_core::{
+    config::OpSubmissionConfig, ChainCommunicationError, FixedPointNumber, H256, U256,
+};
 
 /// Kaspa connection configuration
 #[derive(Debug, Clone)]
