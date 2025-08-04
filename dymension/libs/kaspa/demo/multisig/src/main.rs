@@ -6,6 +6,7 @@ mod x;
 use corelib::balance::*;
 use corelib::deposit::*;
 use corelib::escrow::*;
+use hyperlane_core::U256;
 use corelib::user::deposit::deposit_with_payload as deposit;
 use corelib::wallet::*;
 use hardcode::e2e::{
@@ -177,7 +178,7 @@ async fn demo() -> Result<()> {
         &e.public(e2e_address_prefix),
         &w.account().change_address().unwrap(),
         e2e_network_id,
-        e2e_min_deposit_sompi,
+        U256::from(e2e_min_deposit_sompi),
     )
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
 
