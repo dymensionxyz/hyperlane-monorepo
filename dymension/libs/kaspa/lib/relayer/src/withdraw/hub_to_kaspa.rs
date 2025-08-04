@@ -9,6 +9,7 @@ use eyre::eyre;
 use eyre::Result;
 use hardcode::tx::DUST_AMOUNT;
 use hyperlane_core::HyperlaneMessage;
+use hyperlane_core::U256;
 use kaspa_addresses::Prefix;
 use kaspa_consensus_core::config::params::Params;
 use kaspa_consensus_core::constants::TX_VERSION;
@@ -127,7 +128,7 @@ pub fn build_withdrawal_pskt(
     escrow: &EscrowPublic,
     relayer_addr: &kaspa_addresses::Address,
     network_id: NetworkId,
-    min_deposit_sompi: u64,
+    min_deposit_sompi: U256,
 ) -> Result<PSKT<Signer>> {
     //////////////////
     //   Balances   //
@@ -234,14 +235,14 @@ pub fn build_withdrawal_pskt(
     create_withdrawal_pskt(inputs, outputs, payload)
 }
 
-fn is_dust(tx_out: &TransactionOutput, min_deposit_sompi: u64) -> bool {
+fn is_dust(tx_out: &TransactionOutput, min_deposit_sompi: U256) -> bool {
     tx_out.value < DUST_AMOUNT
         || is_transaction_output_dust(tx_out)
         || is_small_value(tx_out.value, min_deposit_sompi)
 }
 
-fn is_small_value(value: u64, min_deposit_sompi: u64) -> bool {
-    value < min_deposit_sompi
+fn is_small_value(value: u64, min_deposit_sompi: U256) -> bool {
+    value < min_deposit_sompi.as_u64()
 }
 
 /// CONTRACT:
@@ -294,7 +295,7 @@ fn create_withdrawal_pskt(
 pub fn filter_outputs_from_msgs(
     messages: Vec<HyperlaneMessage>,
     prefix: Prefix,
-    min_deposit_sompi: u64,
+    min_deposit_sompi: U256,
 ) -> (Vec<HyperlaneMessage>, Vec<TransactionOutput>) {
     let mut hl_msgs: Vec<HyperlaneMessage> = Vec::new();
     let mut outputs: Vec<TransactionOutput> = Vec::new();

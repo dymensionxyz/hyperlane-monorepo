@@ -405,7 +405,7 @@ pub fn build_kaspa_connection_conf(
     let kaspa_min_deposit_sompi = chain
         .chain(err)
         .get_key("kaspaMinDepositSompi")
-        .parse_u64()
+        .parse_u256()
         .end()?;
 
     let mut local_err = ConfigParsingError::default();

@@ -17,7 +17,7 @@ pub async fn on_new_withdrawals(
     relayer: EasyKaspaWallet,
     cosmos: CosmosGrpcClient,
     escrow_public: EscrowPublic,
-    min_deposit_sompi: u64,
+    min_deposit_sompi: U256,
 ) -> Result<Option<WithdrawFXG>> {
     info!("Kaspa relayer, getting pending withdrawals");
     let (current_anchor, pending_msgs) = filter_pending_withdrawals(messages, &cosmos)

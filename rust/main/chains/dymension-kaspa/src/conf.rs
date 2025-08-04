@@ -3,7 +3,7 @@ use std::str::FromStr;
 use derive_new::new;
 use url::Url;
 
-use hyperlane_core::{config::OpSubmissionConfig, ChainCommunicationError, FixedPointNumber, H256};
+use hyperlane_core::{config::OpSubmissionConfig, ChainCommunicationError, FixedPointNumber, H256, U256};
 
 /// Kaspa connection configuration
 #[derive(Debug, Clone)]
@@ -30,7 +30,7 @@ pub struct ConnectionConf {
     pub hub_grpc_urls: Vec<Url>,
     pub op_submission_config: OpSubmissionConfig,
 
-    pub min_deposit_sompi: u64,
+    pub min_deposit_sompi: U256,
 
     pub validator_stuff: Option<ValidatorStuff>,
     pub relayer_stuff: Option<RelayerStuff>,
@@ -88,7 +88,7 @@ impl ConnectionConf {
         hub_mailbox_id: String,
         op_submission_config: OpSubmissionConfig,
         validation_conf: ValidationConf,
-        min_deposit_sompi: u64,
+        min_deposit_sompi: U256,
 
         // we could query these two instead
         hub_domain: u32,
