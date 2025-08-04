@@ -105,6 +105,11 @@ impl KaspaProvider {
         self.pending_confirmation.get_pending()
     }
 
+    /// Get the minimum deposit amount in sompi from configuration
+    pub fn get_min_deposit_sompi(&self) -> u64 {
+        self.conf.min_deposit_sompi
+    }
+
     /// dococo
     pub fn must_kas_key(&self) -> KaspaSecpKeypair {
         self.kas_key.unwrap()

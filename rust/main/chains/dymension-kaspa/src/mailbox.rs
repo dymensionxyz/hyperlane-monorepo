@@ -6,8 +6,10 @@ use hyperlane_core::{
     Mailbox, QueueOperation, ReorgPeriod, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
+use kaspa_consensus_core::tx::TransactionOutput;
+use kaspa_wallet_core::tx::is_transaction_output_dust;
 use tonic::async_trait;
-use tracing::{info, warn, debug};
+use tracing::{debug, info, warn};
 
 // Token message structure for parsing warp transfers
 #[derive(Debug)]
@@ -38,22 +40,6 @@ impl Decode for TokenMessage {
             metadata,
         })
     }
-}
-
-// Dust constants matching the Kaspa configuration
-const DUST_AMOUNT: u64 = 20_000_001;
-const MIN_DEPOSIT_SOMPI: u64 = 20_000_001; // Same as DUST_AMOUNT in the e2e config
-
-// Check if an amount is considered dust
-fn is_dust_amount(amount: U256) -> bool {
-    // Convert U256 to u64, if it's too large it's definitely not dust
-    let amount_u64 = if amount > U256::from(u64::MAX) {
-        return false;
-    } else {
-        amount.as_u64()
-    };
-    
-    amount_u64 < DUST_AMOUNT || amount_u64 < MIN_DEPOSIT_SOMPI
 }
 
 // pretends to be a mailbox
@@ -223,7 +209,10 @@ impl Mailbox for KaspaMailbox {
         let token_msg = match TokenMessage::read_from(&mut message.body.as_slice()) {
             Ok(msg) => msg,
             Err(e) => {
-                warn!("Failed to parse message body as TokenMessage: {:?}. Treating as non-dust.", e);
+                warn!(
+                    "Failed to parse message body as TokenMessage: {:?}. Treating as non-dust.",
+                    e
+                );
                 // If we can't parse it, assume it's not a warp transfer and return free gas
                 return Ok(TxCostEstimate {
                     gas_limit: 0.into(),
@@ -233,11 +222,26 @@ impl Mailbox for KaspaMailbox {
             }
         };
         
-        // Check if the amount is dust
-        if is_dust_amount(token_msg.amount_or_id) {
+        // Convert U256 to u64 for comparison
+        let amount_u64 = if token_msg.amount_or_id > U256::from(u64::MAX) {
+            // If amount is larger than u64::MAX, it's definitely not dust
+            return Ok(TxCostEstimate {
+                gas_limit: 0.into(),
+                gas_price: FixedPointNumber::from(0),
+                l2_gas_limit: None,
+            });
+        } else {
+            token_msg.amount_or_id.as_u64()
+        };
+        
+        // Get dust threshold from configuration
+        let min_deposit_sompi = self.provider.get_min_deposit_sompi();
+        
+        // Check if the amount is dust using the same logic as hub_to_kaspa.rs
+        if amount_u64 < min_deposit_sompi {
             debug!(
-                "Detected dust amount in warp transfer: {} sompi. Returning infinite gas cost to prevent relay.",
-                token_msg.amount_or_id
+                "Detected dust amount in warp transfer: {} sompi (below minimum {}). Returning infinite gas cost to prevent relay.",
+                amount_u64, min_deposit_sompi
             );
             // Return effectively infinite gas cost to prevent the relayer from processing this message
             Ok(TxCostEstimate {
@@ -246,9 +250,23 @@ impl Mailbox for KaspaMailbox {
                 l2_gas_limit: None,
             })
         } else {
+            // Also check using kaspa's built-in dust detection
+            let tx_out = TransactionOutput::new(amount_u64, vec![].into());
+            if is_transaction_output_dust(&tx_out) {
+                debug!(
+                    "Detected dust amount in warp transfer: {} sompi (failed Kaspa dust check). Returning infinite gas cost to prevent relay.",
+                    amount_u64
+                );
+                return Ok(TxCostEstimate {
+                    gas_limit: U256::MAX,
+                    gas_price: FixedPointNumber::from(u128::MAX),
+                    l2_gas_limit: None,
+                });
+            }
+            
             debug!(
                 "Warp transfer amount {} sompi is not dust. Returning zero gas cost.",
-                token_msg.amount_or_id
+                amount_u64
             );
             // Return zero/free gas cost for non-dust amounts
             Ok(TxCostEstimate {
