@@ -5,10 +5,12 @@ use hyperlane_core::{
     utils::bytes_to_hex, BatchResult, ChainResult, ContractLocator, FixedPointNumber,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
     Mailbox, QueueOperation, ReorgPeriod, TxCostEstimate, TxOutcome, H256, H512, U256,
+    Decode
 };
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use tonic::async_trait;
 use tracing::info;
+use hyperlane_warp_route::TokenMessage;
 
 
 // pretends to be a mailbox
@@ -186,7 +188,7 @@ impl Mailbox for KaspaMailbox {
         };
 
         if is_small_value(
-            token_msg.amount_or_id.as_u64(),
+            token_msg.amount().as_u64(),
             self.provider.get_min_deposit_sompi(),
         ) {
             Ok(TxCostEstimate {
