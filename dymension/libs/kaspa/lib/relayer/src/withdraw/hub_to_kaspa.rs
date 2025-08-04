@@ -1,3 +1,4 @@
+use super::minimum::{is_dust, is_small_value};
 use corelib::escrow::EscrowPublic;
 use corelib::finality;
 use corelib::message::parse_hyperlane_metadata;
@@ -7,7 +8,6 @@ use corelib::wallet::SigningResources;
 use corelib::withdraw::WithdrawFXG;
 use eyre::eyre;
 use eyre::Result;
-use hardcode::tx::DUST_AMOUNT;
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::U256;
 use kaspa_addresses::Prefix;
@@ -24,7 +24,6 @@ use kaspa_rpc_core::{RpcTransaction, RpcUtxosByAddressesEntry};
 use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_txscript::{opcodes::codes::OpData65, script_builder::ScriptBuilder};
 use kaspa_wallet_core::prelude::DynRpcApi;
-use kaspa_wallet_core::tx::is_transaction_output_dust;
 use kaspa_wallet_pskt::prelude::Bundle;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
@@ -233,16 +232,6 @@ pub fn build_withdrawal_pskt(
     outputs.extend(vec![relayer_change, escrow_change]);
 
     create_withdrawal_pskt(inputs, outputs, payload)
-}
-
-fn is_dust(tx_out: &TransactionOutput, min_deposit_sompi: U256) -> bool {
-    tx_out.value < DUST_AMOUNT
-        || is_transaction_output_dust(tx_out)
-        || is_small_value(tx_out.value, min_deposit_sompi)
-}
-
-fn is_small_value(value: u64, min_deposit_sompi: U256) -> bool {
-    value < min_deposit_sompi.as_u64()
 }
 
 /// CONTRACT:

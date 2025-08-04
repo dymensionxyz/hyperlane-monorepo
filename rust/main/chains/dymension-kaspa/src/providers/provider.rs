@@ -106,7 +106,7 @@ impl KaspaProvider {
     }
 
     /// Get the minimum deposit amount in sompi from configuration
-    pub fn get_min_deposit_sompi(&self) -> u64 {
+    pub fn get_min_deposit_sompi(&self) -> U256 {
         self.conf.min_deposit_sompi
     }
 

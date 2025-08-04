@@ -1,6 +1,6 @@
 use super::consts::*;
-use super::dust::{is_dust, is_dust_amount};
 use crate::KaspaProvider;
+use dym_kas_relayer::withdraw::minimum::is_small_value;
 use hyperlane_core::{
     utils::bytes_to_hex, BatchResult, ChainResult, ContractLocator, Decode, FixedPointNumber,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
@@ -216,45 +216,19 @@ impl Mailbox for KaspaMailbox {
             }
         };
 
-        let min_deposit_sompi = self.provider.get_min_deposit_sompi();
-
-        if is_dust_amount(amount_u64, min_deposit_sompi) {
-            debug!(
-                "Detected dust amount in warp transfer: {} sompi. Returning infinite gas cost to prevent relay.",
-                amount_u64
-            );
-            // Return effectively infinite gas cost to prevent the relayer from processing this message
-            return Ok(TxCostEstimate {
+        if is_small_value(token_msg.amount_or_id.as_u64(), self.provider.get_min_deposit_sompi()) {
+            Ok(TxCostEstimate {
                 gas_limit: U256::MAX,
                 gas_price: FixedPointNumber::from(u128::MAX),
                 l2_gas_limit: None,
-            });
-        }
-
-        // Also check using full dust detection with TransactionOutput (matching hub_to_kaspa.rs)
-        let tx_out = TransactionOutput::new(amount_u64, vec![].into());
-        if is_dust(&tx_out, min_deposit_sompi) {
-            debug!(
-                "Detected dust amount in warp transfer: {} sompi (failed full dust check). Returning infinite gas cost to prevent relay.",
-                amount_u64
-            );
-            return Ok(TxCostEstimate {
-                gas_limit: U256::MAX,
-                gas_price: FixedPointNumber::from(u128::MAX),
+            })
+        } else {
+            Ok(TxCostEstimate {
+                gas_limit: 0.into(),
+                gas_price: FixedPointNumber::from(0),
                 l2_gas_limit: None,
-            });
+            })
         }
-
-        debug!(
-            "Warp transfer amount {} sompi is not dust. Returning zero gas cost.",
-            amount_u64
-        );
-        // Return zero/free gas cost for non-dust amounts
-        Ok(TxCostEstimate {
-            gas_limit: 0.into(),
-            gas_price: FixedPointNumber::from(0),
-            l2_gas_limit: None,
-        })
     }
 
     // used in payload derivation: https://github.com/dymensionxyz/hyperlane-monorepo/blob/7d0ae7590decd9ea09f6c88f8eeeb49df0295e19/rust/main/agents/relayer/src/msg/pending_message.rs#L551

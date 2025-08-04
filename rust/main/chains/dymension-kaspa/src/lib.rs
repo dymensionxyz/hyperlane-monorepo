@@ -7,7 +7,6 @@
 pub mod application;
 mod conf;
 mod consts;
-mod dust;
 mod error;
 mod indexers;
 mod ism;
