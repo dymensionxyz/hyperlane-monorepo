@@ -52,8 +52,9 @@ mod tests {
 
     #[test]
     fn test_foo() {
-        let h256 = H256::from_str("0xbcff7587f574e249b549329291239682d6d3481ccbc5997c79770a607ab3ec98")
-            .unwrap();
+        let h256 =
+            H256::from_str("0xbcff7587f574e249b549329291239682d6d3481ccbc5997c79770a607ab3ec98")
+                .unwrap();
         let address = get_recipient_address(h256, Prefix::Testnet);
         println!("address: {:?}", address);
         let script_pubkey = get_recipient_script_pubkey(h256, Prefix::Testnet);
