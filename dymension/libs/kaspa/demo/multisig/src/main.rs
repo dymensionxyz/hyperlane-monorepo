@@ -127,8 +127,7 @@ async fn demo() -> Result<()> {
 
     let args = Args::parse();
 
-    // let w = load_wallet(&args, Some(e2e_url)).await?;
-    let w = load_wallet(&args, None).await?;
+    let w = load_wallet(&args, Some(e2e_url)).await?;
 
     let rpc = w.api();
 
