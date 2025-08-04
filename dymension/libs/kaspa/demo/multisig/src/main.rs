@@ -10,8 +10,8 @@ use corelib::user::deposit::deposit_with_payload as deposit;
 use corelib::wallet::*;
 use hardcode::e2e::{
     get_tn10_config as e2e_config, ADDRESS_PREFIX as e2e_address_prefix,
-    DEPOSIT_AMOUNT as e2e_deposit_amount, NETWORK_ID as e2e_network_id,
-    RELAYER_NETWORK_FEE as e2e_relayer_network_fee, URL as e2e_url,
+    DEPOSIT_AMOUNT as e2e_deposit_amount, MIN_DEPOSIT_SOMPI as e2e_min_deposit_sompi,
+    NETWORK_ID as e2e_network_id, RELAYER_NETWORK_FEE as e2e_relayer_network_fee, URL as e2e_url,
 };
 use relayer::withdraw::demo::*;
 use relayer::withdraw::hub_to_kaspa::{
@@ -177,6 +177,7 @@ async fn demo() -> Result<()> {
         &e.public(e2e_address_prefix),
         &w.account().change_address().unwrap(),
         e2e_network_id,
+        e2e_min_deposit_sompi,
     )
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
 

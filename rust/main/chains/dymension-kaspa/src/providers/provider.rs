@@ -153,7 +153,7 @@ impl KaspaProvider {
             self.easy_wallet.clone(),
             self.cosmos_rpc.clone(),
             self.escrow(),
-            None,
+            self.conf.min_deposit_sompi,
         )
         .await?;
         info!("Kaspa provider, constructed withdrawal TXs");
