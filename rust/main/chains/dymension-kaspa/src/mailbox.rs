@@ -1,13 +1,60 @@
 use super::consts::*;
 use crate::KaspaProvider;
 use hyperlane_core::{
-    utils::bytes_to_hex, BatchResult, ChainResult, ContractLocator, FixedPointNumber,
+    utils::bytes_to_hex, BatchResult, ChainResult, ContractLocator, Decode, FixedPointNumber,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
     Mailbox, QueueOperation, ReorgPeriod, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use tonic::async_trait;
-use tracing::info;
+use tracing::{info, warn, debug};
+
+// Token message structure for parsing warp transfers
+#[derive(Debug)]
+struct TokenMessage {
+    recipient: H256,
+    amount_or_id: U256,
+    metadata: Vec<u8>,
+}
+
+impl Decode for TokenMessage {
+    fn read_from<R>(reader: &mut R) -> Result<Self, hyperlane_core::HyperlaneProtocolError>
+    where
+        R: std::io::Read,
+    {
+        let mut recipient = H256::zero();
+        reader.read_exact(recipient.as_mut())?;
+
+        let mut amount_or_id = [0_u8; 32];
+        reader.read_exact(&mut amount_or_id)?;
+        let amount_or_id = U256::from_big_endian(&amount_or_id);
+
+        let mut metadata = vec![];
+        reader.read_to_end(&mut metadata)?;
+
+        Ok(Self {
+            recipient,
+            amount_or_id,
+            metadata,
+        })
+    }
+}
+
+// Dust constants matching the Kaspa configuration
+const DUST_AMOUNT: u64 = 20_000_001;
+const MIN_DEPOSIT_SOMPI: u64 = 20_000_001; // Same as DUST_AMOUNT in the e2e config
+
+// Check if an amount is considered dust
+fn is_dust_amount(amount: U256) -> bool {
+    // Convert U256 to u64, if it's too large it's definitely not dust
+    let amount_u64 = if amount > U256::from(u64::MAX) {
+        return false;
+    } else {
+        amount.as_u64()
+    };
+    
+    amount_u64 < DUST_AMOUNT || amount_u64 < MIN_DEPOSIT_SOMPI
+}
 
 // pretends to be a mailbox
 #[derive(Debug, Clone)]
@@ -169,14 +216,47 @@ impl Mailbox for KaspaMailbox {
 
     async fn process_estimate_costs(
         &self,
-        _message: &HyperlaneMessage,
+        message: &HyperlaneMessage,
         _metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
-        Ok(TxCostEstimate {
-            gas_limit: 0.into(),
-            gas_price: FixedPointNumber::from(0),
-            l2_gas_limit: None,
-        })
+        // Try to parse the message body as a TokenMessage to get the transfer amount
+        let token_msg = match TokenMessage::read_from(&mut message.body.as_slice()) {
+            Ok(msg) => msg,
+            Err(e) => {
+                warn!("Failed to parse message body as TokenMessage: {:?}. Treating as non-dust.", e);
+                // If we can't parse it, assume it's not a warp transfer and return free gas
+                return Ok(TxCostEstimate {
+                    gas_limit: 0.into(),
+                    gas_price: FixedPointNumber::from(0),
+                    l2_gas_limit: None,
+                });
+            }
+        };
+        
+        // Check if the amount is dust
+        if is_dust_amount(token_msg.amount_or_id) {
+            debug!(
+                "Detected dust amount in warp transfer: {} sompi. Returning infinite gas cost to prevent relay.",
+                token_msg.amount_or_id
+            );
+            // Return effectively infinite gas cost to prevent the relayer from processing this message
+            Ok(TxCostEstimate {
+                gas_limit: U256::MAX,
+                gas_price: FixedPointNumber::from(u128::MAX),
+                l2_gas_limit: None,
+            })
+        } else {
+            debug!(
+                "Warp transfer amount {} sompi is not dust. Returning zero gas cost.",
+                token_msg.amount_or_id
+            );
+            // Return zero/free gas cost for non-dust amounts
+            Ok(TxCostEstimate {
+                gas_limit: 0.into(),
+                gas_price: FixedPointNumber::from(0),
+                l2_gas_limit: None,
+            })
+        }
     }
 
     // used in payload derivation: https://github.com/dymensionxyz/hyperlane-monorepo/blob/7d0ae7590decd9ea09f6c88f8eeeb49df0295e19/rust/main/agents/relayer/src/msg/pending_message.rs#L551
