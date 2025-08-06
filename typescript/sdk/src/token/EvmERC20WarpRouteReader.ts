@@ -110,13 +110,15 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
         this.deriveHypCollateralCctpTokenConfig.bind(this),
       [TokenType.collateralVaultRebase]:
         this.deriveHypCollateralVaultRebaseTokenConfig.bind(this),
-      [TokenType.collateralMemo]: null,
+      [TokenType.collateralMemo]:
+        this.deriveHypCollateralMemoTokenConfig.bind(this),
       [TokenType.native]: this.deriveHypNativeTokenConfig.bind(this),
-      [TokenType.nativeMemo]: null,
+      [TokenType.nativeMemo]: this.deriveHypNativeMemoTokenConfig.bind(this),
       [TokenType.nativeOpL2]: this.deriveOpL2TokenConfig.bind(this),
       [TokenType.nativeOpL1]: this.deriveOpL1TokenConfig.bind(this),
       [TokenType.synthetic]: this.deriveHypSyntheticTokenConfig.bind(this),
-      [TokenType.syntheticMemo]: null,
+      [TokenType.syntheticMemo]:
+        this.deriveHypSyntheticMemoTokenConfig.bind(this),
       [TokenType.syntheticRebase]:
         this.deriveHypSyntheticRebaseConfig.bind(this),
       [TokenType.nativeScaled]: null,
@@ -350,24 +352,26 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
         factory: HypXERC20Lockbox__factory,
         method: 'lockbox',
       },
-      [TokenType.collateral]: {
-        factory: HypERC20Collateral__factory,
-        method: 'wrappedToken',
-      },
+      // Check memo types before their non-memo counterparts
       [TokenType.collateralMemo]: {
         factory: HypERC20CollateralMemo__factory,
+        method: 'transferRemoteMemo',
+      },
+      [TokenType.collateral]: {
+        factory: HypERC20Collateral__factory,
         method: 'wrappedToken',
       },
       [TokenType.syntheticRebase]: {
         factory: HypERC4626__factory,
         method: 'collateralDomain',
       },
-      [TokenType.synthetic]: {
-        factory: HypERC20__factory,
-        method: 'decimals',
-      },
+      // Check syntheticMemo before synthetic
       [TokenType.syntheticMemo]: {
         factory: HypERC20Memo__factory,
+        method: 'transferRemoteMemo',
+      },
+      [TokenType.synthetic]: {
+        factory: HypERC20__factory,
         method: 'decimals',
       },
     };
@@ -382,6 +386,34 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     )) {
       try {
         const warpRoute = factory.connect(warpRouteAddress, this.provider);
+        // For memo types, check if the method exists rather than calling it
+        if (method === 'transferRemoteMemo') {
+          // Check if the function exists by trying to encode a call to it
+          try {
+            warpRoute.interface.encodeFunctionData(method, [
+              0,
+              '0x' + '0'.repeat(64),
+              0,
+              '0x',
+            ]);
+            // If encoding succeeds, the method exists
+            // For collateralMemo, also check if wrappedToken exists
+            if (tokenType === TokenType.collateralMemo) {
+              try {
+                await warpRoute.wrappedToken();
+                return TokenType.collateralMemo;
+              } catch {
+                // If wrappedToken doesn't exist, it's not collateralMemo
+                continue;
+              }
+            }
+            // For syntheticMemo, just return if transferRemoteMemo exists
+            return tokenType as TokenType;
+          } catch {
+            // Method doesn't exist, continue to next type
+            continue;
+          }
+        }
         await warpRoute[method]();
         if (tokenType === TokenType.collateral) {
           const wrappedToken = await warpRoute.wrappedToken();
@@ -610,6 +642,27 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     };
   }
 
+  private async deriveHypCollateralMemoTokenConfig(
+    hypToken: Address,
+  ): Promise<CollateralTokenConfig> {
+    const hypCollateralTokenInstance = HypERC20CollateralMemo__factory.connect(
+      hypToken,
+      this.provider,
+    );
+
+    const collateralTokenAddress =
+      await hypCollateralTokenInstance.wrappedToken();
+    const erc20TokenMetadata = await this.fetchERC20Metadata(
+      collateralTokenAddress,
+    );
+
+    return {
+      ...erc20TokenMetadata,
+      type: TokenType.collateralMemo,
+      token: collateralTokenAddress,
+    };
+  }
+
   private async deriveHypCollateralVaultTokenConfig(
     hypToken: Address,
   ): Promise<HypTokenConfig> {
@@ -645,6 +698,17 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     };
   }
 
+  private async deriveHypSyntheticMemoTokenConfig(
+    hypTokenAddress: Address,
+  ): Promise<HypTokenConfig> {
+    const erc20TokenMetadata = await this.fetchERC20Metadata(hypTokenAddress);
+
+    return {
+      ...erc20TokenMetadata,
+      type: TokenType.syntheticMemo,
+    };
+  }
+
   private async deriveHypNativeTokenConfig(
     _address: Address,
   ): Promise<HypTokenConfig> {
@@ -658,6 +722,26 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     const { name, symbol, decimals } = chainMetadata.nativeToken;
     return {
       type: TokenType.native,
+      name,
+      symbol,
+      decimals,
+      isNft: false,
+    };
+  }
+
+  private async deriveHypNativeMemoTokenConfig(
+    _address: Address,
+  ): Promise<HypTokenConfig> {
+    const chainMetadata = this.multiProvider.getChainMetadata(this.chain);
+    if (!chainMetadata.nativeToken) {
+      throw new Error(
+        `Warp route config specifies native memo token but chain metadata for chain "${this.chain}" does not provide native token details`,
+      );
+    }
+
+    const { name, symbol, decimals } = chainMetadata.nativeToken;
+    return {
+      type: TokenType.nativeMemo,
       name,
       symbol,
       decimals,
