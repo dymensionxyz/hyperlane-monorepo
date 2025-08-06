@@ -8,10 +8,7 @@ pub enum ValidationError {
     #[error("The same message was relayed twice: {message_id}")]
     DoubleSpending { message_id: String },
 
-    #[error("HL message: mismatched domain or recipient")]
-    IncorrectHLMessage,
-
-    #[error("HL message field mismatch - {field}: expected {expected}, got {actual}")]
+    #[error("HL message field mismatch: field={field} expected={expected} actual={actual}")]
     HLMessageFieldMismatch {
         field: String,
         expected: String,
@@ -20,9 +17,6 @@ pub enum ValidationError {
 
     #[error("Transaction is not safe against reorg: {tx_id}")]
     NotSafeAgainstReorg { tx_id: String },
-
-    #[error("Message is for another bridge: {message_id}")]
-    MessageWrongBridge { message_id: String },
 
     #[error("Hub is not bootstrapped")]
     HubNotBootstrapped,
@@ -36,10 +30,10 @@ pub enum ValidationError {
     #[error("Failed to parse payload: {reason}")]
     PayloadParseError { reason: String },
 
-    #[error("Insufficient deposit amount: required {required}, got {actual}")]
+    #[error("Insufficient deposit amount: required={required} actual={actual}")]
     InsufficientDepositAmount { required: String, actual: String },
 
-    #[error("Deposit not to escrow address: expected {expected}, got {actual}")]
+    #[error("Deposit not to escrow address: expected={expected} actual={actual}")]
     WrongDepositAddress { expected: String, actual: String },
 
     #[error("Transaction data not found in block")]
@@ -51,7 +45,7 @@ pub enum ValidationError {
     #[error("Invalid outpoint data: {reason}")]
     InvalidOutpointData { reason: String },
 
-    #[error("Insufficient outpoints in cache: minimum 2 required, got {count}")]
+    #[error("Insufficient outpoints in cache: minimum_required=2 actual_count={count}")]
     InsufficientOutpoints { count: usize },
 
     #[error("Previous transaction not found in inputs")]
@@ -87,18 +81,16 @@ pub enum ValidationError {
     #[error("HL message used escrow address as withdrawal recipient")]
     EscrowWithdrawalNotAllowed { message_id: String },
 
-    #[error("Anchor {o:?} not found in PSKT inputs")]
+    #[error("Anchor not found in PSKT inputs: outpoint={o:?}")]
     AnchorNotFound { o: TransactionOutpoint },
 
-    #[error("Anchor {o:?} is not escrow change")]
+    #[error("Anchor is not escrow change: outpoint={o:?}")]
     NonEscrowAnchor { o: TransactionOutpoint },
 
     #[error("No messages to validate")]
     NoMessages,
 
-    #[error(
-        "Relayer Hub anchor {hub_anchor:?} does not match withdrawal Hub anchor {relayer_anchor:?}"
-    )]
+    #[error("Hub anchor mismatch: hub_anchor={hub_anchor:?} relayer_anchor={relayer_anchor:?}")]
     HubAnchorMismatch {
         hub_anchor: TransactionOutpoint,
         relayer_anchor: TransactionOutpoint,
@@ -106,9 +98,6 @@ pub enum ValidationError {
 
     #[error("Sighash type is not SIG_HASH_ALL | SIG_HASH_ANY_ONE_CAN_PAY")]
     SigHashType,
-
-    #[error("PSKT should not have lock time")]
-    LockTime,
 
     #[error("Next anchor not found in PSKT outputs")]
     NextAnchorNotFound,
@@ -119,21 +108,16 @@ pub enum ValidationError {
     #[error("PSKT payload doesn't match inteded HL messages")]
     PayloadMismatch,
 
-    #[error("PSKT has incorrect TX version")]
-    TxVersionMismatch,
-
-    #[error("Outpoint {o:?} not found in PSKT chain")]
+    #[error("Outpoint not found in PSKT chain: outpoint={o:?}")]
     AnchorMismatch { o: TransactionOutpoint },
 
-    #[error("Message cache length mismatch: {expected} != {actual}")]
+    #[error("Message cache length mismatch: expected={expected} actual={actual}")]
     MessageCacheLengthMismatch { expected: usize, actual: usize },
 
     #[error("Some HL messages do not have outputs")]
     MissingOutputs,
 
-    #[error(
-        "Escrow input amount {input_amount} does not match escrow output amount {output_amount}"
-    )]
+    #[error("Escrow amount mismatch: input_amount={input_amount} output_amount={output_amount}")]
     EscrowAmountMismatch {
         input_amount: u64,
         output_amount: u64,
@@ -142,6 +126,18 @@ pub enum ValidationError {
     #[error("Failed to get transaction: {tx_id}")]
     TransactionFetchError { tx_id: String },
 
-    #[error("{0}")]
-    SystemError(#[from] eyre::Report),
+    #[error("External API error: {reason}")]
+    ExternalApiError { reason: String },
+
+    #[error("Block hash conversion error: {reason}")]
+    BlockHashConversionError { reason: String },
+
+    #[error("Transaction hash conversion error: {reason}")]
+    TransactionHashConversionError { reason: String },
+
+    #[error("Hub query error: {reason}")]
+    HubQueryError { reason: String },
+
+    #[error("Kaspa node error: {reason}")]
+    KaspaNodeError { reason: String },
 }

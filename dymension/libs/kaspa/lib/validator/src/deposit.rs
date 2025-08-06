@@ -111,10 +111,13 @@ pub async fn validate_new_deposit(
     hub_client: &CosmosGrpcClient,
     must_match: MustMatch,
 ) -> Result<(), ValidationError> {
-    let hub_bootstrapped = hub_client
-        .hub_bootstrapped()
-        .await
-        .map_err(|e| ValidationError::SystemError(e.into()))?;
+    let hub_bootstrapped =
+        hub_client
+            .hub_bootstrapped()
+            .await
+            .map_err(|e| ValidationError::HubQueryError {
+                reason: e.to_string(),
+            })?;
     validate_new_deposit_inner(
         client_node,
         client_rest,
@@ -154,9 +157,11 @@ pub async fn validate_new_deposit_inner(
         return Err(ValidationError::InvalidTransactionHash);
     }
 
-    let containing_block_hash = d_untrusted
-        .containing_block_hash_rpc()
-        .map_err(|e| ValidationError::SystemError(e.into()))?;
+    let containing_block_hash = d_untrusted.containing_block_hash_rpc().map_err(|e| {
+        ValidationError::BlockHashConversionError {
+            reason: e.to_string(),
+        }
+    })?;
 
     if !finality::is_safe_against_reorg(
         client_rest,
@@ -164,8 +169,9 @@ pub async fn validate_new_deposit_inner(
         Some(containing_block_hash.to_string()),
     )
     .await
-    .map_err(|e| ValidationError::SystemError(e.into()))?
-    {
+    .map_err(|e| ValidationError::ExternalApiError {
+        reason: e.to_string(),
+    })? {
         return Err(ValidationError::NotSafeAgainstReorg {
             tx_id: d_untrusted.tx_id.clone(),
         });
@@ -174,11 +180,16 @@ pub async fn validate_new_deposit_inner(
     let containing_block: RpcBlock = client_node
         .get_block(containing_block_hash, true)
         .await
-        .map_err(|e| ValidationError::SystemError(e.into()))?;
+        .map_err(|e| ValidationError::KaspaNodeError {
+            reason: e.to_string(),
+        })?;
 
-    let tx_id_rpc = d_untrusted
-        .tx_id_rpc()
-        .map_err(|e| ValidationError::SystemError(e.into()))?;
+    let tx_id_rpc =
+        d_untrusted
+            .tx_id_rpc()
+            .map_err(|e| ValidationError::TransactionHashConversionError {
+                reason: e.to_string(),
+            })?;
 
     let actual_deposit = tx_by_id(&containing_block, &tx_id_rpc)?;
 

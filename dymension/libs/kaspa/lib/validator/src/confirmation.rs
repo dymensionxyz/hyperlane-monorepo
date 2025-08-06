@@ -127,7 +127,12 @@ pub async fn validate_confirmed_withdrawals(
                 }
                 None => None,
             };
-            if !finality::is_safe_against_reorg(client_rest, tx_id, hint).await? {
+            if !finality::is_safe_against_reorg(client_rest, tx_id, hint)
+                .await
+                .map_err(|e| ValidationError::ExternalApiError {
+                    reason: e.to_string(),
+                })?
+            {
                 return Err(ValidationError::NotSafeAgainstReorg {
                     tx_id: tx_id.clone(),
                 });
