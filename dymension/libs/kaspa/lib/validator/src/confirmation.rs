@@ -28,13 +28,13 @@ pub async fn validate_confirmed_withdrawals(
 
     let proposed_hub_anchor_old = {
         let o = untrusted_progress.old_outpoint.as_ref().ok_or_else(|| {
-            ValidationError::FailedGeneralVerification {
-                reason: "Old outpoint missing in progress indication".to_string(),
+            ValidationError::OutpointMissing {
+                description: "old outpoint in progress indication".to_string(),
             }
         })?;
         TransactionOutpoint {
             transaction_id: KaspaHash::from_bytes(o.transaction_id.as_slice().try_into().map_err(
-                |e| ValidationError::FailedGeneralVerification {
+                |e| ValidationError::InvalidOutpointData {
                     reason: format!("Invalid anchor outpoint transaction ID: {}", e),
                 },
             )?),
@@ -44,13 +44,13 @@ pub async fn validate_confirmed_withdrawals(
 
     let proposed_hub_anchor_new = {
         let o = untrusted_progress.new_outpoint.as_ref().ok_or_else(|| {
-            ValidationError::FailedGeneralVerification {
-                reason: "New outpoint missing in progress indication".to_string(),
+            ValidationError::OutpointMissing {
+                description: "new outpoint in progress indication".to_string(),
             }
         })?;
         TransactionOutpoint {
             transaction_id: KaspaHash::from_bytes(o.transaction_id.as_slice().try_into().map_err(
-                |e| ValidationError::FailedGeneralVerification {
+                |e| ValidationError::InvalidOutpointData {
                     reason: format!("Invalid new outpoint transaction ID: {}", e),
                 },
             )?),
@@ -61,8 +61,8 @@ pub async fn validate_confirmed_withdrawals(
     // Validate the progress indication is correct according to the cache
     let outpoint_sequence = &fxg.outpoints;
     if outpoint_sequence.len() < 2 {
-        return Err(ValidationError::FailedGeneralVerification {
-            reason: "Insufficient outpoints in cache for validation".to_string(),
+        return Err(ValidationError::InsufficientOutpoints {
+            count: outpoint_sequence.len(),
         });
     }
     if outpoint_sequence[0] != proposed_hub_anchor_old {
@@ -90,18 +90,16 @@ pub async fn validate_confirmed_withdrawals(
         let tx_id = &o.transaction_id.to_string();
 
         // Get the transaction that CREATED this UTXO
-        let tx = client_rest.get_tx_by_id(tx_id).await.map_err(|e| {
-            ValidationError::FailedGeneralVerification {
-                reason: format!("Failed to get transaction {}: {}", o.transaction_id, e),
+        let tx = client_rest.get_tx_by_id(tx_id).await.map_err(|_| {
+            ValidationError::TransactionFetchError {
+                tx_id: o.transaction_id.to_string(),
             }
         })?;
 
         // Validate that this transaction spends the previous outpoint
         let o_prev = &outpoint_sequence[i - 1]; // Previous outpoint in the chain
         if !outpoint_in_inputs(&tx, o_prev)? {
-            return Err(ValidationError::FailedGeneralVerification {
-                reason: "Previous transaction not found in inputs".to_string(),
-            });
+            return Err(ValidationError::PreviousTransactionNotFound);
         }
 
         // Validate that this transaction creates the current outpoint
@@ -110,15 +108,12 @@ pub async fn validate_confirmed_withdrawals(
         let p = tx
             .payload
             .clone()
-            .ok_or_else(|| ValidationError::FailedGeneralVerification {
-                reason: "No payload found in transaction".to_string(),
-            })?;
+            .ok_or(ValidationError::MissingTransactionPayload)?;
 
-        let message_ids = MessageIDs::from_tx_payload(&p).map_err(|e| {
-            ValidationError::FailedGeneralVerification {
-                reason: format!("Failed to parse message IDs from payload: {}", e),
-            }
-        })?;
+        let message_ids =
+            MessageIDs::from_tx_payload(&p).map_err(|e| ValidationError::PayloadParseError {
+                reason: format!("Failed to parse message IDs: {}", e),
+            })?;
 
         // If the last TX in sequence is final then the others must be too
         if i == outpoint_sequence.len() - 1 {
@@ -154,29 +149,26 @@ fn outpoint_in_inputs(
     transaction: &TxModel,
     anchor: &TransactionOutpoint,
 ) -> Result<bool, ValidationError> {
-    let inputs =
-        transaction
-            .inputs
-            .as_ref()
-            .ok_or_else(|| ValidationError::FailedGeneralVerification {
-                reason: "Transaction inputs not found".to_string(),
-            })?;
+    let inputs = transaction
+        .inputs
+        .as_ref()
+        .ok_or(ValidationError::MissingTransactionInputs)?;
 
     for input in inputs {
         // Properly decode the hex values like in the relayer
         let input_utxo = TransactionOutpoint {
             transaction_id: kaspa_hashes::Hash::from_bytes(
                 hex::decode(&input.previous_outpoint_hash)
-                    .map_err(|e| ValidationError::FailedGeneralVerification {
+                    .map_err(|e| ValidationError::InvalidOutpointData {
                         reason: format!("Invalid hex in previous_outpoint_hash: {}", e),
                     })?
                     .try_into()
-                    .map_err(|_| ValidationError::FailedGeneralVerification {
+                    .map_err(|_| ValidationError::InvalidOutpointData {
                         reason: "Invalid hex length in previous_outpoint_hash".to_string(),
                     })?,
             ),
             index: input.previous_outpoint_index.parse().map_err(|e| {
-                ValidationError::FailedGeneralVerification {
+                ValidationError::InvalidOutpointData {
                     reason: format!("Failed to parse previous_outpoint_index: {}", e),
                 }
             })?,
@@ -197,13 +189,10 @@ fn escrow_outpoint_in_outputs(
     escrow_outpoint_unstrusted: &TransactionOutpoint,
     escrow_address: &Address,
 ) -> Result<(), ValidationError> {
-    let outs =
-        tx_trusted
-            .outputs
-            .as_ref()
-            .ok_or_else(|| ValidationError::FailedGeneralVerification {
-                reason: "Transaction outputs not found".to_string(),
-            })?;
+    let outs = tx_trusted
+        .outputs
+        .as_ref()
+        .ok_or(ValidationError::MissingTransactionOutputs)?;
 
     let out_actual: &TxOutput = outs
         .get(escrow_outpoint_unstrusted.index as usize)
@@ -215,9 +204,7 @@ fn escrow_outpoint_in_outputs(
     let recipient_actual = out_actual
         .script_public_key_address
         .clone()
-        .ok_or_else(|| ValidationError::FailedGeneralVerification {
-            reason: "No script public key address found in anchor output".to_string(),
-        })?;
+        .ok_or(ValidationError::MissingScriptPubKeyAddress)?;
 
     if recipient_actual != escrow_address.address_to_string() {
         return Err(ValidationError::NonEscrowAnchor {
@@ -245,12 +232,7 @@ fn validate_message_ids_exactly_equal(
         .collect();
 
     if expected_message_ids != untrusted_message_ids {
-        return Err(ValidationError::FailedGeneralVerification {
-            reason: format!(
-                "Message IDs mismatch - expected: {:?}, actual: {:?}",
-                expected_message_ids, untrusted_message_ids
-            ),
-        });
+        return Err(ValidationError::MessageIdsMismatch);
     }
 
     Ok(())

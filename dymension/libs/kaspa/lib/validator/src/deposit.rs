@@ -54,43 +54,38 @@ impl MustMatch {
             return Ok(());
         }
         if self.partial_message.version != other.version {
-            return Err(ValidationError::FailedGeneralVerification {
-                reason: format!(
-                    "version is incorrect, expected: {}, got: {}",
-                    self.partial_message.version, other.version
-                ),
+            return Err(ValidationError::HLMessageFieldMismatch {
+                field: "version".to_string(),
+                expected: self.partial_message.version.to_string(),
+                actual: other.version.to_string(),
             });
         }
         if self.partial_message.origin != other.origin {
-            return Err(ValidationError::FailedGeneralVerification {
-                reason: format!(
-                    "origin is incorrect, expected: {}, got: {}",
-                    self.partial_message.origin, other.origin
-                ),
+            return Err(ValidationError::HLMessageFieldMismatch {
+                field: "origin".to_string(),
+                expected: self.partial_message.origin.to_string(),
+                actual: other.origin.to_string(),
             });
         }
         if self.partial_message.sender != other.sender {
-            return Err(ValidationError::FailedGeneralVerification {
-                reason: format!(
-                    "sender is incorrect, expected: {}, got: {}",
-                    self.partial_message.sender, other.sender
-                ),
+            return Err(ValidationError::HLMessageFieldMismatch {
+                field: "sender".to_string(),
+                expected: format!("{:?}", self.partial_message.sender),
+                actual: format!("{:?}", other.sender),
             });
         }
         if self.partial_message.destination == other.destination {
-            return Err(ValidationError::FailedGeneralVerification {
-                reason: format!(
-                    "destination is incorrect, expected: {}, got: {}",
-                    self.partial_message.destination, other.destination
-                ),
+            return Err(ValidationError::HLMessageFieldMismatch {
+                field: "destination".to_string(),
+                expected: format!("!= {}", self.partial_message.destination),
+                actual: other.destination.to_string(),
             });
         }
         if self.partial_message.recipient != other.recipient {
-            return Err(ValidationError::FailedGeneralVerification {
-                reason: format!(
-                    "recipient is incorrect, expected: {}, got: {}",
-                    self.partial_message.recipient, other.recipient
-                ),
+            return Err(ValidationError::HLMessageFieldMismatch {
+                field: "recipient".to_string(),
+                expected: format!("{:?}", self.partial_message.recipient),
+                actual: format!("{:?}", other.recipient),
             });
         }
         Ok(())
@@ -152,15 +147,11 @@ pub async fn validate_new_deposit_inner(
     must_match: MustMatch,
 ) -> Result<(), ValidationError> {
     if !hub_bootstrapped {
-        return Err(ValidationError::FailedGeneralVerification {
-            reason: "Hub is not bootstrapped, cannot validate deposit".to_string(),
-        });
+        return Err(ValidationError::HubNotBootstrapped);
     }
 
     if d_untrusted.tx_id_rpc().is_err() {
-        return Err(ValidationError::FailedGeneralVerification {
-            reason: "Deposit tx hash is not valid".to_string(),
-        });
+        return Err(ValidationError::InvalidTransactionHash);
     }
 
     let containing_block_hash = d_untrusted
@@ -195,14 +186,14 @@ pub async fn validate_new_deposit_inner(
     let actual_deposit_utxo: &RpcTransactionOutput = actual_deposit
         .outputs
         .get(d_untrusted.utxo_index)
-        .ok_or_else(|| ValidationError::FailedGeneralVerification {
-            reason: "utxo not found by index".to_string(),
+        .ok_or_else(|| ValidationError::UtxoNotFound {
+            index: d_untrusted.utxo_index,
         })?;
 
     // get HLMessage and token message from Tx payload
     let actual_hl_message = ParsedHL::parse_bytes(actual_deposit.payload).map_err(|e| {
-        ValidationError::FailedGeneralVerification {
-            reason: format!("Failed to parse HL message from payload: {}", e),
+        ValidationError::PayloadParseError {
+            reason: e.to_string(),
         }
     })?;
 
@@ -212,41 +203,34 @@ pub async fn validate_new_deposit_inner(
     // recreate the metadata injection to the token message done by the relayer
     let actual_hl_message_with_injected_info =
         add_kaspa_metadata_hl_messsage(actual_hl_message, tx_id_rpc, d_untrusted.utxo_index)
-            .map_err(|e| ValidationError::FailedGeneralVerification {
-                reason: format!("Failed to add Kaspa metadata to HL message: {}", e),
+            .map_err(|e| ValidationError::PayloadParseError {
+                reason: format!("Failed to add Kaspa metadata: {}", e),
             })?;
 
     must_match.is_match(&actual_hl_message_with_injected_info)?;
 
     // validate the original HL message included in the Kaspa Tx its the same than the HL message relayed, after adding the metadata.
     if d_untrusted.hl_message.id() != actual_hl_message_with_injected_info.id() {
-        return Err(ValidationError::FailedGeneralVerification {
-            reason: "Relayed HL message does not match HL message included in Kaspa Tx".to_string(),
-        });
+        return Err(ValidationError::HLMessageIdMismatch);
     }
 
     // deposit covers HL message amount?
     if U256::from(actual_deposit_utxo.value) < actual_hl_amt {
-        return Err(ValidationError::FailedGeneralVerification {
-            reason: format!(
-                "Deposit amount is less than token message amount, deposit: {:?}, token message: {:?}",
-                U256::from(actual_deposit_utxo.value),
-                actual_hl_amt
-            ),
+        return Err(ValidationError::InsufficientDepositAmount {
+            required: actual_hl_amt.to_string(),
+            actual: U256::from(actual_deposit_utxo.value).to_string(),
         });
     }
 
     let actual_utxo_addr =
         extract_script_pub_key_address(&actual_deposit_utxo.script_public_key, net.address_prefix)
-            .map_err(|e| ValidationError::FailedGeneralVerification {
-                reason: format!("Failed to extract script public key address: {}", e),
+            .map_err(|e| ValidationError::ScriptPubKeyExtractionError {
+                reason: e.to_string(),
             })?;
     if actual_utxo_addr != *escrow_address {
-        return Err(ValidationError::FailedGeneralVerification {
-            reason: format!(
-                "Deposit is not to escrow address, escrow: {:?}, utxo: {:?}",
-                escrow_address, actual_deposit_utxo.script_public_key
-            ),
+        return Err(ValidationError::WrongDepositAddress {
+            expected: escrow_address.to_string(),
+            actual: actual_utxo_addr.to_string(),
         });
     }
 
@@ -258,15 +242,11 @@ fn tx_by_id(block: &RpcBlock, tx_id: &RpcHash) -> Result<RpcTransaction, Validat
     let tx_index_actual = block
         .verbose_data
         .as_ref()
-        .ok_or_else(|| ValidationError::FailedGeneralVerification {
-            reason: "block data not found".to_string(),
-        })?
+        .ok_or(ValidationError::TransactionDataNotFound)?
         .transaction_ids
         .iter()
         .position(|id| id == tx_id)
-        .ok_or_else(|| ValidationError::FailedGeneralVerification {
-            reason: "transaction not found in block".to_string(),
-        })?;
+        .ok_or(ValidationError::TransactionDataNotFound)?;
 
     Ok(block.transactions[tx_index_actual].clone())
 }
