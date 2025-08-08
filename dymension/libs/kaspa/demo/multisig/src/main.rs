@@ -8,6 +8,7 @@ use corelib::deposit::*;
 use corelib::escrow::*;
 use corelib::user::deposit::deposit_with_payload as deposit;
 use corelib::wallet::*;
+use futures_util::TryStreamExt;
 use hardcode::e2e::{
     get_tn10_config as e2e_config, ADDRESS_PREFIX as e2e_address_prefix,
     DEPOSIT_AMOUNT as e2e_deposit_amount, MIN_DEPOSIT_SOMPI as e2e_min_deposit_sompi,
@@ -34,14 +35,14 @@ use kaspa_consensus_core::{
     subnets::SUBNETWORK_ID_NATIVE,
     tx::{
         MutableTransaction, ScriptPublicKey, Transaction, TransactionInput, TransactionOutpoint,
-        TransactionOutput, UtxoEntry,
+        TransactionOutput,
     },
 };
 use kaspa_core::info;
 use kaspa_grpc_client::GrpcClient;
 use kaspa_wallet_core::api::{AccountsSendRequest, WalletApi};
 use kaspa_wallet_core::error::Error;
-use kaspa_wallet_core::tx::Fees;
+use kaspa_wallet_core::tx::{Fees, Generator, GeneratorSettings};
 
 use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_pskt::prelude::*; // Import the prelude for easy access to traits/structs
@@ -53,10 +54,21 @@ use kaspa_txscript::{
 
 use secp256k1::{rand::thread_rng, Keypair};
 
+use corelib::consts::RELAYER_SIG_OP_COUNT;
 use corelib::payload::MessageIDs;
 use corelib::util::get_recipient_script_pubkey_address;
+use kaspa_bip32::{ExtendedKeyAttrs, KeyFingerprint};
+use kaspa_consensus_client::{TransactionOutpoint as ClientTransactionOutpoint, UtxoEntry};
+use kaspa_consensus_core::constants::UNACCEPTED_DAA_SCORE;
 use kaspa_rpc_core::api::rpc::RpcApi;
+use kaspa_wallet_core::account::multisig::MultiSig;
+use kaspa_wallet_core::account::pskb::{bundle_from_pskt_generator, PSKBSigner, PSKTGenerator};
+use kaspa_wallet_core::derivation::{ExtendedPublicKeySecp256k1, ExtendedPublicKeys};
+use kaspa_wallet_core::utxo::{UtxoEntryId, UtxoEntryReference};
+use kaspa_wallet_core::wallet::AccountCreateArgs::Multisig;
+use relayer::withdraw::sweep::{create_inputs_from_sweeping_bundle, create_sweeping_bundle};
 use workflow_core::abortable::Abortable;
+use workflow_core::prelude::yield_executor;
 /*
 Demo:
 The purpose is to test out using a multisig for securing an escrow address.
@@ -126,29 +138,42 @@ async fn load_wallet(args: &Args, url: Option<&str>) -> Result<EasyKaspaWallet> 
 async fn demo() -> Result<()> {
     kaspa_core::log::init_logger(None, "");
 
-    let args = Args::parse();
+    let mut args = Args::parse();
 
-    let w = load_wallet(&args, Some(e2e_url)).await?;
+    args.wallet_secret = Some("123456qwe".to_string());
+
+    let w = load_wallet(&args, None).await?;
 
     let rpc = w.api();
 
-    check_balance("wallet", rpc.as_ref(), &w.account().receive_address()?).await?;
+    check_balance("wallet", rpc.as_ref(), &w.account().change_address()?).await?;
 
-    let e = Escrow::new(2, 3);
-    info!(
-        "Created escrow address: {}",
-        e.public(e2e_address_prefix).addr
-    );
+    let e = Escrow::new(8, 8);
+    let e_public = e.public(e2e_address_prefix);
+    info!("Created escrow address: {}", e_public.addr);
 
     let amt = e2e_deposit_amount;
-    let escrow_addr = e.public(e2e_address_prefix).addr;
-    let tx_id = deposit(&w.wallet, &w.secret, escrow_addr, 2 * amt, vec![]).await?;
-    info!("Sent deposit transaction: {}", tx_id);
+    let escrow_addr = e_public.addr.clone();
 
-    workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
+    // Create 3 UTXOs on the escrow address
 
-    check_balance("wallet", rpc.as_ref(), &w.account().receive_address()?).await?;
-    check_balance("escrow", rpc.as_ref(), &e.public(e2e_address_prefix).addr).await?;
+    // Initial UTXO == anchor
+    let anchor_tx_id = deposit(&w.wallet, &w.secret, escrow_addr.clone(), amt, vec![]).await?;
+    info!("Sent deposit transaction: initial anchor: {}", anchor_tx_id);
+    workflow_core::task::sleep(std::time::Duration::from_secs(1)).await;
+
+    // Simulate deposits
+    for i in 1..4 {
+        let tx_id = deposit(&w.wallet, &w.secret, escrow_addr.clone(), amt, vec![]).await?;
+        info!("Sent deposit transaction: deposit {}: {}", i, tx_id);
+        workflow_core::task::sleep(std::time::Duration::from_secs(1)).await;
+    }
+
+    // Wait maturity
+    workflow_core::task::sleep(std::time::Duration::from_secs(4)).await;
+
+    check_balance("wallet", rpc.as_ref(), &w.account().change_address()?).await?;
+    check_balance("escrow", rpc.as_ref(), &e_public.addr).await?;
 
     let user_addr = w.account().receive_address()?;
 
@@ -156,17 +181,57 @@ async fn demo() -> Result<()> {
 
     let payload = MessageIDs::from(vec![hl_msg.id()]).to_bytes();
 
-    let current_anchor = TransactionOutpoint::new(tx_id, 0);
+    let current_anchor = TransactionOutpoint::new(anchor_tx_id, 0);
 
-    let inputs = fetch_input_utxos(
+    let relayer_inputs = fetch_input_utxos(
         &rpc,
-        &e.public(e2e_address_prefix),
         &w.account().change_address().unwrap(),
-        &current_anchor,
+        vec![],
+        RELAYER_SIG_OP_COUNT,
         e2e_network_id,
     )
     .await
-    .map_err(|e| eyre::eyre!("Fetch input utxos: {}", e))?;
+    .map_err(|e| eyre::eyre!("Fetch relayer input utxos: {}", e))?;
+
+    let mut escrow_inputs = fetch_input_utxos(
+        &rpc,
+        &e_public.addr,
+        e_public.redeem_script.clone(),
+        e_public.n() as u8,
+        e2e_network_id,
+    )
+    .await
+    .map_err(|e| eyre::eyre!("Fetch escrow input utxos: {}", e))?;
+
+    let anchor_index = escrow_inputs
+        .iter()
+        .position(|i| i.0.previous_outpoint == current_anchor)
+        .ok_or(eyre!("Anchor not found in inputs"))?; // Should always be found
+
+    let anchor_input = escrow_inputs.swap_remove(anchor_index);
+
+    let mut sweeping_bundle =
+        create_sweeping_bundle(&w, &e_public, escrow_inputs, relayer_inputs.clone())
+            .await
+            .map_err(|e| eyre::eyre!("Create sweeping bundle: {}", e))?;
+
+    let swept_inputs = create_inputs_from_sweeping_bundle(&sweeping_bundle, &e_public)
+        .map_err(|e| eyre::eyre!("Create input from sweeping bundle: {}", e))?;
+
+    info!(
+        "Constructed sweeping bundle with {} transactions",
+        sweeping_bundle.iter().len()
+    );
+
+    for (i, inner) in sweeping_bundle.iter().enumerate() {
+        let tx_id = PSKT::<Signer>::from(inner.clone()).calculate_id();
+        info!("Sweeping TX {i} has ID {tx_id}");
+    }
+
+    // +1 for the anchor input
+    let mut inputs = Vec::with_capacity(swept_inputs.len() + 1);
+    inputs.push(anchor_input);
+    inputs.extend(swept_inputs);
 
     let pskt = build_withdrawal_pskt(
         inputs,
@@ -175,7 +240,7 @@ async fn demo() -> Result<()> {
             get_recipient_script_pubkey_address(&user_addr),
         )],
         payload,
-        &e.public(e2e_address_prefix),
+        &e_public,
         &w.account().change_address().unwrap(),
         e2e_network_id,
         U256::from(e2e_min_deposit_sompi),
@@ -186,16 +251,26 @@ async fn demo() -> Result<()> {
 
     let new_anchor = TransactionOutpoint::new(pskt.calculate_id(), (pskt.outputs.len() - 1) as u32);
 
+    sweeping_bundle.add_pskt(pskt);
+
+    // TODO: why does it work if it has incorrect HL messages structure???
+    // Maybe bc verification is not tested here.
+    // let fxg = WithdrawFXG::new(
+    //     sweeping_bundle,
+    //     vec![vec![hl_msg]],
+    //     vec![current_anchor, new_anchor],
+    // );
+
     let fxg = WithdrawFXG::new(
-        Bundle::from(pskt),
-        vec![vec![hl_msg]],
+        sweeping_bundle,
+        vec![vec![], vec![hl_msg]],
         vec![current_anchor, new_anchor],
     );
 
     let safe_b = validator_safe_bundle(&fxg.bundle)?;
 
     let input_selector = |i: &Input| match i.redeem_script.clone() {
-        Some(rs) => rs == e.public(e2e_address_prefix).redeem_script,
+        Some(rs) => rs == e_public.redeem_script,
         None => false,
     };
 
@@ -208,31 +283,26 @@ async fn demo() -> Result<()> {
 
     info!("Signed withdrawal PSKT");
 
-    let finalized = relayer_combine_bundles_and_pay_fee(
-        val_bundles,
-        &fxg,
-        e.m(),
-        &e.public(e2e_address_prefix),
-        &w,
-    )
-    .await?;
+    let finalized =
+        relayer_combine_bundles_and_pay_fee(val_bundles, &fxg, e.m(), &e_public, &w).await?;
 
     info!("Signed relayer fee and finalized withdrawal RPC TX");
 
-    finalized.iter().for_each(|tx| {
-        tx.outputs.iter().for_each(|o| {
-            info!("Output: {}", o.value);
+    finalized.iter().enumerate().for_each(|(tx_idx, tx)| {
+        tx.outputs.iter().enumerate().for_each(|(o_idx, o)| {
+            info!("TX #{} Output #{}: {}", tx_idx, o_idx, o.value);
         });
     });
 
-    let res = rpc
-        .submit_transaction(finalized.first().unwrap().clone(), false)
-        .await?;
+    for tx in finalized {
+        let allow_orphan = false; // TODO: what is this?
+        let tx_id = rpc.submit_transaction(tx, allow_orphan).await?;
+    }
 
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
 
-    check_balance("wallet", rpc.as_ref(), &w.account().receive_address()?).await?;
-    check_balance("escrow", rpc.as_ref(), &e.public(e2e_address_prefix).addr).await?;
+    check_balance("wallet", rpc.as_ref(), &w.account().change_address()?).await?;
+    check_balance("escrow", rpc.as_ref(), &e_public.addr).await?;
 
     w.wallet.stop().await?;
     Ok(())

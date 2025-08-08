@@ -16,6 +16,8 @@ kaspa-wallet-core = { workspace = true }
 kaspa-wallet-pskt = { workspace = true }
 kaspa-txscript = { workspace = true }
 kaspa-rpc-core = { workspace = true }
+kaspa-bip32 = { workspace = true }
+kaspa-consensus-client = { workspace = true }
 secp256k1 = { workspace = true }
 workflow-core = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
@@ -23,3 +25,4 @@ log = { workspace = true }
 clap = { workspace = true }
 eyre = { workspace = true }
 hyperlane-core = { path = "../../../../../rust/main/hyperlane-core" }
+futures-util = "0.3.31"
