@@ -1,4 +1,7 @@
-use super::hub_to_kaspa::{build_withdrawal_pskt, fetch_input_utxos, filter_outputs_from_msgs};
+use super::hub_to_kaspa::{
+    build_withdrawal_pskt, fetch_input_utxos, fetch_input_utxos_1, filter_outputs_from_msgs,
+};
+use corelib::consts::RELAYER_SIG_OP_COUNT;
 use corelib::escrow::EscrowPublic;
 use corelib::payload::MessageIDs;
 use corelib::wallet::EasyKaspaWallet;
@@ -38,22 +41,43 @@ pub async fn on_new_withdrawals(
         outputs.len()
     );
 
-    let relayer_address = relayer.account().change_address()?;
-
-    let inputs = fetch_input_utxos(
+    let escrow_utxos = fetch_input_utxos(
         &relayer.api(),
-        &escrow_public,
-        &relayer_address,
-        &current_anchor,
+        &escrow_public.addr,
+        escrow_public.redeem_script.clone(),
+        escrow_public.n() as u8,
         relayer.net.network_id,
     )
     .await
-    .map_err(|e| eyre::eyre!("Fetch input UTXOs: {}", e))?;
+    .map_err(|e| eyre::eyre!("Fetch escrow UTXOs: {}", e))?;
+
+    // Check if the current anchor is within the list of multisig UTXOs
+    if !escrow_utxos.iter().any(|(i, u)| {
+        i.previous_outpoint.transaction_id == current_anchor.transaction_id
+            && i.previous_outpoint.index == current_anchor.index
+    }) {
+        return Err(eyre::eyre!(
+            "No UTXOs found for current anchor: {:?}",
+            current_anchor
+        ));
+    }
+
+    let relayer_address = relayer.account().change_address()?;
+
+    let relayer_utxos = fetch_input_utxos(
+        &relayer.api(),
+        &relayer_address,
+        vec![],
+        RELAYER_SIG_OP_COUNT,
+        relayer.net.network_id,
+    )
+    .await
+    .map_err(|e| eyre::eyre!("Fetch relayer UTXOs: {}", e))?;
 
     let payload = MessageIDs::from(&valid_msgs).to_bytes();
 
     let pskt = build_withdrawal_pskt(
-        inputs,
+        [escrow_utxos, relayer_utxos].concat(),
         outputs,
         payload,
         &escrow_public,
@@ -77,7 +101,11 @@ pub async fn on_new_withdrawals(
 mod tests {
     use super::*;
     use base64::{engine::general_purpose::STANDARD, Engine as _};
+    use hyperlane_core::Decode;
+    use hyperlane_warp_route::TokenMessage;
     use kaspa_hashes::Hash;
+    use kaspa_wallet_core::tx::{Generator, GeneratorSettings};
+    use std::io::Cursor;
 
     #[test]
     fn test_transaction_id_conversion() {
@@ -88,4 +116,85 @@ mod tests {
         let kaspa_tx_id = kaspa_hashes::Hash::from_bytes(bz);
         println!("kaspa_tx_id: {:?}", kaspa_tx_id);
     }
+
+    #[test]
+    fn test_decode_token_message() {
+        let bytes_a: Vec<Vec<u8>> = vec![
+            vec![
+                223, 45, 201, 23, 84, 12, 115, 128, 168, 110, 81, 250, 212, 184, 225, 16, 26, 14,
+                250, 39, 71, 58, 92, 169, 185, 124, 235, 132, 108, 196, 2, 171, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 49, 45, 2,
+            ],
+            vec![
+                223, 45, 201, 23, 84, 12, 115, 128, 168, 110, 81, 250, 212, 184, 225, 16, 26, 14,
+                250, 39, 71, 58, 92, 169, 185, 124, 235, 132, 108, 196, 2, 171, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 49, 45, 2,
+            ],
+            vec![
+                188, 255, 117, 135, 245, 116, 226, 73, 181, 73, 50, 146, 145, 35, 150, 130, 214,
+                211, 72, 28, 203, 197, 153, 124, 121, 119, 10, 96, 122, 179, 236, 152, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 119, 53,
+                148, 0,
+            ],
+            vec![
+                188, 255, 117, 135, 245, 116, 226, 73, 181, 73, 50, 146, 145, 35, 150, 130, 214,
+                211, 72, 28, 203, 197, 153, 124, 121, 119, 10, 96, 122, 179, 236, 152, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 119, 53,
+                148, 0,
+            ],
+            vec![
+                188, 255, 117, 135, 245, 116, 226, 73, 181, 73, 50, 146, 145, 35, 150, 130, 214,
+                211, 72, 28, 203, 197, 153, 124, 121, 119, 10, 96, 122, 179, 236, 152, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 59, 154,
+                202, 0,
+            ],
+            vec![
+                188, 255, 117, 135, 245, 116, 226, 73, 181, 73, 50, 146, 145, 35, 150, 130, 214,
+                211, 72, 28, 203, 197, 153, 124, 121, 119, 10, 96, 122, 179, 236, 152, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 131, 33,
+                86, 0,
+            ],
+            vec![
+                188, 255, 117, 135, 245, 116, 226, 73, 181, 73, 50, 146, 145, 35, 150, 130, 214,
+                211, 72, 28, 203, 197, 153, 124, 121, 119, 10, 96, 122, 179, 236, 152, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 131, 33,
+                86, 0,
+            ],
+            vec![
+                188, 255, 117, 135, 245, 116, 226, 73, 181, 73, 50, 146, 145, 35, 150, 130, 214,
+                211, 72, 28, 203, 197, 153, 124, 121, 119, 10, 96, 122, 179, 236, 152, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 131, 33,
+                86, 0,
+            ],
+            vec![
+                188, 255, 117, 135, 245, 116, 226, 73, 181, 73, 50, 146, 145, 35, 150, 130, 214,
+                211, 72, 28, 203, 197, 153, 124, 121, 119, 10, 96, 122, 179, 236, 152, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 84, 11,
+                228, 0,
+            ],
+            vec![
+                188, 255, 117, 135, 245, 116, 226, 73, 181, 73, 50, 146, 145, 35, 150, 130, 214,
+                211, 72, 28, 203, 197, 153, 124, 121, 119, 10, 96, 122, 179, 236, 152, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 131, 33,
+                86, 0,
+            ],
+        ];
+
+        for (i, bytes) in bytes_a.iter().enumerate() {
+            // Create a Cursor around the byte array for the reader
+            let mut reader = Cursor::new(bytes);
+
+            // Decode the byte array into a TokenMessage
+            let token_message =
+                TokenMessage::read_from(&mut reader).expect("Failed to decode TokenMessage");
+
+            println!("#{:?}: {:?}", i, token_message);
+        }
+    }
+
+    // #[test]
+    // fn test_kaspa_tx_generator() {
+    //     let settings = GeneratorSettings::try_new_with_context();
+    //     let gen = Generator::try_new();
+    // }
 }

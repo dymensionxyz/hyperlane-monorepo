@@ -30,8 +30,35 @@ use kaspa_wallet_pskt::prelude::{Signer, PSKT};
 use std::sync::Arc;
 use tracing::{info, warn};
 
-/// Fetches escrow and relayer balances and a combined list of all inputs
+/// Fetches UTXOs and combines a list of all populated inputs
 pub async fn fetch_input_utxos(
+    kaspa_rpc: &Arc<DynRpcApi>,
+    address: &kaspa_addresses::Address,
+    signature_script: Vec<u8>,
+    sig_op_count: u8,
+    network_id: NetworkId,
+) -> Result<Vec<(TransactionInput, UtxoEntry)>> {
+    let utxos = get_utxo_to_spend(&address, kaspa_rpc, network_id).await?;
+
+    // Create a vector of "populated" inputs: TransactionInput and UtxoEntry.
+    Ok(utxos
+        .into_iter()
+        .map(|utxo| {
+            (
+                TransactionInput::new(
+                    kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint),
+                    signature_script.clone(),
+                    0, // sequence does not matter
+                    sig_op_count,
+                ),
+                UtxoEntry::from(utxo.utxo_entry),
+            )
+        })
+        .collect())
+}
+
+/// Fetches escrow and relayer balances and a combined list of all inputs
+pub async fn fetch_input_utxos_1(
     kaspa_rpc: &Arc<DynRpcApi>,
     escrow: &EscrowPublic,
     relayer_address: &kaspa_addresses::Address,
@@ -358,6 +385,10 @@ fn estimate_fee(
         .map(|(_, entry)| entry.clone())
         .collect();
 
+    let inputs_num = populated_inputs.len();
+    let outputs_num = outputs.len();
+    let payload_len = payload.len();
+
     let tx = Transaction::new(
         TX_VERSION,
         inputs,
@@ -365,7 +396,7 @@ fn estimate_fee(
         0, // no tx lock time
         SUBNETWORK_ID_NATIVE,
         0,
-        payload, // empty payload
+        payload,
     );
     let ptx = PopulatedTransaction::new(&tx, utxo_entries);
 
@@ -381,7 +412,11 @@ fn estimate_fee(
     let cm = m.calc_contextual_masses(&ptx).unwrap();
 
     // TODO: Apply current feerate. It can be fetched from https://api.kaspa.org/info/fee-estimate.
-    cm.max(ncm)
+    let mass = cm.max(ncm);
+
+    info!("Kaspa relayer, the transaction contains {inputs_num} inputs, {outputs_num} outputs, and {payload_len} bytes payload, estimated mass is: {mass}");
+
+    mass
 }
 
 pub async fn combine_bundles_with_fee(
@@ -595,6 +630,9 @@ mod tests {
     use corelib::util::is_valid_sighash_type;
     use corelib::withdraw::WithdrawFXG;
     use hyperlane_core::H256;
+    use kaspa_consensus_core::network::NetworkType::{Devnet, Testnet};
+    use kaspa_consensus_core::tx::ScriptPublicKey;
+    use std::str::FromStr;
 
     #[test]
     fn test_kaspa_address_conversion() {
@@ -674,6 +712,81 @@ mod tests {
             .sighash_type;
 
         assert!(is_valid_sighash_type(sighash_type_2));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_estimate_fee_with_different_inputs() -> Result<()> {
+        const MIN_OUTPUTS: u32 = 2;
+        const MIN_INPUTS: u32 = 2;
+
+        const MAX_OUTPUTS: u32 = 10;
+        const MAX_INPUTS: u32 = 49;
+
+        let spk = ScriptPublicKey::from_str(
+            "20bcff7587f574e249b549329291239682d6d3481ccbc5997c79770a607ab3ec98ac",
+        )?;
+
+        let payload: Vec<u8> =
+            hex::decode("0a20f3b12fe3f4a43a7deb33be5f5a7a766ce22f76e9d8d6e1f77338e2f233db8e20")
+                .expect("Invalid hex payload");
+
+        let network_id = NetworkId::new(Devnet);
+
+        let mut res: Vec<Vec<u64>> = Vec::new();
+
+        for input_count in MIN_INPUTS..=MAX_INPUTS {
+            let inputs: Vec<(TransactionInput, UtxoEntry)> = (0..input_count)
+                .map(|i| {
+                    (
+                        TransactionInput {
+                            previous_outpoint: TransactionOutpoint {
+                                transaction_id: "81b79b11b546e3769e91bebced62fc0ff7ce665258201fd501ea3c60d735ec7d".to_string().parse().unwrap(),
+                                index: 0,
+                            },
+                            signature_script: "41b31e2b858c19baef26cb352664b493cb9f7f3b3f94217a7ca857f740db5eb4cb1004c9a278449477e23fb1b09f141d1a939b7f8435c578af17549cd2ff79b7b4814129ab65d772387cfa300314597b0ab11d9900ffcbe2f072568cbb6cd76bdba057242e365d951d2f87ab98bb332527d6df07cf207164ab1be5a643a6d7edb9fde6814171641e6b8ce10fcf5b41e962cf3665020a5e295ddf35a6a07e791d619aa1580d5f43d37c7dfa3c115b648c25b92ad17868e61bd01ad782b04ead5177ce5f40958141bc5b0b3f6e3bbb468d8710aba0cb0c04e046371f1b0972aacf48121e9d0704233e7596685e9a25464b85857562427f4982ba6e84c3258e356d9bff67478bb4df81415177d6b9b39414dd75374089d98c38b145c332b7a960cf2cabeb9cdd397c090d7e81bc28619f0491b1a57483013adca9badff86df32d31598fee28fd4699ed15814123b9ae551e0201f106291923d294715800ffb47a7dc158f738e341f87f0656805b1d27f931bc1653d366ef7bf55f1a0be7c8c25ed510dbec3297fae0b51c96d4814d0b0156205461e2ab2584bc80435c2a3f51c4cf12285992b5e4fdec57f1f8b506134a90872018a9fcc6059c1995c70b8f31b2256ac3d4aeca5dffa331fb941a8c5d4bffdd7620d7a78be7d152498cfb9fb8a89b60723f011435303499e0de7c1bcbf88f87d1b920f02a8dc60f124b34e9a8800fb25cf25ac01a3bdcf5a6ea21d2e2569a173dd9b2208586f127129710cdac6ca1d86be1869bd8a8746db9a2339fde71278dff7fb4692014d0d6d828c2f3e5ce908978622c5677c1fc53372346a9cff60d1140c54b5e5e209035bddc82d62454b2d425e205533363d09dc5d9c0d0f74c1f937c2d211c15a120e4b95346367e49178c8571e8a649584981d8bd6f920c648e37bbe24f055baf9c58ae".as_bytes().to_vec(),
+                            sequence: u64::MAX,
+                            sig_op_count: 8,
+                        },
+                        UtxoEntry {
+                            amount: 4_000_000_000,
+                            script_public_key: spk.clone(),
+                            block_daa_score: 0,
+                            is_coinbase: false,
+                        },
+                    )
+                })
+                .collect();
+
+            let mut res_inner: Vec<u64> = Vec::new();
+            for output_count in MIN_OUTPUTS..=MAX_OUTPUTS {
+                let outputs: Vec<TransactionOutput> = (0..output_count)
+                    .map(|_| TransactionOutput {
+                        value: 4_000_000_000,
+                        script_public_key: spk.clone(),
+                    })
+                    .collect();
+
+                let inputs_num = inputs.len();
+                let outputs_num = outputs.len();
+                let payload_len = payload.len();
+
+                // Call the function under test
+                let v = estimate_fee(inputs.clone(), outputs.clone(), payload.clone(), network_id);
+
+                // println!("{inputs_num} inputs, {outputs_num} outputs, {payload_len} bytes payload, estimated mass is {v}");
+
+                res_inner.push(v);
+
+                print!("{v},");
+            }
+
+            res.push(res_inner);
+            println!();
+        }
+
+        // println!("{:?}", res);
 
         Ok(())
     }
