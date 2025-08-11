@@ -14,20 +14,23 @@ use hardcode::e2e::{
     DEPOSIT_AMOUNT as e2e_deposit_amount, MIN_DEPOSIT_SOMPI as e2e_min_deposit_sompi,
     NETWORK_ID as e2e_network_id, RELAYER_NETWORK_FEE as e2e_relayer_network_fee, URL as e2e_url,
 };
-use hyperlane_core::U256;
+use hyperlane_core::{Encode, U256};
 use relayer::withdraw::demo::*;
 use relayer::withdraw::hub_to_kaspa::{
     build_withdrawal_pskt, combine_bundles_with_fee as relayer_combine_bundles_and_pay_fee,
     fetch_input_utxos,
 };
-use validator::withdraw::safe_bundle as validator_safe_bundle;
 use validator::withdraw::sign_withdrawal_fxg as validator_sign_withdrawal_fxg;
+use validator::withdraw::{
+    safe_bundle as validator_safe_bundle, validate_pskts,
+};
 use x::args::Args;
 
 use std::sync::Arc;
 
 use corelib::withdraw::WithdrawFXG;
 use hyperlane_core::{HyperlaneMessage, H256};
+use hyperlane_warp_route::TokenMessage;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::{
     constants::TX_VERSION,
@@ -56,7 +59,7 @@ use secp256k1::{rand::thread_rng, Keypair};
 
 use corelib::consts::RELAYER_SIG_OP_COUNT;
 use corelib::payload::MessageIDs;
-use corelib::util::get_recipient_script_pubkey_address;
+use corelib::util::{get_recipient_script_pubkey_address, kaspa_address_to_h256};
 use kaspa_bip32::{ExtendedKeyAttrs, KeyFingerprint};
 use kaspa_consensus_client::{TransactionOutpoint as ClientTransactionOutpoint, UtxoEntry};
 use kaspa_consensus_core::constants::UNACCEPTED_DAA_SCORE;
@@ -66,6 +69,7 @@ use kaspa_wallet_core::account::pskb::{bundle_from_pskt_generator, PSKBSigner, P
 use kaspa_wallet_core::derivation::{ExtendedPublicKeySecp256k1, ExtendedPublicKeys};
 use kaspa_wallet_core::utxo::{UtxoEntryId, UtxoEntryReference};
 use kaspa_wallet_core::wallet::AccountCreateArgs::Multisig;
+use relayer::withdraw::messages::build_withdrawal_fxg;
 use relayer::withdraw::sweep::{create_inputs_from_sweeping_bundle, create_sweeping_bundle};
 use workflow_core::abortable::Abortable;
 use workflow_core::prelude::yield_executor;
@@ -175,97 +179,31 @@ async fn demo() -> Result<()> {
     check_balance("wallet", rpc.as_ref(), &w.account().change_address()?).await?;
     check_balance("escrow", rpc.as_ref(), &e_public.addr).await?;
 
-    let user_addr = w.account().receive_address()?;
-
-    let hl_msg = HyperlaneMessage::default();
-
-    let payload = MessageIDs::from(vec![hl_msg.id()]).to_bytes();
+    let token_message = TokenMessage::new(
+        kaspa_address_to_h256(w.account().receive_address()?),
+        U256::from(amt),
+        vec![],
+    );
+    let hl_msg = HyperlaneMessage {
+        body: token_message.to_vec(),
+        ..Default::default()
+    };
 
     let current_anchor = TransactionOutpoint::new(anchor_tx_id, 0);
 
-    let relayer_inputs = fetch_input_utxos(
-        &rpc,
-        &w.account().change_address().unwrap(),
-        vec![],
-        RELAYER_SIG_OP_COUNT,
-        e2e_network_id,
-    )
-    .await
-    .map_err(|e| eyre::eyre!("Fetch relayer input utxos: {}", e))?;
-
-    let mut escrow_inputs = fetch_input_utxos(
-        &rpc,
-        &e_public.addr,
-        e_public.redeem_script.clone(),
-        e_public.n() as u8,
-        e2e_network_id,
-    )
-    .await
-    .map_err(|e| eyre::eyre!("Fetch escrow input utxos: {}", e))?;
-
-    let anchor_index = escrow_inputs
-        .iter()
-        .position(|i| i.0.previous_outpoint == current_anchor)
-        .ok_or(eyre!("Anchor not found in inputs"))?; // Should always be found
-
-    let anchor_input = escrow_inputs.swap_remove(anchor_index);
-
-    let mut sweeping_bundle =
-        create_sweeping_bundle(&w, &e_public, escrow_inputs, relayer_inputs.clone())
-            .await
-            .map_err(|e| eyre::eyre!("Create sweeping bundle: {}", e))?;
-
-    let swept_inputs = create_inputs_from_sweeping_bundle(&sweeping_bundle, &e_public)
-        .map_err(|e| eyre::eyre!("Create input from sweeping bundle: {}", e))?;
-
-    info!(
-        "Constructed sweeping bundle with {} transactions",
-        sweeping_bundle.iter().len()
-    );
-
-    for (i, inner) in sweeping_bundle.iter().enumerate() {
-        let tx_id = PSKT::<Signer>::from(inner.clone()).calculate_id();
-        info!("Sweeping TX {i} has ID {tx_id}");
-    }
-
-    // +1 for the anchor input
-    let mut inputs = Vec::with_capacity(swept_inputs.len() + 1);
-    inputs.push(anchor_input);
-    inputs.extend(swept_inputs);
-
-    let pskt = build_withdrawal_pskt(
-        inputs,
-        vec![TransactionOutput::new(
-            amt,
-            get_recipient_script_pubkey_address(&user_addr),
-        )],
-        payload,
-        &e_public,
-        &w.account().change_address().unwrap(),
-        e2e_network_id,
+    let fxg = build_withdrawal_fxg(
+        vec![hl_msg],
+        current_anchor,
+        w.clone(),
+        e_public.clone(),
         U256::from(e2e_min_deposit_sompi),
     )
-    .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
+    .await
+    .map_err(|e| eyre!("Build withdrawal FXG: {}", e))?;
+
+    let fxg = fxg.ok_or(eyre!("Got none as withdrawal FXG"))?;
 
     info!("Constructed withdrawal PSKT");
-
-    let new_anchor = TransactionOutpoint::new(pskt.calculate_id(), (pskt.outputs.len() - 1) as u32);
-
-    sweeping_bundle.add_pskt(pskt);
-
-    // TODO: why does it work if it has incorrect HL messages structure???
-    // Maybe bc verification is not tested here.
-    // let fxg = WithdrawFXG::new(
-    //     sweeping_bundle,
-    //     vec![vec![hl_msg]],
-    //     vec![current_anchor, new_anchor],
-    // );
-
-    let fxg = WithdrawFXG::new(
-        sweeping_bundle,
-        vec![vec![], vec![hl_msg]],
-        vec![current_anchor, new_anchor],
-    );
 
     let safe_b = validator_safe_bundle(&fxg.bundle)?;
 
@@ -274,11 +212,24 @@ async fn demo() -> Result<()> {
         None => false,
     };
 
+    let messages = fxg.messages.clone();
+    let old_anchor = fxg.anchors.first().cloned().unwrap();
     let val_bundles = e
         .keys
         .iter()
         .take(e.m())
-        .map(|k| validator_sign_withdrawal_fxg(&safe_b, k, Some(input_selector)))
+        .map(|k| {
+            validate_pskts(
+                &safe_b,
+                &*messages,
+                old_anchor,
+                e_public.clone(),
+                w.net.address_prefix,
+            )
+            .map_err(|e| eyre!("Failed to validate PSKT: {e}"))?;
+
+            validator_sign_withdrawal_fxg(&safe_b, k, Some(input_selector))
+        })
         .collect::<Result<Vec<_>>>()?;
 
     info!("Signed withdrawal PSKT");
@@ -297,6 +248,7 @@ async fn demo() -> Result<()> {
     for tx in finalized {
         let allow_orphan = false; // TODO: what is this?
         let tx_id = rpc.submit_transaction(tx, allow_orphan).await?;
+        info!("TX #{tx_id} is broadcasted");
     }
 
     workflow_core::task::sleep(std::time::Duration::from_secs(5)).await;
