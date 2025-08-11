@@ -1,3 +1,4 @@
+use super::messages::PopulatedInput;
 use super::minimum::{is_dust, is_small_value};
 use corelib::escrow::EscrowPublic;
 use corelib::finality;
@@ -37,7 +38,7 @@ pub async fn fetch_input_utxos(
     signature_script: Vec<u8>,
     sig_op_count: u8,
     network_id: NetworkId,
-) -> Result<Vec<(TransactionInput, UtxoEntry)>> {
+) -> Result<Vec<PopulatedInput>> {
     let utxos = get_utxo_to_spend(&address, kaspa_rpc, network_id).await?;
 
     // Create a vector of "populated" inputs: TransactionInput and UtxoEntry.
@@ -54,60 +55,6 @@ pub async fn fetch_input_utxos(
                 UtxoEntry::from(utxo.utxo_entry),
             )
         })
-        .collect())
-}
-
-/// Fetches escrow and relayer balances and a combined list of all inputs
-pub async fn fetch_input_utxos_1(
-    kaspa_rpc: &Arc<DynRpcApi>,
-    escrow: &EscrowPublic,
-    relayer_address: &kaspa_addresses::Address,
-    current_anchor: &TransactionOutpoint,
-    network_id: NetworkId,
-) -> Result<Vec<(TransactionInput, UtxoEntry)>> {
-    // Get all available UTXOs for multisig
-    let escrow_utxos = get_utxo_to_spend(&escrow.addr, kaspa_rpc, network_id).await?;
-
-    // Check if the current anchor is withing the list of multisig UTXOs
-    if !escrow_utxos.iter().any(|u| {
-        u.outpoint.transaction_id == current_anchor.transaction_id
-            && u.outpoint.index == current_anchor.index
-    }) {
-        return Err(eyre::eyre!(
-            "No UTXOs found for current anchor: {:?}",
-            current_anchor
-        ));
-    }
-
-    // Get all available UTXOs for relayer
-    let relayer_utxos = get_utxo_to_spend(relayer_address, kaspa_rpc, network_id).await?;
-
-    // Iterate through escrow and relayer UTXO – they are the transaction inputs.
-    // Create a vector of "populated" inputs: TransactionInput and UtxoEntry.
-    Ok(escrow_utxos
-        .into_iter()
-        .map(|utxo| {
-            (
-                TransactionInput::new(
-                    kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint),
-                    escrow.redeem_script.clone(),
-                    0, // sequence does not matter
-                    escrow.n() as u8,
-                ),
-                UtxoEntry::from(utxo.utxo_entry),
-            )
-        })
-        .chain(relayer_utxos.into_iter().map(|utxo| {
-            (
-                TransactionInput::new(
-                    kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint),
-                    vec![],
-                    0,                                     // sequence does not matter
-                    corelib::consts::RELAYER_SIG_OP_COUNT, // only one signature from relayer is needed
-                ),
-                UtxoEntry::from(utxo.utxo_entry),
-            )
-        }))
         .collect())
 }
 
@@ -148,7 +95,7 @@ pub async fn fetch_input_utxos_1(
 /// CONTRACT:
 /// Escrow change is always the last output.
 pub fn build_withdrawal_pskt(
-    inputs: Vec<(TransactionInput, UtxoEntry)>,
+    inputs: Vec<PopulatedInput>,
     mut outputs: Vec<TransactionOutput>,
     payload: Vec<u8>,
     escrow: &EscrowPublic,
@@ -199,7 +146,7 @@ pub fn build_withdrawal_pskt(
     //     Fee      //
     //////////////////
 
-    // Multiply the fee by 1.1 to give some space for adding change UTXOs.
+    // Multiply the fee by 1.3 to give some space for adding change UTXOs.
     // TODO: use feerate.
     let tx_fee =
         estimate_fee(inputs.clone(), outputs.clone(), payload.clone(), network_id) * 13 / 10;
@@ -264,7 +211,7 @@ pub fn build_withdrawal_pskt(
 /// CONTRACT:
 /// Escrow change is always the last output.
 fn create_withdrawal_pskt(
-    inputs: Vec<(TransactionInput, UtxoEntry)>,
+    inputs: Vec<PopulatedInput>,
     outputs: Vec<TransactionOutput>,
     payload: Vec<u8>,
 ) -> Result<PSKT<Signer>> {
@@ -308,7 +255,9 @@ fn create_withdrawal_pskt(
         .signer())
 }
 
-pub fn filter_outputs_from_msgs(
+/// Return outputs generated based on the provided messages. Filter out messages
+/// with dust amount.
+pub fn get_outputs_from_msgs(
     messages: Vec<HyperlaneMessage>,
     prefix: Prefix,
     min_deposit_sompi: U256,
@@ -370,8 +319,24 @@ async fn get_utxo_to_spend(
     Ok(utxos)
 }
 
+pub(crate) fn extract_current_anchor(
+    current_anchor: TransactionOutpoint,
+    mut escrow_inputs: Vec<PopulatedInput>,
+) -> Result<(PopulatedInput, Vec<PopulatedInput>)> {
+    let anchor_index = escrow_inputs
+        .iter()
+        .position(|i| i.0.previous_outpoint == current_anchor)
+        .ok_or(eyre::eyre!(
+            "Current anchor not found in escrow UTXO set: {current_anchor:?}"
+        ))?; // Should always be found
+
+    let anchor_input = escrow_inputs.swap_remove(anchor_index);
+
+    Ok((anchor_input, escrow_inputs))
+}
+
 fn estimate_fee(
-    populated_inputs: Vec<(TransactionInput, UtxoEntry)>,
+    populated_inputs: Vec<PopulatedInput>,
     outputs: Vec<TransactionOutput>,
     payload: Vec<u8>,
     network_id: NetworkId,
@@ -737,7 +702,7 @@ mod tests {
         let mut res: Vec<Vec<u64>> = Vec::new();
 
         for input_count in MIN_INPUTS..=MAX_INPUTS {
-            let inputs: Vec<(TransactionInput, UtxoEntry)> = (0..input_count)
+            let inputs: Vec<PopulatedInput> = (0..input_count)
                 .map(|i| {
                     (
                         TransactionInput {

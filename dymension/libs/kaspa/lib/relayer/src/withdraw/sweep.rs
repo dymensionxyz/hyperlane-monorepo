@@ -31,25 +31,26 @@ pub async fn create_sweeping_bundle(
 ) -> Result<Bundle> {
     let sweep_balance = escrow_inputs.iter().map(|(_, e)| e.amount).sum::<u64>();
 
-    let utxo_iterator: Vec<UtxoEntryReference> = escrow_inputs
-        .into_iter()
-        .chain(relayer_inputs.into_iter())
-        .map(|(input, entry)| {
-            UtxoEntryReference::from(ClientUtxoEntry {
-                address: None,
-                outpoint: ClientTransactionOutpoint::from(input.previous_outpoint),
-                amount: entry.amount,
-                script_public_key: entry.script_public_key.clone(),
-                block_daa_score: entry.block_daa_score,
-                is_coinbase: entry.is_coinbase,
-            })
-        })
-        .collect();
+    let utxo_iterator = Box::new(
+        escrow_inputs
+            .into_iter()
+            .chain(relayer_inputs.into_iter())
+            .map(|(input, entry)| {
+                UtxoEntryReference::from(ClientUtxoEntry {
+                    address: None,
+                    outpoint: ClientTransactionOutpoint::from(input.previous_outpoint),
+                    amount: entry.amount,
+                    script_public_key: entry.script_public_key.clone(),
+                    block_daa_score: entry.block_daa_score,
+                    is_coinbase: entry.is_coinbase,
+                })
+            }),
+    );
 
     let settings = GeneratorSettings::try_new_with_iterator(
         relayer_wallet.net.network_id,
         // Inputs include both escrow and relayer UTXOs
-        Box::new(utxo_iterator.into_iter()),
+        utxo_iterator.into_iter(),
         // No priority UTXO entries
         None,
         // Return change to the relayer address
@@ -106,7 +107,7 @@ fn format_sweeping_bundle(bundle: Bundle, escrow: &EscrowPublic) -> Result<Bundl
                 .sig_op_count(RELAYER_SIG_OP_COUNT)
                 .sighash_type(input_sighash_type());
 
-            // Add redeem script only for escrow inputs
+            // Add redeem script and correct sig op count for escrow inputs
             if utxo_entry.script_public_key == escrow.p2sh {
                 b.redeem_script(escrow.redeem_script.clone())
                     .sig_op_count(escrow.n() as u8);
@@ -139,59 +140,55 @@ pub fn create_inputs_from_sweeping_bundle(
     sweeping_bundle: &Bundle,
     escrow: &EscrowPublic,
 ) -> Result<Vec<(TransactionInput, UtxoEntry)>> {
-    let last_pskt = match sweeping_bundle.iter().last() {
-        Some(pskt) => pskt.clone(),
-        None => return Err(eyre!("Empty sweeping bundle")),
-    };
+    let last_pskt = sweeping_bundle
+        .iter()
+        .last()
+        .cloned()
+        .ok_or_else(|| eyre!("Empty sweeping bundle"))?;
 
     let sweep_tx = PSKT::<Signer>::from(last_pskt);
-
-    if sweep_tx.outputs.len() != 2 {
-        return Err(eyre!("Resulting sweeping TX must have exactly two outputs: swept escrow UTXO and relayer change"));
-    }
-
     let tx_id = sweep_tx.calculate_id();
 
-    let (relayer_utxo_idx, escrow_utxo_idx) =
-        if sweep_tx.outputs[0].script_public_key == escrow.p2sh {
-            (1, 0)
-        } else {
-            (0, 1)
-        };
+    // Expect exactly two outputs: {escrow, relayer} in some order.
+    let (relayer_idx, relayer_output, escrow_idx, escrow_output) = match sweep_tx.outputs.as_slice() {
+        [o0, o1] if o0.script_public_key == escrow.p2sh => (1u32, o1, 0u32, o0),
+        [o0, o1] if o1.script_public_key == escrow.p2sh => (0u32, o0, 1u32, o1),
+        _ => {
+            return Err(eyre!(
+                "Resulting sweeping TX must have exactly two outputs: swept escrow UTXO and relayer change"
+            ))
+        }
+    };
 
-    let relayer_output = sweep_tx.outputs.get(relayer_utxo_idx).unwrap();
-    let escrow_outpoint = sweep_tx.outputs.get(escrow_utxo_idx).unwrap();
+    let relayer_input = (
+        TransactionInput::new(
+            TransactionOutpoint::new(tx_id, relayer_idx),
+            vec![],
+            u64::MAX,
+            RELAYER_SIG_OP_COUNT,
+        ),
+        UtxoEntry::new(
+            relayer_output.amount,
+            relayer_output.script_public_key.clone(),
+            UNACCEPTED_DAA_SCORE,
+            false,
+        ),
+    );
 
-    Ok(vec![
-        // Relayer input
-        (
-            TransactionInput::new(
-                TransactionOutpoint::new(tx_id, relayer_utxo_idx as u32),
-                vec![],
-                u64::MAX,
-                RELAYER_SIG_OP_COUNT,
-            ),
-            UtxoEntry::new(
-                relayer_output.amount,
-                relayer_output.script_public_key.clone(),
-                UNACCEPTED_DAA_SCORE,
-                false,
-            ),
+    let escrow_input = (
+        TransactionInput::new(
+            TransactionOutpoint::new(tx_id, escrow_idx),
+            escrow.redeem_script.clone(),
+            u64::MAX,
+            escrow.n() as u8,
         ),
-        // Escrow input
-        (
-            TransactionInput::new(
-                TransactionOutpoint::new(tx_id, escrow_utxo_idx as u32),
-                escrow.redeem_script.clone(),
-                u64::MAX,
-                escrow.n() as u8,
-            ),
-            UtxoEntry::new(
-                escrow_outpoint.amount,
-                escrow.p2sh.clone(),
-                UNACCEPTED_DAA_SCORE,
-                false,
-            ),
+        UtxoEntry::new(
+            escrow_output.amount,
+            escrow.p2sh.clone(),
+            UNACCEPTED_DAA_SCORE,
+            false,
         ),
-    ])
+    );
+
+    Ok(vec![relayer_input, escrow_input])
 }

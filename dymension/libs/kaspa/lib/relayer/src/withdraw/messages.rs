@@ -1,18 +1,24 @@
 use super::hub_to_kaspa::{
-    build_withdrawal_pskt, fetch_input_utxos, fetch_input_utxos_1, filter_outputs_from_msgs,
+    build_withdrawal_pskt, extract_current_anchor, fetch_input_utxos, get_outputs_from_msgs,
 };
+use crate::withdraw::sweep::{create_inputs_from_sweeping_bundle, create_sweeping_bundle};
 use corelib::consts::RELAYER_SIG_OP_COUNT;
 use corelib::escrow::EscrowPublic;
 use corelib::payload::MessageIDs;
+use corelib::util::get_recipient_script_pubkey_address;
 use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use eyre::Result;
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::U256;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
-use kaspa_consensus_core::tx::TransactionOutpoint;
+use kaspa_consensus_core::tx::{
+    TransactionInput, TransactionOutpoint, TransactionOutput, UtxoEntry,
+};
 use kaspa_wallet_pskt::prelude::Bundle;
 use tracing::info;
+
+pub(crate) type PopulatedInput = (TransactionInput, UtxoEntry);
 
 /// Processes given messages and returns WithdrawFXG and the very first outpoint
 /// (the one preceding all the given transfers; it should be used during process indication).
@@ -24,13 +30,33 @@ pub async fn on_new_withdrawals(
     min_deposit_sompi: U256,
 ) -> Result<Option<WithdrawFXG>> {
     info!("Kaspa relayer, getting pending withdrawals");
+
     let (current_anchor, pending_msgs) = filter_pending_withdrawals(messages, &cosmos)
         .await
         .map_err(|e| eyre::eyre!("Get pending withdrawals: {}", e))?;
+
     info!("Kaspa relayer, got pending withdrawals");
 
+    build_withdrawal_fxg(
+        pending_msgs,
+        current_anchor,
+        relayer,
+        escrow_public,
+        min_deposit_sompi,
+    )
+    .await
+}
+
+pub async fn build_withdrawal_fxg(
+    pending_msgs: Vec<HyperlaneMessage>,
+    current_anchor: TransactionOutpoint,
+    relayer: EasyKaspaWallet,
+    escrow_public: EscrowPublic,
+    min_deposit_sompi: U256,
+) -> Result<Option<WithdrawFXG>> {
+    // Filter out dust messages and create Kaspa outputs for the rest
     let (valid_msgs, outputs) =
-        filter_outputs_from_msgs(pending_msgs, relayer.net.address_prefix, min_deposit_sompi);
+        get_outputs_from_msgs(pending_msgs, relayer.net.address_prefix, min_deposit_sompi);
 
     if outputs.is_empty() {
         info!("Kaspa relayer, no valid pending withdrawals, all in batch are already processed and confirmed on hub");
@@ -41,7 +67,8 @@ pub async fn on_new_withdrawals(
         outputs.len()
     );
 
-    let escrow_utxos = fetch_input_utxos(
+    // Get all the UTXOs for the escrow and the relayer
+    let escrow_inputs = fetch_input_utxos(
         &relayer.api(),
         &escrow_public.addr,
         escrow_public.redeem_script.clone(),
@@ -51,20 +78,8 @@ pub async fn on_new_withdrawals(
     .await
     .map_err(|e| eyre::eyre!("Fetch escrow UTXOs: {}", e))?;
 
-    // Check if the current anchor is within the list of multisig UTXOs
-    if !escrow_utxos.iter().any(|(i, u)| {
-        i.previous_outpoint.transaction_id == current_anchor.transaction_id
-            && i.previous_outpoint.index == current_anchor.index
-    }) {
-        return Err(eyre::eyre!(
-            "No UTXOs found for current anchor: {:?}",
-            current_anchor
-        ));
-    }
-
     let relayer_address = relayer.account().change_address()?;
-
-    let relayer_utxos = fetch_input_utxos(
+    let relayer_inputs = fetch_input_utxos(
         &relayer.api(),
         &relayer_address,
         vec![],
@@ -74,10 +89,41 @@ pub async fn on_new_withdrawals(
     .await
     .map_err(|e| eyre::eyre!("Fetch relayer UTXOs: {}", e))?;
 
+    // Extract the current anchor from the escrow UTXO set.
+    // All non-anchor UTXOs will be swept.
+    // Anchor UTXO will be used as the input for withdrawal PSKT.
+    let (anchor_input, escrow_inputs_to_sweep) =
+        extract_current_anchor(current_anchor, escrow_inputs)
+            .map_err(|e| eyre::eyre!("Extract current anchor: {}", e))?;
+
+    let mut sweeping_bundle = create_sweeping_bundle(
+        &relayer,
+        &escrow_public,
+        escrow_inputs_to_sweep,
+        relayer_inputs,
+    )
+    .await
+    .map_err(|e| eyre::eyre!("Create sweeping bundle: {}", e))?;
+
+    // Use sweeping bundle's outputs to create inputs for withdrawal PSKT
+    let swept_inputs = create_inputs_from_sweeping_bundle(&sweeping_bundle, &escrow_public)
+        .map_err(|e| eyre::eyre!("Create input from sweeping bundle: {}", e))?;
+
+    info!(
+        "Constructed sweeping bundle with {} PSKTs",
+        sweeping_bundle.iter().len()
+    );
+
+    // Create a new list of inputs for the withdrawal PSKT
+    // +1 for the anchor input
+    let mut inputs = Vec::with_capacity(swept_inputs.len() + 1);
+    inputs.push(anchor_input);
+    inputs.extend(swept_inputs);
+
     let payload = MessageIDs::from(&valid_msgs).to_bytes();
 
     let pskt = build_withdrawal_pskt(
-        [escrow_utxos, relayer_utxos].concat(),
+        inputs,
         outputs,
         payload,
         &escrow_public,
@@ -87,12 +133,24 @@ pub async fn on_new_withdrawals(
     )
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
 
+    // Contract: the last output of the withdrawal PSKT is the new anchor
     let new_anchor = TransactionOutpoint::new(pskt.calculate_id(), (pskt.outputs.len() - 1) as u32);
 
-    // We have a bundle with one PSKT which covers all the HL messages.
+    // The first N elements are empty since sweeping PSKTs don't have any HL messages.
+    // The last element is the withdrawal PSKT, so it should have all the HL messages.
+    let messages = std::iter::repeat_with(Vec::new)
+        .take(sweeping_bundle.iter().len())
+        .chain(std::iter::once(valid_msgs))
+        .collect();
+
+    // Create a final bundle. It has the following structure:
+    // 1. Sweeping bundle – might contain multiple PSKTs. It sweeps all non-anchor UTXOs.
+    // 2. One withdrawal PSKT – contains the output UTXO from the sweeping bundle and the anchor input
+    sweeping_bundle.add_pskt(pskt);
+
     Ok(Some(WithdrawFXG::new(
-        Bundle::from(pskt),
-        vec![valid_msgs],
+        sweeping_bundle,
+        messages,
         vec![current_anchor, new_anchor],
     )))
 }
@@ -126,17 +184,6 @@ mod tests {
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 49, 45, 2,
             ],
             vec![
-                223, 45, 201, 23, 84, 12, 115, 128, 168, 110, 81, 250, 212, 184, 225, 16, 26, 14,
-                250, 39, 71, 58, 92, 169, 185, 124, 235, 132, 108, 196, 2, 171, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 49, 45, 2,
-            ],
-            vec![
-                188, 255, 117, 135, 245, 116, 226, 73, 181, 73, 50, 146, 145, 35, 150, 130, 214,
-                211, 72, 28, 203, 197, 153, 124, 121, 119, 10, 96, 122, 179, 236, 152, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 119, 53,
-                148, 0,
-            ],
-            vec![
                 188, 255, 117, 135, 245, 116, 226, 73, 181, 73, 50, 146, 145, 35, 150, 130, 214,
                 211, 72, 28, 203, 197, 153, 124, 121, 119, 10, 96, 122, 179, 236, 152, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 119, 53,
@@ -147,24 +194,6 @@ mod tests {
                 211, 72, 28, 203, 197, 153, 124, 121, 119, 10, 96, 122, 179, 236, 152, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 59, 154,
                 202, 0,
-            ],
-            vec![
-                188, 255, 117, 135, 245, 116, 226, 73, 181, 73, 50, 146, 145, 35, 150, 130, 214,
-                211, 72, 28, 203, 197, 153, 124, 121, 119, 10, 96, 122, 179, 236, 152, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 131, 33,
-                86, 0,
-            ],
-            vec![
-                188, 255, 117, 135, 245, 116, 226, 73, 181, 73, 50, 146, 145, 35, 150, 130, 214,
-                211, 72, 28, 203, 197, 153, 124, 121, 119, 10, 96, 122, 179, 236, 152, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 131, 33,
-                86, 0,
-            ],
-            vec![
-                188, 255, 117, 135, 245, 116, 226, 73, 181, 73, 50, 146, 145, 35, 150, 130, 214,
-                211, 72, 28, 203, 197, 153, 124, 121, 119, 10, 96, 122, 179, 236, 152, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 131, 33,
-                86, 0,
             ],
             vec![
                 188, 255, 117, 135, 245, 116, 226, 73, 181, 73, 50, 146, 145, 35, 150, 130, 214,
@@ -187,14 +216,6 @@ mod tests {
             // Decode the byte array into a TokenMessage
             let token_message =
                 TokenMessage::read_from(&mut reader).expect("Failed to decode TokenMessage");
-
-            println!("#{:?}: {:?}", i, token_message);
         }
     }
-
-    // #[test]
-    // fn test_kaspa_tx_generator() {
-    //     let settings = GeneratorSettings::try_new_with_context();
-    //     let gen = Generator::try_new();
-    // }
 }

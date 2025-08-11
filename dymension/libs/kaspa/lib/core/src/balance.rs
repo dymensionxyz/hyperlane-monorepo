@@ -19,7 +19,7 @@ pub async fn check_balance<T: RpcApi + ?Sized>(
     let num = utxos.len();
     let balance: u64 = utxos.into_iter().map(|u| u.utxo_entry.amount).sum();
 
-    info!("{} has {} UTXO and {} balance", source, num, balance);
+    info!("{} has {} UTXOs and {} balance", source, num, balance);
 
     Ok(balance)
 }
