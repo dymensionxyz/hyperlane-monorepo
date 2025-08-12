@@ -1,5 +1,6 @@
 use super::messages::PopulatedInput;
 use super::minimum::{is_dust, is_small_value};
+use crate::withdraw::sweep::utxo_reference_from_populated_input;
 use corelib::escrow::EscrowPublic;
 use corelib::finality;
 use corelib::message::parse_hyperlane_metadata;
@@ -9,9 +10,14 @@ use corelib::wallet::SigningResources;
 use corelib::withdraw::WithdrawFXG;
 use eyre::eyre;
 use eyre::Result;
+use hardcode::tx::TX_MASS_MULTIPLIER;
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::U256;
 use kaspa_addresses::Prefix;
+use kaspa_consensus_client::UtxoEntryReference;
+use kaspa_consensus_client::{
+    TransactionOutpoint as ClientTransactionOutpoint, UtxoEntry as ClientUtxoEntry,
+};
 use kaspa_consensus_core::config::params::Params;
 use kaspa_consensus_core::constants::TX_VERSION;
 use kaspa_consensus_core::mass;
@@ -25,6 +31,7 @@ use kaspa_rpc_core::{RpcTransaction, RpcUtxosByAddressesEntry};
 use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_txscript::{opcodes::codes::OpData65, script_builder::ScriptBuilder};
 use kaspa_wallet_core::prelude::DynRpcApi;
+use kaspa_wallet_core::tx::MassCalculator;
 use kaspa_wallet_pskt::prelude::Bundle;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
@@ -56,6 +63,13 @@ pub async fn fetch_input_utxos(
             )
         })
         .collect())
+}
+
+pub async fn get_normal_bucket_feerate(kaspa_rpc: &Arc<DynRpcApi>) -> Result<f64> {
+    let feerate = kaspa_rpc.get_fee_estimate().await?;
+    // Due to the documentation:
+    // > The first value of this vector is guaranteed to exist
+    Ok(feerate.normal_buckets.first().unwrap().feerate)
 }
 
 /// Builds a single withdrawal PSKT.
@@ -102,6 +116,7 @@ pub fn build_withdrawal_pskt(
     relayer_addr: &kaspa_addresses::Address,
     network_id: NetworkId,
     min_deposit_sompi: U256,
+    feerate: f64,
 ) -> Result<PSKT<Signer>> {
     //////////////////
     //   Balances   //
@@ -146,10 +161,17 @@ pub fn build_withdrawal_pskt(
     //     Fee      //
     //////////////////
 
-    // Multiply the fee by 1.5 to give some space for adding change UTXOs.
-    // TODO: use feerate.
-    let tx_fee =
-        estimate_fee(inputs.clone(), outputs.clone(), payload.clone(), network_id) * 15 / 10;
+    let tx_mass = estimate_mass(
+        inputs.clone(),
+        outputs.clone(),
+        payload.clone(),
+        network_id,
+        escrow.m() as u16,
+    )
+    .map_err(|e| eyre::eyre!("Estimate TX mass: {e}"))?;
+
+    // Apply TX mass multiplier and feerate
+    let tx_fee = (tx_mass as f64 * TX_MASS_MULTIPLIER * feerate).round() as u64;
 
     if relayer_balance < tx_fee {
         return Err(eyre::eyre!(
@@ -204,6 +226,12 @@ pub fn build_withdrawal_pskt(
 
     // Escrow change (new anchor) is always the last element
     outputs.extend(vec![relayer_change, escrow_change]);
+
+    let inputs_num = inputs.len();
+    let outputs_num = outputs.len();
+    let payload_len = payload.len();
+
+    info!("Kaspa relayer, withdrawal TX inputs: {inputs_num}, outputs: {outputs_num}, payload: {payload_len} bytes, mass: {tx_mass}, feerate: {feerate}, fee: {tx_fee}");
 
     create_withdrawal_pskt(inputs, outputs, payload)
 }
@@ -335,53 +363,42 @@ pub(crate) fn extract_current_anchor(
     Ok((anchor_input, escrow_inputs))
 }
 
-fn estimate_fee(
+fn estimate_mass(
     populated_inputs: Vec<PopulatedInput>,
     outputs: Vec<TransactionOutput>,
     payload: Vec<u8>,
     network_id: NetworkId,
-) -> u64 {
-    let inputs = populated_inputs
-        .iter()
-        .map(|(input, _)| input.clone())
-        .collect();
-    let utxo_entries = populated_inputs
-        .iter()
-        .map(|(_, entry)| entry.clone())
-        .collect();
-
-    let inputs_num = populated_inputs.len();
-    let outputs_num = outputs.len();
-    let payload_len = payload.len();
+    min_signatures: u16,
+) -> Result<u64> {
+    let (inputs, utxo_references): (Vec<_>, Vec<_>) = populated_inputs
+        .into_iter()
+        .map(|populated| {
+            (
+                populated.0.clone(),
+                utxo_reference_from_populated_input(populated),
+            )
+        })
+        .unzip();
 
     let tx = Transaction::new(
         TX_VERSION,
         inputs,
-        outputs.clone(),
+        outputs,
         0, // no tx lock time
         SUBNETWORK_ID_NATIVE,
         0,
         payload,
     );
-    let ptx = PopulatedTransaction::new(&tx, utxo_entries);
 
     let p = Params::from(network_id);
-    let m = mass::MassCalculator::new_with_consensus_params(&p);
+    let m = MassCalculator::new(&p);
 
-    let ncm = m.calc_non_contextual_masses(&tx);
-    // Assumptions which must be verified before this call:
-    //     1. All output values are non-zero
-    //     2. At least one input (unless coinbase)
-    //
-    // Otherwise this function should never fail. As in our case.
-    let cm = m.calc_contextual_masses(&ptx).unwrap();
-
-    // TODO: Apply current feerate. It can be fetched from https://api.kaspa.org/info/fee-estimate.
-    let mass = cm.max(ncm);
-
-    info!("Kaspa relayer, the transaction (without change) contains {inputs_num} inputs, {outputs_num} outputs, and {payload_len} bytes payload, estimated mass is: {mass}");
-
-    mass
+    m.calc_overall_mass_for_unsigned_consensus_transaction(
+        &tx,
+        utxo_references.as_slice(),
+        min_signatures,
+    )
+    .map_err(|e| eyre::eyre!(e))
 }
 
 pub async fn combine_bundles_with_fee(
@@ -601,6 +618,7 @@ pub async fn sign_pay_fee(pskt: PSKT<Signer>, r: &SigningResources) -> Result<PS
 mod tests {
     use super::*;
     use bytes::Bytes;
+    use corelib::escrow::Escrow;
     use corelib::util::is_valid_sighash_type;
     use corelib::withdraw::WithdrawFXG;
     use hyperlane_core::H256;
@@ -695,8 +713,8 @@ mod tests {
         const MIN_OUTPUTS: u32 = 2;
         const MIN_INPUTS: u32 = 2;
 
-        const MAX_OUTPUTS: u32 = 5;
-        const MAX_INPUTS: u32 = 5;
+        const MAX_OUTPUTS: u32 = 15;
+        const MAX_INPUTS: u32 = 6;
 
         let spk = ScriptPublicKey::from_str(
             "20bcff7587f574e249b549329291239682d6d3481ccbc5997c79770a607ab3ec98ac",
@@ -747,7 +765,13 @@ mod tests {
                 let payload_len = payload.len();
 
                 // Call the function under test
-                let v = estimate_fee(inputs.clone(), outputs.clone(), payload.clone(), network_id);
+                let v = estimate_mass(
+                    inputs.clone(),
+                    outputs.clone(),
+                    payload.clone(),
+                    network_id,
+                    8,
+                )?;
 
                 // println!("{inputs_num} inputs, {outputs_num} outputs, {payload_len} bytes payload, estimated mass is {v}");
 
@@ -759,8 +783,6 @@ mod tests {
             res.push(res_inner);
             println!();
         }
-
-        // println!("{:?}", res);
 
         Ok(())
     }
