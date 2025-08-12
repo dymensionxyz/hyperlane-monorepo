@@ -14,16 +14,11 @@ use hardcode::tx::TX_MASS_MULTIPLIER;
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::U256;
 use kaspa_addresses::Prefix;
-use kaspa_consensus_client::UtxoEntryReference;
-use kaspa_consensus_client::{
-    TransactionOutpoint as ClientTransactionOutpoint, UtxoEntry as ClientUtxoEntry,
-};
 use kaspa_consensus_core::config::params::Params;
 use kaspa_consensus_core::constants::TX_VERSION;
-use kaspa_consensus_core::mass;
 use kaspa_consensus_core::network::NetworkId;
 use kaspa_consensus_core::subnets::SUBNETWORK_ID_NATIVE;
-use kaspa_consensus_core::tx::{PopulatedTransaction, UtxoEntry};
+use kaspa_consensus_core::tx::UtxoEntry;
 use kaspa_consensus_core::tx::{
     Transaction, TransactionInput, TransactionOutpoint, TransactionOutput,
 };
