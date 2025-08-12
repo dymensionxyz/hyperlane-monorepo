@@ -1,6 +1,11 @@
 /// Cosmos Native Mailbox
 use cosmrs::Any;
 use hex::ToHex;
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox,
+    RawHyperlaneMessage, ReorgPeriod, TxCostEstimate, TxOutcome, H256, H512, U256,
+};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{MsgIndicateProgress, ProgressIndication};
 use hyperlane_cosmos_rs::hyperlane::core::v1::MsgProcessMessage;
 use hyperlane_cosmos_rs::prost::{Message, Name};
@@ -8,11 +13,6 @@ use tendermint::hash::Algorithm;
 use tendermint::Hash;
 use tonic::async_trait;
 use tracing::info;
-use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox,
-    RawHyperlaneMessage, ReorgPeriod, TxCostEstimate, TxOutcome, H256, H512, U256,
-};
 
 use crate::CosmosNativeProvider;
 
@@ -232,7 +232,7 @@ impl CosmosNativeMailbox {
         // Cosmos doesn't save rejected TXs on-chain.
         // Logging here is the easiest way to see what happened.
         if !executed {
-            info!("Dymension, indicate progress is not executed on-chain: {:?}", response);
+            info!("Dymension, indicate progress is not executed on-chain: {response:?}");
         }
 
         Ok(TxOutcome {
@@ -250,11 +250,6 @@ pub fn h512_to_cosmos_hash(h: H512) -> Hash {
 }
 
 mod test {
-    use hex::ToHex;
-    use hyperlane_core::{H256, H512};
-    use tendermint::hash::Algorithm;
-    use tendermint::Hash;
-
     #[test]
     fn test_hash() {
         // From cosmos hex to HL transaction ID
