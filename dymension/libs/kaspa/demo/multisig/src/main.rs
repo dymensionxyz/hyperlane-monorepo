@@ -1,78 +1,29 @@
-#![allow(unused)] // TODO: remove
-use eyre::{eyre, Result};
-
 mod x;
-
 use corelib::balance::*;
-use corelib::deposit::*;
 use corelib::escrow::*;
 use corelib::user::deposit::deposit_with_payload as deposit;
+use corelib::util::kaspa_address_to_h256;
 use corelib::wallet::*;
+use eyre::{eyre, Result};
 use futures_util::TryStreamExt;
 use hardcode::e2e::{
-    get_tn10_config as e2e_config, ADDRESS_PREFIX as e2e_address_prefix,
-    DEPOSIT_AMOUNT as e2e_deposit_amount, MIN_DEPOSIT_SOMPI as e2e_min_deposit_sompi,
-    NETWORK_ID as e2e_network_id, RELAYER_NETWORK_FEE as e2e_relayer_network_fee, URL as e2e_url,
+    ADDRESS_PREFIX as e2e_address_prefix, DEPOSIT_AMOUNT as e2e_deposit_amount,
+    MIN_DEPOSIT_SOMPI as e2e_min_deposit_sompi,
 };
+use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::{Encode, U256};
-use relayer::withdraw::demo::*;
-use relayer::withdraw::hub_to_kaspa::{
-    build_withdrawal_pskt, combine_bundles_with_fee as relayer_combine_bundles_and_pay_fee,
-    fetch_input_utxos,
-};
-use validator::withdraw::sign_withdrawal_fxg as validator_sign_withdrawal_fxg;
-use validator::withdraw::{
-    safe_bundle as validator_safe_bundle, validate_pskts,
-};
-use x::args::Args;
-
-use std::sync::Arc;
-
-use corelib::withdraw::WithdrawFXG;
-use hyperlane_core::{HyperlaneMessage, H256};
 use hyperlane_warp_route::TokenMessage;
-use kaspa_addresses::Address;
-use kaspa_consensus_core::{
-    constants::TX_VERSION,
-    sign::sign,
-    subnets::SUBNETWORK_ID_NATIVE,
-    tx::{
-        MutableTransaction, ScriptPublicKey, Transaction, TransactionInput, TransactionOutpoint,
-        TransactionOutput,
-    },
-};
+use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_core::info;
-use kaspa_grpc_client::GrpcClient;
-use kaspa_wallet_core::api::{AccountsSendRequest, WalletApi};
-use kaspa_wallet_core::error::Error;
-use kaspa_wallet_core::tx::{Fees, Generator, GeneratorSettings};
-
+use kaspa_rpc_core::api::rpc::RpcApi;
 use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_pskt::prelude::*; // Import the prelude for easy access to traits/structs
-
-use kaspa_txscript::{
-    extract_script_pub_key_address, multisig_redeem_script, pay_to_address_script,
-    pay_to_script_hash_script,
-};
-
-use secp256k1::{rand::thread_rng, Keypair};
-
-use corelib::consts::RELAYER_SIG_OP_COUNT;
-use corelib::payload::MessageIDs;
-use corelib::util::{get_recipient_script_pubkey_address, kaspa_address_to_h256};
-use kaspa_bip32::{ExtendedKeyAttrs, KeyFingerprint};
-use kaspa_consensus_client::{TransactionOutpoint as ClientTransactionOutpoint, UtxoEntry};
-use kaspa_consensus_core::constants::UNACCEPTED_DAA_SCORE;
-use kaspa_rpc_core::api::rpc::RpcApi;
-use kaspa_wallet_core::account::multisig::MultiSig;
-use kaspa_wallet_core::account::pskb::{bundle_from_pskt_generator, PSKBSigner, PSKTGenerator};
-use kaspa_wallet_core::derivation::{ExtendedPublicKeySecp256k1, ExtendedPublicKeys};
-use kaspa_wallet_core::utxo::{UtxoEntryId, UtxoEntryReference};
-use kaspa_wallet_core::wallet::AccountCreateArgs::Multisig;
+use relayer::withdraw::hub_to_kaspa::combine_bundles_with_fee as relayer_combine_bundles_and_pay_fee;
 use relayer::withdraw::messages::build_withdrawal_fxg;
-use relayer::withdraw::sweep::{create_inputs_from_sweeping_bundle, create_sweeping_bundle};
-use workflow_core::abortable::Abortable;
-use workflow_core::prelude::yield_executor;
+use validator::withdraw::sign_withdrawal_fxg as validator_sign_withdrawal_fxg;
+use validator::withdraw::{safe_bundle as validator_safe_bundle, validate_pskts};
+use x::args::Args;
+
 /*
 Demo:
 The purpose is to test out using a multisig for securing an escrow address.

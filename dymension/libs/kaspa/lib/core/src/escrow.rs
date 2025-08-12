@@ -5,7 +5,6 @@ use kaspa_txscript::{
 };
 use secp256k1::{rand::thread_rng, Keypair, PublicKey};
 use std::str::FromStr;
-use crate::KaspaSecpKeypair;
 
 pub fn generate_escrow_priv_key() -> Keypair {
     Keypair::new(secp256k1::SECP256K1, &mut thread_rng())

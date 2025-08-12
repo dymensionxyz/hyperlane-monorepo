@@ -7,7 +7,7 @@ use kaspa_consensus_client::{
     TransactionOutpoint as ClientTransactionOutpoint, UtxoEntry as ClientUtxoEntry,
 };
 use kaspa_consensus_core::constants::UNACCEPTED_DAA_SCORE;
-use kaspa_consensus_core::tx::{TransactionId, TransactionInput, TransactionOutpoint, UtxoEntry};
+use kaspa_consensus_core::tx::{TransactionInput, TransactionOutpoint, UtxoEntry};
 use kaspa_wallet_core::account::pskb::{bundle_from_pskt_generator, PSKTGenerator};
 use kaspa_wallet_core::prelude::{Fees, PaymentDestination};
 use kaspa_wallet_core::tx::{Generator, GeneratorSettings, PaymentOutput};

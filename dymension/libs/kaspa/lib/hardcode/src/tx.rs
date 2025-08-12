@@ -1,4 +1,3 @@
-use kaspa_consensus_core::constants::SOMPI_PER_KASPA;
 use std::time::Duration;
 
 pub const DUST_AMOUNT: u64 = 20_000_001;

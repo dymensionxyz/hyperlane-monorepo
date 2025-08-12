@@ -29,7 +29,7 @@ use kaspa_wallet_pskt::prelude::Bundle;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
 use std::sync::Arc;
-use tracing::{info, warn};
+use tracing::info;
 
 /// Fetches UTXOs and combines a list of all populated inputs
 pub async fn fetch_input_utxos(
