@@ -142,9 +142,8 @@ dymd q auth module-account gov -o json | jq -r '.account.value.address' # get th
 
 # get the kaspa seed outpoint
 
-kaspatest%3Appg5lszd7m8u8hxru3yux3yhhlym3xt2v6perwz4mhhml6ganfm6wee839gfc
-curl -X 'GET' 'https://api-tn10.kaspa.org/addresses/kaspatest%3Appg5lszd7m8u8hxru3yux3yhhlym3xt2v6perwz4mhhml6ganfm6wee839gfc/utxos' -H 'accept: application/json' # TODO: query escrow address (fix url encoding)
-OUTPOINT="10cb72ddfd561dd54755091219a63f671d1500937ed4689f93f5e1567ea287ca"
+curl -X 'GET' 'https://api-tn10.kaspa.org/addresses/kaspatest%3Apzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr/utxos' -H 'accept: application/json' # TODO: query escrow address (fix url encoding)
+OUTPOINT="5e1cf6784e7af1808674a252eb417d8fa003135190dd4147caf98d8463a7e73a"
 # need to convert outpoint from hex to base64 when passing to hub (note, zero index does not render)
 echo $OUTPOINT | xxd -r -p | base64 # Xhz2eE568YCGdKJS60F9j6ADE1GQ3UFHyvmNhGOn5zo=
 # note, reverse is ` echo $base64 | base64 -D | xxd -p `
@@ -210,7 +209,7 @@ RUST_BACKTRACE=1 cargo run --release --bin relayer -- \
 
 HUB_USER_ADDR=$(dymd keys show -a hub-user) #dym139mq752delxv78jvtmwxhasyrycufsvrw4aka9
 
-DEPOSIT_AMT=10000000000 # 100 million sompi = 1 TKAS
+DEPOSIT_AMT=10000000000 # 10_000 million sompi = 100 TKAS
 
 # get the HL message
 # <token id> <recipient> <amt> <kas_token_id>

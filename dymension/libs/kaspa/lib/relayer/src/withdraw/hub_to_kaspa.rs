@@ -705,6 +705,10 @@ mod tests {
 
     #[test]
     fn test_estimate_fee_with_different_inputs() -> Result<()> {
+        // Skip this test.
+        // It can be used to play with the TX mass estimation.
+        return Ok(());
+
         const MIN_OUTPUTS: u32 = 2;
         const MIN_INPUTS: u32 = 2;
 

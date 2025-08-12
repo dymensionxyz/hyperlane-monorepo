@@ -115,7 +115,7 @@ async fn demo() -> Result<()> {
     workflow_core::task::sleep(std::time::Duration::from_secs(1)).await;
 
     // Simulate deposits
-    for i in 1..1 {
+    for i in 1..4 {
         let tx_id = deposit(&w.wallet, &w.secret, escrow_addr.clone(), amt, vec![]).await?;
         info!("Sent deposit transaction: deposit {}: {}", i, tx_id);
         workflow_core::task::sleep(std::time::Duration::from_secs(1)).await;
