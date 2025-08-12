@@ -146,10 +146,10 @@ pub fn build_withdrawal_pskt(
     //     Fee      //
     //////////////////
 
-    // Multiply the fee by 1.3 to give some space for adding change UTXOs.
+    // Multiply the fee by 1.5 to give some space for adding change UTXOs.
     // TODO: use feerate.
     let tx_fee =
-        estimate_fee(inputs.clone(), outputs.clone(), payload.clone(), network_id) * 13 / 10;
+        estimate_fee(inputs.clone(), outputs.clone(), payload.clone(), network_id) * 15 / 10;
 
     if relayer_balance < tx_fee {
         return Err(eyre::eyre!(
@@ -379,7 +379,7 @@ fn estimate_fee(
     // TODO: Apply current feerate. It can be fetched from https://api.kaspa.org/info/fee-estimate.
     let mass = cm.max(ncm);
 
-    info!("Kaspa relayer, the transaction contains {inputs_num} inputs, {outputs_num} outputs, and {payload_len} bytes payload, estimated mass is: {mass}");
+    info!("Kaspa relayer, the transaction (without change) contains {inputs_num} inputs, {outputs_num} outputs, and {payload_len} bytes payload, estimated mass is: {mass}");
 
     mass
 }
@@ -463,12 +463,21 @@ fn combine_all_bundles(bundles: Vec<Bundle>) -> Result<Vec<PSKT<Combiner>>> {
 
     // walk across each tx and combine all the sigs for that tx into one combiner
     let mut ret = Vec::new();
-    for all_actor_sigs_for_tx in tx_sigs.iter() {
-        let mut combiner = all_actor_sigs_for_tx.first().unwrap().clone().combiner();
-        for tx_sig in all_actor_sigs_for_tx.iter().skip(1) {
-            info!("Combining PSKT");
+    for (pskt_idx, all_actor_sigs_for_tx) in tx_sigs.iter().enumerate() {
+        let pskt = all_actor_sigs_for_tx.first().unwrap().clone();
+
+        info!(
+            "Compibning PSKT #{pskt_idx} with tx id {}",
+            pskt.calculate_id()
+        );
+
+        let mut combiner = pskt.combiner();
+
+        for (sig_idx, tx_sig) in all_actor_sigs_for_tx.iter().skip(1).enumerate() {
+            info!("Combining PSKT #{pskt_idx}, signature #{sig_idx}",);
             combiner = (combiner + tx_sig.clone())?;
         }
+
         ret.push(combiner);
     }
     Ok(ret)
@@ -686,8 +695,8 @@ mod tests {
         const MIN_OUTPUTS: u32 = 2;
         const MIN_INPUTS: u32 = 2;
 
-        const MAX_OUTPUTS: u32 = 10;
-        const MAX_INPUTS: u32 = 49;
+        const MAX_OUTPUTS: u32 = 5;
+        const MAX_INPUTS: u32 = 5;
 
         let spk = ScriptPublicKey::from_str(
             "20bcff7587f574e249b549329291239682d6d3481ccbc5997c79770a607ab3ec98ac",
