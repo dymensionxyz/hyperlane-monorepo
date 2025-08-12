@@ -17,7 +17,7 @@ use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
 use dym_kas_validator::deposit::{validate_new_deposit, MustMatch as DepositMustMatch};
 use dym_kas_validator::withdraw::{
-    safe_bundle, sign_withdrawal_fxg, validate_sign_withdrawal_fxg, validate_withdrawal_batch,
+    validate_sign_withdrawal_fxg,
     MustMatch as WithdrawMustMatch,
 };
 pub use dym_kas_validator::KaspaSecpKeypair;
@@ -31,7 +31,6 @@ use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use hyperlane_cosmos_rs::prost::Message;
 use kaspa_wallet_core::prelude::DynRpcApi;
-use kaspa_wallet_pskt::bundle;
 use kaspa_wallet_pskt::prelude::*;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha3::{digest::Update, Digest, Keccak256};
