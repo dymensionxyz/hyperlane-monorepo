@@ -5,7 +5,6 @@ use corelib::user::deposit::deposit_with_payload as deposit;
 use corelib::util::kaspa_address_to_h256;
 use corelib::wallet::*;
 use eyre::{eyre, Result};
-use futures_util::TryStreamExt;
 use hardcode::e2e::{
     ADDRESS_PREFIX as e2e_address_prefix, DEPOSIT_AMOUNT as e2e_deposit_amount,
     MIN_DEPOSIT_SOMPI as e2e_min_deposit_sompi,
@@ -15,8 +14,6 @@ use hyperlane_core::{Encode, U256};
 use hyperlane_warp_route::TokenMessage;
 use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_core::info;
-use kaspa_rpc_core::api::rpc::RpcApi;
-use kaspa_wallet_core::prelude::*;
 use kaspa_wallet_pskt::prelude::*; // Import the prelude for easy access to traits/structs
 use relayer::withdraw::hub_to_kaspa::combine_bundles_with_fee as relayer_combine_bundles_and_pay_fee;
 use relayer::withdraw::messages::build_withdrawal_fxg;
