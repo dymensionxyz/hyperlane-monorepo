@@ -90,6 +90,7 @@ pub struct DemoArgs {
     pub payload: Option<String>,
     pub only_deposit: bool,
     pub wallet_secret: String,
+    pub rpc_url: String,
 }
 
 impl Default for DemoArgs {
@@ -100,6 +101,7 @@ impl Default for DemoArgs {
             payload: None,
             only_deposit: false,
             wallet_secret: "".to_string(),
+            rpc_url: "".to_string(),
         }
     }
 }
@@ -161,7 +163,7 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
 
     let w = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
         wallet_secret: args.wallet_secret,
-        rpc_url: URL.to_string(),
+        rpc_url: args.rpc_url,
         net: Network::KaspaTest10,
         storage_folder: None,
     })

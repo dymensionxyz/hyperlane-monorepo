@@ -96,6 +96,8 @@ pub async fn build_withdrawal_fxg(
         extract_current_anchor(current_anchor, escrow_inputs)
             .map_err(|e| eyre::eyre!("Extract current anchor: {}", e))?;
 
+    let swepet_escrow_inputs = escrow_inputs_to_sweep.len();
+
     let mut sweeping_bundle = create_sweeping_bundle(
         &relayer,
         &escrow_public,
@@ -110,8 +112,9 @@ pub async fn build_withdrawal_fxg(
         .map_err(|e| eyre::eyre!("Create input from sweeping bundle: {}", e))?;
 
     info!(
-        "Constructed sweeping bundle with {} PSKTs",
-        sweeping_bundle.iter().len()
+        "Constructed sweeping bundle of {} PSKTs, {} escrow inputs are swept",
+        sweeping_bundle.iter().len(),
+        swepet_escrow_inputs
     );
 
     // Create a new list of inputs for the withdrawal PSKT
