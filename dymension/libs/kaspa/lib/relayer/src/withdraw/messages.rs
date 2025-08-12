@@ -1,5 +1,6 @@
 use super::hub_to_kaspa::{
-    build_withdrawal_pskt, extract_current_anchor, fetch_input_utxos, get_outputs_from_msgs,
+    build_withdrawal_pskt, extract_current_anchor, fetch_input_utxos, get_normal_bucket_feerate,
+    get_outputs_from_msgs,
 };
 use crate::withdraw::sweep::{create_inputs_from_sweeping_bundle, create_sweeping_bundle};
 use corelib::consts::RELAYER_SIG_OP_COUNT;
@@ -8,12 +9,13 @@ use corelib::payload::MessageIDs;
 use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use eyre::Result;
+use hardcode::tx::SWEEPING_THRESHOLD;
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::U256;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
-use kaspa_consensus_core::tx::{
-    TransactionInput, TransactionOutpoint, UtxoEntry,
-};
+use kaspa_consensus_client::UtxoEntryReference;
+use kaspa_consensus_core::tx::{TransactionInput, TransactionOutpoint, UtxoEntry};
+use kaspa_wallet_pskt::bundle::Bundle;
 use tracing::info;
 
 pub(crate) type PopulatedInput = (TransactionInput, UtxoEntry);
@@ -56,12 +58,16 @@ pub async fn build_withdrawal_fxg(
     let (valid_msgs, outputs) =
         get_outputs_from_msgs(pending_msgs, relayer.net.address_prefix, min_deposit_sompi);
 
+    let feerate = get_normal_bucket_feerate(&relayer.api())
+        .await
+        .map_err(|e| eyre::eyre!("Get normal bucket feerate: {e}"))?;
+
     if outputs.is_empty() {
         info!("Kaspa relayer, no valid pending withdrawals, all in batch are already processed and confirmed on hub");
         return Ok(None); // nothing to process
     }
     info!(
-        "Kaspa relayer, got pending withdrawals, building PSKT, len: {}",
+        "Kaspa relayer, got pending withdrawals, building PSKT, withdrawal num: {}",
         outputs.len()
     );
 
@@ -87,39 +93,53 @@ pub async fn build_withdrawal_fxg(
     .await
     .map_err(|e| eyre::eyre!("Fetch relayer UTXOs: {}", e))?;
 
-    // Extract the current anchor from the escrow UTXO set.
-    // All non-anchor UTXOs will be swept.
-    // Anchor UTXO will be used as the input for withdrawal PSKT.
-    let (anchor_input, escrow_inputs_to_sweep) =
-        extract_current_anchor(current_anchor, escrow_inputs)
-            .map_err(|e| eyre::eyre!("Extract current anchor: {}", e))?;
+    let (sweeping_bundle, inputs) = if escrow_inputs.len() > SWEEPING_THRESHOLD {
+        // Sweep
 
-    let swepet_escrow_inputs = escrow_inputs_to_sweep.len();
+        // Extract the current anchor from the escrow UTXO set.
+        // All non-anchor UTXOs will be swept.
+        // Anchor UTXO will be used as the input for withdrawal PSKT.
+        let (anchor_input, escrow_inputs_to_sweep) =
+            extract_current_anchor(current_anchor, escrow_inputs)
+                .map_err(|e| eyre::eyre!("Extract current anchor: {}", e))?;
 
-    let mut sweeping_bundle = create_sweeping_bundle(
-        &relayer,
-        &escrow_public,
-        escrow_inputs_to_sweep,
-        relayer_inputs,
-    )
-    .await
-    .map_err(|e| eyre::eyre!("Create sweeping bundle: {}", e))?;
+        let to_sweep_num = escrow_inputs_to_sweep.len();
 
-    // Use sweeping bundle's outputs to create inputs for withdrawal PSKT
-    let swept_inputs = create_inputs_from_sweeping_bundle(&sweeping_bundle, &escrow_public)
-        .map_err(|e| eyre::eyre!("Create input from sweeping bundle: {}", e))?;
+        let sweeping_bundle = create_sweeping_bundle(
+            &relayer,
+            &escrow_public,
+            escrow_inputs_to_sweep,
+            relayer_inputs,
+        )
+        .await
+        .map_err(|e| eyre::eyre!("Create sweeping bundle: {}", e))?;
 
-    info!(
-        "Constructed sweeping bundle of {} PSKTs, {} escrow inputs are swept",
-        sweeping_bundle.iter().len(),
-        swepet_escrow_inputs
-    );
+        // Use sweeping bundle's outputs to create inputs for withdrawal PSKT.
+        // Outputs contain escrow and realyer change.
+        let swept_inputs = create_inputs_from_sweeping_bundle(&sweeping_bundle, &escrow_public)
+            .map_err(|e| eyre::eyre!("Create input from sweeping bundle: {}", e))?;
 
-    // Create a new list of inputs for the withdrawal PSKT
-    // +1 for the anchor input
-    let mut inputs = Vec::with_capacity(swept_inputs.len() + 1);
-    inputs.push(anchor_input);
-    inputs.extend(swept_inputs);
+        info!(
+            "Constructed sweeping bundle of {} PSKTs, {to_sweep_num} escrow inputs are swept",
+            sweeping_bundle.0.len(),
+        );
+
+        let mut inputs = Vec::with_capacity(swept_inputs.len() + 1);
+        inputs.push(anchor_input);
+        inputs.extend(swept_inputs);
+
+        (Some(sweeping_bundle), inputs)
+    } else {
+        // No sweep needed
+
+        info!("No sweep needed, continue to withdrawal");
+
+        let mut inputs = Vec::with_capacity(escrow_inputs.len() + relayer_inputs.len());
+        inputs.extend(escrow_inputs);
+        inputs.extend(relayer_inputs);
+
+        (None, inputs)
+    };
 
     let payload = MessageIDs::from(&valid_msgs).to_bytes();
 
@@ -131,26 +151,36 @@ pub async fn build_withdrawal_fxg(
         &relayer_address,
         relayer.net.network_id,
         min_deposit_sompi,
+        feerate,
     )
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
 
     // Contract: the last output of the withdrawal PSKT is the new anchor
     let new_anchor = TransactionOutpoint::new(pskt.calculate_id(), (pskt.outputs.len() - 1) as u32);
 
-    // The first N elements are empty since sweeping PSKTs don't have any HL messages.
+    // The first N (if any) elements are empty since sweeping PSKTs don't have any HL messages.
     // The last element is the withdrawal PSKT, so it should have all the HL messages.
-    let messages = std::iter::repeat_with(Vec::new)
-        .take(sweeping_bundle.iter().len())
-        .chain(std::iter::once(valid_msgs))
-        .collect();
+    let messages = {
+        let sweep_count = sweeping_bundle.as_ref().map_or(0, |b| b.0.len());
+        let mut messages = Vec::with_capacity(sweep_count + valid_msgs.len());
+        messages.extend(vec![Vec::new(); sweep_count]);
+        messages.push(valid_msgs);
+        messages
+    };
 
     // Create a final bundle. It has the following structure:
-    // 1. Sweeping bundle – might contain multiple PSKTs. It sweeps all non-anchor UTXOs.
+    // 1. Sweeping bundle (if any) – might contain multiple PSKTs. It sweeps all non-anchor UTXOs.
     // 2. One withdrawal PSKT – contains the output UTXO from the sweeping bundle and the anchor input
-    sweeping_bundle.add_pskt(pskt);
+    let bundle = match sweeping_bundle {
+        Some(mut bundle) => {
+            bundle.add_pskt(pskt);
+            bundle
+        }
+        None => Bundle::from(pskt),
+    };
 
     Ok(Some(WithdrawFXG::new(
-        sweeping_bundle,
+        bundle,
         messages,
         vec![current_anchor, new_anchor],
     )))

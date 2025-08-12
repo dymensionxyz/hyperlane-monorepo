@@ -110,12 +110,12 @@ async fn demo() -> Result<()> {
     // Create 3 UTXOs on the escrow address
 
     // Initial UTXO == anchor
-    let anchor_tx_id = deposit(&w.wallet, &w.secret, escrow_addr.clone(), amt, vec![]).await?;
+    let anchor_tx_id = deposit(&w.wallet, &w.secret, escrow_addr.clone(), amt * 2, vec![]).await?;
     info!("Sent deposit transaction: initial anchor: {}", anchor_tx_id);
     workflow_core::task::sleep(std::time::Duration::from_secs(1)).await;
 
     // Simulate deposits
-    for i in 1..11 {
+    for i in 1..1 {
         let tx_id = deposit(&w.wallet, &w.secret, escrow_addr.clone(), amt, vec![]).await?;
         info!("Sent deposit transaction: deposit {}: {}", i, tx_id);
         workflow_core::task::sleep(std::time::Duration::from_secs(1)).await;
@@ -192,6 +192,8 @@ async fn demo() -> Result<()> {
             info!("TX #{} Output #{}: {}", tx_idx, o_idx, o.value);
         });
     });
+
+
 
     for tx in finalized {
         let allow_orphan = false; // TODO: what is this?

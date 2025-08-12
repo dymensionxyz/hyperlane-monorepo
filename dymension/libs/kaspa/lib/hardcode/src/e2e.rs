@@ -9,7 +9,7 @@ pub const NETWORK_ID: NetworkId = NetworkId::with_suffix(NETWORK, 10);
 pub const MIN_DEPOSIT_SOMPI: u64 = 4_000_000_000;
 pub const ADDRESS_PREFIX: Prefix = Prefix::Testnet;
 pub const ADDRESS_VERSION: Version = Version::PubKey;
-pub const URL: &str = "37.27.24.130:17210"; // local node wrpc to testnet10
+pub const URL: &str = "localhost:17210"; // local node wrpc to testnet10
 
 pub const DEPOSIT_AMOUNT: u64 = MIN_DEPOSIT_SOMPI;
 

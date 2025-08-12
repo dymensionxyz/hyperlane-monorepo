@@ -1,8 +1,10 @@
+use crate::withdraw::messages::PopulatedInput;
 use corelib::consts::RELAYER_SIG_OP_COUNT;
 use corelib::escrow::EscrowPublic;
 use corelib::util::input_sighash_type;
 use corelib::wallet::EasyKaspaWallet;
 use eyre::{eyre, Result};
+use hardcode::tx::RELAYER_SWEEPING_PRIORITY_FEE;
 use kaspa_consensus_client::{
     TransactionOutpoint as ClientTransactionOutpoint, UtxoEntry as ClientUtxoEntry,
 };
@@ -26,8 +28,8 @@ use std::sync::Arc;
 pub async fn create_sweeping_bundle(
     relayer_wallet: &EasyKaspaWallet,
     escrow: &EscrowPublic,
-    escrow_inputs: Vec<(TransactionInput, UtxoEntry)>,
-    relayer_inputs: Vec<(TransactionInput, UtxoEntry)>,
+    escrow_inputs: Vec<PopulatedInput>,
+    relayer_inputs: Vec<PopulatedInput>,
 ) -> Result<Bundle> {
     let sweep_balance = escrow_inputs.iter().map(|(_, e)| e.amount).sum::<u64>();
 
@@ -35,16 +37,7 @@ pub async fn create_sweeping_bundle(
         escrow_inputs
             .into_iter()
             .chain(relayer_inputs.into_iter())
-            .map(|(input, entry)| {
-                UtxoEntryReference::from(ClientUtxoEntry {
-                    address: None,
-                    outpoint: ClientTransactionOutpoint::from(input.previous_outpoint),
-                    amount: entry.amount,
-                    script_public_key: entry.script_public_key.clone(),
-                    block_daa_score: entry.block_daa_score,
-                    is_coinbase: entry.is_coinbase,
-                })
-            }),
+            .map(utxo_reference_from_populated_input),
     );
 
     let settings = GeneratorSettings::try_new_with_iterator(
@@ -60,7 +53,7 @@ pub async fn create_sweeping_bundle(
         // One payment output – escrow account which receives the entire sweeping amount
         PaymentDestination::from(PaymentOutput::new(escrow.addr.clone(), sweep_balance)),
         // No priority fee required
-        Fees::SenderPays(0),
+        Fees::SenderPays(RELAYER_SWEEPING_PRIORITY_FEE),
         None,
         None,
     )
@@ -139,7 +132,7 @@ fn format_sweeping_bundle(bundle: Bundle, escrow: &EscrowPublic) -> Result<Bundl
 pub fn create_inputs_from_sweeping_bundle(
     sweeping_bundle: &Bundle,
     escrow: &EscrowPublic,
-) -> Result<Vec<(TransactionInput, UtxoEntry)>> {
+) -> Result<Vec<PopulatedInput>> {
     let last_pskt = sweeping_bundle
         .iter()
         .last()
@@ -160,7 +153,7 @@ pub fn create_inputs_from_sweeping_bundle(
         }
     };
 
-    let relayer_input = (
+    let relayer_input: PopulatedInput = (
         TransactionInput::new(
             TransactionOutpoint::new(tx_id, relayer_idx),
             vec![],
@@ -175,7 +168,7 @@ pub fn create_inputs_from_sweeping_bundle(
         ),
     );
 
-    let escrow_input = (
+    let escrow_input: PopulatedInput = (
         TransactionInput::new(
             TransactionOutpoint::new(tx_id, escrow_idx),
             escrow.redeem_script.clone(),
@@ -191,4 +184,17 @@ pub fn create_inputs_from_sweeping_bundle(
     );
 
     Ok(vec![relayer_input, escrow_input])
+}
+
+pub(crate) fn utxo_reference_from_populated_input(
+    (input, entry): PopulatedInput,
+) -> UtxoEntryReference {
+    UtxoEntryReference::from(ClientUtxoEntry {
+        address: None,
+        outpoint: ClientTransactionOutpoint::from(input.previous_outpoint),
+        amount: entry.amount,
+        script_public_key: entry.script_public_key.clone(),
+        block_daa_score: entry.block_daa_score,
+        is_coinbase: entry.is_coinbase,
+    })
 }
