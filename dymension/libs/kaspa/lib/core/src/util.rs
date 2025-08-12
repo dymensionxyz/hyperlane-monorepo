@@ -7,7 +7,6 @@ use kaspa_consensus_core::tx::ScriptPublicKey;
 use kaspa_txscript::pay_to_address_script;
 use std::collections::HashSet;
 use std::hash::Hash;
-use std::str::FromStr;
 
 pub fn kaspa_address_to_h256(address: Address) -> H256 {
     let bytes_32: [u8; 32] = address.payload.as_slice().try_into().unwrap();

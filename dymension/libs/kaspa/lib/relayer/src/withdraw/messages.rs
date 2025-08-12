@@ -5,7 +5,6 @@ use crate::withdraw::sweep::{create_inputs_from_sweeping_bundle, create_sweeping
 use corelib::consts::RELAYER_SIG_OP_COUNT;
 use corelib::escrow::EscrowPublic;
 use corelib::payload::MessageIDs;
-use corelib::util::get_recipient_script_pubkey_address;
 use corelib::wallet::EasyKaspaWallet;
 use corelib::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use eyre::Result;
@@ -13,9 +12,8 @@ use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::U256;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use kaspa_consensus_core::tx::{
-    TransactionInput, TransactionOutpoint, TransactionOutput, UtxoEntry,
+    TransactionInput, TransactionOutpoint, UtxoEntry,
 };
-use kaspa_wallet_pskt::prelude::Bundle;
 use tracing::info;
 
 pub(crate) type PopulatedInput = (TransactionInput, UtxoEntry);
