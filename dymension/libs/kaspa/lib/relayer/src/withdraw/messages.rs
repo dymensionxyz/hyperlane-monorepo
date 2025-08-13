@@ -114,7 +114,7 @@ pub async fn build_withdrawal_fxg(
         .map_err(|e| eyre::eyre!("Create sweeping bundle: {}", e))?;
 
         // Use sweeping bundle's outputs to create inputs for withdrawal PSKT.
-        // Outputs contain escrow and realyer change.
+        // Outputs contain escrow and relayer change.
         let swept_inputs = create_inputs_from_sweeping_bundle(&sweeping_bundle, &escrow_public)
             .map_err(|e| eyre::eyre!("Create input from sweeping bundle: {}", e))?;
 
