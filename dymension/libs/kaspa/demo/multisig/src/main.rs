@@ -92,8 +92,6 @@ async fn demo() -> Result<()> {
 
     let mut args = Args::parse();
 
-    args.wallet_secret = Some("123456qwe".to_string());
-
     let w = load_wallet(&args, None).await?;
 
     let rpc = w.api();
@@ -194,7 +192,7 @@ async fn demo() -> Result<()> {
     });
 
     for tx in finalized {
-        let allow_orphan = false; // TODO: what is this?
+        let allow_orphan = false; // TODO: false is good or not?
         let tx_id = rpc.submit_transaction(tx, allow_orphan).await?;
         info!("TX #{tx_id} is broadcasted");
     }
