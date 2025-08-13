@@ -115,7 +115,7 @@ pub async fn build_withdrawal_fxg(
 
         // Use sweeping bundle's outputs to create inputs for withdrawal PSKT.
         // Outputs contain escrow and relayer change.
-        let swept_inputs = create_inputs_from_sweeping_bundle(&sweeping_bundle, &escrow_public)
+        let swept_outputs = create_inputs_from_sweeping_bundle(&sweeping_bundle, &escrow_public)
             .map_err(|e| eyre::eyre!("Create input from sweeping bundle: {}", e))?;
 
         info!(
@@ -123,9 +123,9 @@ pub async fn build_withdrawal_fxg(
             sweeping_bundle.0.len(),
         );
 
-        let mut inputs = Vec::with_capacity(swept_inputs.len() + 1);
+        let mut inputs = Vec::with_capacity(swept_outputs.len() + 1);
         inputs.push(anchor_input);
-        inputs.extend(swept_inputs);
+        inputs.extend(swept_outputs); // use the swept outputs for the withdrawal inputs
 
         (Some(sweeping_bundle), inputs)
     } else {
