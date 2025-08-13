@@ -129,7 +129,6 @@ pub async fn build_withdrawal_fxg(
 
         (Some(sweeping_bundle), inputs)
     } else {
-        // No sweep needed
 
         info!("No sweep needed, continue to withdrawal");
 

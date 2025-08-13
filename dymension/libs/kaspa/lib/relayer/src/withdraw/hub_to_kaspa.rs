@@ -447,7 +447,7 @@ async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, fxg: &WithdrawFXG) -> R
 
 /// accepts bundle of signer
 fn combine_all_bundles(bundles: Vec<Bundle>) -> Result<Vec<PSKT<Combiner>>> {
-    // each bundle is from a different actor (validator or releayer), and is a vector of pskt
+    // each bundle is from a different actor (validator or relayer), and is a vector of pskt
     // therefore index i of each vector corresponds to the same TX i
 
     // make a list of lists, each top level element is a vector of pskt from a different actor
@@ -479,7 +479,7 @@ fn combine_all_bundles(bundles: Vec<Bundle>) -> Result<Vec<PSKT<Combiner>>> {
         let pskt = all_actor_sigs_for_tx.first().unwrap().clone();
 
         info!(
-            "Compibning PSKT #{pskt_idx} with tx id {}",
+            "Combining PSKT #{pskt_idx} with tx id {}",
             pskt.calculate_id()
         );
 
