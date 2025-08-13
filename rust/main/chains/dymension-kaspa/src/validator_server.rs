@@ -16,10 +16,7 @@ use dym_kas_core::wallet::EasyKaspaWallet;
 use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
 use dym_kas_validator::deposit::{validate_new_deposit, MustMatch as DepositMustMatch};
-use dym_kas_validator::withdraw::{
-    validate_sign_withdrawal_fxg,
-    MustMatch as WithdrawMustMatch,
-};
+use dym_kas_validator::withdraw::{validate_sign_withdrawal_fxg, MustMatch as WithdrawMustMatch};
 pub use dym_kas_validator::KaspaSecpKeypair;
 use eyre::Report;
 use hyperlane_core::{

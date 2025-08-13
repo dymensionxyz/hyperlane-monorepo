@@ -193,8 +193,6 @@ async fn demo() -> Result<()> {
         });
     });
 
-
-
     for tx in finalized {
         let allow_orphan = false; // TODO: what is this?
         let tx_id = rpc.submit_transaction(tx, allow_orphan).await?;
