@@ -72,7 +72,7 @@ async fn load_wallet(args: &Args, url: Option<&str>) -> Result<EasyKaspaWallet> 
                 };
                 let w = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
                     wallet_secret: args.wallet_secret.as_ref().unwrap().clone(),
-                    rpc_url: full_url.clone(),
+                    wrpc_url: full_url.clone(),
                     net: Network::KaspaTest10,
                     storage_folder: None,
                 })
