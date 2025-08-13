@@ -97,7 +97,7 @@ impl fmt::Debug for EasyKaspaWallet {
 
 pub struct EasyKaspaWalletArgs {
     pub wallet_secret: String, // this the short password that protects the keychain, not the private key of the crypto account
-    pub rpc_url: String,       // .e.g localhost:16210
+    pub wrpc_url: String,       // .e.g localhost:16210
     pub net: Network,
     pub storage_folder: Option<String>,
 }
@@ -105,7 +105,7 @@ pub struct EasyKaspaWalletArgs {
 impl EasyKaspaWallet {
     pub async fn try_new(args: EasyKaspaWalletArgs) -> Result<Self> {
         let s = Secret::from(args.wallet_secret);
-        let info = NetworkInfo::new(args.net, args.rpc_url);
+        let info = NetworkInfo::new(args.net, args.wrpc_url);
         let w = get_wallet(
             &s,
             info.clone().network_id,
@@ -247,7 +247,7 @@ mod tests {
         let secret = "lkjsdf";
         let easy_wallet = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
             wallet_secret: secret.to_string(),
-            rpc_url: rpc_url.clone(),
+            wrpc_url: rpc_url.clone(),
             net: network,
             storage_folder: None,
         })
