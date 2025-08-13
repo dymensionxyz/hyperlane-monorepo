@@ -129,7 +129,6 @@ pub async fn build_withdrawal_fxg(
 
         (Some(sweeping_bundle), inputs)
     } else {
-
         info!("No sweep needed, continue to withdrawal");
 
         let mut inputs = Vec::with_capacity(escrow_inputs.len() + relayer_inputs.len());
