@@ -97,7 +97,7 @@ impl fmt::Debug for EasyKaspaWallet {
 
 pub struct EasyKaspaWalletArgs {
     pub wallet_secret: String, // this the short password that protects the keychain, not the private key of the crypto account
-    pub wrpc_url: String,       // .e.g localhost:16210
+    pub wrpc_url: String,      // .e.g localhost:16210
     pub net: Network,
     pub storage_folder: Option<String>,
 }

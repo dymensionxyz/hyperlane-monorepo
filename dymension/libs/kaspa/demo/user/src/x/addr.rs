@@ -25,7 +25,7 @@ mod tests {
 
         let prefix = Prefix::Testnet;
         let recovered = get_recipient_address(decoded, prefix);
-        
+
         assert_eq!(recovered.to_string(), original);
     }
 }
