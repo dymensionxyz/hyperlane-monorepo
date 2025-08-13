@@ -1,3 +1,4 @@
+use hex;
 use hyperlane_core::H256;
 use kaspa_addresses::{Address, Prefix, Version};
 use kaspa_consensus_core::hashing::sighash_type::{
@@ -11,6 +12,14 @@ use std::hash::Hash;
 pub fn kaspa_address_to_h256(address: Address) -> H256 {
     let bytes_32: [u8; 32] = address.payload.as_slice().try_into().unwrap();
     H256::from_slice(&bytes_32)
+}
+
+/// Convert a kaspa address string to a hex string prefixed with "0x"
+/// for use as Hyperlane transfer recipient field
+pub fn kaspa_address_to_hex_recipient(kaspa_addr: &str) -> String {
+    let addr = Address::try_from(kaspa_addr).unwrap();
+    let h256 = kaspa_address_to_h256(addr);
+    format!("0x{}", hex::encode(h256.as_bytes()))
 }
 
 pub fn get_recipient_address(recipient: H256, prefix: Prefix) -> Address {
@@ -49,6 +58,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     #[test]
     fn test_kaspa_address_to_h256() {
