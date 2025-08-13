@@ -31,7 +31,7 @@ pub async fn create_sweeping_bundle(
     escrow_inputs: Vec<PopulatedInput>,
     relayer_inputs: Vec<PopulatedInput>,
 ) -> Result<Bundle> {
-    let sweep_balance = escrow_inputs.iter().map(|(_, e)| e.amount).sum::<u64>();
+    let sweep_balance = escrow_inputs.iter().map(|(_, e, _)| e.amount).sum::<u64>();
 
     let utxo_iterator = Box::new(
         escrow_inputs
@@ -156,7 +156,7 @@ pub fn create_inputs_from_sweeping_bundle(
     let relayer_input: PopulatedInput = (
         TransactionInput::new(
             TransactionOutpoint::new(tx_id, relayer_idx),
-            vec![],
+            vec![], // signature_script is empty for unsigned transactions
             u64::MAX,
             RELAYER_SIG_OP_COUNT,
         ),
@@ -166,12 +166,13 @@ pub fn create_inputs_from_sweeping_bundle(
             UNACCEPTED_DAA_SCORE,
             false,
         ),
+        None, // relayer has no redeem script
     );
 
     let escrow_input: PopulatedInput = (
         TransactionInput::new(
             TransactionOutpoint::new(tx_id, escrow_idx),
-            escrow.redeem_script.clone(),
+            vec![], // signature_script is empty for unsigned transactions
             u64::MAX,
             escrow.n() as u8,
         ),
@@ -181,13 +182,14 @@ pub fn create_inputs_from_sweeping_bundle(
             UNACCEPTED_DAA_SCORE,
             false,
         ),
+        Some(escrow.redeem_script.clone()), // escrow has redeem script
     );
 
     Ok(vec![relayer_input, escrow_input])
 }
 
 pub(crate) fn utxo_reference_from_populated_input(
-    (input, entry): PopulatedInput,
+    (input, entry, _redeem_script): PopulatedInput,
 ) -> UtxoEntryReference {
     UtxoEntryReference::from(ClientUtxoEntry {
         address: None,

@@ -37,24 +37,25 @@ use tracing::info;
 pub async fn fetch_input_utxos(
     kaspa_rpc: &Arc<DynRpcApi>,
     address: &kaspa_addresses::Address,
-    signature_script: Vec<u8>,
+    redeem_script: Option<Vec<u8>>,
     sig_op_count: u8,
     network_id: NetworkId,
 ) -> Result<Vec<PopulatedInput>> {
     let utxos = get_utxo_to_spend(&address, kaspa_rpc, network_id).await?;
 
-    // Create a vector of "populated" inputs: TransactionInput and UtxoEntry.
+    // Create a vector of "populated" inputs: TransactionInput, UtxoEntry, and optional redeem_script.
     Ok(utxos
         .into_iter()
         .map(|utxo| {
             (
                 TransactionInput::new(
                     kaspa_consensus_core::tx::TransactionOutpoint::from(utxo.outpoint),
-                    signature_script.clone(),
-                    0, // sequence does not matter
+                    vec![], // signature_script is empty for unsigned transactions
+                    0,      // sequence does not matter
                     sig_op_count,
                 ),
                 UtxoEntry::from(utxo.utxo_entry),
+                redeem_script.clone(),
             )
         })
         .collect())
@@ -125,15 +126,18 @@ pub fn build_withdrawal_pskt(
     // in case of hyperinflation
 
     let (escrow_balance, relayer_balance) =
-        inputs.iter().fold((0, 0), |mut acc, (input, entry)| {
-            if input.signature_script.is_empty() {
-                // relayer has empty signature script
-                acc.1 += entry.amount;
-            } else {
-                acc.0 += entry.amount;
-            }
-            acc
-        });
+        inputs
+            .iter()
+            .fold((0, 0), |mut acc, (_input, entry, redeem_script)| {
+                if redeem_script.is_none() {
+                    // relayer has no redeem script
+                    acc.1 += entry.amount;
+                } else {
+                    // escrow has redeem script
+                    acc.0 += entry.amount;
+                }
+                acc
+            });
 
     let withdrawal_balance: u64 = outputs.iter().map(|w| w.value).sum();
 
@@ -241,7 +245,7 @@ fn create_withdrawal_pskt(
     let mut pskt = PSKT::<Creator>::default().constructor();
 
     // Add inputs
-    for (input, entry) in inputs.into_iter() {
+    for (input, entry, redeem_script) in inputs.into_iter() {
         let mut b = InputBuilder::default();
 
         b.utxo_entry(entry)
@@ -249,9 +253,9 @@ fn create_withdrawal_pskt(
             .sig_op_count(input.sig_op_count)
             .sighash_type(input_sighash_type());
 
-        if !input.signature_script.is_empty() {
+        if let Some(script) = redeem_script {
             // escrow inputs need redeem_script
-            b.redeem_script(input.signature_script);
+            b.redeem_script(script);
         }
 
         pskt = pskt.input(
@@ -348,7 +352,7 @@ pub(crate) fn extract_current_anchor(
 ) -> Result<(PopulatedInput, Vec<PopulatedInput>)> {
     let anchor_index = escrow_inputs
         .iter()
-        .position(|i| i.0.previous_outpoint == current_anchor)
+        .position(|(input, _, _)| input.previous_outpoint == current_anchor)
         .ok_or(eyre::eyre!(
             "Current anchor not found in escrow UTXO set: {current_anchor:?}"
         ))?; // Should always be found
@@ -368,10 +372,9 @@ fn estimate_mass(
     let (inputs, utxo_references): (Vec<_>, Vec<_>) = populated_inputs
         .into_iter()
         .map(|populated| {
-            (
-                populated.0.clone(),
-                utxo_reference_from_populated_input(populated),
-            )
+            let input = populated.0.clone();
+            let utxo_ref = utxo_reference_from_populated_input(populated);
+            (input, utxo_ref)
         })
         .unzip();
 
