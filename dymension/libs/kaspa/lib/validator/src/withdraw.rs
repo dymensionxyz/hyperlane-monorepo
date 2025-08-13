@@ -271,7 +271,7 @@ pub fn validate_pskt(
 
     // If there are no messages and payload is empty, then the PSKT
     // is a sweeping tx which does not spend the anchor
-    let tx_type = if expected_messages.is_empty() && pskt.global.payload.is_none() {
+    let tx_type = if expected_messages.is_empty() {
         info!("PSKT is a sweeping tx: {tx_id}");
         TxType::Sweeping
     } else {
