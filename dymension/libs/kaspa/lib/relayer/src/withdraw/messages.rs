@@ -17,7 +17,8 @@ use kaspa_consensus_core::tx::{TransactionInput, TransactionOutpoint, UtxoEntry}
 use kaspa_wallet_pskt::bundle::Bundle;
 use tracing::info;
 
-pub(crate) type PopulatedInput = (TransactionInput, UtxoEntry);
+// (input, entry, optional_redeem_script)
+pub(crate) type PopulatedInput = (TransactionInput, UtxoEntry, Option<Vec<u8>>);
 
 /// Processes given messages and returns WithdrawFXG and the very first outpoint
 /// (the one preceding all the given transfers; it should be used during process indication).
@@ -74,7 +75,7 @@ pub async fn build_withdrawal_fxg(
     let escrow_inputs = fetch_input_utxos(
         &relayer.api(),
         &escrow_public.addr,
-        escrow_public.redeem_script.clone(),
+        Some(escrow_public.redeem_script.clone()),
         escrow_public.n() as u8,
         relayer.net.network_id,
     )
@@ -85,7 +86,7 @@ pub async fn build_withdrawal_fxg(
     let relayer_inputs = fetch_input_utxos(
         &relayer.api(),
         &relayer_address,
-        vec![],
+        None,
         RELAYER_SIG_OP_COUNT,
         relayer.net.network_id,
     )
