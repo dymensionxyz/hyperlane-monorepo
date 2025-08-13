@@ -96,7 +96,7 @@ pub async fn build_withdrawal_fxg(
         // Sweep
 
         // Extract the current anchor from the escrow UTXO set.
-        // All non-anchor UTXOs will be swept.
+        // All (and only) non-anchor UTXOs will be swept.
         // Anchor UTXO will be used as the input for withdrawal PSKT.
         let (anchor_input, escrow_inputs_to_sweep) =
             extract_current_anchor(current_anchor, escrow_inputs)
