@@ -2,7 +2,7 @@ use crate::contract_sync::cursors::Indexable;
 use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG};
 use dym_kas_hardcode::tx::FINALITY_APPROX_WAIT_TIME;
 use dym_kas_relayer::confirm::expensive_trace_transactions;
-use dym_kas_relayer::deposit::{on_new_deposit as relayer_on_new_deposit, DepositError};
+use dym_kas_relayer::deposit::on_new_deposit as relayer_on_new_deposit;
 use dymension_kaspa::{Deposit, KaspaProvider};
 use ethers::utils::hex::ToHex;
 use eyre::Result;
@@ -18,9 +18,13 @@ use kaspa_core::time::unix_now;
 use std::{collections::HashSet, fmt::Debug, hash::Hash, sync::Arc, time::Duration};
 use tokio::{sync::Mutex, task::JoinHandle, time};
 use tokio_metrics::TaskMonitor;
-use tracing::{error, info, info_span, warn, Instrument};
+use tracing::{debug, error, info, info_span, Instrument};
 
-use super::deposit_operation::{DepositOpQueue, DepositOperation};
+use super::{
+    deposit_operation::{DepositOpQueue, DepositOperation},
+    error::KaspaDepositError,
+};
+use dymension_kaspa::conf::KaspaDepositConfig;
 
 pub struct Foo<C: MetadataConstructor> {
     provider: Box<KaspaProvider>,
@@ -28,6 +32,7 @@ pub struct Foo<C: MetadataConstructor> {
     metadata_constructor: C,
     deposit_cache: DepositCache,
     deposit_queue: Mutex<DepositOpQueue>,
+    config: KaspaDepositConfig,
 }
 
 impl<C: MetadataConstructor> Foo<C>
@@ -39,12 +44,17 @@ where
         hub_mailbox: Arc<CosmosNativeMailbox>,
         metadata_constructor: C,
     ) -> Self {
+        // Get config from provider, or use defaults if not available
+        let config = provider
+            .kaspa_deposit_config()
+            .unwrap_or_else(KaspaDepositConfig::default);
         Self {
             provider,
             hub_mailbox,
             metadata_constructor,
             deposit_cache: DepositCache::new(),
             deposit_queue: Mutex::new(DepositOpQueue::new()),
+            config,
         }
     }
 
@@ -99,10 +109,7 @@ where
                 None => None, // unbounded
             };
         loop {
-            // Process retry queue first
             self.process_deposit_queue().await;
-
-            // Then fetch new deposits
             let deposits_res = self
                 .provider
                 .rest()
@@ -114,13 +121,16 @@ where
             let deposits = match deposits_res {
                 Ok(deposits) => deposits,
                 Err(e) => {
-                    error!("Dymension, query new Kaspa deposits: {:?}", e);
-                    time::sleep(Duration::from_secs(10)).await; // TODO: should use proper retry library and check if error is transient
+                    error!(error = ?e, "Dymension, query new Kaspa deposits failed");
+                    time::sleep(self.config.poll_interval()).await;
                     continue;
                 }
             };
             // TODO: len include deposits that have been processed, the number is misleading
-            info!("Dymension, queried kaspa deposits, n: {:?}", deposits.len());
+            info!(
+                deposit_count = deposits.len(),
+                "Dymension, queried kaspa deposits"
+            );
             time::sleep(Duration::from_secs(1)).await;
             self.handle_new_deposits(deposits).await;
         }
@@ -130,7 +140,7 @@ where
         let mut deposits_new = Vec::new();
         for d in deposits.into_iter() {
             if !self.deposit_cache.has_seen(&d).await {
-                info!("Dymension, new deposit seen: {:?}", d.clone());
+                info!(deposit = ?d, "Dymension, new deposit seen");
                 self.deposit_cache.mark_as_seen(d.clone()).await;
                 deposits_new.push(d);
             }
@@ -147,7 +157,6 @@ where
     async fn process_deposit_queue(&self) {
         let mut queue = self.deposit_queue.lock().await;
 
-        // Process ready operations
         while let Some(operation) = queue.pop_ready() {
             drop(queue); // Release lock before processing
             self.process_deposit_operation(operation).await;
@@ -157,9 +166,8 @@ where
 
     /// Process a single deposit operation, with retry logic on failure
     async fn process_deposit_operation(&self, mut operation: DepositOperation) {
-        info!("Processing deposit operation: {}", operation.deposit.id);
+        info!(deposit_id = %operation.deposit.id, "Processing deposit operation");
 
-        // Call to relayer.F()
         let new_deposit_res = relayer_on_new_deposit(
             &operation.escrow_address,
             &operation.deposit,
@@ -169,22 +177,21 @@ where
 
         match new_deposit_res {
             Ok(Some(fxg)) => {
-                info!("Dymension, built new deposit FXG: {:?}", fxg);
+                info!(fxg = ?fxg, "Dymension, built new deposit FXG");
 
-                // Check if already delivered
                 let delivered_res = self.hub_mailbox.delivered(fxg.hl_message.id()).await;
                 match delivered_res {
                     Ok(true) => {
                         info!(
-                            "Dymension, deposit already delivered, skipping : {:?}",
-                            fxg.hl_message.id()
+                            message_id = ?fxg.hl_message.id(),
+                            "Dymension, deposit already delivered, skipping"
                         );
                         return; // Successfully processed (already delivered)
                     }
                     Err(e) => {
-                        error!("Dymension, check if deposit is delivered: {:?}", e);
+                        error!(error = ?e, "Dymension, check if deposit is delivered");
                         // This is a transient error, queue for retry
-                        operation.mark_failed();
+                        operation.mark_failed(&self.config);
                         self.deposit_queue.lock().await.requeue(operation);
                         return;
                     }
@@ -195,56 +202,57 @@ where
                 let res = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
                 match res {
                     Ok(_) => {
-                        info!("Dymension, got sigs and sent new deposit to hub: {:?}", fxg);
+                        info!(fxg = ?fxg, "Dymension, got sigs and sent new deposit to hub");
                         // Success! Operation complete
                         operation.reset_attempts();
                     }
                     Err(e) => {
-                        if self.is_retryable_chain_error(&e) {
+                        let kaspa_err = self.chain_error_to_kaspa_error(&e);
+                        if kaspa_err.is_retryable() {
                             error!(
-                                "Dymension, gather sigs and send deposit to hub (retryable): {:?}",
-                                e
+                                error = ?e,
+                                "Dymension, gather sigs and send deposit to hub (retryable)"
                             );
                             // Retryable error, queue for retry
-                            operation.mark_failed();
+                            operation.mark_failed(&self.config);
                             self.deposit_queue.lock().await.requeue(operation);
                         } else {
-                            error!("Dymension, gather sigs and send deposit to hub (non-retryable): {:?}", e);
+                            error!(
+                                error = ?e,
+                                "Dymension, gather sigs and send deposit to hub (non-retryable)"
+                            );
                             // Non-retryable error, drop the operation
                             info!(
-                                "Dropping operation due to non-retryable error: {}",
-                                operation.deposit.id
+                                deposit_id = %operation.deposit.id,
+                                "Dropping operation due to non-retryable error"
                             );
                         }
                     }
                 }
             }
             Ok(None) => {
-                error!("Dymension, F() new deposit returned none, will retry.");
+                info!("Dymension, F() new deposit returned none, will retry");
                 // This could be transient, queue for retry
-                operation.mark_failed();
+                operation.mark_failed(&self.config);
                 self.deposit_queue.lock().await.requeue(operation);
             }
             Err(e) => {
-                match e {
-                    DepositError::NotFinalEnough {
-                        retry_after_secs, ..
-                    } => {
-                        // Use the calculated retry delay based on pending confirmations
-                        let delay = Duration::from_secs_f64(retry_after_secs);
-                        operation.mark_failed_with_custom_delay(delay, &e.to_string());
-                        self.deposit_queue.lock().await.requeue(operation);
-                    }
-                    DepositError::ProcessingError(_) => {
-                        error!(
-                            "Dymension, F() new deposit processing error: {:?}, will retry.",
-                            e
-                        );
-                        // Use standard exponential backoff for processing errors
-                        operation.mark_failed();
-                        self.deposit_queue.lock().await.requeue(operation);
-                    }
+                // Convert relayer error to our error type
+                let kaspa_err = KaspaDepositError::from(e);
+
+                if let Some(retry_delay_secs) = kaspa_err.retry_delay_hint() {
+                    // Use the calculated retry delay based on pending confirmations
+                    let delay = Duration::from_secs_f64(retry_delay_secs);
+                    operation.mark_failed_with_custom_delay(delay, &kaspa_err.to_string());
+                } else {
+                    // Use standard exponential backoff for processing errors
+                    error!(
+                        error = ?kaspa_err,
+                        "Dymension, F() new deposit processing error, will retry"
+                    );
+                    operation.mark_failed(&self.config);
                 }
+                self.deposit_queue.lock().await.requeue(operation);
             }
         }
     }
@@ -282,7 +290,7 @@ where
                     let res = self.confirm_withdrawal_on_hub(confirmation.clone()).await;
                     match res {
                         Ok(_) => {
-                            info!("Dymension, confirmed withdrawal on hub: {:?}", confirmation);
+                            info!(confirmation = ?confirmation, "Dymension, confirmed withdrawal on hub");
                             self.provider.consume_pending_confirmation();
                         }
                         Err(e) => {
@@ -291,7 +299,7 @@ where
                     }
                 }
                 None => {
-                    time::sleep(Duration::from_secs(10)).await;
+                    time::sleep(self.config.poll_interval()).await;
                 }
             }
         }
@@ -318,10 +326,10 @@ where
             .await
     }
 
-    /// Returns false only when error contains "TransactionRejected", true in all other cases
-    fn is_retryable_chain_error(&self, error: &ChainCommunicationError) -> bool {
-        let error_str = format!("{:?}", error);
-        !error_str.contains("TransactionRejected")
+    /// Convert chain communication error to Kaspa error
+    fn chain_error_to_kaspa_error(&self, error: &ChainCommunicationError) -> KaspaDepositError {
+        // Just return a processing error - we shouldn't try to parse error strings
+        KaspaDepositError::ProcessingError(error.to_string())
     }
 
     /// TODO: unused for now because we skirt the usual DB management
@@ -348,7 +356,7 @@ where
         let logs = Vec::from_iter(deduped_logs);
 
         if let Err(err) = store.store_logs(&logs).await {
-            warn!(?err, "Error storing logs in db");
+            debug!(error = ?err, "Error storing logs in db");
         }
 
         logs
@@ -400,7 +408,7 @@ where
             let ok = utxo.outpoint.transaction_id == old_anchor.transaction_id
                 && utxo.outpoint.index == old_anchor.index;
             if ok {
-                info!("Dymension, found utxo matching current anchor: {:?}", utxo);
+                info!(utxo = ?utxo, "Dymension, found utxo matching current anchor");
             }
             ok
         });
@@ -454,7 +462,7 @@ where
             .get_confirmation_sigs(&fxg)
             .await?;
 
-        info!("Dymension, got confirmation sigs: {:?}", sigs);
+        info!(sig_count = sigs.len(), "Dymension, got confirmation sigs");
         let formatted_sigs = self.format_ad_hoc_signatures(
             &mut sigs,
             self.provider.validators().multisig_threshold_hub_ism() as usize,
