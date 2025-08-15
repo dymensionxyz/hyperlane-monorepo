@@ -124,6 +124,18 @@ pub trait HyperlaneDb: Send + Sync {
         message_id: &H256,
     ) -> DbResult<Option<u32>>;
 
+    /// Store the retry count for a Kaspa deposit by its deposit id
+    fn store_kaspa_deposit_retry_count(&self, deposit_id: &str, count: &u32) -> DbResult<()>;
+
+    /// Retrieve the retry count for a Kaspa deposit by its deposit id
+    fn retrieve_kaspa_deposit_retry_count(&self, deposit_id: &str) -> DbResult<Option<u32>>;
+
+    /// Store the Kaspa deposit queue state
+    fn store_kaspa_deposit_queue(&self, queue_data: &[u8]) -> DbResult<()>;
+
+    /// Retrieve the Kaspa deposit queue state
+    fn retrieve_kaspa_deposit_queue(&self) -> DbResult<Option<Vec<u8>>>;
+
     fn store_merkle_tree_insertion_by_leaf_index(
         &self,
         leaf_index: &u32,

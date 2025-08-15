@@ -32,6 +32,8 @@ const GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_v2_
 const STATUS_BY_MESSAGE_ID: &str = "status_by_message_id_";
 const PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID: &str =
     "pending_message_retry_count_for_message_id_";
+const KASPA_DEPOSIT_RETRY_COUNT: &str = "kaspa_deposit_retry_count_";
+const KASPA_DEPOSIT_QUEUE: &str = "kaspa_deposit_queue";
 const MERKLE_TREE_INSERTION: &str = "merkle_tree_insertion_";
 const MERKLE_LEAF_INDEX_BY_MESSAGE_ID: &str = "merkle_leaf_index_by_message_id_";
 const MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX: &str =
@@ -621,6 +623,27 @@ impl HyperlaneDb for HyperlaneRocksDB {
         message_id: &H256,
     ) -> DbResult<Option<u32>> {
         self.retrieve_value_by_key(PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID, message_id)
+    }
+
+    /// Store the retry count for a Kaspa deposit by its deposit id
+    fn store_kaspa_deposit_retry_count(&self, deposit_id: &str, count: &u32) -> DbResult<()> {
+        self.store_value_by_key(KASPA_DEPOSIT_RETRY_COUNT, deposit_id, count)
+    }
+
+    /// Retrieve the retry count for a Kaspa deposit by its deposit id
+    fn retrieve_kaspa_deposit_retry_count(&self, deposit_id: &str) -> DbResult<Option<u32>> {
+        self.retrieve_value_by_key(KASPA_DEPOSIT_RETRY_COUNT, deposit_id)
+    }
+
+    /// Store the Kaspa deposit queue state
+    fn store_kaspa_deposit_queue(&self, queue_data: &[u8]) -> DbResult<()> {
+        self.db.put(KASPA_DEPOSIT_QUEUE.as_bytes(), queue_data)?;
+        Ok(())
+    }
+
+    /// Retrieve the Kaspa deposit queue state
+    fn retrieve_kaspa_deposit_queue(&self) -> DbResult<Option<Vec<u8>>> {
+        Ok(self.db.get(KASPA_DEPOSIT_QUEUE.as_bytes())?)
     }
 
     fn store_merkle_tree_insertion_by_leaf_index(

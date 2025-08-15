@@ -1,4 +1,5 @@
 use crate::contract_sync::cursors::Indexable;
+use crate::db::{HyperlaneDb, HyperlaneRocksDB};
 use dym_kas_core::{confirmation::ConfirmationFXG, deposit::DepositFXG};
 use dym_kas_hardcode::tx::FINALITY_APPROX_WAIT_TIME;
 use dym_kas_relayer::confirm::expensive_trace_transactions;
@@ -15,12 +16,25 @@ use hyperlane_cosmos_native::h512_to_cosmos_hash;
 use hyperlane_cosmos_native::mailbox::CosmosNativeMailbox;
 use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_core::time::unix_now;
+use prometheus::{register_int_counter, register_int_gauge, IntCounter, IntGauge};
 use std::{collections::HashSet, fmt::Debug, hash::Hash, sync::Arc, time::Duration};
 use tokio::{sync::Mutex, task::JoinHandle, time};
 use tokio_metrics::TaskMonitor;
 use tracing::{error, info, info_span, warn, Instrument};
 
-use super::deposit_operation::{DepositOpQueue, DepositOperation};
+use super::deposit_operation::{DepositOpQueue, DepositOperation, DepositQueueConfig};
+
+// Metrics for Kaspa deposits
+lazy_static::lazy_static! {
+    static ref KASPA_DEPOSITS_PROCESSED: IntCounter =
+        register_int_counter!("kaspa_deposits_processed", "Total Kaspa deposits processed").unwrap();
+    static ref KASPA_DEPOSITS_QUEUED: IntGauge =
+        register_int_gauge!("kaspa_deposits_queued", "Current Kaspa deposit queue size").unwrap();
+    static ref KASPA_DEPOSITS_DROPPED: IntCounter =
+        register_int_counter!("kaspa_deposits_dropped", "Kaspa deposits dropped due to max retries").unwrap();
+    static ref KASPA_DEPOSITS_RETRIED: IntCounter =
+        register_int_counter!("kaspa_deposits_retried", "Total Kaspa deposit retry attempts").unwrap();
+}
 
 pub struct Foo<C: MetadataConstructor> {
     provider: Box<KaspaProvider>,
@@ -28,6 +42,8 @@ pub struct Foo<C: MetadataConstructor> {
     metadata_constructor: C,
     deposit_cache: DepositCache,
     deposit_queue: Mutex<DepositOpQueue>,
+    db: Arc<dyn HyperlaneDb>,
+    config: DepositQueueConfig,
 }
 
 impl<C: MetadataConstructor> Foo<C>
@@ -38,13 +54,38 @@ where
         provider: Box<KaspaProvider>,
         hub_mailbox: Arc<CosmosNativeMailbox>,
         metadata_constructor: C,
+        db: Arc<dyn HyperlaneDb>,
     ) -> Self {
+        let config = DepositQueueConfig::from_env();
+
+        // Load queue from database if it exists
+        let mut deposit_queue = if let Ok(Some(queue_data)) = db.retrieve_kaspa_deposit_queue() {
+            if let Ok(mut queue) = bincode::deserialize::<DepositOpQueue>(&queue_data) {
+                info!(
+                    "Loaded Kaspa deposit queue from database with {} operations",
+                    queue.len()
+                );
+                queue.restore_all_timing();
+                queue
+            } else {
+                warn!("Failed to deserialize Kaspa deposit queue, starting fresh");
+                DepositOpQueue::with_config(config.clone())
+            }
+        } else {
+            info!("No existing Kaspa deposit queue in database, starting fresh");
+            DepositOpQueue::with_config(config.clone())
+        };
+
+        KASPA_DEPOSITS_QUEUED.set(deposit_queue.len() as i64);
+
         Self {
             provider,
             hub_mailbox,
             metadata_constructor,
             deposit_cache: DepositCache::new(),
-            deposit_queue: Mutex::new(DepositOpQueue::new()),
+            deposit_queue: Mutex::new(deposit_queue),
+            db,
+            config,
         }
     }
 
@@ -159,6 +200,22 @@ where
     async fn process_deposit_operation(&self, mut operation: DepositOperation) {
         info!("Processing deposit operation: {}", operation.deposit.id);
 
+        // Check if we've exceeded max retries
+        if operation.is_expired(self.config.max_retries) {
+            warn!(
+                "Deposit {} exceeded max retries ({}), dropping",
+                operation.deposit.id, self.config.max_retries
+            );
+            KASPA_DEPOSITS_DROPPED.inc();
+            return;
+        }
+
+        // Store retry count in DB
+        let deposit_id = operation.deposit.id.to_string();
+        self.db
+            .store_kaspa_deposit_retry_count(&deposit_id, &operation.retry_count)
+            .ok();
+
         // Call to relayer.F()
         let new_deposit_res = relayer_on_new_deposit(
             &operation.escrow_address,
@@ -179,13 +236,15 @@ where
                             "Dymension, deposit already delivered, skipping : {:?}",
                             fxg.hl_message.id()
                         );
+                        KASPA_DEPOSITS_PROCESSED.inc();
                         return; // Successfully processed (already delivered)
                     }
                     Err(e) => {
                         error!("Dymension, check if deposit is delivered: {:?}", e);
                         // This is a transient error, queue for retry
-                        operation.mark_failed();
-                        self.deposit_queue.lock().await.requeue(operation);
+                        operation.mark_failed(self.config.base_retry_delay_secs);
+                        KASPA_DEPOSITS_RETRIED.inc();
+                        self.requeue_and_persist(operation).await;
                         return;
                     }
                     _ => {} // Not delivered, continue processing
@@ -196,6 +255,7 @@ where
                 match res {
                     Ok(_) => {
                         info!("Dymension, got sigs and sent new deposit to hub: {:?}", fxg);
+                        KASPA_DEPOSITS_PROCESSED.inc();
                         // Success! Operation complete
                         operation.reset_attempts();
                     }
@@ -206,11 +266,13 @@ where
                                 e
                             );
                             // Retryable error, queue for retry
-                            operation.mark_failed();
-                            self.deposit_queue.lock().await.requeue(operation);
+                            operation.mark_failed(self.config.base_retry_delay_secs);
+                            KASPA_DEPOSITS_RETRIED.inc();
+                            self.requeue_and_persist(operation).await;
                         } else {
                             error!("Dymension, gather sigs and send deposit to hub (non-retryable): {:?}", e);
                             // Non-retryable error, drop the operation
+                            KASPA_DEPOSITS_DROPPED.inc();
                             info!(
                                 "Dropping operation due to non-retryable error: {}",
                                 operation.deposit.id
@@ -222,8 +284,9 @@ where
             Ok(None) => {
                 error!("Dymension, F() new deposit returned none, will retry.");
                 // This could be transient, queue for retry
-                operation.mark_failed();
-                self.deposit_queue.lock().await.requeue(operation);
+                operation.mark_failed(self.config.base_retry_delay_secs);
+                KASPA_DEPOSITS_RETRIED.inc();
+                self.requeue_and_persist(operation).await;
             }
             Err(e) => {
                 match e {
@@ -233,7 +296,8 @@ where
                         // Use the calculated retry delay based on pending confirmations
                         let delay = Duration::from_secs_f64(retry_after_secs);
                         operation.mark_failed_with_custom_delay(delay, &e.to_string());
-                        self.deposit_queue.lock().await.requeue(operation);
+                        KASPA_DEPOSITS_RETRIED.inc();
+                        self.requeue_and_persist(operation).await;
                     }
                     DepositError::ProcessingError(_) => {
                         error!(
@@ -241,11 +305,29 @@ where
                             e
                         );
                         // Use standard exponential backoff for processing errors
-                        operation.mark_failed();
-                        self.deposit_queue.lock().await.requeue(operation);
+                        operation.mark_failed(self.config.base_retry_delay_secs);
+                        KASPA_DEPOSITS_RETRIED.inc();
+                        self.requeue_and_persist(operation).await;
                     }
                 }
             }
+        }
+    }
+
+    /// Helper to requeue and persist the queue state
+    async fn requeue_and_persist(&self, operation: DepositOperation) {
+        let mut queue = self.deposit_queue.lock().await;
+        if let Err(e) = queue.requeue(operation) {
+            error!("Failed to requeue deposit: {}", e);
+            return;
+        }
+
+        // Update metrics
+        KASPA_DEPOSITS_QUEUED.set(queue.len() as i64);
+
+        // Persist queue state to database
+        if let Ok(serialized) = bincode::serialize(&*queue) {
+            self.db.store_kaspa_deposit_queue(&serialized).ok();
         }
     }
 
