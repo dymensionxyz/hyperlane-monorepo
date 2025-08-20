@@ -300,7 +300,7 @@ where
                             continue; // Retry after waiting
                         }
                         Err(e) => {
-                            info!("Dymension, confirm withdrawal on hub: {:?}", e);
+                            error!("Dymension, confirm withdrawal on hub: {:?}", e);
                         }
                     }
                 }
