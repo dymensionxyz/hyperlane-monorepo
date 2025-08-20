@@ -305,7 +305,7 @@ where
                     }
                 }
                 None => {
-                    error!("Dymension, no pending confirmation found.");
+                    info!("Dymension, no pending confirmation found.");
                 }
             }
             time::sleep(self.config.poll_interval()).await;
