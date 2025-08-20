@@ -407,8 +407,11 @@ fn estimate_mass(
         min_signatures,
     )?;
 
-    info!("Mass calculation comparison - Original: {}, Alternative: {}", original_mass, alternative_mass);
 
+    info!("Mass calculation comparison - Original: {}, Alternative: {}", original_mass, alternative_mass);
+    if alternative_mass > original_mass {
+        return Ok(alternative_mass);
+    }
     Ok(original_mass)
 }
 
