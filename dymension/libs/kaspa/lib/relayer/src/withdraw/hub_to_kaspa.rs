@@ -26,7 +26,7 @@ use kaspa_rpc_core::{RpcTransaction, RpcUtxosByAddressesEntry};
 use kaspa_txscript::standard::pay_to_address_script;
 use kaspa_txscript::{opcodes::codes::OpData65, script_builder::ScriptBuilder};
 use kaspa_wallet_core::prelude::DynRpcApi;
-use kaspa_wallet_core::tx::MassCalculator;
+use kaspa_wallet_core::tx::{MassCalculator, MAXIMUM_STANDARD_TRANSACTION_MASS};
 use kaspa_wallet_pskt::prelude::Bundle;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::prelude::{Signer, PSKT};
@@ -289,8 +289,35 @@ pub fn get_outputs_from_msgs(
     prefix: Prefix,
     min_deposit_sompi: U256,
 ) -> (Vec<HyperlaneMessage>, Vec<TransactionOutput>) {
+    get_outputs_from_msgs_with_mass_limit(
+        messages,
+        prefix,
+        min_deposit_sompi,
+        None,
+        None,
+        None,
+        None,
+    )
+}
+
+/// Refactored version that limits outputs based on transaction mass estimation
+pub fn get_outputs_from_msgs_with_mass_limit(
+    messages: Vec<HyperlaneMessage>,
+    prefix: Prefix,
+    min_deposit_sompi: U256,
+    sample_inputs: Option<Vec<PopulatedInput>>,
+    sample_payload: Option<Vec<u8>>,
+    network_id: Option<NetworkId>,
+    min_signatures: Option<u16>,
+) -> (Vec<HyperlaneMessage>, Vec<TransactionOutput>) {
     let mut hl_msgs: Vec<HyperlaneMessage> = Vec::new();
     let mut outputs: Vec<TransactionOutput> = Vec::new();
+    
+    // If mass estimation parameters are not provided, fall back to the original behavior
+    let should_estimate_mass = sample_inputs.is_some() 
+        && network_id.is_some() 
+        && min_signatures.is_some();
+    
     for m in messages {
         let tm = match parse_hyperlane_metadata(&m) {
             Ok(tm) => tm,
@@ -304,7 +331,6 @@ pub fn get_outputs_from_msgs(
         };
 
         let recipient = get_recipient_script_pubkey(tm.recipient(), prefix);
-
         let o = TransactionOutput::new(tm.amount().as_u64(), recipient);
 
         if is_dust(&o, min_deposit_sompi) {
@@ -312,9 +338,53 @@ pub fn get_outputs_from_msgs(
             continue;
         }
 
+        // Check if adding this output would exceed mass limit
+        if should_estimate_mass {
+            let mut test_outputs = outputs.clone();
+            test_outputs.push(o.clone());
+            
+            if let (Some(inputs), Some(payload), Some(net_id), Some(min_sigs)) = (
+                &sample_inputs,
+                &sample_payload,
+                &network_id,
+                &min_signatures,
+            ) {
+                match estimate_mass(
+                    inputs.clone(),
+                    test_outputs,
+                    payload.clone(),
+                    *net_id,
+                    *min_sigs,
+                ) {
+                    Ok(estimated_mass) => {
+                        if estimated_mass > MAXIMUM_STANDARD_TRANSACTION_MASS {
+                            info!(
+                                "Kaspa relayer, stopping at {} outputs due to mass limit. Estimated mass: {}, limit: {}",
+                                outputs.len(),
+                                estimated_mass,
+                                MAXIMUM_STANDARD_TRANSACTION_MASS
+                            );
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        info!("Kaspa relayer, failed to estimate mass, continuing without limit: {}", e);
+                    }
+                }
+            }
+        }
+
         outputs.push(o);
         hl_msgs.push(m);
     }
+    
+    info!(
+        "Kaspa relayer, selected {} outputs from {} messages{}",
+        outputs.len(),
+        hl_msgs.len(),
+        if should_estimate_mass { " (with mass limit)" } else { "" }
+    );
+    
     (hl_msgs, outputs)
 }
 
