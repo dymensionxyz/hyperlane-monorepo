@@ -41,7 +41,7 @@ VALIDATOR_ISM_ADDR="0x172ed756c7c04f6e5370f9fc181f85b7779643eb"
 VALIDATOR_ISM_PRIV_KEY="a4d1c634e1b8cde0fc53013dfc62e1789535b59d15b0bbf4c8fbd2d4e79bc132"
 VALIDATOR_ESCROW_SECRET="\"afa4bcc6e5828eb28d70138ea784a32e0212d3560dfcdfac85bfa1dbabb11ac9\""
 VALIDATOR_ESCROW_PUB_KEY="027b75fcbedee53f82ebc43c19a69697100afad2df27202f107c994c740e9df5b8"
-ESCROW_ADDR="kaspatest:prmapgdl0nsdqjsmd45fjykxuq3242g4npryzkqe3aeqq9yhrp20k20ymjrlk"
+ESCROW_ADDR="kaspatest:pqfgrydxkckusrwktt5hwup4hut8ssgp2tu90aq5ngkm8qcvzug2k3acau7c0"
 # THES VALUES MUST CORRESPOND WITH agent-config.json (in this directory, REQUIRES EDITING)  Do NOT unescape json quotes
 # Update:
 # kaspatest10.validatorPubsKaspa = VALIDATOR_ESCROW_PUB_KEY
@@ -241,7 +241,7 @@ dymd q bank balance $HUB_USER_ADDR $KAS_TOKEN_DENOM
 
 # convert your kaspa address to something that can be interpreted by Hub CLI
 # in demos/user
-KASPA_RECIPIENT=$(cargo run recipient kaspatest:qrjmshvw4ucgyhm8rlc257g4mz9fy64kf0gkr8tgktsdwtplvtcs26durxukf) # (Dan's tn10 address, put your own address here)
+KASPA_RECIPIENT=$(cargo run recipient kaspatest:qp96y8xa6gqlh3a5c6wu9x73a5egvsw2vk7w7nzm8x98wvkavjlg29zvta4m6) # (Dan's tn10 address, put your own address here)
 # output like 0xdf2dc917540c7380a86e51fad4b8e1101a0efa27473a5ca9b97ceb846cc402ab
 
 # initiate the transfer
