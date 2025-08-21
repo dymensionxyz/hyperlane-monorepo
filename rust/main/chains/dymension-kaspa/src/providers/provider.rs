@@ -26,6 +26,7 @@ use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use kaspa_addresses::Address;
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
 use kaspa_wallet_core::prelude::DynRpcApi;
+use tracing::error;
 use std::sync::Arc;
 use tonic::async_trait;
 use tracing::info;
@@ -190,8 +191,15 @@ impl KaspaProvider {
         )
         .await?;
 
-        let _ = self.submit_txs(finalized.clone()).await?;
-        info!("Kaspa provider, submitted TXs, now indicating progress on the Hub");
+        match self.submit_txs(finalized.clone()).await {
+            Ok(_) => {
+                info!("Kaspa provider, submitted TXs, now indicating progress on the Hub");
+            }
+            Err(e) => {
+                error!("Kaspa provider, failed to submit TXs: {:?}", e);
+                return Ok(vec![]);
+            }
+        }
 
         self.pending_confirmation
             .push(ConfirmationFXG::from_msgs_outpoints(fxg.ids(), fxg.anchors));

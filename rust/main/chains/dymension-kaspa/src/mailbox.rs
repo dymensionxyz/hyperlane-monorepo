@@ -9,7 +9,7 @@ use hyperlane_core::{
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use hyperlane_warp_route::TokenMessage;
 use tonic::async_trait;
-use tracing::info;
+use tracing::{info, warn};
 
 // pretends to be a mailbox
 #[derive(Debug, Clone)]
@@ -155,6 +155,10 @@ impl Mailbox for KaspaMailbox {
                     failed.push(i);
                 }
             }
+            warn!(
+                "Kaspa mailbox, processed batch, failed indexes: {:?}",
+                failed
+            );
             failed
         };
 
