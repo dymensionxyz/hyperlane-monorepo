@@ -25,7 +25,6 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use tracing::error;
-use tracing::info;
 
 #[derive(Debug, Clone)]
 pub struct TaskResources {
@@ -265,7 +264,7 @@ impl RoundTrip {
     }
 
     async fn await_kaspa_credit(&self, kaspa_addr: Address) -> Result<()> {
-        info!("start await_kaspa_credit, task_id: {}", self.task_id);
+        debug!("start await_kaspa_credit, task_id: {}", self.task_id);
         loop {
             let balance = self
                 .res
@@ -273,14 +272,12 @@ impl RoundTrip {
                 .get_balance_by_address(&kaspa_addr.to_string())
                 .await?;
             if balance == 0 {
-                info!("checking balance still 0, task_id: {}", self.task_id);
                 if self.cancel.is_cancelled() {
                     return Err(RoundTripError::Cancelled.into());
                 }
                 tokio::time::sleep(Duration::from_millis(1000)).await;
                 continue;
             }
-            info!("balance: {}, expected: {}", balance, self.value);
             if balance != self.value as i64 {
                 let e = RoundTripError::KaspaBalanceMismatch {
                     balance,
