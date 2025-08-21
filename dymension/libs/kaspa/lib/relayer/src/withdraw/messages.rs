@@ -1,6 +1,6 @@
 use super::hub_to_kaspa::{
     build_withdrawal_pskt, extract_current_anchor, fetch_input_utxos, get_normal_bucket_feerate,
-    get_outputs_from_msgs, get_outputs_from_msgs_with_mass_limit,
+    get_outputs_from_msgs_with_mass_limit,
 };
 use crate::withdraw::sweep::{create_inputs_from_sweeping_bundle, create_sweeping_bundle};
 use corelib::consts::RELAYER_SIG_OP_COUNT;
@@ -64,18 +64,15 @@ pub async fn build_withdrawal_fxg(
     )
     .await
     .map_err(|e| eyre::eyre!("Fetch sample escrow UTXOs for mass estimation: {}", e))?;
-
-    let sample_payload = vec![0u8; 256]; // Approximate payload size for mass estimation
     
     // Filter out dust messages and create Kaspa outputs with mass limit
     let (valid_msgs, outputs) = get_outputs_from_msgs_with_mass_limit(
         pending_msgs,
         relayer.net.address_prefix,
         min_deposit_sompi,
-        Some(sample_escrow_inputs.clone()),
-        Some(sample_payload),
-        Some(relayer.net.network_id),
-        Some(escrow_public.m() as u16),
+        sample_escrow_inputs.clone(),
+        relayer.net.network_id,
+        escrow_public.m() as u16,
     );
 
     let feerate = get_normal_bucket_feerate(&relayer.api())

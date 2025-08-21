@@ -4,6 +4,7 @@ use crate::withdraw::sweep::utxo_reference_from_populated_input;
 use corelib::escrow::EscrowPublic;
 use corelib::finality;
 use corelib::message::parse_hyperlane_metadata;
+use corelib::payload::MessageIDs;
 use corelib::util::{get_recipient_script_pubkey, input_sighash_type};
 use corelib::wallet::EasyKaspaWallet;
 use corelib::wallet::SigningResources;
@@ -283,40 +284,17 @@ fn create_withdrawal_pskt(
 }
 
 /// Return outputs generated based on the provided messages. Filter out messages
-/// with dust amount.
-pub fn get_outputs_from_msgs(
-    messages: Vec<HyperlaneMessage>,
-    prefix: Prefix,
-    min_deposit_sompi: U256,
-) -> (Vec<HyperlaneMessage>, Vec<TransactionOutput>) {
-    get_outputs_from_msgs_with_mass_limit(
-        messages,
-        prefix,
-        min_deposit_sompi,
-        None,
-        None,
-        None,
-        None,
-    )
-}
-
-/// Refactored version that limits outputs based on transaction mass estimation
+/// with dust amount. It limits outputs based on transaction mass estimation
 pub fn get_outputs_from_msgs_with_mass_limit(
     messages: Vec<HyperlaneMessage>,
     prefix: Prefix,
     min_deposit_sompi: U256,
-    sample_inputs: Option<Vec<PopulatedInput>>,
-    sample_payload: Option<Vec<u8>>,
-    network_id: Option<NetworkId>,
-    min_signatures: Option<u16>,
+    sample_inputs: Vec<PopulatedInput>,
+    network_id: NetworkId,
+    min_signatures: u16,
 ) -> (Vec<HyperlaneMessage>, Vec<TransactionOutput>) {
     let mut hl_msgs: Vec<HyperlaneMessage> = Vec::new();
     let mut outputs: Vec<TransactionOutput> = Vec::new();
-    
-    // If mass estimation parameters are not provided, fall back to the original behavior
-    let should_estimate_mass = sample_inputs.is_some() 
-        && network_id.is_some() 
-        && min_signatures.is_some();
     
     for m in messages {
         let tm = match parse_hyperlane_metadata(&m) {
@@ -339,51 +317,47 @@ pub fn get_outputs_from_msgs_with_mass_limit(
         }
 
         // Check if adding this output would exceed mass limit
-        if should_estimate_mass {
-            let mut test_outputs = outputs.clone();
-            test_outputs.push(o.clone());
-            
-            if let (Some(inputs), Some(payload), Some(net_id), Some(min_sigs)) = (
-                &sample_inputs,
-                &sample_payload,
-                &network_id,
-                &min_signatures,
-            ) {
-                match estimate_mass(
-                    inputs.clone(),
-                    test_outputs,
-                    payload.clone(),
-                    *net_id,
-                    *min_sigs,
-                ) {
-                    Ok(estimated_mass) => {
-                        if estimated_mass > MAXIMUM_STANDARD_TRANSACTION_MASS {
-                            info!(
-                                "Kaspa relayer, stopping at {} outputs due to mass limit. Estimated mass: {}, limit: {}",
-                                outputs.len(),
-                                estimated_mass,
-                                MAXIMUM_STANDARD_TRANSACTION_MASS
-                            );
-                            break;
-                        }
-                    }
-                    Err(e) => {
-                        info!("Kaspa relayer, failed to estimate mass, continuing without limit: {}", e);
-                    }
+        let mut test_outputs = outputs.clone();
+        test_outputs.push(o.clone());
+        
+        // Create test messages list with the current message added
+        let mut test_msgs = hl_msgs.clone();
+        test_msgs.push(m.clone());
+        
+
+        // Calculate actual payload size from current messages
+        let payload = Vec::<u8>::from(&MessageIDs::from(&test_msgs));
+        
+        match estimate_mass(
+            sample_inputs.clone(),
+            test_outputs,
+            payload,
+            network_id,
+            min_signatures,
+        ) {
+            Ok(estimated_mass) => {
+                if estimated_mass > MAXIMUM_STANDARD_TRANSACTION_MASS {
+                    info!(
+                        "Kaspa relayer, stopping at {} outputs due to mass limit. Estimated mass: {}, limit: {}, messages: {}",
+                        outputs.len(),
+                        estimated_mass,
+                        MAXIMUM_STANDARD_TRANSACTION_MASS,
+                        test_msgs.len()
+                    );
+                    break;
                 }
             }
+            Err(e) => {
+                info!("Kaspa relayer, failed to estimate mass, continuing without limit: {}", e);
+            }
         }
-
+        // If we are here, it means the output is valid and does not exceed mass limit
+    
         outputs.push(o);
         hl_msgs.push(m);
     }
     
-    info!(
-        "Kaspa relayer, selected {} outputs from {} messages{}",
-        outputs.len(),
-        hl_msgs.len(),
-        if should_estimate_mass { " (with mass limit)" } else { "" }
-    );
+    info!("Kaspa relayer, selected {} outputs from {} messages",outputs.len(),hl_msgs.len());
     
     (hl_msgs, outputs)
 }
