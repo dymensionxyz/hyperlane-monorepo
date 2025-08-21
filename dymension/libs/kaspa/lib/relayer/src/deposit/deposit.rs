@@ -74,8 +74,12 @@ pub async fn on_new_deposit(
         let pending_confirmations =
             finality_status.required_confirmations - finality_status.confirmations;
         // we assume 10 confirmations per second, so retry after 0.1 seconds per confirmation needed
-        let retry_after_secs = pending_confirmations as f64 * 0.1;
-
+        let mut retry_after_secs;
+        if pending_confirmations > 0 {
+            retry_after_secs = pending_confirmations as f64 * 0.1;
+        } else {
+            retry_after_secs = 10.0; // Fallback to 10 seconds if no confirmations returned, since it can happen if the accepting block is not yet known to the node
+        }
         warn!(
             "Deposit {} is not yet safe against reorg. Confirmations: {}/{}. Will retry in {:.1}s",
             deposit.id,
@@ -113,7 +117,7 @@ pub async fn on_new_deposit(
             U256::from(utxo.amount) >= amt_hl
                 && utxo.script_public_key_address.as_ref().unwrap() == escrow_address
         })
-        .ok_or(eyre::eyre!("kaspa deposit had insufficient sompi amount"))?;
+        .ok_or(eyre::eyre!("kaspa deposit {} had insufficient sompi amount",deposit.id))?;
 
     let hl_message_new = add_kaspa_metadata_hl_messsage(parsed_hl, deposit.id, utxo_index)?;
 
