@@ -26,7 +26,6 @@ use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use kaspa_addresses::Address;
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
 use kaspa_wallet_core::prelude::DynRpcApi;
-use tracing::error;
 use std::sync::Arc;
 use tonic::async_trait;
 use tracing::info;
