@@ -191,15 +191,8 @@ impl KaspaProvider {
         )
         .await?;
 
-        match self.submit_txs(finalized.clone()).await {
-            Ok(_) => {
-                info!("Kaspa provider, submitted TXs, now indicating progress on the Hub");
-            }
-            Err(e) => {
-                error!("Kaspa provider, failed to submit TXs: {:?}", e);
-                return Ok(vec![]);
-            }
-        }
+        let _ = self.submit_txs(finalized.clone()).await?;
+        info!("Kaspa provider, submitted TXs, now indicating progress on the Hub");
 
         self.pending_confirmation
             .push(ConfirmationFXG::from_msgs_outpoints(fxg.ids(), fxg.anchors));
