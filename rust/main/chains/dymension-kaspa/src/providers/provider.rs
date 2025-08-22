@@ -10,6 +10,7 @@ use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs};
 use dym_kas_relayer::withdraw::hub_to_kaspa::combine_bundles_with_fee;
 use dym_kas_relayer::withdraw::messages::on_new_withdrawals;
+use dym_kas_relayer::KaspaBridgeMetrics;
 pub use dym_kas_validator::KaspaSecpKeypair;
 use eyre::Result;
 use hyperlane_core::config::OpSubmissionConfig;
@@ -49,6 +50,9 @@ pub struct KaspaProvider {
     /// Optimistically give a hint for the next confirmation needed to be done on the Hub
     /// If this value is out of date, the relayer can still manually poll Kaspa to figure out how to get synced
     pending_confirmation: Arc<PendingConfirmation>,
+
+    /// Kaspa bridge metrics for monitoring deposits, withdrawals, and failures
+    metrics: KaspaBridgeMetrics,
 }
 
 impl KaspaProvider {
@@ -80,6 +84,9 @@ impl KaspaProvider {
             None => None,
         };
 
+        let metrics = KaspaBridgeMetrics::new(domain.name())
+            .map_err(|e| eyre::eyre!("Failed to initialize Kaspa bridge metrics: {}", e))?;
+
         Ok(KaspaProvider {
             domain: domain.clone(),
             conf: conf.clone(),
@@ -89,6 +96,7 @@ impl KaspaProvider {
             cosmos_rpc: cosmos_grpc_client(conf.hub_grpc_urls.clone()),
             kas_key,
             pending_confirmation: Arc::new(PendingConfirmation::new()),
+            metrics,
         })
     }
 
@@ -168,36 +176,74 @@ impl KaspaProvider {
             self.escrow(),
             self.conf.min_deposit_sompi,
         )
-        .await?;
-        info!("Kaspa provider, constructed withdrawal TXs");
+        .await;
 
-        if res.is_none() {
-            info!("On new withdrawals decided not to handle withdrawal messages");
-            return Ok(msgs);
+        match res {
+            Ok(Some(fxg)) => {
+                info!("Kaspa provider, constructed withdrawal TXs");
+                info!("Kaspa provider, got withdrawal FXG, now gathering sigs and signing relayer fee");
+                
+                let bundles_validators = match self.validators().get_withdraw_sigs(&fxg).await {
+                    Ok(bundles) => bundles,
+                    Err(e) => {
+                        // Record withdrawal failure
+                        self.metrics.record_withdrawal_failed();
+                        return Err(e.into());
+                    }
+                };
+
+                let finalized = match combine_bundles_with_fee(
+                    bundles_validators,
+                    &fxg,
+                    self.conf.multisig_threshold_kaspa,
+                    &self.escrow(),
+                    &self.easy_wallet,
+                )
+                .await {
+                    Ok(fin) => fin,
+                    Err(e) => {
+                        // Record withdrawal failure
+                        self.metrics.record_withdrawal_failed();
+                        return Err(e);
+                    }
+                };
+
+                match self.submit_txs(finalized.clone()).await {
+                    Ok(_) => {
+                        info!("Kaspa provider, submitted TXs, now indicating progress on the Hub");
+                        
+                        // Calculate total withdrawal amount (rough estimate, could be more precise)
+                        let total_amount = fxg.messages.iter()
+                            .flatten()
+                            .map(|msg| msg.body.len() as u64 * 1000) // Rough estimate based on message size
+                            .sum();
+                        
+                        // Record successful withdrawal
+                        self.metrics.record_withdrawal_processed(total_amount);
+                        
+                        self.pending_confirmation
+                            .push(ConfirmationFXG::from_msgs_outpoints(fxg.ids(), fxg.anchors));
+                        info!("Kaspa provider, added to progress indication work queue");
+
+                        Ok(fxg.messages.iter().flatten().cloned().collect())
+                    }
+                    Err(e) => {
+                        // Record withdrawal failure
+                        self.metrics.record_withdrawal_failed();
+                        Err(e)
+                    }
+                }
+            }
+            Ok(None) => {
+                info!("On new withdrawals decided not to handle withdrawal messages");
+                Ok(msgs)
+            }
+            Err(e) => {
+                // Record withdrawal failure
+                self.metrics.record_withdrawal_failed();
+                Err(e)
+            }
         }
-
-        let fxg = res.unwrap();
-
-        info!("Kaspa provider, got withdrawal FXG, now gathering sigs and signing relayer fee");
-        let bundles_validators = self.validators().get_withdraw_sigs(&fxg).await?;
-
-        let finalized = combine_bundles_with_fee(
-            bundles_validators,
-            &fxg,
-            self.conf.multisig_threshold_kaspa,
-            &self.escrow(),
-            &self.easy_wallet,
-        )
-        .await?;
-
-        let _ = self.submit_txs(finalized.clone()).await?;
-        info!("Kaspa provider, submitted TXs, now indicating progress on the Hub");
-
-        self.pending_confirmation
-            .push(ConfirmationFXG::from_msgs_outpoints(fxg.ids(), fxg.anchors));
-        info!("Kaspa provider, added to progress indication work queue");
-
-        Ok(fxg.messages.iter().flatten().cloned().collect())
     }
 
     async fn submit_txs(&self, txs: Vec<RpcTransaction>) -> Result<Vec<RpcTransactionId>> {
@@ -225,6 +271,11 @@ impl KaspaProvider {
     /// get escrow address
     pub fn escrow_address(&self) -> Address {
         self.escrow().addr
+    }
+
+    /// Get access to Kaspa bridge metrics
+    pub fn metrics(&self) -> &KaspaBridgeMetrics {
+        &self.metrics
     }
 }
 
