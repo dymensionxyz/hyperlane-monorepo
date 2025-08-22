@@ -55,7 +55,7 @@ pub async fn build_withdrawal_fxg(
     min_deposit_sompi: U256,
 ) -> Result<Option<WithdrawFXG>> {
     // Get sample inputs for mass estimation
-    let sample_escrow_inputs = fetch_input_utxos(
+    let escrow_inputs = fetch_input_utxos(
         &relayer.api(),
         &escrow_public.addr,
         Some(escrow_public.redeem_script.clone()),
@@ -70,7 +70,7 @@ pub async fn build_withdrawal_fxg(
         pending_msgs,
         relayer.net.address_prefix,
         min_deposit_sompi,
-        sample_escrow_inputs.clone(),
+        escrow_inputs.clone(),
         relayer.net.network_id,
         escrow_public.m() as u16,
     );
@@ -87,9 +87,6 @@ pub async fn build_withdrawal_fxg(
         "Kaspa relayer, got pending withdrawals, building PSKT, withdrawal num: {}",
         outputs.len()
     );
-
-    // Use the same inputs we fetched for mass estimation
-    let escrow_inputs = sample_escrow_inputs;
 
     let relayer_address = relayer.account().change_address()?;
     let relayer_inputs = fetch_input_utxos(

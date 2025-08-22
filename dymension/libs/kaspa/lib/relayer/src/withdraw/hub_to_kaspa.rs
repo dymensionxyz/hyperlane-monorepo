@@ -289,7 +289,7 @@ pub fn get_outputs_from_msgs_with_mass_limit(
     messages: Vec<HyperlaneMessage>,
     prefix: Prefix,
     min_deposit_sompi: U256,
-    sample_inputs: Vec<PopulatedInput>,
+    inputs: Vec<PopulatedInput>,
     network_id: NetworkId,
     min_signatures: u16,
 ) -> (Vec<HyperlaneMessage>, Vec<TransactionOutput>) {
@@ -329,7 +329,7 @@ pub fn get_outputs_from_msgs_with_mass_limit(
         let payload = Vec::<u8>::from(&MessageIDs::from(&test_msgs));
         
         match estimate_mass(
-            sample_inputs.clone(),
+            inputs.clone(),
             test_outputs,
             payload,
             network_id,
