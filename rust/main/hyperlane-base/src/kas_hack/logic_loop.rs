@@ -150,7 +150,7 @@ where
                         deposits_new.push(d);
                     }
                     Ok(false) => {
-                        info!(deposit_id = %d.id, "Dymension, skipping deposit that has escrow address in inputs (likely withdrawal)");
+                        info!(deposit_id = %d.id, "Dymension, skipping deposit with invalid or missing Hyperlane payload");
                         self.deposit_cache.mark_as_seen(d.clone()).await;
                     }
                     Err(e) => {
@@ -168,31 +168,39 @@ where
         }
     }
 
-    /// Check if a deposit is genuine by verifying the escrow address is not in the transaction inputs
-    /// Returns true if it's a genuine deposit, false if it's likely a withdrawal
-    async fn is_genuine_deposit(&self, deposit: &Deposit, escrow_address: &str) -> Result<bool> {
-        // Fetch full transaction details with inputs
-        let tx = self
-            .provider
-            .rest()
-            .client
-            .client
-            .get_tx_by_id(&deposit.id.to_string())
-            .await
-            .map_err(|e| eyre::eyre!("Failed to fetch transaction details: {}", e))?;
+    /// Check if a deposit is genuine by validating the payload contains a valid Hyperlane message
+    /// Returns true if it's a genuine deposit with valid Hyperlane payload, false otherwise
+    async fn is_genuine_deposit(&self, deposit: &Deposit, _escrow_address: &str) -> Result<bool> {
+        use dym_kas_core::message::ParsedHL;
 
-        // Check if any input has the escrow address
-        if let Some(inputs) = tx.inputs {
-            for input in inputs {
-                if let Some(previous_outpoint_address) = input.previous_outpoint_address {
-                    if previous_outpoint_address == escrow_address {
-                        return Ok(false); // Found escrow address in inputs, likely a withdrawal
-                    }
-                }
+        // Check if deposit has a payload
+        let payload = match &deposit.payload {
+            Some(payload) => payload,
+            None => {
+                info!(deposit_id = %deposit.id, "Deposit has no payload, skipping");
+                return Ok(false);
+            }
+        };
+
+        // Try to parse the payload as a Hyperlane message
+        match ParsedHL::parse_string(payload) {
+            Ok(parsed_hl) => {
+                info!(
+                    deposit_id = %deposit.id,
+                    message_id = ?parsed_hl.hl_message.id(),
+                    "Valid Hyperlane message found in deposit payload"
+                );
+                Ok(true) // Valid Hyperlane message, genuine deposit
+            }
+            Err(e) => {
+                info!(
+                    deposit_id = %deposit.id,
+                    error = ?e,
+                    "Invalid Hyperlane payload, skipping deposit"
+                );
+                Ok(false) // Invalid payload, not a genuine Hyperlane deposit
             }
         }
-
-        Ok(true) // No escrow address found in inputs, genuine deposit
     }
 
     /// Process the retry queue for failed deposit operations
