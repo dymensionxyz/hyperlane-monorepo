@@ -190,6 +190,8 @@ where
                     }
                     Err(e) => {
                         error!(error = ?e, "Dymension, check if deposit is delivered");
+                        // Record failed deposit attempt
+                        self.provider.metrics().record_deposit_failed();
                         // This is a transient error, queue for retry
                         operation.mark_failed(&self.config);
                         self.deposit_queue.lock().await.requeue(operation);
@@ -203,6 +205,11 @@ where
                 match res {
                     Ok(_) => {
                         info!(fxg = ?fxg, "Dymension, got sigs and sent new deposit to hub");
+                        
+                        // Record successful deposit processing with amount
+                        let deposit_amount = fxg.amount.low_u64(); // Convert U256 to u64 for metrics
+                        self.provider.metrics().record_deposit_processed(deposit_amount);
+                        
                         // Success! Operation complete
                         operation.reset_attempts();
                     }
@@ -213,6 +220,8 @@ where
                                 error = ?e,
                                 "Dymension, gather sigs and send deposit to hub (retryable)"
                             );
+                            // Record failed deposit attempt
+                            self.provider.metrics().record_deposit_failed();
                             // Retryable error, queue for retry
                             operation.mark_failed(&self.config);
                             self.deposit_queue.lock().await.requeue(operation);
@@ -221,6 +230,8 @@ where
                                 error = ?e,
                                 "Dymension, gather sigs and send deposit to hub (non-retryable)"
                             );
+                            // Record failed deposit attempt
+                            self.provider.metrics().record_deposit_failed();
                             // Non-retryable error, drop the operation
                             info!(
                                 deposit_id = %operation.deposit.id,
@@ -232,6 +243,8 @@ where
             }
             Ok(None) => {
                 info!("Dymension, F() new deposit returned none, will retry");
+                // Record failed deposit attempt
+                self.provider.metrics().record_deposit_failed();
                 // This could be transient, queue for retry
                 operation.mark_failed(&self.config);
                 self.deposit_queue.lock().await.requeue(operation);
@@ -239,6 +252,9 @@ where
             Err(e) => {
                 // Convert relayer error to our error type
                 let kaspa_err = KaspaDepositError::from(e);
+                
+                // Record failed deposit attempt
+                self.provider.metrics().record_deposit_failed();
 
                 if let Some(retry_delay_secs) = kaspa_err.retry_delay_hint() {
                     // Use the calculated retry delay based on pending confirmations
@@ -289,6 +305,8 @@ where
                     match res {
                         Ok(_) => {
                             info!(confirmation = ?confirmation, "Dymension, confirmed withdrawal on hub");
+                            // Clear pending confirmations on success
+                            self.provider.metrics().update_confirmations_pending(0);
                             self.provider.consume_pending_confirmation();
                         }
                         Err(KaspaTxError::NotFinalError { retry_after_secs, .. }) => {
@@ -296,11 +314,15 @@ where
                                 retry_after_secs = retry_after_secs,
                                 "Dymension, withdrawal not final yet, sleeping before retry"
                             );
+                            // Update pending confirmations count
+                            self.provider.metrics().update_confirmations_pending(1);
                             time::sleep(Duration::from_secs_f64(retry_after_secs)).await;
                             continue; // Retry after waiting
                         }
                         Err(e) => {
                             error!("Dymension, confirm withdrawal on hub: {:?}", e);
+                            // Record confirmation failure
+                            self.provider.metrics().record_confirmation_failed();
                         }
                     }
                 }
@@ -308,8 +330,34 @@ where
                     info!("Dymension, no pending confirmation found.");
                 }
             }
+            
+            // Update balance metrics periodically
+            if let Err(e) = self.update_balance_metrics().await {
+                error!("Failed to update balance metrics: {:?}", e);
+            }
+            
             time::sleep(self.config.poll_interval()).await;
         }
+    }
+
+    /// Update balance metrics for relayer funds and escrow balance
+    async fn update_balance_metrics(&self) -> Result<()> {
+        // Update relayer balance - get mature balance from wallet account
+        let account = self.provider.wallet().account();
+        if let Some(balance) = account.balance() {
+            let relayer_balance = balance.mature;
+            self.provider.metrics().update_relayer_funds(relayer_balance as i64);
+        }
+        
+        // Update escrow balance by getting UTXOs for escrow address
+        let escrow_address = self.provider.escrow_address();
+        let utxos = self.provider.rpc().get_utxos_by_addresses(vec![escrow_address.clone()]).await
+            .map_err(|e| eyre::eyre!("Failed to get escrow UTXOs: {}", e))?;
+        
+        let total_escrow_balance: u64 = utxos.iter().map(|utxo| utxo.utxo_entry.amount).sum();
+        self.provider.metrics().update_funds_escrowed(total_escrow_balance as i64);
+        
+        Ok(())
     }
 
     async fn get_deposit_validator_sigs_and_send_to_hub(
