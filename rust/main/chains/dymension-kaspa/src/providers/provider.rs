@@ -24,6 +24,7 @@ use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use hyperlane_cosmos_native::RawCosmosAmount;
 use hyperlane_cosmos_native::Signer as HyperlaneSigner;
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
+use prometheus::Registry;
 use kaspa_addresses::Address;
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
 use kaspa_wallet_core::prelude::DynRpcApi;
@@ -63,6 +64,7 @@ impl KaspaProvider {
         signer: Option<HyperlaneSigner>,
         metrics: PrometheusClientMetrics,
         chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
+        registry: Option<&Registry>,
     ) -> ChainResult<Self> {
         let rest = RestProvider::new(conf.clone(), signer, metrics.clone(), chain.clone())?;
         let validators = ValidatorsClient::new(conf.clone())?;
@@ -84,8 +86,12 @@ impl KaspaProvider {
             None => None,
         };
 
-        let metrics = KaspaBridgeMetrics::new(domain.name())
-            .map_err(|e| eyre::eyre!("Failed to initialize Kaspa bridge metrics: {}", e))?;
+        let kaspa_metrics = if let Some(reg) = registry {
+            KaspaBridgeMetrics::new_with_registry(domain.name(), reg)
+        } else {
+            KaspaBridgeMetrics::new(domain.name())
+        }
+        .map_err(|e| eyre::eyre!("Failed to initialize Kaspa bridge metrics: {}", e))?;
 
         Ok(KaspaProvider {
             domain: domain.clone(),
@@ -96,7 +102,7 @@ impl KaspaProvider {
             cosmos_rpc: cosmos_grpc_client(conf.hub_grpc_urls.clone()),
             kas_key,
             pending_confirmation: Arc::new(PendingConfirmation::new()),
-            metrics,
+            metrics: kaspa_metrics,
         })
     }
 

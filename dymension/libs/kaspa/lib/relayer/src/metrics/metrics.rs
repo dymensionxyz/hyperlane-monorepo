@@ -1,4 +1,12 @@
-use prometheus::{IntCounter, IntGauge};
+use prometheus::{IntCounter, IntGauge, Registry};
+
+/// Helper function to check if a Prometheus error is due to duplicate registration
+fn is_already_registered_error(err: &prometheus::Error) -> bool {
+    match err {
+        prometheus::Error::AlreadyReg => true,
+        _ => false,
+    }
+}
 
 /// Kaspa relayer-specific metrics matching the requested specification
 #[derive(Debug, Clone)]
@@ -36,66 +44,111 @@ pub struct KaspaBridgeMetrics {
 
 impl KaspaBridgeMetrics {
     pub fn new(_chain_name: &str) -> prometheus::Result<Self> {
-        // Create Kaspa relayer metrics using prometheus default registry
+        Self::new_with_registry(_chain_name, &prometheus::default_registry())
+    }
+    
+    pub fn new_with_registry(_chain_name: &str, registry: &Registry) -> prometheus::Result<Self> {
+        // Create Kaspa relayer metrics using the provided registry
         let relayer_address_funds = IntGauge::new(
             "kaspa_relayer_address_funds_sompi",
             "Current balance of the relayer address in sompi"
         )?;
-        prometheus::register(Box::new(relayer_address_funds.clone()))?;
+        // Use try_register to handle duplicate registration gracefully
+        if let Err(e) = registry.register(Box::new(relayer_address_funds.clone())) {
+            if !is_already_registered_error(&e) {
+                return Err(e);
+            }
+        }
         
         let funds_escrowed = IntGauge::new(
             "kaspa_funds_escrowed_sompi",
             "Total funds currently held in escrow in sompi"
         )?;
-        prometheus::register(Box::new(funds_escrowed.clone()))?;
+        if let Err(e) = registry.register(Box::new(funds_escrowed.clone())) {
+            if !is_already_registered_error(&e) {
+                return Err(e);
+            }
+        }
         
         let total_funds_deposited = IntCounter::new(
             "kaspa_total_funds_deposited_sompi",
             "Cumulative amount of deposits processed in sompi"
         )?;
-        prometheus::register(Box::new(total_funds_deposited.clone()))?;
+        if let Err(e) = registry.register(Box::new(total_funds_deposited.clone())) {
+            if !is_already_registered_error(&e) {
+                return Err(e);
+            }
+        }
         
         let total_funds_withdrawn = IntCounter::new(
             "kaspa_total_funds_withdrawn_sompi",
             "Cumulative amount of withdrawals processed in sompi"
         )?;
-        prometheus::register(Box::new(total_funds_withdrawn.clone()))?;
+        if let Err(e) = registry.register(Box::new(total_funds_withdrawn.clone())) {
+            if !is_already_registered_error(&e) {
+                return Err(e);
+            }
+        }
         
         let failed_withdrawals_total = IntCounter::new(
             "kaspa_failed_withdrawals_total",
             "Total number of failed withdrawal attempts"
         )?;
-        prometheus::register(Box::new(failed_withdrawals_total.clone()))?;
+        if let Err(e) = registry.register(Box::new(failed_withdrawals_total.clone())) {
+            if !is_already_registered_error(&e) {
+                return Err(e);
+            }
+        }
         
         let current_failed_withdrawals = IntGauge::new(
             "kaspa_current_failed_withdrawals",
             "Consecutive withdrawal failures since last success"
         )?;
-        prometheus::register(Box::new(current_failed_withdrawals.clone()))?;
+        if let Err(e) = registry.register(Box::new(current_failed_withdrawals.clone())) {
+            if !is_already_registered_error(&e) {
+                return Err(e);
+            }
+        }
         
         let failed_deposits_total = IntCounter::new(
             "kaspa_failed_deposits_total",
             "Total number of failed deposit attempts"
         )?;
-        prometheus::register(Box::new(failed_deposits_total.clone()))?;
+        if let Err(e) = registry.register(Box::new(failed_deposits_total.clone())) {
+            if !is_already_registered_error(&e) {
+                return Err(e);
+            }
+        }
         
         let current_failed_deposits = IntGauge::new(
             "kaspa_current_failed_deposits",
             "Consecutive deposit failures since last success"
         )?;
-        prometheus::register(Box::new(current_failed_deposits.clone()))?;
+        if let Err(e) = registry.register(Box::new(current_failed_deposits.clone())) {
+            if !is_already_registered_error(&e) {
+                return Err(e);
+            }
+        }
         
         let confirmations_failed = IntCounter::new(
             "kaspa_confirmations_failed_total",
             "Total number of confirmation failures"
         )?;
-        prometheus::register(Box::new(confirmations_failed.clone()))?;
+        if let Err(e) = registry.register(Box::new(confirmations_failed.clone())) {
+            if !is_already_registered_error(&e) {
+                return Err(e);
+            }
+        }
         
         let confirmations_pending = IntGauge::new(
             "kaspa_confirmations_pending",
             "Number of confirmations currently pending"
         )?;
-        prometheus::register(Box::new(confirmations_pending.clone()))?;
+        if let Err(e) = registry.register(Box::new(confirmations_pending.clone())) {
+            if !is_already_registered_error(&e) {
+                return Err(e);
+            }
+        }
         
         Ok(Self {
             relayer_address_funds,
@@ -228,5 +281,22 @@ mod tests {
         
         metrics.update_confirmations_pending(5);
         assert_eq!(metrics.confirmations_pending.get(), 5);
+    }
+
+    #[test]
+    fn test_duplicate_metrics_creation() {
+        // Create first instance - should work fine
+        let metrics1 = KaspaBridgeMetrics::new("kaspa-duplicate-test").expect("Failed to create first metrics instance");
+        
+        // Create second instance - should handle duplicate registration gracefully
+        let metrics2 = KaspaBridgeMetrics::new("kaspa-duplicate-test").expect("Failed to create second metrics instance");
+        
+        // Test that both metrics instances are functional
+        metrics1.update_relayer_funds(1000000);
+        metrics2.update_funds_escrowed(500000);
+        
+        // Verify the values are accessible (they share the same underlying metrics)
+        assert_eq!(metrics1.relayer_address_funds.get(), 1000000);
+        assert_eq!(metrics2.funds_escrowed.get(), 500000);
     }
 }
