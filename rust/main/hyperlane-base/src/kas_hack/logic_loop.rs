@@ -142,20 +142,22 @@ where
         
         for d in deposits.into_iter() {
             if !self.deposit_cache.has_seen(&d).await {
+                // always mark as seen
+                self.deposit_cache.mark_as_seen(d.clone()).await;
                 // Check if this is actually a withdrawal by looking at transaction inputs
                 match self.is_genuine_deposit(&d, &escrow_address).await {
+                    // valid deposit. queue for processing
                     Ok(true) => {
                         info!(deposit = ?d, "Dymension, new deposit seen");
-                        self.deposit_cache.mark_as_seen(d.clone()).await;
                         deposits_new.push(d);
                     }
+                    // not a deposit, skip
                     Ok(false) => {
                         info!(deposit_id = %d.id, "Dymension, skipping deposit with invalid or missing Hyperlane payload");
-                        self.deposit_cache.mark_as_seen(d.clone()).await;
                     }
+                    // error checking deposit, skip but log
                     Err(e) => {
                         error!(deposit_id = %d.id, error = ?e, "Dymension, failed to check if deposit is genuine, skipping");
-                        self.deposit_cache.mark_as_seen(d.clone()).await;
                     }
                 }
             }
