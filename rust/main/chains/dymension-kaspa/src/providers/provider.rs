@@ -175,6 +175,8 @@ impl KaspaProvider {
         &self,
         msgs: Vec<HyperlaneMessage>,
     ) -> Result<Vec<HyperlaneMessage>> {
+        // Start timing for withdrawal latency metrics
+        let start_time = std::time::Instant::now();
         let res = on_new_withdrawals(
             msgs.clone(),
             self.easy_wallet.clone(),
@@ -219,14 +221,18 @@ impl KaspaProvider {
                     Ok(_) => {
                         info!("Kaspa provider, submitted TXs, now indicating progress on the Hub");
                         
+                        // Calculate processing latency
+                        let latency_ms = start_time.elapsed().as_millis() as i64;
+                        
                         // Calculate total withdrawal amount (rough estimate, could be more precise)
                         let total_amount = fxg.messages.iter()
                             .flatten()
                             .map(|msg| msg.body.len() as u64 * 1000) // Rough estimate based on message size
                             .sum();
                         
-                        // Record successful withdrawal
+                        // Record successful withdrawal with latency
                         self.metrics.record_withdrawal_processed(total_amount);
+                        self.metrics.update_withdrawal_latency(latency_ms);
                         
                         self.pending_confirmation
                             .push(ConfirmationFXG::from_msgs_outpoints(fxg.ids(), fxg.anchors));

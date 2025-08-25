@@ -226,6 +226,9 @@ where
     /// Process a single deposit operation, with retry logic on failure
     async fn process_deposit_operation(&self, mut operation: DepositOperation) {
         info!(deposit_id = %operation.deposit.id, "Processing deposit operation");
+        
+        // Start timing for latency metrics
+        let start_time = std::time::Instant::now();
 
         let new_deposit_res = relayer_on_new_deposit(
             &operation.escrow_address,
@@ -265,9 +268,13 @@ where
                     Ok(_) => {
                         info!(fxg = ?fxg, "Dymension, got sigs and sent new deposit to hub");
                         
-                        // Record successful deposit processing with amount
+                        // Calculate processing latency
+                        let latency_ms = start_time.elapsed().as_millis() as i64;
+                        
+                        // Record successful deposit processing with amount and latency
                         let deposit_amount = fxg.amount.low_u64(); // Convert U256 to u64 for metrics
                         self.provider.metrics().record_deposit_processed(deposit_amount);
+                        self.provider.metrics().update_deposit_latency(latency_ms);
                         
                         // Success! Operation complete
                         operation.reset_attempts();
@@ -415,6 +422,9 @@ where
         
         let total_escrow_balance: u64 = utxos.iter().map(|utxo| utxo.utxo_entry.amount).sum();
         self.provider.metrics().update_funds_escrowed(total_escrow_balance as i64);
+        
+        // Update UTXO count
+        self.provider.metrics().update_escrow_utxo_count(utxos.len() as i64);
         
         Ok(())
     }
