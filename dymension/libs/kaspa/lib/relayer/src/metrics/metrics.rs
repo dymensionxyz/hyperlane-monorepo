@@ -101,7 +101,7 @@ impl KaspaBridgeMetrics {
         }
         
         let current_failed_withdrawals = IntGauge::new(
-            "kaspa_current_failed_withdrawals",
+            "kaspa_consecutive_failed_withdrawals",
             "Consecutive withdrawal failures since last success"
         )?;
         if let Err(e) = registry.register(Box::new(current_failed_withdrawals.clone())) {

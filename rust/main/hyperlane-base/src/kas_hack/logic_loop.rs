@@ -131,8 +131,15 @@ where
                 deposit_count = deposits.len(),
                 "Dymension, queried kaspa deposits"
             );
-            time::sleep(self.config.poll_interval()).await;
             self.handle_new_deposits(deposits).await;
+
+            // Update balance metrics periodically
+            if let Err(e) = self.update_balance_metrics().await {
+                error!("Failed to update balance metrics: {:?}", e);
+            }
+
+            time::sleep(self.config.poll_interval()).await;
+
         }
     }
 
