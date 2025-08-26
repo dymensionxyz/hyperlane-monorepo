@@ -408,10 +408,12 @@ where
 
     /// Update balance metrics for relayer funds and escrow balance
     async fn update_balance_metrics(&self) -> Result<()> {
+        info!("Updating balance metrics");
         // Update relayer balance - get mature balance from wallet account
         let account = self.provider.wallet().account();
         if let Some(balance) = account.balance() {
             let relayer_balance = balance.mature;
+            info!(relayer_balance, "Relayer mature balance {}",relayer_balance);
             self.provider.metrics().update_relayer_funds(relayer_balance as i64);
         }
         

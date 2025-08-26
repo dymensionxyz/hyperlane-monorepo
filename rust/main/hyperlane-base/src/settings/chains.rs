@@ -1399,8 +1399,7 @@ pub async fn build_kaspa_provider<'a>(
 ) -> ChainResult<KaspaProvider> {
     let middleware_metrics = chain_conf.metrics_conf();
     let client_metrics = metrics.client_metrics();
-    let metrics_registry = metrics.registry();
-    let registry = Some(&metrics_registry);
+    let registry = Some(metrics.registry_ref());
     KaspaProvider::new(
         connection_conf,
         locator.domain.clone(),
