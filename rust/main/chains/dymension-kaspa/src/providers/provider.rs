@@ -270,7 +270,36 @@ impl KaspaProvider {
                 .await?;
             ret.push(tx_id);
         }
+        
+        // Update balance metrics after successful transaction submission
+        if let Err(e) = self.update_balance_metrics().await {
+            tracing::error!("Failed to update balance metrics: {:?}", e);
+        }
+        
         Ok(ret)
+    }
+    
+    /// Update balance metrics for relayer funds and escrow balance
+    pub async fn update_balance_metrics(&self) -> Result<()> {
+        // Update relayer balance - get mature balance from wallet account
+        let account = self.wallet().account();
+        if let Some(balance) = account.balance() {
+            let relayer_balance = balance.mature;
+            self.metrics().update_relayer_funds(relayer_balance as i64);
+        }
+        
+        // Update escrow balance by getting UTXOs for escrow address
+        let escrow_address = self.escrow_address();
+        let utxos = self.rpc().get_utxos_by_addresses(vec![escrow_address.clone()]).await
+            .map_err(|e| eyre::eyre!("Failed to get escrow UTXOs: {}", e))?;
+        
+        let total_escrow_balance: u64 = utxos.iter().map(|utxo| utxo.utxo_entry.amount).sum();
+        self.metrics().update_funds_escrowed(total_escrow_balance as i64);
+        
+        // Update UTXO count
+        self.metrics().update_escrow_utxo_count(utxos.len() as i64);
+        
+        Ok(())
     }
 
     pub fn escrow(&self) -> EscrowPublic {

@@ -1,7 +1,6 @@
 use prometheus::{IntCounter, IntGauge, Registry};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::collections::HashMap;
-use tracing::info;
 
 /// Singleton storage for KaspaBridgeMetrics instances per registry
 static KASPA_METRICS_INSTANCES: OnceLock<Mutex<HashMap<usize, Arc<KaspaBridgeMetrics>>>> = OnceLock::new();
@@ -60,21 +59,14 @@ impl KaspaBridgeMetrics {
     
     pub fn new_with_registry(_chain_name: &str, registry: &Registry) -> prometheus::Result<Self> {
         let registry_id = registry as *const Registry as usize;
-        info!("Creating KaspaBridgeMetrics with registry: {:p} (id: {})", registry, registry_id);
         
         // Check if we already have an instance for this registry
         let instances_map = KASPA_METRICS_INSTANCES.get_or_init(|| Mutex::new(HashMap::new()));
         let mut instances = instances_map.lock().unwrap();
         
         if let Some(existing_instance) = instances.get(&registry_id) {
-            info!("Returning existing KaspaBridgeMetrics instance for registry {:p}", registry);
             return Ok((**existing_instance).clone());
         }
-        
-        info!("Creating new KaspaBridgeMetrics instance for registry {:p}", registry);
-        // Test: Check how many metrics are currently in this registry
-        let existing_metrics = registry.gather();
-        info!("Registry currently has {} metric families", existing_metrics.len());
         
         // Create Kaspa relayer metrics using the provided registry
         let relayer_address_funds = IntGauge::new(
@@ -82,24 +74,13 @@ impl KaspaBridgeMetrics {
             "Current balance of the relayer address in sompi"
         )?;
         // Register the metric - if already exists, just continue
-        match registry.register(Box::new(relayer_address_funds.clone())) {
-            Ok(()) => {
-                info!("Successfully registered kaspa_relayer_address_funds_sompi");
-                // Verify registration worked
-                let metrics_after = registry.gather();
-                info!("Registry now has {} metric families after registration", metrics_after.len());
-            }
-            Err(e) => info!("Failed to register kaspa_relayer_address_funds_sompi: {}", e),
-        }
+        let _ = registry.register(Box::new(relayer_address_funds.clone()));
         
         let funds_escrowed = IntGauge::new(
             "kaspa_funds_escrowed_sompi",
             "Total funds currently held in escrow in sompi"
         )?;
-        match registry.register(Box::new(funds_escrowed.clone())) {
-            Ok(()) => info!("Successfully registered kaspa_funds_escrowed_sompi"),
-            Err(e) => info!("Failed to register kaspa_funds_escrowed_sompi: {}", e),
-        }
+        let _ = registry.register(Box::new(funds_escrowed.clone()));
         
         let total_funds_deposited = IntCounter::new(
             "kaspa_total_funds_deposited_sompi",
@@ -214,23 +195,18 @@ impl KaspaBridgeMetrics {
         // Store the instance in our singleton map
         let instance_arc = Arc::new(new_instance.clone());
         instances.insert(registry_id, instance_arc);
-        info!("Stored new KaspaBridgeMetrics instance for registry {:p} in singleton map", registry);
         
         Ok(new_instance)
     }
     
     /// Update relayer address balance
     pub fn update_relayer_funds(&self, balance_sompi: i64) {
-        info!("Setting relayer funds metric to: {} sompi", balance_sompi);
         self.relayer_address_funds.set(balance_sompi);
-        info!("Relayer funds metric set, current value: {}", self.relayer_address_funds.get());
     }
     
     /// Update escrow balance
     pub fn update_funds_escrowed(&self, balance_sompi: i64) {
-        info!("Setting escrow funds metric to: {} sompi", balance_sompi);
         self.funds_escrowed.set(balance_sompi);
-        info!("Escrow funds metric set, current value: {}", self.funds_escrowed.get());
     }
     
     /// Record successful deposit processing with amount
@@ -286,7 +262,6 @@ impl KaspaBridgeMetrics {
     
     /// Update deposit latency metrics
     pub fn update_deposit_latency(&self, latency_ms: i64) {
-        info!("Updating deposit latency metrics with latency: {} ms", latency_ms);
         // Update min latency
         let current_min = self.deposit_min_latency_ms.get();
         if current_min == 0 || latency_ms < current_min {

@@ -133,11 +133,6 @@ where
             );
             self.handle_new_deposits(deposits).await;
 
-            // Update balance metrics periodically
-            if let Err(e) = self.update_balance_metrics().await {
-                error!("Failed to update balance metrics: {:?}", e);
-            }
-
             time::sleep(self.config.poll_interval()).await;
 
         }
@@ -167,6 +162,13 @@ where
                         error!(deposit_id = %d.id, error = ?e, "Dymension, failed to check if deposit is genuine, skipping");
                     }
                 }
+            }
+        }
+
+        if !deposits_new.is_empty() {
+            // Update balance metrics periodically
+            if let Err(e) = self.provider.update_balance_metrics().await {
+                error!("Failed to update balance metrics: {:?}", e);
             }
         }
 
@@ -397,38 +399,8 @@ where
                 }
             }
             
-            // Update balance metrics periodically
-            if let Err(e) = self.update_balance_metrics().await {
-                error!("Failed to update balance metrics: {:?}", e);
-            }
-            
             time::sleep(self.config.poll_interval()).await;
         }
-    }
-
-    /// Update balance metrics for relayer funds and escrow balance
-    async fn update_balance_metrics(&self) -> Result<()> {
-        info!("Updating balance metrics");
-        // Update relayer balance - get mature balance from wallet account
-        let account = self.provider.wallet().account();
-        if let Some(balance) = account.balance() {
-            let relayer_balance = balance.mature;
-            info!(relayer_balance, "Relayer mature balance {}",relayer_balance);
-            self.provider.metrics().update_relayer_funds(relayer_balance as i64);
-        }
-        
-        // Update escrow balance by getting UTXOs for escrow address
-        let escrow_address = self.provider.escrow_address();
-        let utxos = self.provider.rpc().get_utxos_by_addresses(vec![escrow_address.clone()]).await
-            .map_err(|e| eyre::eyre!("Failed to get escrow UTXOs: {}", e))?;
-        
-        let total_escrow_balance: u64 = utxos.iter().map(|utxo| utxo.utxo_entry.amount).sum();
-        self.provider.metrics().update_funds_escrowed(total_escrow_balance as i64);
-        
-        // Update UTXO count
-        self.provider.metrics().update_escrow_utxo_count(utxos.len() as i64);
-        
-        Ok(())
     }
 
     async fn get_deposit_validator_sigs_and_send_to_hub(
