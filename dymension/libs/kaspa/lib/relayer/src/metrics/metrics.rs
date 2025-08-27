@@ -3,14 +3,6 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::collections::HashMap;
 use tracing::info;
 
-/// Helper function to check if a Prometheus error is due to duplicate registration
-fn is_already_registered_error(err: &prometheus::Error) -> bool {
-    match err {
-        prometheus::Error::AlreadyReg => true,
-        _ => false,
-    }
-}
-
 /// Singleton storage for KaspaBridgeMetrics instances per registry
 static KASPA_METRICS_INSTANCES: OnceLock<Mutex<HashMap<usize, Arc<KaspaBridgeMetrics>>>> = OnceLock::new();
 
