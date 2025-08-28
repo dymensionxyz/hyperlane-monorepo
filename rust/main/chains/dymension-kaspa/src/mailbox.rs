@@ -1,5 +1,6 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use super::consts::*;
 use crate::KaspaProvider;
@@ -131,6 +132,21 @@ impl Mailbox for KaspaMailbox {
             ops.len()
         );
 
+        let messages: Vec<HyperlaneMessage> = ops
+            .iter()
+            .map(|op| op.try_batch().map(|item| item.data)) // TODO: please work...
+            .collect::<ChainResult<Vec<HyperlaneMessage>>>()?;
+
+        // Record first-seen timestamp for each message (only if not already tracked)
+        let current_time = std::time::Instant::now();
+        {
+            let mut timestamps = self.operation_timestamps.lock().await;
+            for msg in &messages {
+                let msg_id = format!("{:?}", msg.id());
+                timestamps.entry(msg_id).or_insert(current_time);
+            }
+        } // Release the lock
+
         if self.provider.has_pending_confirmation() {
             // All indexes are considered failed if there is a pending confirmation. they will be retried later.
             let failed_indexes: Vec<usize> = (0..ops.len()).collect();
@@ -140,38 +156,25 @@ impl Mailbox for KaspaMailbox {
             });
         }
 
-        let messages: Vec<HyperlaneMessage> = ops
-            .iter()
-            .map(|op| op.try_batch().map(|item| item.data)) // TODO: please work...
-            .collect::<ChainResult<Vec<HyperlaneMessage>>>()?;
-
-        // Track timing for each message, recording first seen time or using existing timestamp
-        let current_time = std::time::Instant::now();
-        let mut timestamps = self.operation_timestamps.lock().unwrap();
-        let messages_with_timing: Vec<(HyperlaneMessage, std::time::Instant)> = messages
-            .iter()
-            .map(|msg| {
-                let msg_id = format!("{:?}", msg.id());
-                let start_time = timestamps.entry(msg_id).or_insert(current_time);
-                (msg.clone(), *start_time)
-            })
-            .collect();
-        drop(timestamps); // Release the lock early
-
         let result_processed_messages = self
             .provider
-            .process_withdrawal_messages_with_timing(messages_with_timing)
+            .process_withdrawal_messages(messages.clone())
             .await;
 
         let processed_messages = match result_processed_messages {
             Ok(messages) => {
                 info!("Kaspa mailbox, processed withdrawals TXs");
                 
-                // Clean up timestamps for successfully processed messages
-                let mut timestamps = self.operation_timestamps.lock().unwrap();
+                // Calculate and record withdrawal latency for successfully processed messages
+                let now = std::time::Instant::now();
+                let mut timestamps = self.operation_timestamps.lock().await;
                 for msg in &messages {
                     let msg_id = format!("{:?}", msg.id());
-                    timestamps.remove(&msg_id);
+                    if let Some(start_time) = timestamps.remove(&msg_id) {
+                        let latency = now.duration_since(start_time);
+                        let metrics = self.provider.metrics();
+                        metrics.update_withdrawal_latency(latency.as_millis() as i64);
+                    }
                 }
                 drop(timestamps);
                 
@@ -221,7 +224,7 @@ impl Mailbox for KaspaMailbox {
     ) -> ChainResult<TxCostEstimate> {
         let token_msg = match TokenMessage::read_from(&mut message.body.as_slice()) {
             Ok(msg) => msg,
-            Err(e) => {
+            Err(_e) => {
                 return Ok(TxCostEstimate {
                     gas_limit: 0.into(),
                     gas_price: FixedPointNumber::from(0),

@@ -182,21 +182,6 @@ impl KaspaProvider {
         &self,
         msgs: Vec<HyperlaneMessage>,
     ) -> Result<Vec<HyperlaneMessage>> {
-        // Convert to timing format for compatibility
-        let start_time = std::time::Instant::now();
-        let msgs_with_timing: Vec<(HyperlaneMessage, std::time::Instant)> = msgs
-            .into_iter()
-            .map(|msg| (msg, start_time))
-            .collect();
-        self.process_withdrawal_messages_with_timing(msgs_with_timing).await
-    }
-
-    /// Process withdrawal messages with individual timing for each message
-    pub async fn process_withdrawal_messages_with_timing(
-        &self,
-        msgs_with_timing: Vec<(HyperlaneMessage, std::time::Instant)>,
-    ) -> Result<Vec<HyperlaneMessage>> {
-        let msgs: Vec<HyperlaneMessage> = msgs_with_timing.iter().map(|(msg, _)| msg.clone()).collect();
         let res = on_new_withdrawals(
             msgs.clone(),
             self.easy_wallet.clone(),
@@ -272,27 +257,8 @@ impl KaspaProvider {
                     Ok(_) => {
                         info!("Kaspa provider, submitted TXs, now indicating progress on the Hub");
                         
-                        // Calculate processing latency for each message and update metrics
-                        let mut total_latency_ms = 0i64;
-                        let mut message_count = 0;
-                        
-                        // Calculate latency for each message
-                        for (_msg, start_time) in &msgs_with_timing {
-                            let msg_latency_ms = start_time.elapsed().as_millis() as i64;
-                            total_latency_ms += msg_latency_ms;
-                            message_count += 1;
-                        }
-                        
-                        // Use average latency if we have multiple messages, or the single message latency
-                        let average_latency_ms = if message_count > 0 { 
-                            total_latency_ms / message_count as i64 
-                        } else { 
-                            0 
-                        };
-                        
-                        // Record successful withdrawal with latency and ID
+                        // Record successful withdrawal
                         self.metrics.record_withdrawal_processed(&withdrawal_batch_id, total_amount);
-                        self.metrics.update_withdrawal_latency(average_latency_ms);
                         
                         // Update last withdrawal anchor point metric
                         if let Some(last_anchor) = fxg.anchors.last() {
