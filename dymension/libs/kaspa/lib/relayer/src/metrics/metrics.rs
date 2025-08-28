@@ -73,11 +73,8 @@ pub struct KaspaBridgeMetrics {
 }
 
 impl KaspaBridgeMetrics {
-    pub fn new(_chain_name: &str) -> prometheus::Result<Self> {
-        Self::new_with_registry(_chain_name, &prometheus::default_registry())
-    }
-    
-    pub fn new_with_registry(_chain_name: &str, registry: &Registry) -> prometheus::Result<Self> {
+
+    pub fn new(registry: &Registry) -> prometheus::Result<Self> {
         let registry_id = registry as *const Registry as usize;
         
         // Check if we already have an instance for this registry

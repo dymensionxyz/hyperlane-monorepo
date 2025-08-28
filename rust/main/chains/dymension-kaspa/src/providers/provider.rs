@@ -87,11 +87,12 @@ impl KaspaProvider {
         };
 
         let kaspa_metrics = if let Some(reg) = registry {
-            KaspaBridgeMetrics::new_with_registry(domain.name(), reg)
+            KaspaBridgeMetrics::new(reg).expect("Failed to create KaspaBridgeMetrics")
         } else {
-            KaspaBridgeMetrics::new(domain.name())
-        }
-        .map_err(|e| eyre::eyre!("Failed to initialize Kaspa bridge metrics: {}", e))?;
+            // Use default registry as fallback
+            KaspaBridgeMetrics::new(&prometheus::default_registry()).expect("Failed to create default KaspaBridgeMetrics")
+        };
+        
 
         let provider = KaspaProvider {
             domain: domain.clone(),
