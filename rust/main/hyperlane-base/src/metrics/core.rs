@@ -744,7 +744,7 @@ impl CoreMetrics {
     /// Gather available metrics into an encoded (plaintext, OpenMetrics format)
     /// report.
     pub fn gather(&self) -> prometheus::Result<Vec<u8>> {
-        let collected_metrics = self.registry.gather()
+        let collected_metrics = self.registry.gather();
         let mut out_buf = Vec::with_capacity(1024 * 64);
         let encoder = prometheus::TextEncoder::new();
         encoder.encode(&collected_metrics, &mut out_buf)?;
