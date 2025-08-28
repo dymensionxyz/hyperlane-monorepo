@@ -229,8 +229,22 @@ where
     async fn process_deposit_operation(&self, mut operation: DepositOperation) {
         info!(deposit_id = %operation.deposit.id, "Processing deposit operation");
         
-        // Start timing for latency metrics
-        let start_time = std::time::Instant::now();
+        // Use the operation creation time for accurate end-to-end latency measurement
+        let operation_start_time = operation.created_at;
+
+        // Calculate deposit amount early (for metrics in case of failure)
+        let deposit_amount = if let Some(payload) = &operation.deposit.payload {
+            match dym_kas_core::message::ParsedHL::parse_string(payload) {
+                Ok(parsed_hl) => parsed_hl.token_message.amount().low_u64(),
+                Err(e) => {
+                    tracing::warn!("Failed to parse deposit payload for amount, using 0: {:?}", e);
+                    0
+                }
+            }
+        } else {
+            tracing::warn!("Deposit has no payload, using 0 for amount");
+            0
+        };
 
         let new_deposit_res = relayer_on_new_deposit(
             &operation.escrow_address,
@@ -256,7 +270,7 @@ where
                         error!(error = ?e, "Dymension, check if deposit is delivered");
                         // Record failed deposit attempt with deduplication
                         let deposit_id = format!("{:?}", operation.deposit.id);
-                        self.provider.metrics().record_deposit_failed(&deposit_id);
+                        self.provider.metrics().record_deposit_failed(&deposit_id, deposit_amount);
                         // This is a transient error, queue for retry
                         operation.mark_failed(&self.config);
                         self.deposit_queue.lock().await.requeue(operation);
@@ -271,8 +285,8 @@ where
                     Ok(_) => {
                         info!(fxg = ?fxg, "Dymension, got sigs and sent new deposit to hub");
                         
-                        // Calculate processing latency
-                        let latency_ms = start_time.elapsed().as_millis() as i64;
+                        // Calculate end-to-end processing latency from initial detection to hub confirmation
+                        let latency_ms = operation_start_time.elapsed().as_millis() as i64;
                         
                         // Record successful deposit processing with amount and latency
                         let deposit_amount = fxg.amount.low_u64(); // Convert U256 to u64 for metrics
@@ -292,7 +306,7 @@ where
                             );
                             // Record failed deposit attempt with deduplication
                             let deposit_id = format!("{:?}", operation.deposit.id);
-                            self.provider.metrics().record_deposit_failed(&deposit_id);
+                            self.provider.metrics().record_deposit_failed(&deposit_id, deposit_amount);
                             // Retryable error, queue for retry
                             operation.mark_failed(&self.config);
                             self.deposit_queue.lock().await.requeue(operation);
@@ -303,7 +317,7 @@ where
                             );
                             // Record failed deposit attempt with deduplication
                             let deposit_id = format!("{:?}", operation.deposit.id);
-                            self.provider.metrics().record_deposit_failed(&deposit_id);
+                            self.provider.metrics().record_deposit_failed(&deposit_id, deposit_amount);
                             // Non-retryable error, drop the operation
                             info!(
                                 deposit_id = %operation.deposit.id,
@@ -317,7 +331,7 @@ where
                 info!("Dymension, F() new deposit returned none, will retry");
                 // Record failed deposit attempt with deduplication
                 let deposit_id = format!("{:?}", operation.deposit.id);
-                self.provider.metrics().record_deposit_failed(&deposit_id);
+                self.provider.metrics().record_deposit_failed(&deposit_id, deposit_amount);
                 // This could be transient, queue for retry
                 operation.mark_failed(&self.config);
                 self.deposit_queue.lock().await.requeue(operation);
@@ -328,7 +342,7 @@ where
                 
                 // Record failed deposit attempt with deduplication
                 let deposit_id = format!("{:?}", operation.deposit.id);
-                self.provider.metrics().record_deposit_failed(&deposit_id);
+                self.provider.metrics().record_deposit_failed(&deposit_id, deposit_amount);
 
                 if let Some(retry_delay_secs) = kaspa_err.retry_delay_hint() {
                     // Use the calculated retry delay based on pending confirmations
@@ -382,6 +396,11 @@ where
                             // Clear pending confirmations on success
                             self.provider.metrics().update_confirmations_pending(0);
                             self.provider.consume_pending_confirmation();
+                            
+                            // Update hub anchor point metric after successful confirmation
+                            if let Err(e) = self.update_hub_anchor_point_metric().await {
+                                warn!(error = ?e, "Failed to update hub anchor point metric after successful confirmation");
+                            }
                         }
                         Err(KaspaTxError::NotFinalError { retry_after_secs, .. }) => {
                             info!(
@@ -552,6 +571,43 @@ where
             }
         }
         info!("Dymension hub is synced, proceeding with other tasks");
+        
+        // Update hub anchor point metric after syncing (in all cases)
+        if let Err(e) = self.update_hub_anchor_point_metric().await {
+            warn!(error = ?e, "Failed to update hub anchor point metric after syncing");
+        }
+        
+        Ok(())
+    }
+
+    /// Update hub anchor point metric by querying the current hub state
+    async fn update_hub_anchor_point_metric(&self) -> Result<()> {
+        // Query current anchor point from hub
+        let resp = self.hub_mailbox.provider().grpc().outpoint(None).await?;
+        
+        if let Some(outpoint) = resp.outpoint {
+            let tx_id = kaspa_hashes::Hash::from_bytes(
+                outpoint.transaction_id.as_slice().try_into()
+                    .map_err(|e| eyre::eyre!("Invalid transaction ID bytes: {:?}", e))?
+            );
+            let current_timestamp = kaspa_core::time::unix_now();
+            
+            // Update the metric (using outpoint index as a proxy for processing info)
+            self.provider.metrics().update_hub_anchor_point(
+                &tx_id.to_string(),
+                outpoint.index as u64,
+                current_timestamp
+            );
+            
+            info!(
+                tx_id = %tx_id,
+                outpoint_index = outpoint.index,
+                "Updated hub anchor point metric"
+            );
+        } else {
+            warn!("No anchor point found in hub response");
+        }
+        
         Ok(())
     }
 

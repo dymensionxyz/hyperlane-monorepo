@@ -93,7 +93,7 @@ impl KaspaProvider {
         }
         .map_err(|e| eyre::eyre!("Failed to initialize Kaspa bridge metrics: {}", e))?;
 
-        Ok(KaspaProvider {
+        let provider = KaspaProvider {
             domain: domain.clone(),
             conf: conf.clone(),
             easy_wallet,
@@ -103,7 +103,14 @@ impl KaspaProvider {
             kas_key,
             pending_confirmation: Arc::new(PendingConfirmation::new()),
             metrics: kaspa_metrics,
-        })
+        };
+
+        // Initialize balance metrics on startup
+        if let Err(e) = provider.update_balance_metrics().await {
+            tracing::warn!("Failed to initialize balance metrics on startup: {:?}", e);
+        }
+
+        Ok(provider)
     }
 
     /// dococo
@@ -175,8 +182,21 @@ impl KaspaProvider {
         &self,
         msgs: Vec<HyperlaneMessage>,
     ) -> Result<Vec<HyperlaneMessage>> {
-        // Start timing for withdrawal latency metrics
+        // Convert to timing format for compatibility
         let start_time = std::time::Instant::now();
+        let msgs_with_timing: Vec<(HyperlaneMessage, std::time::Instant)> = msgs
+            .into_iter()
+            .map(|msg| (msg, start_time))
+            .collect();
+        self.process_withdrawal_messages_with_timing(msgs_with_timing).await
+    }
+
+    /// Process withdrawal messages with individual timing for each message
+    pub async fn process_withdrawal_messages_with_timing(
+        &self,
+        msgs_with_timing: Vec<(HyperlaneMessage, std::time::Instant)>,
+    ) -> Result<Vec<HyperlaneMessage>> {
+        let msgs: Vec<HyperlaneMessage> = msgs_with_timing.iter().map(|(msg, _)| msg.clone()).collect();
         let res = on_new_withdrawals(
             msgs.clone(),
             self.easy_wallet.clone(),
@@ -199,11 +219,35 @@ impl KaspaProvider {
                     .map(|msg| format!("{:?}", msg.id()))
                     .unwrap_or_else(|| "unknown".to_string());
                 
+                // Calculate total withdrawal amount for metrics (do this early in case of failures)
+                let total_amount = fxg.messages.iter()
+                    .flatten()
+                    .filter_map(|msg| {
+                        // Parse the TokenMessage from the HyperlaneMessage body
+                        match dym_kas_core::message::parse_hyperlane_metadata(msg) {
+                            Ok(token_message) => {
+                                let amount_u256 = token_message.amount();
+                                // Convert U256 to u64, handling overflow
+                                if amount_u256 > U256::from(u64::MAX) {
+                                    tracing::warn!("Withdrawal amount exceeds u64::MAX, using u64::MAX");
+                                    Some(u64::MAX)
+                                } else {
+                                    Some(amount_u256.as_u64())
+                                }
+                            }
+                            Err(e) => {
+                                tracing::error!("Failed to parse token message for withdrawal amount: {:?}", e);
+                                None
+                            }
+                        }
+                    })
+                    .sum::<u64>();
+
                 let bundles_validators = match self.validators().get_withdraw_sigs(&fxg).await {
                     Ok(bundles) => bundles,
                     Err(e) => {
                         // Record withdrawal failure with deduplication
-                        self.metrics.record_withdrawal_failed(&withdrawal_batch_id);
+                        self.metrics.record_withdrawal_failed(&withdrawal_batch_id, total_amount);
                         return Err(e.into());
                     }
                 };
@@ -219,7 +263,7 @@ impl KaspaProvider {
                     Ok(fin) => fin,
                     Err(e) => {
                         // Record withdrawal failure with deduplication
-                        self.metrics.record_withdrawal_failed(&withdrawal_batch_id);
+                        self.metrics.record_withdrawal_failed(&withdrawal_batch_id, total_amount);
                         return Err(e);
                     }
                 };
@@ -228,18 +272,37 @@ impl KaspaProvider {
                     Ok(_) => {
                         info!("Kaspa provider, submitted TXs, now indicating progress on the Hub");
                         
-                        // Calculate processing latency
-                        let latency_ms = start_time.elapsed().as_millis() as i64;
+                        // Calculate processing latency for each message and update metrics
+                        let mut total_latency_ms = 0i64;
+                        let mut message_count = 0;
                         
-                        // Calculate total withdrawal amount (rough estimate, could be more precise)
-                        let total_amount = fxg.messages.iter()
-                            .flatten()
-                            .map(|msg| msg.body.len() as u64 * 1000) // Rough estimate based on message size
-                            .sum();
+                        // Calculate latency for each message
+                        for (_msg, start_time) in &msgs_with_timing {
+                            let msg_latency_ms = start_time.elapsed().as_millis() as i64;
+                            total_latency_ms += msg_latency_ms;
+                            message_count += 1;
+                        }
+                        
+                        // Use average latency if we have multiple messages, or the single message latency
+                        let average_latency_ms = if message_count > 0 { 
+                            total_latency_ms / message_count as i64 
+                        } else { 
+                            0 
+                        };
                         
                         // Record successful withdrawal with latency and ID
                         self.metrics.record_withdrawal_processed(&withdrawal_batch_id, total_amount);
-                        self.metrics.update_withdrawal_latency(latency_ms);
+                        self.metrics.update_withdrawal_latency(average_latency_ms);
+                        
+                        // Update last withdrawal anchor point metric
+                        if let Some(last_anchor) = fxg.anchors.last() {
+                            let current_timestamp = kaspa_core::time::unix_now();
+                            self.metrics.update_last_anchor_point(
+                                &last_anchor.transaction_id.to_string(),
+                                last_anchor.index as u64,
+                                current_timestamp
+                            );
+                        }
                         
                         self.pending_confirmation
                             .push(ConfirmationFXG::from_msgs_outpoints(fxg.ids(), fxg.anchors));
@@ -249,7 +312,7 @@ impl KaspaProvider {
                     }
                     Err(e) => {
                         // Record withdrawal failure with deduplication
-                        self.metrics.record_withdrawal_failed(&withdrawal_batch_id);
+                        self.metrics.record_withdrawal_failed(&withdrawal_batch_id, total_amount);
                         Err(e)
                     }
                 }
@@ -265,8 +328,29 @@ impl KaspaProvider {
                     .map(|msg| format!("{:?}", msg.id()))
                     .unwrap_or_else(|| "unknown".to_string());
                 
-                // Record withdrawal failure with deduplication
-                self.metrics.record_withdrawal_failed(&withdrawal_batch_id);
+                // Record withdrawal failure with deduplication - calculate amount from original messages
+                let failed_amount = msgs.iter()
+                    .filter_map(|msg| {
+                        // Parse the TokenMessage from the HyperlaneMessage body
+                        match dym_kas_core::message::parse_hyperlane_metadata(msg) {
+                            Ok(token_message) => {
+                                let amount_u256 = token_message.amount();
+                                // Convert U256 to u64, handling overflow
+                                if amount_u256 > U256::from(u64::MAX) {
+                                    tracing::warn!("Withdrawal amount exceeds u64::MAX, using u64::MAX");
+                                    Some(u64::MAX)
+                                } else {
+                                    Some(amount_u256.as_u64())
+                                }
+                            }
+                            Err(e) => {
+                                tracing::error!("Failed to parse token message for withdrawal amount: {:?}", e);
+                                None
+                            }
+                        }
+                    })
+                    .sum::<u64>();
+                self.metrics.record_withdrawal_failed(&withdrawal_batch_id, failed_amount);
                 Err(e)
             }
         }

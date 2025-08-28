@@ -1,4 +1,5 @@
-use std::os::unix::process;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use super::consts::*;
 use crate::KaspaProvider;
@@ -19,6 +20,8 @@ pub struct KaspaMailbox {
     provider: KaspaProvider,
     domain: HyperlaneDomain,
     address: H256,
+    /// Track first seen time for operations to measure true end-to-end latency
+    operation_timestamps: Arc<Mutex<HashMap<String, std::time::Instant>>>,
 }
 
 impl KaspaMailbox {
@@ -28,6 +31,7 @@ impl KaspaMailbox {
             provider,
             address: locator.address, // TODO: will be zero?
             domain: locator.domain.clone(),
+            operation_timestamps: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
@@ -36,6 +40,7 @@ impl KaspaMailbox {
             provider,
             domain: self.domain.clone(),
             address: self.address,
+            operation_timestamps: self.operation_timestamps.clone(),
         }
     }
 }
@@ -140,14 +145,36 @@ impl Mailbox for KaspaMailbox {
             .map(|op| op.try_batch().map(|item| item.data)) // TODO: please work...
             .collect::<ChainResult<Vec<HyperlaneMessage>>>()?;
 
+        // Track timing for each message, recording first seen time or using existing timestamp
+        let current_time = std::time::Instant::now();
+        let mut timestamps = self.operation_timestamps.lock().unwrap();
+        let messages_with_timing: Vec<(HyperlaneMessage, std::time::Instant)> = messages
+            .iter()
+            .map(|msg| {
+                let msg_id = format!("{:?}", msg.id());
+                let start_time = timestamps.entry(msg_id).or_insert(current_time);
+                (msg.clone(), *start_time)
+            })
+            .collect();
+        drop(timestamps); // Release the lock early
+
         let result_processed_messages = self
             .provider
-            .process_withdrawal_messages(messages.clone())
+            .process_withdrawal_messages_with_timing(messages_with_timing)
             .await;
 
         let processed_messages = match result_processed_messages {
             Ok(messages) => {
                 info!("Kaspa mailbox, processed withdrawals TXs");
+                
+                // Clean up timestamps for successfully processed messages
+                let mut timestamps = self.operation_timestamps.lock().unwrap();
+                for msg in &messages {
+                    let msg_id = format!("{:?}", msg.id());
+                    timestamps.remove(&msg_id);
+                }
+                drop(timestamps);
+                
                 messages
             }
             Err(e) => {

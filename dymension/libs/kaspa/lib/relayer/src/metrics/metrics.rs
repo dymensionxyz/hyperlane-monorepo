@@ -1,4 +1,4 @@
-use prometheus::{IntCounter, IntGauge, Registry};
+use prometheus::{IntCounter, IntGauge, GaugeVec, Opts, Registry};
 use std::sync::{Arc, Mutex, RwLock, OnceLock};
 use std::collections::{HashMap, HashSet};
 
@@ -20,17 +20,17 @@ pub struct KaspaBridgeMetrics {
     /// Total funds withdrawn - Cumulative amount of withdrawals processed in sompi
     pub total_funds_withdrawn: IntCounter,
     
-    /// Failed withdrawals total - Total number of failed withdrawal attempts
-    pub failed_withdrawals_total: IntCounter,
+    /// Pending failed withdrawals - Number of unique withdrawals currently in failed state
+    pub pending_failed_withdrawals: IntGauge,
     
-    /// Current failed withdrawals - Consecutive withdrawal failures since last success
-    pub current_failed_withdrawals: IntGauge,
+    /// Pending failed deposits - Number of unique deposits currently in failed state
+    pub pending_failed_deposits: IntGauge,
     
-    /// Failed deposits total - Total number of failed deposit attempts
-    pub failed_deposits_total: IntCounter,
+    /// Failed withdrawal funds - Total amount in sompi currently in failed withdrawal state
+    pub failed_withdrawal_funds_sompi: IntGauge,
     
-    /// Current failed deposits - Consecutive deposit failures since last success
-    pub current_failed_deposits: IntGauge,
+    /// Failed deposit funds - Total amount in sompi currently in failed deposit state  
+    pub failed_deposit_funds_sompi: IntGauge,
     
     /// Confirmations failed - Total number of confirmation failures
     pub confirmations_failed: IntCounter,
@@ -51,9 +51,25 @@ pub struct KaspaBridgeMetrics {
     pub withdrawal_max_latency_ms: IntGauge,
     pub withdrawal_avg_latency_ms: IntGauge,
     
+    /// Total number of deposits successfully processed
+    pub deposits_processed_total: IntCounter,
+    
+    /// Total number of withdrawals successfully processed
+    pub withdrawals_processed_total: IntCounter,
+    
     /// Track unique failed deposits and withdrawals to avoid double counting
     failed_deposit_ids: Arc<RwLock<HashSet<String>>>,
     failed_withdrawal_ids: Arc<RwLock<HashSet<String>>>,
+    
+    /// Track amounts of failed deposits and withdrawals
+    failed_deposit_amounts: Arc<RwLock<HashMap<String, u64>>>,
+    failed_withdrawal_amounts: Arc<RwLock<HashMap<String, u64>>>,
+    
+    /// Hub anchor point information (info metric with transaction ID as label)
+    pub hub_anchor_point_info: GaugeVec,
+    
+    /// Last withdrawal anchor point information (info metric tracking last confirmed withdrawal)
+    pub last_anchor_point_info: GaugeVec,
 }
 
 impl KaspaBridgeMetrics {
@@ -98,29 +114,29 @@ impl KaspaBridgeMetrics {
         )?;
         let _ = registry.register(Box::new(total_funds_withdrawn.clone()));
         
-        let failed_withdrawals_total = IntCounter::new(
-            "kaspa_failed_withdrawals_total",
-            "Total number of failed withdrawal attempts"
+        let pending_failed_withdrawals = IntGauge::new(
+            "kaspa_pending_failed_withdrawals",
+            "Number of unique withdrawals currently in failed state"
         )?;
-        let _ = registry.register(Box::new(failed_withdrawals_total.clone()));
+        let _ = registry.register(Box::new(pending_failed_withdrawals.clone()));
         
-        let current_failed_withdrawals = IntGauge::new(
-            "kaspa_consecutive_failed_withdrawals",
-            "Consecutive withdrawal failures since last success"
+        let pending_failed_deposits = IntGauge::new(
+            "kaspa_pending_failed_deposits",
+            "Number of unique deposits currently in failed state"
         )?;
-        let _ = registry.register(Box::new(current_failed_withdrawals.clone()));
+        let _ = registry.register(Box::new(pending_failed_deposits.clone()));
         
-        let failed_deposits_total = IntCounter::new(
-            "kaspa_failed_deposits_total",
-            "Total number of failed deposit attempts"
+        let failed_withdrawal_funds_sompi = IntGauge::new(
+            "kaspa_failed_withdrawal_funds_sompi",
+            "Total amount in sompi currently in failed withdrawal state"
         )?;
-        let _ = registry.register(Box::new(failed_deposits_total.clone()));
+        let _ = registry.register(Box::new(failed_withdrawal_funds_sompi.clone()));
         
-        let current_failed_deposits = IntGauge::new(
-            "kaspa_current_failed_deposits",
-            "Consecutive deposit failures since last success"
+        let failed_deposit_funds_sompi = IntGauge::new(
+            "kaspa_failed_deposit_funds_sompi", 
+            "Total amount in sompi currently in failed deposit state"
         )?;
-        let _ = registry.register(Box::new(current_failed_deposits.clone()));
+        let _ = registry.register(Box::new(failed_deposit_funds_sompi.clone()));
         
         let confirmations_failed = IntCounter::new(
             "kaspa_confirmations_failed_total",
@@ -176,15 +192,39 @@ impl KaspaBridgeMetrics {
         )?;
         let _ = registry.register(Box::new(withdrawal_avg_latency_ms.clone()));
         
+        let deposits_processed_total = IntCounter::new(
+            "kaspa_deposits_processed_total",
+            "Total number of deposits successfully processed"
+        )?;
+        let _ = registry.register(Box::new(deposits_processed_total.clone()));
+        
+        let withdrawals_processed_total = IntCounter::new(
+            "kaspa_withdrawals_processed_total",
+            "Total number of withdrawals successfully processed"
+        )?;
+        let _ = registry.register(Box::new(withdrawals_processed_total.clone()));
+        
+        let hub_anchor_point_info = GaugeVec::new(
+            Opts::new("kaspa_hub_anchor_point_info", "Current hub anchor point transaction ID and metadata"),
+            &["tx_id", "outpoint_index", "updated_at"]
+        )?;
+        let _ = registry.register(Box::new(hub_anchor_point_info.clone()));
+        
+        let last_anchor_point_info = GaugeVec::new(
+            Opts::new("kaspa_last_anchor_point_info", "Last withdrawal anchor point transaction ID and metadata"),
+            &["tx_id", "outpoint_index", "updated_at"]
+        )?;
+        let _ = registry.register(Box::new(last_anchor_point_info.clone()));
+        
         let new_instance = Self {
             relayer_address_funds,
             funds_escrowed,
             total_funds_deposited,
             total_funds_withdrawn,
-            failed_withdrawals_total,
-            current_failed_withdrawals,
-            failed_deposits_total,
-            current_failed_deposits,
+            pending_failed_withdrawals,
+            pending_failed_deposits,
+            failed_withdrawal_funds_sompi,
+            failed_deposit_funds_sompi,
             confirmations_failed,
             confirmations_pending,
             escrow_utxo_count,
@@ -194,8 +234,14 @@ impl KaspaBridgeMetrics {
             withdrawal_min_latency_ms,
             withdrawal_max_latency_ms,
             withdrawal_avg_latency_ms,
+            deposits_processed_total,
+            withdrawals_processed_total,
             failed_deposit_ids: Arc::new(RwLock::new(HashSet::new())),
             failed_withdrawal_ids: Arc::new(RwLock::new(HashSet::new())),
+            failed_deposit_amounts: Arc::new(RwLock::new(HashMap::new())),
+            failed_withdrawal_amounts: Arc::new(RwLock::new(HashMap::new())),
+            hub_anchor_point_info,
+            last_anchor_point_info,
         };
         
         // Store the instance in our singleton map
@@ -218,59 +264,71 @@ impl KaspaBridgeMetrics {
     /// Record successful deposit processing with amount and ID
     pub fn record_deposit_processed(&self, deposit_id: &str, amount_sompi: u64) {
         self.total_funds_deposited.inc_by(amount_sompi);
-        // Reset current failed deposits on success
-        self.current_failed_deposits.set(0);
+        self.deposits_processed_total.inc();
         
-        // Remove from failed set if it was previously failed
+        // Remove from failed set if it was previously failed and decrement pending count and amount
         let mut failed_ids = self.failed_deposit_ids.write().unwrap();
-        failed_ids.remove(deposit_id);
+        let mut failed_amounts = self.failed_deposit_amounts.write().unwrap();
+        if failed_ids.remove(deposit_id) {
+            // This deposit was previously failed, so decrement the pending count and amount
+            self.pending_failed_deposits.dec();
+            if let Some(failed_amount) = failed_amounts.remove(deposit_id) {
+                self.failed_deposit_funds_sompi.sub(failed_amount as i64);
+            }
+        }
     }
     
     /// Record successful withdrawal processing with amount and ID
     pub fn record_withdrawal_processed(&self, withdrawal_id: &str, amount_sompi: u64) {
         self.total_funds_withdrawn.inc_by(amount_sompi);
-        // Reset current failed withdrawals on success
-        self.current_failed_withdrawals.set(0);
+        self.withdrawals_processed_total.inc();
         
-        // Remove from failed set if it was previously failed
+        // Remove from failed set if it was previously failed and decrement pending count and amount
         let mut failed_ids = self.failed_withdrawal_ids.write().unwrap();
-        failed_ids.remove(withdrawal_id);
+        let mut failed_amounts = self.failed_withdrawal_amounts.write().unwrap();
+        if failed_ids.remove(withdrawal_id) {
+            // This withdrawal was previously failed, so decrement the pending count and amount
+            self.pending_failed_withdrawals.dec();
+            if let Some(failed_amount) = failed_amounts.remove(withdrawal_id) {
+                self.failed_withdrawal_funds_sompi.sub(failed_amount as i64);
+            }
+        }
     }
     
     /// Record failed deposit attempt with deduplication
     /// Returns true if this is a new failure, false if it's a retry of an already-failed deposit
-    pub fn record_deposit_failed(&self, deposit_id: &str) -> bool {
+    pub fn record_deposit_failed(&self, deposit_id: &str, amount_sompi: u64) -> bool {
         let mut failed_ids = self.failed_deposit_ids.write().unwrap();
+        let mut failed_amounts = self.failed_deposit_amounts.write().unwrap();
         
         // Check if this deposit has already failed before
         if failed_ids.insert(deposit_id.to_string()) {
-            // This is a new failure, increment counters
-            self.failed_deposits_total.inc();
-            self.current_failed_deposits.inc();
+            // This is a new failure, increment pending failed deposits count and track amount
+            self.pending_failed_deposits.inc();
+            failed_amounts.insert(deposit_id.to_string(), amount_sompi);
+            self.failed_deposit_funds_sompi.add(amount_sompi as i64);
             true
         } else {
-            // This deposit has already been counted as failed, don't increment total
-            // but still track consecutive failures
-            self.current_failed_deposits.inc();
+            // This deposit has already been counted as failed, no change to pending count
             false
         }
     }
     
     /// Record failed withdrawal attempt with deduplication
     /// Returns true if this is a new failure, false if it's a retry of an already-failed withdrawal
-    pub fn record_withdrawal_failed(&self, withdrawal_id: &str) -> bool {
+    pub fn record_withdrawal_failed(&self, withdrawal_id: &str, amount_sompi: u64) -> bool {
         let mut failed_ids = self.failed_withdrawal_ids.write().unwrap();
+        let mut failed_amounts = self.failed_withdrawal_amounts.write().unwrap();
         
         // Check if this withdrawal has already failed before
         if failed_ids.insert(withdrawal_id.to_string()) {
-            // This is a new failure, increment counters
-            self.failed_withdrawals_total.inc();
-            self.current_failed_withdrawals.inc();
+            // This is a new failure, increment pending failed withdrawals count and track amount
+            self.pending_failed_withdrawals.inc();
+            failed_amounts.insert(withdrawal_id.to_string(), amount_sompi);
+            self.failed_withdrawal_funds_sompi.add(amount_sompi as i64);
             true
         } else {
-            // This withdrawal has already been counted as failed, don't increment total
-            // but still track consecutive failures
-            self.current_failed_withdrawals.inc();
+            // This withdrawal has already been counted as failed, no change to pending count
             false
         }
     }
@@ -285,15 +343,6 @@ impl KaspaBridgeMetrics {
         self.confirmations_pending.set(count);
     }
     
-    /// Reset current failed deposits counter (call on successful deposit)
-    pub fn reset_current_failed_deposits(&self) {
-        self.current_failed_deposits.set(0);
-    }
-    
-    /// Reset current failed withdrawals counter (call on successful withdrawal)
-    pub fn reset_current_failed_withdrawals(&self) {
-        self.current_failed_withdrawals.set(0);
-    }
     
     /// Update the number of UTXOs in escrow address
     pub fn update_escrow_utxo_count(&self, count: i64) {
@@ -349,6 +398,36 @@ impl KaspaBridgeMetrics {
             self.withdrawal_avg_latency_ms.set(new_avg);
         }
     }
+    
+    /// Update hub anchor point information
+    pub fn update_hub_anchor_point(&self, tx_id: &str, outpoint_index: u64, timestamp: u64) {
+        // Reset all existing values first
+        self.hub_anchor_point_info.reset();
+        
+        // Set new anchor point info
+        self.hub_anchor_point_info
+            .with_label_values(&[
+                tx_id,
+                &outpoint_index.to_string(),
+                &timestamp.to_string()
+            ])
+            .set(1.0);
+    }
+    
+    /// Update last withdrawal anchor point information
+    pub fn update_last_anchor_point(&self, tx_id: &str, outpoint_index: u64, timestamp: u64) {
+        // Reset all existing values first
+        self.last_anchor_point_info.reset();
+        
+        // Set new last anchor point info
+        self.last_anchor_point_info
+            .with_label_values(&[
+                tx_id,
+                &outpoint_index.to_string(),
+                &timestamp.to_string()
+            ])
+            .set(1.0);
+    }
 }
 
 
@@ -363,10 +442,14 @@ mod tests {
         // Test initial values
         assert_eq!(metrics.relayer_address_funds.get(), 0);
         assert_eq!(metrics.funds_escrowed.get(), 0);
-        assert_eq!(metrics.current_failed_withdrawals.get(), 0);
-        assert_eq!(metrics.current_failed_deposits.get(), 0);
+        assert_eq!(metrics.pending_failed_withdrawals.get(), 0);
+        assert_eq!(metrics.pending_failed_deposits.get(), 0);
+        assert_eq!(metrics.failed_withdrawal_funds_sompi.get(), 0);
+        assert_eq!(metrics.failed_deposit_funds_sompi.get(), 0);
         assert_eq!(metrics.confirmations_pending.get(), 0);
         assert_eq!(metrics.escrow_utxo_count.get(), 0);
+        assert_eq!(metrics.deposits_processed_total.get(), 0);
+        assert_eq!(metrics.withdrawals_processed_total.get(), 0);
         assert_eq!(metrics.deposit_min_latency_ms.get(), 0);
         assert_eq!(metrics.deposit_max_latency_ms.get(), 0);
         assert_eq!(metrics.deposit_avg_latency_ms.get(), 0);
@@ -388,43 +471,49 @@ mod tests {
         
         // Test deposit processing
         let initial_total = metrics.total_funds_deposited.get();
+        let initial_count = metrics.deposits_processed_total.get();
         metrics.record_deposit_processed("deposit_1", 100000);
         assert_eq!(metrics.total_funds_deposited.get() as u64, initial_total as u64 + 100000);
+        assert_eq!(metrics.deposits_processed_total.get(), initial_count + 1);
         
         // Test withdrawal processing
         let initial_total = metrics.total_funds_withdrawn.get();
+        let initial_count = metrics.withdrawals_processed_total.get();
         metrics.record_withdrawal_processed("withdrawal_1", 50000);
         assert_eq!(metrics.total_funds_withdrawn.get() as u64, initial_total as u64 + 50000);
+        assert_eq!(metrics.withdrawals_processed_total.get(), initial_count + 1);
         
         // Test failure tracking
-        let is_new_failure = metrics.record_deposit_failed("deposit_2");
+        let is_new_failure = metrics.record_deposit_failed("deposit_2", 20000);
         assert!(is_new_failure);
-        assert_eq!(metrics.current_failed_deposits.get(), 1);
-        assert_eq!(metrics.failed_deposits_total.get() as u64, 1);
+        assert_eq!(metrics.pending_failed_deposits.get(), 1);
+        assert_eq!(metrics.failed_deposit_funds_sompi.get(), 20000);
         
         // Test duplicate failure tracking (retry of same deposit)
-        let is_new_failure = metrics.record_deposit_failed("deposit_2");
+        let is_new_failure = metrics.record_deposit_failed("deposit_2", 20000);
         assert!(!is_new_failure); // Should be false for duplicate
-        assert_eq!(metrics.current_failed_deposits.get(), 2); // Still incremented for consecutive tracking
-        assert_eq!(metrics.failed_deposits_total.get() as u64, 1); // Should NOT increment
+        assert_eq!(metrics.pending_failed_deposits.get(), 1); // Should NOT increment
+        assert_eq!(metrics.failed_deposit_funds_sompi.get(), 20000); // Should NOT increment
         
-        let is_new_failure = metrics.record_withdrawal_failed("withdrawal_2");
+        let is_new_failure = metrics.record_withdrawal_failed("withdrawal_2", 30000);
         assert!(is_new_failure);
-        assert_eq!(metrics.current_failed_withdrawals.get(), 1);
-        assert_eq!(metrics.failed_withdrawals_total.get() as u64, 1);
+        assert_eq!(metrics.pending_failed_withdrawals.get(), 1);
+        assert_eq!(metrics.failed_withdrawal_funds_sompi.get(), 30000);
         
         // Test duplicate withdrawal failure
-        let is_new_failure = metrics.record_withdrawal_failed("withdrawal_2");
+        let is_new_failure = metrics.record_withdrawal_failed("withdrawal_2", 30000);
         assert!(!is_new_failure);
-        assert_eq!(metrics.current_failed_withdrawals.get(), 2);
-        assert_eq!(metrics.failed_withdrawals_total.get() as u64, 1);
+        assert_eq!(metrics.pending_failed_withdrawals.get(), 1); // Should NOT increment
+        assert_eq!(metrics.failed_withdrawal_funds_sompi.get(), 30000); // Should NOT increment
         
-        // Test failure reset on success
+        // Test failure removal on success
         metrics.record_deposit_processed("deposit_2", 10000); // Process the previously failed deposit
-        assert_eq!(metrics.current_failed_deposits.get(), 0);
+        assert_eq!(metrics.pending_failed_deposits.get(), 0); // Should be decremented
+        assert_eq!(metrics.failed_deposit_funds_sompi.get(), 0); // Amount should be removed
         
         metrics.record_withdrawal_processed("withdrawal_2", 5000);
-        assert_eq!(metrics.current_failed_withdrawals.get(), 0);
+        assert_eq!(metrics.pending_failed_withdrawals.get(), 0); // Should be decremented
+        assert_eq!(metrics.failed_withdrawal_funds_sompi.get(), 0); // Amount should be removed
         
         // Test confirmation metrics
         metrics.record_confirmation_failed();
