@@ -744,18 +744,7 @@ impl CoreMetrics {
     /// Gather available metrics into an encoded (plaintext, OpenMetrics format)
     /// report.
     pub fn gather(&self) -> prometheus::Result<Vec<u8>> {
-        let collected_metrics = self.registry.gather();
-        
-        // Debug: Check for kaspa metrics
-        let kaspa_metrics_count = collected_metrics.iter()
-            .filter(|m| m.get_name().starts_with("kaspa_"))
-            .count();
-        if kaspa_metrics_count > 0 {
-            tracing::info!("CoreMetrics.gather() found {} kaspa metrics in registry {:p}", kaspa_metrics_count, &self.registry);
-        } else {
-            tracing::debug!("CoreMetrics.gather() found no kaspa metrics in registry {:p}", &self.registry);
-        }
-        
+        let collected_metrics = self.registry.gather()
         let mut out_buf = Vec::with_capacity(1024 * 64);
         let encoder = prometheus::TextEncoder::new();
         encoder.encode(&collected_metrics, &mut out_buf)?;
