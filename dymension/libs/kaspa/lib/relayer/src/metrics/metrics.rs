@@ -44,12 +44,12 @@ pub struct KaspaBridgeMetrics {
     /// Deposit processing latency metrics
     pub deposit_min_latency_ms: IntGauge,
     pub deposit_max_latency_ms: IntGauge,
-    pub deposit_avg_latency_ms: IntGauge,
+    pub deposit_last_latency_ms: IntGauge,
     
     /// Withdrawal processing latency metrics  
     pub withdrawal_min_latency_ms: IntGauge,
     pub withdrawal_max_latency_ms: IntGauge,
-    pub withdrawal_avg_latency_ms: IntGauge,
+    pub withdrawal_last_latency_ms: IntGauge,
     
     /// Total number of deposits successfully processed
     pub deposits_processed_total: IntCounter,
@@ -168,11 +168,11 @@ impl KaspaBridgeMetrics {
         )?;
         let _ = registry.register(Box::new(deposit_max_latency_ms.clone()));
         
-        let deposit_avg_latency_ms = IntGauge::new(
-            "kaspa_deposit_avg_latency_ms",
-            "Average deposit processing latency in milliseconds"
+        let deposit_last_latency_ms = IntGauge::new(
+            "kaspa_deposit_last_latency_ms",
+            "Last deposit processing latency in milliseconds"
         )?;
-        let _ = registry.register(Box::new(deposit_avg_latency_ms.clone()));
+        let _ = registry.register(Box::new(deposit_last_latency_ms.clone()));
         
         let withdrawal_min_latency_ms = IntGauge::new(
             "kaspa_withdrawal_min_latency_ms",
@@ -186,11 +186,11 @@ impl KaspaBridgeMetrics {
         )?;
         let _ = registry.register(Box::new(withdrawal_max_latency_ms.clone()));
         
-        let withdrawal_avg_latency_ms = IntGauge::new(
-            "kaspa_withdrawal_avg_latency_ms",
-            "Average withdrawal processing latency in milliseconds"
+        let withdrawal_last_latency_ms = IntGauge::new(
+            "kaspa_withdrawal_last_latency_ms",
+            "Last withdrawal processing latency in milliseconds"
         )?;
-        let _ = registry.register(Box::new(withdrawal_avg_latency_ms.clone()));
+        let _ = registry.register(Box::new(withdrawal_last_latency_ms.clone()));
         
         let deposits_processed_total = IntCounter::new(
             "kaspa_deposits_processed_total",
@@ -230,10 +230,10 @@ impl KaspaBridgeMetrics {
             escrow_utxo_count,
             deposit_min_latency_ms,
             deposit_max_latency_ms,
-            deposit_avg_latency_ms,
+            deposit_last_latency_ms,
             withdrawal_min_latency_ms,
             withdrawal_max_latency_ms,
-            withdrawal_avg_latency_ms,
+            withdrawal_last_latency_ms,
             deposits_processed_total,
             withdrawals_processed_total,
             failed_deposit_ids: Arc::new(RwLock::new(HashSet::new())),
@@ -363,15 +363,8 @@ impl KaspaBridgeMetrics {
             self.deposit_max_latency_ms.set(latency_ms);
         }
         
-        // Update average latency (simple moving average approach)
-        let current_avg = self.deposit_avg_latency_ms.get();
-        if current_avg == 0 {
-            self.deposit_avg_latency_ms.set(latency_ms);
-        } else {
-            // Simple exponential moving average with alpha = 0.1
-            let new_avg = ((current_avg as f64 * 0.9) + (latency_ms as f64 * 0.1)) as i64;
-            self.deposit_avg_latency_ms.set(new_avg);
-        }
+        // Update last latency
+        self.deposit_last_latency_ms.set(latency_ms);
     }
     
     /// Update withdrawal latency metrics
@@ -388,15 +381,8 @@ impl KaspaBridgeMetrics {
             self.withdrawal_max_latency_ms.set(latency_ms);
         }
         
-        // Update average latency (simple moving average approach)
-        let current_avg = self.withdrawal_avg_latency_ms.get();
-        if current_avg == 0 {
-            self.withdrawal_avg_latency_ms.set(latency_ms);
-        } else {
-            // Simple exponential moving average with alpha = 0.1
-            let new_avg = ((current_avg as f64 * 0.9) + (latency_ms as f64 * 0.1)) as i64;
-            self.withdrawal_avg_latency_ms.set(new_avg);
-        }
+        // Update last latency
+        self.withdrawal_last_latency_ms.set(latency_ms);
     }
     
     /// Update hub anchor point information
@@ -452,10 +438,10 @@ mod tests {
         assert_eq!(metrics.withdrawals_processed_total.get(), 0);
         assert_eq!(metrics.deposit_min_latency_ms.get(), 0);
         assert_eq!(metrics.deposit_max_latency_ms.get(), 0);
-        assert_eq!(metrics.deposit_avg_latency_ms.get(), 0);
+        assert_eq!(metrics.deposit_last_latency_ms.get(), 0);
         assert_eq!(metrics.withdrawal_min_latency_ms.get(), 0);
         assert_eq!(metrics.withdrawal_max_latency_ms.get(), 0);
-        assert_eq!(metrics.withdrawal_avg_latency_ms.get(), 0);
+        assert_eq!(metrics.withdrawal_last_latency_ms.get(), 0);
     }
 
     #[test]
@@ -530,28 +516,28 @@ mod tests {
         metrics.update_deposit_latency(100);
         assert_eq!(metrics.deposit_min_latency_ms.get(), 100);
         assert_eq!(metrics.deposit_max_latency_ms.get(), 100);
-        assert_eq!(metrics.deposit_avg_latency_ms.get(), 100);
+        assert_eq!(metrics.deposit_last_latency_ms.get(), 100);
         
         metrics.update_deposit_latency(200);
         assert_eq!(metrics.deposit_min_latency_ms.get(), 100);
         assert_eq!(metrics.deposit_max_latency_ms.get(), 200);
-        assert_eq!(metrics.deposit_avg_latency_ms.get(), 110); // 100 * 0.9 + 200 * 0.1 = 110
+        assert_eq!(metrics.deposit_last_latency_ms.get(), 200); // Last latency is simply the most recent value
         
         metrics.update_deposit_latency(50);
         assert_eq!(metrics.deposit_min_latency_ms.get(), 50);
         assert_eq!(metrics.deposit_max_latency_ms.get(), 200);
-        assert_eq!(metrics.deposit_avg_latency_ms.get(), 104); // 110 * 0.9 + 50 * 0.1 = 104
+        assert_eq!(metrics.deposit_last_latency_ms.get(), 50); // Last latency is updated to 50
         
         // Test withdrawal latency metrics
         metrics.update_withdrawal_latency(300);
         assert_eq!(metrics.withdrawal_min_latency_ms.get(), 300);
         assert_eq!(metrics.withdrawal_max_latency_ms.get(), 300);
-        assert_eq!(metrics.withdrawal_avg_latency_ms.get(), 300);
+        assert_eq!(metrics.withdrawal_last_latency_ms.get(), 300);
         
         metrics.update_withdrawal_latency(400);
         assert_eq!(metrics.withdrawal_min_latency_ms.get(), 300);
         assert_eq!(metrics.withdrawal_max_latency_ms.get(), 400);
-        assert_eq!(metrics.withdrawal_avg_latency_ms.get(), 310); // 300 * 0.9 + 400 * 0.1 = 310
+        assert_eq!(metrics.withdrawal_last_latency_ms.get(), 400); // Last latency is updated to 400
     }
 
     #[test]
