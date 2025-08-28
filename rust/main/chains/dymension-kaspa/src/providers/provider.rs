@@ -257,8 +257,9 @@ impl KaspaProvider {
                     Ok(_) => {
                         info!("Kaspa provider, submitted TXs, now indicating progress on the Hub");
                         
-                        // Record successful withdrawal
-                        self.metrics.record_withdrawal_processed(&withdrawal_batch_id, total_amount);
+                        // Record successful withdrawal with message count
+                        let message_count = fxg.messages.iter().map(|msgs| msgs.len()).sum::<usize>() as u64;
+                        self.metrics.record_withdrawal_processed(&withdrawal_batch_id, total_amount, message_count);
                         
                         // Update last withdrawal anchor point metric
                         if let Some(last_anchor) = fxg.anchors.last() {
