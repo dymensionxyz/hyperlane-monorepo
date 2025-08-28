@@ -121,7 +121,7 @@ where
             let deposits = match deposits_res {
                 Ok(deposits) => deposits,
                 Err(e) => {
-                    error!(error = ?e, "Dymension, query new Kaspa deposits failed");
+                    warn!(error = ?e, "Dymension, query new Kaspa deposits failed");
                     time::sleep(self.config.poll_interval()).await;
                     continue;
                 }

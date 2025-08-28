@@ -281,23 +281,37 @@ impl KaspaProvider {
     
     /// Update balance metrics for relayer funds and escrow balance
     pub async fn update_balance_metrics(&self) -> Result<()> {
-        // Update relayer balance - get mature balance from wallet account
+        // Get UTXOs for escrow address using RPC API
+        let utxos = self.rpc()
+            .get_utxos_by_addresses(vec![self.escrow_address()])
+            .await
+            .map_err(|e| eyre::eyre!("Failed to get UTXOs for escrow address: {}", e))?;
+        
+        // Calculate total escrow balance from UTXOs
+        let total_escrow_balance: u64 = utxos.iter()
+            .map(|utxo| utxo.utxo_entry.amount)
+            .sum();
+        
+        // Update metrics
+        self.metrics().update_funds_escrowed(total_escrow_balance as i64);
+        self.metrics().update_escrow_utxo_count(utxos.len() as i64);
+        
+        // Also update relayer balance if we have a wallet account
         let account = self.wallet().account();
-        if let Some(balance) = account.balance() {
-            let relayer_balance = balance.mature;
-            self.metrics().update_relayer_funds(relayer_balance as i64);
+        // Try to get balance with a few retries
+        let mut balance_opt = None;
+        for _ in 0..5 {
+            if let Some(b) = account.balance() {
+                balance_opt = Some(b);
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         }
         
-        // Update escrow balance by getting UTXOs for escrow address
-        let escrow_address = self.escrow_address();
-        let utxos = self.rpc().get_utxos_by_addresses(vec![escrow_address.clone()]).await
-            .map_err(|e| eyre::eyre!("Failed to get escrow UTXOs: {}", e))?;
-        
-        let total_escrow_balance: u64 = utxos.iter().map(|utxo| utxo.utxo_entry.amount).sum();
-        self.metrics().update_funds_escrowed(total_escrow_balance as i64);
-        
-        // Update UTXO count
-        self.metrics().update_escrow_utxo_count(utxos.len() as i64);
+        if let Some(balance) = balance_opt {
+            // Use mature balance for relayer funds metric
+            self.metrics().update_relayer_funds(balance.mature as i64);
+        }
         
         Ok(())
     }
