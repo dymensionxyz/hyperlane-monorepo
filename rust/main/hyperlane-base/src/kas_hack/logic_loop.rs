@@ -18,7 +18,7 @@ use kaspa_core::time::unix_now;
 use std::{collections::HashSet, fmt::Debug, hash::Hash, sync::Arc, time::Duration};
 use tokio::{sync::Mutex, task::JoinHandle, time};
 use tokio_metrics::TaskMonitor;
-use tracing::{debug, error, info, info_span, Instrument};
+use tracing::{debug, error, info, info_span, warn, Instrument};
 
 use super::{
     deposit_operation::{DepositOpQueue, DepositOperation},
@@ -254,8 +254,9 @@ where
                     }
                     Err(e) => {
                         error!(error = ?e, "Dymension, check if deposit is delivered");
-                        // Record failed deposit attempt
-                        self.provider.metrics().record_deposit_failed();
+                        // Record failed deposit attempt with deduplication
+                        let deposit_id = format!("{:?}", operation.deposit.id);
+                        self.provider.metrics().record_deposit_failed(&deposit_id);
                         // This is a transient error, queue for retry
                         operation.mark_failed(&self.config);
                         self.deposit_queue.lock().await.requeue(operation);
@@ -275,7 +276,8 @@ where
                         
                         // Record successful deposit processing with amount and latency
                         let deposit_amount = fxg.amount.low_u64(); // Convert U256 to u64 for metrics
-                        self.provider.metrics().record_deposit_processed(deposit_amount);
+                        let deposit_id = format!("{:?}", operation.deposit.id);
+                        self.provider.metrics().record_deposit_processed(&deposit_id, deposit_amount);
                         self.provider.metrics().update_deposit_latency(latency_ms);
                         
                         // Success! Operation complete
@@ -288,8 +290,9 @@ where
                                 error = ?e,
                                 "Dymension, gather sigs and send deposit to hub (retryable)"
                             );
-                            // Record failed deposit attempt
-                            self.provider.metrics().record_deposit_failed();
+                            // Record failed deposit attempt with deduplication
+                            let deposit_id = format!("{:?}", operation.deposit.id);
+                            self.provider.metrics().record_deposit_failed(&deposit_id);
                             // Retryable error, queue for retry
                             operation.mark_failed(&self.config);
                             self.deposit_queue.lock().await.requeue(operation);
@@ -298,8 +301,9 @@ where
                                 error = ?e,
                                 "Dymension, gather sigs and send deposit to hub (non-retryable)"
                             );
-                            // Record failed deposit attempt
-                            self.provider.metrics().record_deposit_failed();
+                            // Record failed deposit attempt with deduplication
+                            let deposit_id = format!("{:?}", operation.deposit.id);
+                            self.provider.metrics().record_deposit_failed(&deposit_id);
                             // Non-retryable error, drop the operation
                             info!(
                                 deposit_id = %operation.deposit.id,
@@ -311,8 +315,9 @@ where
             }
             Ok(None) => {
                 info!("Dymension, F() new deposit returned none, will retry");
-                // Record failed deposit attempt
-                self.provider.metrics().record_deposit_failed();
+                // Record failed deposit attempt with deduplication
+                let deposit_id = format!("{:?}", operation.deposit.id);
+                self.provider.metrics().record_deposit_failed(&deposit_id);
                 // This could be transient, queue for retry
                 operation.mark_failed(&self.config);
                 self.deposit_queue.lock().await.requeue(operation);
@@ -321,8 +326,9 @@ where
                 // Convert relayer error to our error type
                 let kaspa_err = KaspaDepositError::from(e);
                 
-                // Record failed deposit attempt
-                self.provider.metrics().record_deposit_failed();
+                // Record failed deposit attempt with deduplication
+                let deposit_id = format!("{:?}", operation.deposit.id);
+                self.provider.metrics().record_deposit_failed(&deposit_id);
 
                 if let Some(retry_delay_secs) = kaspa_err.retry_delay_hint() {
                     // Use the calculated retry delay based on pending confirmations

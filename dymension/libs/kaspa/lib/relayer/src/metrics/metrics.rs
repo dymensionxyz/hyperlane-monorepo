@@ -1,6 +1,6 @@
 use prometheus::{IntCounter, IntGauge, Registry};
-use std::sync::{Arc, Mutex, OnceLock};
-use std::collections::HashMap;
+use std::sync::{Arc, Mutex, RwLock, OnceLock};
+use std::collections::{HashMap, HashSet};
 
 /// Singleton storage for KaspaBridgeMetrics instances per registry
 static KASPA_METRICS_INSTANCES: OnceLock<Mutex<HashMap<usize, Arc<KaspaBridgeMetrics>>>> = OnceLock::new();
@@ -50,6 +50,10 @@ pub struct KaspaBridgeMetrics {
     pub withdrawal_min_latency_ms: IntGauge,
     pub withdrawal_max_latency_ms: IntGauge,
     pub withdrawal_avg_latency_ms: IntGauge,
+    
+    /// Track unique failed deposits and withdrawals to avoid double counting
+    failed_deposit_ids: Arc<RwLock<HashSet<String>>>,
+    failed_withdrawal_ids: Arc<RwLock<HashSet<String>>>,
 }
 
 impl KaspaBridgeMetrics {
@@ -190,6 +194,8 @@ impl KaspaBridgeMetrics {
             withdrawal_min_latency_ms,
             withdrawal_max_latency_ms,
             withdrawal_avg_latency_ms,
+            failed_deposit_ids: Arc::new(RwLock::new(HashSet::new())),
+            failed_withdrawal_ids: Arc::new(RwLock::new(HashSet::new())),
         };
         
         // Store the instance in our singleton map
@@ -209,30 +215,64 @@ impl KaspaBridgeMetrics {
         self.funds_escrowed.set(balance_sompi);
     }
     
-    /// Record successful deposit processing with amount
-    pub fn record_deposit_processed(&self, amount_sompi: u64) {
+    /// Record successful deposit processing with amount and ID
+    pub fn record_deposit_processed(&self, deposit_id: &str, amount_sompi: u64) {
         self.total_funds_deposited.inc_by(amount_sompi);
         // Reset current failed deposits on success
         self.current_failed_deposits.set(0);
+        
+        // Remove from failed set if it was previously failed
+        let mut failed_ids = self.failed_deposit_ids.write().unwrap();
+        failed_ids.remove(deposit_id);
     }
     
-    /// Record successful withdrawal processing with amount
-    pub fn record_withdrawal_processed(&self, amount_sompi: u64) {
+    /// Record successful withdrawal processing with amount and ID
+    pub fn record_withdrawal_processed(&self, withdrawal_id: &str, amount_sompi: u64) {
         self.total_funds_withdrawn.inc_by(amount_sompi);
         // Reset current failed withdrawals on success
         self.current_failed_withdrawals.set(0);
+        
+        // Remove from failed set if it was previously failed
+        let mut failed_ids = self.failed_withdrawal_ids.write().unwrap();
+        failed_ids.remove(withdrawal_id);
     }
     
-    /// Record failed deposit attempt
-    pub fn record_deposit_failed(&self) {
-        self.failed_deposits_total.inc();
-        self.current_failed_deposits.inc();
+    /// Record failed deposit attempt with deduplication
+    /// Returns true if this is a new failure, false if it's a retry of an already-failed deposit
+    pub fn record_deposit_failed(&self, deposit_id: &str) -> bool {
+        let mut failed_ids = self.failed_deposit_ids.write().unwrap();
+        
+        // Check if this deposit has already failed before
+        if failed_ids.insert(deposit_id.to_string()) {
+            // This is a new failure, increment counters
+            self.failed_deposits_total.inc();
+            self.current_failed_deposits.inc();
+            true
+        } else {
+            // This deposit has already been counted as failed, don't increment total
+            // but still track consecutive failures
+            self.current_failed_deposits.inc();
+            false
+        }
     }
     
-    /// Record failed withdrawal attempt
-    pub fn record_withdrawal_failed(&self) {
-        self.failed_withdrawals_total.inc();
-        self.current_failed_withdrawals.inc();
+    /// Record failed withdrawal attempt with deduplication
+    /// Returns true if this is a new failure, false if it's a retry of an already-failed withdrawal
+    pub fn record_withdrawal_failed(&self, withdrawal_id: &str) -> bool {
+        let mut failed_ids = self.failed_withdrawal_ids.write().unwrap();
+        
+        // Check if this withdrawal has already failed before
+        if failed_ids.insert(withdrawal_id.to_string()) {
+            // This is a new failure, increment counters
+            self.failed_withdrawals_total.inc();
+            self.current_failed_withdrawals.inc();
+            true
+        } else {
+            // This withdrawal has already been counted as failed, don't increment total
+            // but still track consecutive failures
+            self.current_failed_withdrawals.inc();
+            false
+        }
     }
     
     /// Record confirmation failure
@@ -348,28 +388,42 @@ mod tests {
         
         // Test deposit processing
         let initial_total = metrics.total_funds_deposited.get();
-        metrics.record_deposit_processed(100000);
+        metrics.record_deposit_processed("deposit_1", 100000);
         assert_eq!(metrics.total_funds_deposited.get() as u64, initial_total as u64 + 100000);
         
         // Test withdrawal processing
         let initial_total = metrics.total_funds_withdrawn.get();
-        metrics.record_withdrawal_processed(50000);
+        metrics.record_withdrawal_processed("withdrawal_1", 50000);
         assert_eq!(metrics.total_funds_withdrawn.get() as u64, initial_total as u64 + 50000);
         
         // Test failure tracking
-        metrics.record_deposit_failed();
+        let is_new_failure = metrics.record_deposit_failed("deposit_2");
+        assert!(is_new_failure);
         assert_eq!(metrics.current_failed_deposits.get(), 1);
         assert_eq!(metrics.failed_deposits_total.get() as u64, 1);
         
-        metrics.record_withdrawal_failed();
+        // Test duplicate failure tracking (retry of same deposit)
+        let is_new_failure = metrics.record_deposit_failed("deposit_2");
+        assert!(!is_new_failure); // Should be false for duplicate
+        assert_eq!(metrics.current_failed_deposits.get(), 2); // Still incremented for consecutive tracking
+        assert_eq!(metrics.failed_deposits_total.get() as u64, 1); // Should NOT increment
+        
+        let is_new_failure = metrics.record_withdrawal_failed("withdrawal_2");
+        assert!(is_new_failure);
         assert_eq!(metrics.current_failed_withdrawals.get(), 1);
         assert_eq!(metrics.failed_withdrawals_total.get() as u64, 1);
         
+        // Test duplicate withdrawal failure
+        let is_new_failure = metrics.record_withdrawal_failed("withdrawal_2");
+        assert!(!is_new_failure);
+        assert_eq!(metrics.current_failed_withdrawals.get(), 2);
+        assert_eq!(metrics.failed_withdrawals_total.get() as u64, 1);
+        
         // Test failure reset on success
-        metrics.record_deposit_processed(10000);
+        metrics.record_deposit_processed("deposit_2", 10000); // Process the previously failed deposit
         assert_eq!(metrics.current_failed_deposits.get(), 0);
         
-        metrics.record_withdrawal_processed(5000);
+        metrics.record_withdrawal_processed("withdrawal_2", 5000);
         assert_eq!(metrics.current_failed_withdrawals.get(), 0);
         
         // Test confirmation metrics

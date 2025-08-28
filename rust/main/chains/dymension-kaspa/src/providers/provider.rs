@@ -192,11 +192,18 @@ impl KaspaProvider {
                 info!("Kaspa provider, constructed withdrawal TXs");
                 info!("Kaspa provider, got withdrawal FXG, now gathering sigs and signing relayer fee");
                 
+                // Create withdrawal batch ID from first message ID in batch
+                let withdrawal_batch_id = fxg.messages.iter()
+                    .flatten()
+                    .next()
+                    .map(|msg| format!("{:?}", msg.id()))
+                    .unwrap_or_else(|| "unknown".to_string());
+                
                 let bundles_validators = match self.validators().get_withdraw_sigs(&fxg).await {
                     Ok(bundles) => bundles,
                     Err(e) => {
-                        // Record withdrawal failure
-                        self.metrics.record_withdrawal_failed();
+                        // Record withdrawal failure with deduplication
+                        self.metrics.record_withdrawal_failed(&withdrawal_batch_id);
                         return Err(e.into());
                     }
                 };
@@ -211,8 +218,8 @@ impl KaspaProvider {
                 .await {
                     Ok(fin) => fin,
                     Err(e) => {
-                        // Record withdrawal failure
-                        self.metrics.record_withdrawal_failed();
+                        // Record withdrawal failure with deduplication
+                        self.metrics.record_withdrawal_failed(&withdrawal_batch_id);
                         return Err(e);
                     }
                 };
@@ -230,8 +237,8 @@ impl KaspaProvider {
                             .map(|msg| msg.body.len() as u64 * 1000) // Rough estimate based on message size
                             .sum();
                         
-                        // Record successful withdrawal with latency
-                        self.metrics.record_withdrawal_processed(total_amount);
+                        // Record successful withdrawal with latency and ID
+                        self.metrics.record_withdrawal_processed(&withdrawal_batch_id, total_amount);
                         self.metrics.update_withdrawal_latency(latency_ms);
                         
                         self.pending_confirmation
@@ -241,8 +248,8 @@ impl KaspaProvider {
                         Ok(fxg.messages.iter().flatten().cloned().collect())
                     }
                     Err(e) => {
-                        // Record withdrawal failure
-                        self.metrics.record_withdrawal_failed();
+                        // Record withdrawal failure with deduplication
+                        self.metrics.record_withdrawal_failed(&withdrawal_batch_id);
                         Err(e)
                     }
                 }
@@ -252,8 +259,14 @@ impl KaspaProvider {
                 Ok(msgs)
             }
             Err(e) => {
-                // Record withdrawal failure
-                self.metrics.record_withdrawal_failed();
+                // Create withdrawal batch ID from message IDs
+                let withdrawal_batch_id = msgs.iter()
+                    .next()
+                    .map(|msg| format!("{:?}", msg.id()))
+                    .unwrap_or_else(|| "unknown".to_string());
+                
+                // Record withdrawal failure with deduplication
+                self.metrics.record_withdrawal_failed(&withdrawal_batch_id);
                 Err(e)
             }
         }
