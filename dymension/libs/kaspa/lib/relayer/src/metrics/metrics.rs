@@ -57,6 +57,15 @@ pub struct KaspaBridgeMetrics {
     /// Total number of withdrawals successfully processed
     pub withdrawals_processed_total: IntCounter,
     
+    /// Batch withdrawal statistics - min number of messages in a batch
+    pub withdrawal_batch_min_messages: IntGauge,
+    
+    /// Batch withdrawal statistics - max number of messages in a batch
+    pub withdrawal_batch_max_messages: IntGauge,
+    
+    /// Batch withdrawal statistics - last number of messages in a batch
+    pub withdrawal_batch_last_messages: IntGauge,
+    
     /// Track unique failed deposits and withdrawals to avoid double counting
     failed_deposit_ids: Arc<RwLock<HashSet<String>>>,
     failed_withdrawal_ids: Arc<RwLock<HashSet<String>>>,
@@ -201,6 +210,24 @@ impl KaspaBridgeMetrics {
         )?;
         let _ = registry.register(Box::new(withdrawals_processed_total.clone()));
         
+        let withdrawal_batch_min_messages = IntGauge::new(
+            "kaspa_withdrawal_batch_min_messages",
+            "Minimum number of messages in a withdrawal batch"
+        )?;
+        let _ = registry.register(Box::new(withdrawal_batch_min_messages.clone()));
+        
+        let withdrawal_batch_max_messages = IntGauge::new(
+            "kaspa_withdrawal_batch_max_messages",
+            "Maximum number of messages in a withdrawal batch"
+        )?;
+        let _ = registry.register(Box::new(withdrawal_batch_max_messages.clone()));
+        
+        let withdrawal_batch_last_messages = IntGauge::new(
+            "kaspa_withdrawal_batch_last_messages",
+            "Number of messages in the last withdrawal batch"
+        )?;
+        let _ = registry.register(Box::new(withdrawal_batch_last_messages.clone()));
+        
         let hub_anchor_point_info = GaugeVec::new(
             Opts::new("kaspa_hub_anchor_point_info", "Current hub anchor point transaction ID and metadata"),
             &["tx_id", "outpoint_index", "updated_at"]
@@ -233,6 +260,9 @@ impl KaspaBridgeMetrics {
             withdrawal_last_latency_ms,
             deposits_processed_total,
             withdrawals_processed_total,
+            withdrawal_batch_min_messages,
+            withdrawal_batch_max_messages,
+            withdrawal_batch_last_messages,
             failed_deposit_ids: Arc::new(RwLock::new(HashSet::new())),
             failed_withdrawal_ids: Arc::new(RwLock::new(HashSet::new())),
             failed_deposit_amounts: Arc::new(RwLock::new(HashMap::new())),
@@ -279,6 +309,9 @@ impl KaspaBridgeMetrics {
     pub fn record_withdrawal_processed(&self, withdrawal_id: &str, amount_sompi: u64, message_count: u64) {
         self.total_funds_withdrawn.inc_by(amount_sompi);
         self.withdrawals_processed_total.inc_by(message_count);
+        
+        // Update batch statistics
+        self.update_withdrawal_batch_stats(message_count as i64);
         
         // Remove from failed set if it was previously failed and decrement pending count and amount
         let mut failed_ids = self.failed_withdrawal_ids.write().unwrap();
@@ -411,6 +444,24 @@ impl KaspaBridgeMetrics {
             ])
             .set(1.0);
     }
+    
+    /// Update withdrawal batch statistics (min, max, last)
+    pub fn update_withdrawal_batch_stats(&self, message_count: i64) {
+        // Update min messages in batch
+        let current_min = self.withdrawal_batch_min_messages.get();
+        if current_min == 0 || message_count < current_min {
+            self.withdrawal_batch_min_messages.set(message_count);
+        }
+        
+        // Update max messages in batch
+        let current_max = self.withdrawal_batch_max_messages.get();
+        if message_count > current_max {
+            self.withdrawal_batch_max_messages.set(message_count);
+        }
+        
+        // Update last messages in batch
+        self.withdrawal_batch_last_messages.set(message_count);
+    }
 }
 
 
@@ -420,7 +471,8 @@ mod tests {
 
     #[test]
     fn test_metrics_creation() {
-        let metrics = KaspaBridgeMetrics::new("kaspa").expect("Failed to create metrics");
+        let registry = Registry::new();
+        let metrics = KaspaBridgeMetrics::new(&registry).expect("Failed to create metrics");
         
         // Test initial values
         assert_eq!(metrics.relayer_address_funds.get(), 0);
@@ -439,11 +491,15 @@ mod tests {
         assert_eq!(metrics.withdrawal_min_latency_ms.get(), 0);
         assert_eq!(metrics.withdrawal_max_latency_ms.get(), 0);
         assert_eq!(metrics.withdrawal_last_latency_ms.get(), 0);
+        assert_eq!(metrics.withdrawal_batch_min_messages.get(), 0);
+        assert_eq!(metrics.withdrawal_batch_max_messages.get(), 0);
+        assert_eq!(metrics.withdrawal_batch_last_messages.get(), 0);
     }
 
     #[test]
     fn test_metrics_operations() {
-        let metrics = KaspaBridgeMetrics::new("kaspa").expect("Failed to create metrics");
+        let registry = Registry::new();
+        let metrics = KaspaBridgeMetrics::new(&registry).expect("Failed to create metrics");
         
         // Test balance updates
         metrics.update_relayer_funds(1000000);
@@ -535,15 +591,32 @@ mod tests {
         assert_eq!(metrics.withdrawal_min_latency_ms.get(), 300);
         assert_eq!(metrics.withdrawal_max_latency_ms.get(), 400);
         assert_eq!(metrics.withdrawal_last_latency_ms.get(), 400); // Last latency is updated to 400
+        
+        // Test batch statistics
+        metrics.update_withdrawal_batch_stats(5);
+        assert_eq!(metrics.withdrawal_batch_min_messages.get(), 5);
+        assert_eq!(metrics.withdrawal_batch_max_messages.get(), 5);
+        assert_eq!(metrics.withdrawal_batch_last_messages.get(), 5);
+        
+        metrics.update_withdrawal_batch_stats(10);
+        assert_eq!(metrics.withdrawal_batch_min_messages.get(), 5);
+        assert_eq!(metrics.withdrawal_batch_max_messages.get(), 10);
+        assert_eq!(metrics.withdrawal_batch_last_messages.get(), 10);
+        
+        metrics.update_withdrawal_batch_stats(3);
+        assert_eq!(metrics.withdrawal_batch_min_messages.get(), 3);
+        assert_eq!(metrics.withdrawal_batch_max_messages.get(), 10);
+        assert_eq!(metrics.withdrawal_batch_last_messages.get(), 3);
     }
 
     #[test]
     fn test_duplicate_metrics_creation() {
+        let registry = Registry::new();
         // Create first instance - should work fine
-        let metrics1 = KaspaBridgeMetrics::new("kaspa-duplicate-test").expect("Failed to create first metrics instance");
+        let metrics1 = KaspaBridgeMetrics::new(&registry).expect("Failed to create first metrics instance");
         
         // Create second instance - should handle duplicate registration gracefully
-        let metrics2 = KaspaBridgeMetrics::new("kaspa-duplicate-test").expect("Failed to create second metrics instance");
+        let metrics2 = KaspaBridgeMetrics::new(&registry).expect("Failed to create second metrics instance");
         
         // Test that both metrics instances are functional
         metrics1.update_relayer_funds(1000000);
