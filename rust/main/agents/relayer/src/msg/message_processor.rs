@@ -32,6 +32,9 @@ use lander::{
 use crate::msg::pending_message::CONFIRM_DELAY;
 use crate::server::operations::message_retry::MessageRetryRequest;
 
+/// Delay before retrying failed submissions
+const FAILED_SUBMISSION_RETRY_DELAY: Duration = Duration::from_secs(30);
+
 use super::op_batch::OperationBatch;
 use super::op_queue::OpQueue;
 use super::op_queue::OperationPriorityQueue;
@@ -1012,7 +1015,7 @@ async fn process_confirm_result(
 }
 
 async fn send_back_on_failed_submission(
-    op: QueueOperation,
+    mut op: QueueOperation,
     prepare_queue: OpQueue,
     metrics: &MessageProcessorMetrics,
     maybe_reason: Option<&ReprepareReason>,
@@ -1021,6 +1024,10 @@ async fn send_back_on_failed_submission(
     metrics.inc_failed(app_context);
 
     let reason = maybe_reason.unwrap_or(&ReprepareReason::ErrorSubmitting);
+    
+    // Set delay before the operation will be attempted again
+    op.set_next_attempt_after(FAILED_SUBMISSION_RETRY_DELAY);
+    
     prepare_queue
         .push(op, Some(PendingOperationStatus::Retry(reason.clone())))
         .await;

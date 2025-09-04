@@ -10,13 +10,15 @@ use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs};
 use dym_kas_relayer::withdraw::hub_to_kaspa::combine_bundles_with_fee;
 use dym_kas_relayer::withdraw::messages::on_new_withdrawals;
+use dym_kas_relayer::withdraw::minimum::is_small_value;
 use dym_kas_relayer::KaspaBridgeMetrics;
 pub use dym_kas_validator::KaspaSecpKeypair;
 use eyre::Result;
+use hyperlane_warp_route::TokenMessage;
 use hyperlane_core::config::OpSubmissionConfig;
 use hyperlane_core::NativeToken;
 use hyperlane_core::{
-    BlockInfo, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneMessage,
+    BlockInfo, ChainInfo, ChainResult, Decode, HyperlaneChain, HyperlaneDomain, HyperlaneMessage,
     HyperlaneProvider, HyperlaneProviderError, TxnInfo, H256, H512, U256,
 };
 use hyperlane_cosmos_native::ConnectionConf as HubConnectionConf;
@@ -30,7 +32,7 @@ use kaspa_wallet_core::prelude::DynRpcApi;
 use prometheus::Registry;
 use std::sync::Arc;
 use tonic::async_trait;
-use tracing::info;
+use tracing::{info, warn};
 use url::Url;
 
 /// dococo
@@ -183,8 +185,49 @@ impl KaspaProvider {
         &self,
         msgs: Vec<HyperlaneMessage>,
     ) -> Result<Vec<HyperlaneMessage>> {
+        // Filter out messages that are below minimum withdrawal amount
+        let valid_messages: Vec<HyperlaneMessage> = msgs
+            .into_iter()
+            .filter(|msg| {
+                // Try to parse the token message to check the amount
+                match TokenMessage::read_from(&mut msg.body.as_slice()) {
+                    Ok(token_msg) => {
+                        let is_below = is_small_value(
+                            token_msg.amount().as_u64(),
+                            self.conf.min_deposit_sompi,
+                        );
+                        if is_below {
+                            let amount_u64 = token_msg.amount().as_u64();
+                            let min_required_u64 = self.conf.min_deposit_sompi.as_u64();
+                            info!(
+                                message_id = ?msg.id(),
+                                amount = amount_u64,
+                                min_required = min_required_u64,
+                                "Discarding message below minimum withdrawal amount"
+                            );
+                        }
+                        !is_below
+                    }
+                    Err(e) => {
+                        warn!(
+                            message_id = ?msg.id(),
+                            error = ?e,
+                            "Failed to parse token message, discarding"
+                        );
+                        false // Discard messages that can't be parsed
+                    }
+                }
+            })
+            .collect();
+
+        // If all messages were filtered out, return empty success
+        if valid_messages.is_empty() {
+            info!("All messages were below minimum withdrawal amount, returning empty result");
+            return Ok(vec![]);
+        }
+
         let res = on_new_withdrawals(
-            msgs.clone(),
+            valid_messages.clone(),
             self.easy_wallet.clone(),
             self.cosmos_rpc.clone(),
             self.escrow(),
@@ -305,18 +348,18 @@ impl KaspaProvider {
             }
             Ok(None) => {
                 info!("On new withdrawals decided not to handle withdrawal messages");
-                Ok(msgs)
+                Ok(valid_messages)
             }
             Err(e) => {
                 // Create withdrawal batch ID from message IDs
-                let withdrawal_batch_id = msgs
+                let withdrawal_batch_id = valid_messages
                     .iter()
                     .next()
                     .map(|msg| format!("{:?}", msg.id()))
                     .unwrap_or_else(|| "unknown".to_string());
 
                 // Record withdrawal failure with deduplication - calculate amount from original messages
-                let failed_amount = msgs
+                let failed_amount = valid_messages
                     .iter()
                     .filter_map(|msg| {
                         // Parse the TokenMessage from the HyperlaneMessage body
