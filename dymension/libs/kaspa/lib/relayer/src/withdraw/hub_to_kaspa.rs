@@ -11,6 +11,7 @@ use corelib::wallet::SigningResources;
 use corelib::withdraw::WithdrawFXG;
 use eyre::eyre;
 use eyre::Result;
+use hardcode::tx::SWEEPING_THRESHOLD;
 use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::U256;
 use kaspa_addresses::Prefix;
@@ -326,8 +327,33 @@ pub fn get_outputs_from_msgs_with_mass_limit(
         // Calculate actual payload size from current messages
         let payload = Vec::<u8>::from(&MessageIDs::from(&test_msgs));
 
+        // If inputs exceed SWEEPING_THRESHOLD, simulate a swept UTXO for mass estimation
+        let inputs_for_estimation = if inputs.len() > SWEEPING_THRESHOLD {
+            // Calculate total value of all inputs
+            let total_value: u64 = inputs.iter().map(|(_, entry, _)| entry.amount).sum();
+            
+            // Create a single simulated swept input with the combined value
+            // Use the first input as a template for the script and other properties
+            if let Some((first_input, _, redeem_script)) = inputs.first() {
+                vec![(
+                    first_input.clone(),
+                    UtxoEntry {
+                        amount: total_value,
+                        script_public_key: inputs[0].1.script_public_key.clone(),
+                        block_daa_score: inputs[0].1.block_daa_score,
+                        is_coinbase: false,
+                    },
+                    redeem_script.clone(),
+                )]
+            } else {
+                inputs.clone()
+            }
+        } else {
+            inputs.clone()
+        };
+
         match estimate_mass(
-            inputs.clone(),
+            inputs_for_estimation,
             test_outputs,
             payload,
             network_id,
