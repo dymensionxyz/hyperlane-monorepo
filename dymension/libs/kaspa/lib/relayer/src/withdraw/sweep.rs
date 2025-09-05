@@ -42,12 +42,12 @@ pub async fn create_sweeping_bundle(
 
     let settings = GeneratorSettings::try_new_with_iterator(
         relayer_wallet.net.network_id,
-        // Inputs include both escrow and relayer UTXOs
+        // Inputs include escrow UTXOs
         utxo_iterator.into_iter(),
         // No priority UTXO entries
         None,
-        // Return change to the relayer address
-        relayer_wallet.wallet.account()?.change_address().unwrap(),
+        // Return change to the escrow address
+        escrow.addr.clone(),
         escrow.n() as u8,
         escrow.m() as u16,
         // One payment output – escrow account which receives the entire sweeping amount
