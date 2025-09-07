@@ -18,8 +18,9 @@ use kaspa_wallet_pskt::pskt::InputBuilder;
 /// Create a bundle that sweeps funds in the escrow address.
 /// The function expects a set of inputs that are needed to be swept – [`escrow_inputs`].
 /// And a set of relayer inputs to cover the transaction fee – [`relayer_inputs`].
-/// Creates multiple PSKTs to respect mass limits, consolidating escrow inputs to 1 output per PSKT.
-/// All relayer inputs are included in every PSKT to sweep relayer UTXOs as well.
+/// Creates multiple PSKTs to respect mass limits.
+/// Every PSKT includes ALL relayer inputs and a batch of escrow inputs.
+/// Every PSKT has exactly 2 outputs: consolidated escrow and relayer change.
 pub async fn create_sweeping_bundle(
     relayer_wallet: &EasyKaspaWallet,
     escrow: &EscrowPublic,
@@ -73,19 +74,15 @@ pub async fn create_sweeping_bundle(
             pskt = pskt.input(b.build().map_err(|e| eyre!("Build escrow input: {}", e))?);
         }
         
-        // Add ALL relayer inputs to this PSKT (for sweeping)
-        // Only include them in the first PSKT to avoid double-spending
-        let include_relayer = bundle.0.is_empty(); // First PSKT
-        if include_relayer {
-            for (input, entry, _) in &relayer_inputs {
-                let mut b = InputBuilder::default();
-                b.previous_outpoint(input.previous_outpoint)
-                    .sig_op_count(RELAYER_SIG_OP_COUNT)
-                    .sighash_type(input_sighash_type())
-                    .utxo_entry(entry.clone());
-                
-                pskt = pskt.input(b.build().map_err(|e| eyre!("Build relayer input: {}", e))?);
-            }
+        // Add ALL relayer inputs to EVERY PSKT
+        for (input, entry, _) in &relayer_inputs {
+            let mut b = InputBuilder::default();
+            b.previous_outpoint(input.previous_outpoint)
+                .sig_op_count(RELAYER_SIG_OP_COUNT)
+                .sighash_type(input_sighash_type())
+                .utxo_entry(entry.clone());
+            
+            pskt = pskt.input(b.build().map_err(|e| eyre!("Build relayer input: {}", e))?);
         }
         
         // Add escrow output (consolidated from batch)
@@ -97,16 +94,14 @@ pub async fn create_sweeping_bundle(
         
         pskt = pskt.output(escrow_output_builder);
         
-        // Add relayer output (consolidating all relayer inputs) - only on first PSKT
-        if include_relayer && total_relayer_balance > 0 {
-            let relayer_output_builder = OutputBuilder::default()
-                .amount(total_relayer_balance)
-                .script_public_key(pay_to_address_script(&relayer_address))
-                .build()
-                .map_err(|e| eyre!("Build relayer output: {}", e))?;
-            
-            pskt = pskt.output(relayer_output_builder);
-        }
+        // Add relayer output (consolidating all relayer inputs as change)
+        let relayer_output_builder = OutputBuilder::default()
+            .amount(total_relayer_balance)
+            .script_public_key(pay_to_address_script(&relayer_address))
+            .build()
+            .map_err(|e| eyre!("Build relayer output: {}", e))?;
+        
+        pskt = pskt.output(relayer_output_builder);
         
         bundle.add_pskt(pskt.no_more_inputs().no_more_outputs().signer());
     }
