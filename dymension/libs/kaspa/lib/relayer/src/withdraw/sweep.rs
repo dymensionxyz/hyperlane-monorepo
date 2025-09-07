@@ -27,36 +27,81 @@ pub async fn create_sweeping_bundle(
     escrow_inputs: Vec<PopulatedInput>,
     relayer_inputs: Vec<PopulatedInput>,
 ) -> Result<Bundle> {
+    use super::hub_to_kaspa::estimate_mass;
+    
     if escrow_inputs.is_empty() {
         return Err(eyre!("No escrow inputs to sweep"));
     }
     
     let total_relayer_balance = relayer_inputs.iter().map(|(_, e, _)| e.amount).sum::<u64>();
-    
-    // Calculate optimal batch sizes to respect mass limits
-    // Conservative estimate based on Kaspa network: max mass ~100,000
-    const BASE_MASS: u64 = 5000;
-    const MASS_PER_ESCROW_INPUT: u64 = 2500; // multisig inputs are heavier
-    const MASS_PER_RELAYER_INPUT: u64 = 1200;
-    const MASS_PER_OUTPUT: u64 = 800;
-    const MAX_MASS: u64 = 85000; // Conservative limit
-    
-    // Calculate how many escrow inputs we can fit per PSKT
-    // Account for all relayer inputs being included in each PSKT
-    let mass_for_two_outputs = 2 * MASS_PER_OUTPUT;
-    let mass_for_all_relayer_inputs = relayer_inputs.len() as u64 * MASS_PER_RELAYER_INPUT;
-    let available_mass = MAX_MASS.saturating_sub(BASE_MASS + mass_for_all_relayer_inputs + mass_for_two_outputs);
-    let max_escrow_inputs_per_pskt = std::cmp::max(1, available_mass / MASS_PER_ESCROW_INPUT) as usize;
-    
     let relayer_address = relayer_wallet.account().change_address()?;
+    
+    // Kaspa network max mass is 100,000
+    const MAX_MASS: u64 = 100000;
+    const SAFETY_MARGIN: u64 = 5000; // Safety margin for mass calculation variations
+    const TARGET_MASS: u64 = MAX_MASS - SAFETY_MARGIN;
     
     let mut bundle = Bundle::new();
     let mut remaining_escrow_inputs = escrow_inputs;
     
     // Process escrow inputs in batches
     while !remaining_escrow_inputs.is_empty() {
-        let batch_size = std::cmp::min(max_escrow_inputs_per_pskt, remaining_escrow_inputs.len());
-        let batch_escrow_inputs: Vec<_> = remaining_escrow_inputs.drain(0..batch_size).collect();
+        // Binary search for optimal batch size
+        let mut best_batch_size = 1;
+        let mut low = 1;
+        let mut high = std::cmp::min(remaining_escrow_inputs.len(), 50); // Cap at 50 for safety
+        
+        while low <= high {
+            let mid = (low + high) / 2;
+            let test_batch = remaining_escrow_inputs.iter().take(mid).cloned().collect::<Vec<_>>();
+            let test_balance = test_batch.iter().map(|(_, e, _)| e.amount).sum::<u64>();
+            
+            // Create test outputs
+            let test_outputs = vec![
+                TransactionOutput {
+                    value: test_balance,
+                    script_public_key: escrow.p2sh.clone(),
+                },
+                TransactionOutput {
+                    value: total_relayer_balance,
+                    script_public_key: pay_to_address_script(&relayer_address),
+                },
+            ];
+            
+            // Combine test batch with all relayer inputs
+            let test_inputs: Vec<_> = test_batch.into_iter()
+                .chain(relayer_inputs.clone())
+                .collect();
+            
+            // Calculate mass for this configuration
+            match estimate_mass(
+                test_inputs,
+                test_outputs,
+                vec![], // No payload for sweeping
+                relayer_wallet.net.network_id,
+                escrow.m() as u16,
+            ) {
+                Ok(mass) if mass < TARGET_MASS => {
+                    // This batch size works
+                    best_batch_size = mid;
+                    low = mid + 1; // Try larger batch
+                }
+                _ => {
+                    // Too large or error
+                    high = mid - 1; // Try smaller batch
+                }
+            }
+        }
+        
+        // If even a single escrow input with all relayer inputs exceeds mass, we have a problem
+        if best_batch_size == 0 {
+            return Err(eyre!(
+                "Cannot create valid PSKT: even single escrow input with relayer inputs exceeds mass limit"
+            ));
+        }
+        
+        // Take the batch
+        let batch_escrow_inputs: Vec<_> = remaining_escrow_inputs.drain(0..best_batch_size).collect();
         let batch_escrow_balance = batch_escrow_inputs.iter().map(|(_, e, _)| e.amount).sum::<u64>();
         
         // Create PSKT for this batch
