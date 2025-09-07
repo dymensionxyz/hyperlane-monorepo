@@ -127,16 +127,40 @@ pub async fn create_sweeping_bundle(
         let mut selected_relayer_balance = 0u64;
         let mut estimated_fee = 0u64;
         
-        // Iteratively add relayer inputs until we have enough to cover fees
-        for _ in 0..5 { // Max 5 iterations to avoid infinite loop
-            // Create test outputs with current relayer balance
+        // First, add at least one relayer input to avoid zero values
+        if remaining_relayer_inputs.is_empty() {
+            return Err(eyre!("No relayer inputs available to cover transaction fees"));
+        }
+        
+        // Add first relayer input
+        let first_input = remaining_relayer_inputs.remove(0);
+        let first_amount = first_input.1.amount;
+        selected_relayer_balance += first_amount;
+        selected_relayer_inputs.push(first_input);
+        
+        info!(
+            "Kaspa sweeping: initial relayer input ({} sompi)",
+            first_amount
+        );
+        
+        // Iteratively add more relayer inputs if needed
+        for iteration in 0..5 { // Max 5 iterations to avoid infinite loop
+            // Ensure we have a minimum output value to avoid divide by zero
+            let min_output_value = 1000u64; // Minimum 1000 sompi
+            let tentative_relayer_output = if selected_relayer_balance > estimated_fee {
+                std::cmp::max(selected_relayer_balance - estimated_fee, min_output_value)
+            } else {
+                min_output_value
+            };
+            
+            // Create test outputs with non-zero values
             let test_outputs = vec![
                 TransactionOutput {
                     value: batch_escrow_balance,
                     script_public_key: escrow.p2sh.clone(),
                 },
                 TransactionOutput {
-                    value: selected_relayer_balance.saturating_sub(estimated_fee),
+                    value: tentative_relayer_output,
                     script_public_key: pay_to_address_script(&relayer_address),
                 },
             ];
@@ -158,17 +182,21 @@ pub async fn create_sweeping_bundle(
                 Ok(mass) => {
                     estimated_fee = (mass as f64 * feerate).ceil() as u64 + RELAYER_SWEEPING_PRIORITY_FEE;
                     
-                    // Check if we have enough to cover fees
-                    if selected_relayer_balance >= estimated_fee {
+                    info!(
+                        "Kaspa sweeping: iteration {}, mass: {}, estimated fee: {} sompi, relayer balance: {} sompi",
+                        iteration, mass, estimated_fee, selected_relayer_balance
+                    );
+                    
+                    // Check if we have enough to cover fees with minimum output
+                    if selected_relayer_balance >= estimated_fee + min_output_value {
                         break; // We have enough
                     }
                     
                     // Need more relayer inputs
                     if remaining_relayer_inputs.is_empty() {
                         return Err(eyre!(
-                            "Insufficient relayer inputs to cover fees: need {} but only have {}",
-                            estimated_fee,
-                            selected_relayer_balance
+                            "Insufficient relayer inputs to cover fees: need {} + {} (min output) = {} but only have {}",
+                            estimated_fee, min_output_value, estimated_fee + min_output_value, selected_relayer_balance
                         ));
                     }
                     
@@ -179,16 +207,28 @@ pub async fn create_sweeping_bundle(
                     selected_relayer_inputs.push(next_input);
                     
                     info!(
-                        "Kaspa sweeping: added relayer input ({} sompi), total selected: {} sompi, estimated fee: {} sompi",
-                        next_amount, selected_relayer_balance, estimated_fee
+                        "Kaspa sweeping: added relayer input ({} sompi), total selected: {} sompi",
+                        next_amount, selected_relayer_balance
                     );
                 }
                 Err(e) => return Err(eyre!("Failed to estimate mass: {}", e)),
             }
         }
         
-        // Calculate relayer output amount (minus fees)
-        let relayer_output_amount = selected_relayer_balance - estimated_fee;
+        // Calculate relayer output amount (minus fees) with minimum value
+        let min_output_value = 1000u64; // Minimum 1000 sompi to avoid zero outputs
+        let relayer_output_amount = std::cmp::max(
+            selected_relayer_balance.saturating_sub(estimated_fee),
+            min_output_value
+        );
+        
+        // Final validation
+        if selected_relayer_balance < estimated_fee + min_output_value {
+            return Err(eyre!(
+                "Final validation failed: relayer balance {} insufficient for fee {} + min output {}",
+                selected_relayer_balance, estimated_fee, min_output_value
+            ));
+        }
         
         // Log before creating PSKT
         info!(
