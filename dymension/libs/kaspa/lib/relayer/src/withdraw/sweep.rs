@@ -10,76 +10,112 @@ use kaspa_consensus_client::{
 };
 use kaspa_consensus_core::constants::UNACCEPTED_DAA_SCORE;
 use kaspa_consensus_core::tx::{TransactionInput, TransactionOutpoint, UtxoEntry};
-use kaspa_wallet_core::account::pskb::{bundle_from_pskt_generator, PSKTGenerator};
-use kaspa_wallet_core::prelude::{Fees, PaymentDestination};
-use kaspa_wallet_core::tx::{Generator, GeneratorSettings, PaymentOutput};
 use kaspa_wallet_core::utxo::UtxoEntryReference;
 use kaspa_wallet_pskt::bundle::Bundle;
 use kaspa_wallet_pskt::prelude::{Creator, OutputBuilder, Signer, PSKT};
 use kaspa_wallet_pskt::pskt::InputBuilder;
-use std::sync::Arc;
 
 /// Create a bundle that sweeps funds in the escrow address.
 /// The function expects a set of inputs that are needed to be swept – [`escrow_inputs`].
 /// And a set of relayer inputs to cover the transaction fee – [`relayer_inputs`].
-/// The escrow will get the total of the swept UTXO amount back as a single UTXO.
-/// All the remaining funds are returned to the relayer as change.
-/// Partial copy of https://github.com/kaspanet/rusty-kaspa/blob/1adeae8e5e2bdf7b65265420d294a356edc6d9e6/wallet/core/src/wasm/tx/generator/generator.rs#L186-L198
+/// Creates multiple PSKTs to respect mass limits, consolidating escrow inputs to 1 output per PSKT.
+/// All relayer inputs are included in every PSKT to sweep relayer UTXOs as well.
 pub async fn create_sweeping_bundle(
     relayer_wallet: &EasyKaspaWallet,
     escrow: &EscrowPublic,
     escrow_inputs: Vec<PopulatedInput>,
     relayer_inputs: Vec<PopulatedInput>,
 ) -> Result<Bundle> {
-    let sweep_balance = escrow_inputs.iter().map(|(_, e, _)| e.amount).sum::<u64>();
-
-    let utxo_iterator = Box::new(
-        escrow_inputs
-            .into_iter()
-            .chain(relayer_inputs.into_iter())
-            .map(utxo_reference_from_populated_input),
-    );
-
-    let settings = GeneratorSettings::try_new_with_iterator(
-        relayer_wallet.net.network_id,
-        // Inputs include escrow UTXOs
-        utxo_iterator.into_iter(),
-        // No priority UTXO entries
-        None,
-        // Return change to the escrow address
-        escrow.addr.clone(),
-        escrow.n() as u8,
-        escrow.m() as u16,
-        // One payment output – escrow account which receives the entire sweeping amount
-        PaymentDestination::from(PaymentOutput::new(escrow.addr.clone(), sweep_balance)),
-        // No priority fee required
-        Fees::SenderPays(RELAYER_SWEEPING_PRIORITY_FEE),
-        None,
-        None,
-    )
-    .map_err(|e| eyre::eyre!("Create sweeping generator settings: {}", e))?;
-
-    let generator = Generator::try_new(settings, None, None)
-        .map_err(|e| eyre::eyre!("Create sweeping generator: {}", e))?;
-
-    // PSKB signer is not used in PSKTGenerator, but we still provide it
-    let signer = relayer_wallet
-        .pskb_signer()
-        .await
-        .map_err(|e| eyre::eyre!("Create PSKB signer: {}", e))?;
-
-    let pskt_gen = PSKTGenerator::new(
-        generator,
-        Arc::new(signer),
-        relayer_wallet.net.address_prefix,
-    );
-
-    let sweeping_bundle = bundle_from_pskt_generator(pskt_gen)
-        .await
-        .map_err(|e| eyre::eyre!("Create sweeping bundle: {}", e))?;
-
-    format_sweeping_bundle(sweeping_bundle, escrow)
+    if escrow_inputs.is_empty() {
+        return Err(eyre!("No escrow inputs to sweep"));
+    }
+    
+    let total_relayer_balance = relayer_inputs.iter().map(|(_, e, _)| e.amount).sum::<u64>();
+    
+    // Calculate optimal batch sizes to respect mass limits
+    // Conservative estimate based on Kaspa network: max mass ~100,000
+    const BASE_MASS: u64 = 5000;
+    const MASS_PER_ESCROW_INPUT: u64 = 2500; // multisig inputs are heavier
+    const MASS_PER_RELAYER_INPUT: u64 = 1200;
+    const MASS_PER_OUTPUT: u64 = 800;
+    const MAX_MASS: u64 = 85000; // Conservative limit
+    
+    // Calculate how many escrow inputs we can fit per PSKT
+    // Account for all relayer inputs being included in each PSKT
+    let mass_for_two_outputs = 2 * MASS_PER_OUTPUT;
+    let mass_for_all_relayer_inputs = relayer_inputs.len() as u64 * MASS_PER_RELAYER_INPUT;
+    let available_mass = MAX_MASS.saturating_sub(BASE_MASS + mass_for_all_relayer_inputs + mass_for_two_outputs);
+    let max_escrow_inputs_per_pskt = std::cmp::max(1, available_mass / MASS_PER_ESCROW_INPUT) as usize;
+    
+    let relayer_address = relayer_wallet.account().change_address()?;
+    
+    let mut bundle = Bundle::new();
+    let mut remaining_escrow_inputs = escrow_inputs;
+    
+    // Process escrow inputs in batches
+    while !remaining_escrow_inputs.is_empty() {
+        let batch_size = std::cmp::min(max_escrow_inputs_per_pskt, remaining_escrow_inputs.len());
+        let batch_escrow_inputs: Vec<_> = remaining_escrow_inputs.drain(0..batch_size).collect();
+        let batch_escrow_balance = batch_escrow_inputs.iter().map(|(_, e, _)| e.amount).sum::<u64>();
+        
+        // Create PSKT for this batch
+        let mut pskt = PSKT::<Creator>::default().constructor();
+        
+        // Add escrow inputs for this batch
+        for (input, entry, _) in batch_escrow_inputs {
+            let mut b = InputBuilder::default();
+            b.previous_outpoint(input.previous_outpoint)
+                .sig_op_count(escrow.n() as u8)
+                .sighash_type(input_sighash_type())
+                .redeem_script(escrow.redeem_script.clone())
+                .utxo_entry(entry);
+            
+            pskt = pskt.input(b.build().map_err(|e| eyre!("Build escrow input: {}", e))?);
+        }
+        
+        // Add ALL relayer inputs to this PSKT (for sweeping)
+        // Only include them in the first PSKT to avoid double-spending
+        let include_relayer = bundle.0.is_empty(); // First PSKT
+        if include_relayer {
+            for (input, entry, _) in &relayer_inputs {
+                let mut b = InputBuilder::default();
+                b.previous_outpoint(input.previous_outpoint)
+                    .sig_op_count(RELAYER_SIG_OP_COUNT)
+                    .sighash_type(input_sighash_type())
+                    .utxo_entry(entry.clone());
+                
+                pskt = pskt.input(b.build().map_err(|e| eyre!("Build relayer input: {}", e))?);
+            }
+        }
+        
+        // Add escrow output (consolidated from batch)
+        let escrow_output_builder = OutputBuilder::default()
+            .amount(batch_escrow_balance)
+            .script_public_key(escrow.p2sh.clone())
+            .build()
+            .map_err(|e| eyre!("Build escrow output: {}", e))?;
+        
+        pskt = pskt.output(escrow_output_builder);
+        
+        // Add relayer output (consolidating all relayer inputs) - only on first PSKT
+        if include_relayer && total_relayer_balance > 0 {
+            let relayer_output_builder = OutputBuilder::default()
+                .amount(total_relayer_balance)
+                .script_public_key(pay_to_address_script(&relayer_address))
+                .build()
+                .map_err(|e| eyre!("Build relayer output: {}", e))?;
+            
+            pskt = pskt.output(relayer_output_builder);
+        }
+        
+        bundle.add_pskt(pskt.no_more_inputs().no_more_outputs().signer());
+    }
+    
+    Ok(bundle)
 }
+
+use kaspa_consensus_core::tx::TransactionOutput;
+use kaspa_txscript::standard::pay_to_address_script;
 
 /// Add the redeem script, sig op count, and sig hash type to every input.
 /// Otherwise, the transaction will fail. Outputs stay the same.

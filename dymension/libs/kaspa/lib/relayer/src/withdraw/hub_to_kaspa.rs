@@ -361,7 +361,7 @@ pub(crate) fn extract_current_anchor(
     Ok((anchor_input, escrow_inputs))
 }
 
-fn estimate_mass(
+pub(crate) fn estimate_mass(
     populated_inputs: Vec<PopulatedInput>,
     outputs: Vec<TransactionOutput>,
     payload: Vec<u8>,
