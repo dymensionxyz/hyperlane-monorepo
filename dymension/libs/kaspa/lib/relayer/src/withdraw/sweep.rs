@@ -14,6 +14,7 @@ use kaspa_wallet_core::utxo::UtxoEntryReference;
 use kaspa_wallet_pskt::bundle::Bundle;
 use kaspa_wallet_pskt::prelude::{Creator, OutputBuilder, Signer, PSKT};
 use kaspa_wallet_pskt::pskt::InputBuilder;
+use tracing::info;
 
 /// Create a bundle that sweeps funds in the escrow address.
 /// The function expects a set of inputs that are needed to be swept – [`escrow_inputs`].
@@ -35,11 +36,23 @@ pub async fn create_sweeping_bundle(
         return Err(eyre!("No escrow inputs to sweep"));
     }
     
+    let total_escrow_inputs = escrow_inputs.len();
+    let total_escrow_balance = escrow_inputs.iter().map(|(_, e, _)| e.amount).sum::<u64>();
+    let total_relayer_inputs = relayer_inputs.len();
+    let total_relayer_balance = relayer_inputs.iter().map(|(_, e, _)| e.amount).sum::<u64>();
+    
+    info!(
+        "Kaspa sweeping: starting sweep with {} escrow inputs ({} sompi), {} relayer inputs ({} sompi)",
+        total_escrow_inputs, total_escrow_balance, total_relayer_inputs, total_relayer_balance
+    );
+    
     let relayer_address = relayer_wallet.account().change_address()?;
     
     // Get fee rate for fee estimation
     let feerate = relayer_wallet.api().get_fee_estimate().await?
         .normal_buckets.first().unwrap().feerate;
+    
+    info!("Kaspa sweeping: using feerate {}", feerate);
     
     // Kaspa network max mass is 100,000
     const MAX_MASS: u64 = 100000;
@@ -104,6 +117,11 @@ pub async fn create_sweeping_bundle(
         let batch_escrow_inputs: Vec<_> = remaining_escrow_inputs.drain(0..best_batch_size).collect();
         let batch_escrow_balance = batch_escrow_inputs.iter().map(|(_, e, _)| e.amount).sum::<u64>();
         
+        info!(
+            "Kaspa sweeping: processing batch of {} escrow inputs ({} sompi), {} escrow inputs remaining",
+            batch_escrow_inputs.len(), batch_escrow_balance, remaining_escrow_inputs.len()
+        );
+        
         // Now estimate fee and select minimal relayer inputs
         let mut selected_relayer_inputs = Vec::new();
         let mut selected_relayer_balance = 0u64;
@@ -156,12 +174,27 @@ pub async fn create_sweeping_bundle(
                     
                     // Add another relayer input
                     let next_input = remaining_relayer_inputs.remove(0);
-                    selected_relayer_balance += next_input.1.amount;
+                    let next_amount = next_input.1.amount;
+                    selected_relayer_balance += next_amount;
                     selected_relayer_inputs.push(next_input);
+                    
+                    info!(
+                        "Kaspa sweeping: added relayer input ({} sompi), total selected: {} sompi, estimated fee: {} sompi",
+                        next_amount, selected_relayer_balance, estimated_fee
+                    );
                 }
                 Err(e) => return Err(eyre!("Failed to estimate mass: {}", e)),
             }
         }
+        
+        // Calculate relayer output amount (minus fees)
+        let relayer_output_amount = selected_relayer_balance - estimated_fee;
+        
+        // Log before creating PSKT
+        info!(
+            "Kaspa sweeping: creating PSKT with {} escrow inputs, {} relayer inputs, estimated fee: {} sompi, relayer change: {} sompi",
+            batch_escrow_inputs.len(), selected_relayer_inputs.len(), estimated_fee, relayer_output_amount
+        );
         
         // Create PSKT for this batch
         let mut pskt = PSKT::<Creator>::default().constructor();
@@ -198,8 +231,7 @@ pub async fn create_sweeping_bundle(
         
         pskt = pskt.output(escrow_output_builder);
         
-        // Add relayer output (minus fees)
-        let relayer_output_amount = selected_relayer_balance - estimated_fee;
+        // Add relayer output (minus fees)  
         let relayer_output_builder = OutputBuilder::default()
             .amount(relayer_output_amount)
             .script_public_key(pay_to_address_script(&relayer_address))
@@ -211,6 +243,11 @@ pub async fn create_sweeping_bundle(
         let pskt_signer = pskt.no_more_inputs().no_more_outputs().signer();
         let pskt_id = pskt_signer.calculate_id();
         bundle.add_pskt(pskt_signer);
+        
+        info!(
+            "Kaspa sweeping: successfully created PSKT {}",
+            pskt_id
+        );
         
         // Add the relayer output as a new relayer input for the next iteration
         if !remaining_escrow_inputs.is_empty() && relayer_output_amount > 0 {
@@ -229,8 +266,18 @@ pub async fn create_sweeping_bundle(
                 ),
                 None, // No redeem script for relayer
             ));
+            
+            info!(
+                "Kaspa sweeping: chaining relayer output {} sompi to next PSKT",
+                relayer_output_amount
+            );
         }
     }
+    
+    info!(
+        "Kaspa sweeping: completed sweep with {} PSKTs in bundle",
+        bundle.0.len()
+    );
     
     Ok(bundle)
 }
