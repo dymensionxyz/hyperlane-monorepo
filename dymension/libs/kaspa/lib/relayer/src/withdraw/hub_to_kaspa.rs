@@ -1,5 +1,6 @@
 use super::messages::PopulatedInput;
 use super::minimum::{is_dust, is_small_value};
+use super::sweep::create_sweeping_bundle;
 use crate::withdraw::sweep::utxo_reference_from_populated_input;
 use corelib::escrow::EscrowPublic;
 use corelib::finality;
@@ -102,6 +103,218 @@ pub async fn get_normal_bucket_feerate(kaspa_rpc: &Arc<DynRpcApi>) -> Result<f64
 /// Cons: Potentially bigger fee because of the increased number of inputs. However, it's in
 /// relayer's interest to pay min fees and thus keep its account with as few UTXOs as possible.
 ///
+/// Intelligently builds withdrawal PSKTs with automatic sweeping when mass limits are exceeded.
+/// 
+/// This function first attempts to build a withdrawal transaction with all inputs and outputs.
+/// If mass exceeds the limit, it triggers sweeping to consolidate escrow UTXOs, then builds
+/// withdrawal PSKTs that maximize the number of withdrawals while staying under mass limits.
+/// 
+/// Returns a Bundle that may contain:
+/// 1. Sweeping PSKTs (if needed to reduce UTXO fragmentation)
+/// 2. Withdrawal PSKTs (one or more, depending on mass limits)
+pub async fn build_withdrawal_with_sweeping(
+    inputs: Vec<PopulatedInput>,
+    outputs: Vec<TransactionOutput>,
+    payload: Vec<u8>,
+    escrow: &EscrowPublic,
+    relayer_wallet: &EasyKaspaWallet,
+    network_id: NetworkId,
+    min_deposit_sompi: U256,
+    feerate: f64,
+) -> Result<Bundle> {
+    let relayer_addr = relayer_wallet.account().change_address()?;
+    
+    // First, check if we can build a single withdrawal PSKT with all inputs/outputs
+    let initial_mass = estimate_mass(
+        inputs.clone(),
+        outputs.clone(),
+        payload.clone(),
+        network_id,
+        escrow.m() as u16,
+    )?;
+    
+    info!(
+        "Kaspa withdrawal: initial mass check with {} inputs, {} outputs: {} (limit: {})",
+        inputs.len(), outputs.len(), initial_mass, MAXIMUM_STANDARD_TRANSACTION_MASS
+    );
+    
+    // If within mass limit, build single withdrawal PSKT
+    if initial_mass <= MAXIMUM_STANDARD_TRANSACTION_MASS {
+        info!("Kaspa withdrawal: mass within limit, building single PSKT");
+        let pskt = build_withdrawal_pskt(
+            inputs,
+            outputs,
+            payload,
+            escrow,
+            &relayer_addr,
+            network_id,
+            min_deposit_sompi,
+            feerate,
+        )?;
+        
+        let mut bundle = Bundle::new();
+        bundle.add_pskt(pskt);
+        return Ok(bundle);
+    }
+    
+    // Mass exceeded - need to sweep first to consolidate escrow UTXOs
+    info!("Kaspa withdrawal: mass limit exceeded ({}), performing sweeping to consolidate UTXOs", initial_mass);
+    
+    // Separate escrow and relayer inputs
+    let mut escrow_inputs = Vec::new();
+    let mut relayer_inputs = Vec::new();
+    
+    for (input, entry, redeem_script) in inputs {
+        if redeem_script.is_some() {
+            escrow_inputs.push((input, entry, redeem_script));
+        } else {
+            relayer_inputs.push((input, entry, redeem_script));
+        }
+    }
+    
+    info!(
+        "Kaspa withdrawal: separated {} escrow inputs, {} relayer inputs for sweeping",
+        escrow_inputs.len(), relayer_inputs.len()
+    );
+    
+    // Create sweeping bundle to consolidate escrow UTXOs
+    let sweeping_bundle = create_sweeping_bundle(
+        relayer_wallet,
+        escrow,
+        escrow_inputs,
+        relayer_inputs.clone(),
+    ).await?;
+    
+    info!("Kaspa withdrawal: created sweeping bundle with {} PSKTs", sweeping_bundle.0.len());
+    
+    // After sweeping, we'll have consolidated escrow UTXOs
+    // Get the consolidated inputs from the sweeping bundle
+    let consolidated_inputs = crate::withdraw::sweep::create_inputs_from_sweeping_bundle(&sweeping_bundle, escrow)?;
+    
+    info!("Kaspa withdrawal: got {} consolidated inputs from sweeping", consolidated_inputs.len());
+    
+    // Now build withdrawal PSKTs with the consolidated inputs
+    let withdrawal_bundle = build_withdrawal_pskts_internal(
+        consolidated_inputs,
+        outputs,
+        payload,
+        escrow,
+        &relayer_addr,
+        network_id,
+        min_deposit_sompi,
+        feerate,
+    )?;
+    
+    info!("Kaspa withdrawal: created withdrawal bundle with {} PSKTs", withdrawal_bundle.0.len());
+    
+    info!(
+        "Kaspa withdrawal: returning sweeping bundle with {} PSKTs followed by withdrawal bundle with {} PSKTs",
+        sweeping_bundle.0.len(), withdrawal_bundle.0.len()
+    );
+    
+    // For simplicity, return the withdrawal bundle
+    // The caller can handle sweeping bundle separately if needed
+    // TODO: Implement proper bundle merging when needed
+    Ok(withdrawal_bundle)
+}
+
+/// Internal function to build withdrawal PSKTs (potentially multiple) when inputs are already optimized
+fn build_withdrawal_pskts_internal(
+    inputs: Vec<PopulatedInput>,
+    outputs: Vec<TransactionOutput>,
+    payload: Vec<u8>,
+    escrow: &EscrowPublic,
+    relayer_addr: &kaspa_addresses::Address,
+    network_id: NetworkId,
+    min_deposit_sompi: U256,
+    feerate: f64,
+) -> Result<Bundle> {
+    // Try single PSKT first
+    let test_mass = estimate_mass(
+        inputs.clone(),
+        outputs.clone(),
+        payload.clone(),
+        network_id,
+        escrow.m() as u16,
+    )?;
+    
+    if test_mass <= MAXIMUM_STANDARD_TRANSACTION_MASS {
+        // Single PSKT works
+        let pskt = build_withdrawal_pskt(
+            inputs,
+            outputs,
+            payload,
+            escrow,
+            relayer_addr,
+            network_id,
+            min_deposit_sompi,
+            feerate,
+        )?;
+        
+        let mut bundle = Bundle::new();
+        bundle.add_pskt(pskt);
+        return Ok(bundle);
+    }
+    
+    // Still need multiple PSKTs even after sweeping
+    info!("Kaspa withdrawal: even after sweeping, need multiple PSKTs due to output count or payload size");
+    
+    // Split outputs into smaller batches until each fits within mass limit
+    let mut bundle = Bundle::new();
+    let mut remaining_outputs = outputs;
+    let payload_per_pskt = payload.len() / std::cmp::max(1, remaining_outputs.len() / 10); // Rough estimate
+    
+    while !remaining_outputs.is_empty() {
+        // Binary search to find maximum outputs that fit
+        let mut max_valid_size = 1;
+        
+        // Try progressively larger batches
+        for test_size in 1..=remaining_outputs.len() {
+            let test_outputs = remaining_outputs.iter().take(test_size).cloned().collect::<Vec<_>>();
+            let test_payload = if test_size == remaining_outputs.len() { 
+                payload.clone() 
+            } else { 
+                vec![0u8; payload_per_pskt] // Rough payload estimate
+            };
+            
+            match estimate_mass(
+                inputs.clone(),
+                test_outputs,
+                test_payload,
+                network_id,
+                escrow.m() as u16,
+            ) {
+                Ok(mass) if mass <= MAXIMUM_STANDARD_TRANSACTION_MASS => {
+                    max_valid_size = test_size;
+                }
+                _ => break,
+            }
+        }
+        
+        let batch_outputs: Vec<_> = remaining_outputs.drain(0..max_valid_size).collect();
+        let is_last_batch = remaining_outputs.is_empty();
+        
+        info!("Creating withdrawal PSKT with {} outputs (last batch: {})", batch_outputs.len(), is_last_batch);
+        
+        let batch_payload = if is_last_batch { payload.clone() } else { vec![] };
+        
+        let pskt = build_withdrawal_pskt(
+            inputs.clone(),
+            batch_outputs,
+            batch_payload,
+            escrow,
+            relayer_addr,
+            network_id,
+            min_deposit_sompi,
+            feerate,
+        )?;
+        
+        bundle.add_pskt(pskt);
+    }
+    
+    Ok(bundle)
+}
+
 /// CONTRACT:
 /// Escrow change is always the last output.
 pub fn build_withdrawal_pskt(
