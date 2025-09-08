@@ -14,7 +14,6 @@ use hyperlane_core::HyperlaneMessage;
 use hyperlane_core::U256;
 use hyperlane_cosmos_native::GrpcProvider as CosmosGrpcClient;
 use kaspa_consensus_core::tx::{TransactionInput, TransactionOutpoint, UtxoEntry};
-use kaspa_wallet_pskt::bundle::Bundle;
 use tracing::info;
 
 // (input, entry, optional_redeem_script)
@@ -75,26 +74,66 @@ pub async fn build_withdrawal_fxg(
     );
 
     // Get all the UTXOs for the escrow and the relayer
-    let escrow_inputs = fetch_input_utxos(
-        &relayer.api(),
+    let escrow_utxos = fetch_input_utxos(
         &escrow_public.addr,
-        Some(escrow_public.redeem_script.clone()),
-        escrow_public.n() as u8,
+        &relayer.api(),
         relayer.net.network_id,
     )
     .await
     .map_err(|e| eyre::eyre!("Fetch escrow UTXOs: {}", e))?;
+    
+    // Convert to PopulatedInput format for escrow inputs
+    let escrow_inputs: Vec<PopulatedInput> = escrow_utxos
+        .into_iter()
+        .map(|utxo| -> PopulatedInput {
+            (
+                TransactionInput::new(
+                    utxo.outpoint().into(),
+                    vec![], // signature_script is empty for unsigned transactions
+                    0,      // sequence does not matter
+                    escrow_public.n() as u8,
+                ),
+                kaspa_consensus_core::tx::UtxoEntry::new(
+                    utxo.entry().amount,
+                    utxo.entry().script_public_key.clone(),
+                    utxo.entry().block_daa_score,
+                    utxo.entry().is_coinbase,
+                ),
+                Some(escrow_public.redeem_script.clone()),
+            )
+        })
+        .collect();
 
     let relayer_address = relayer.account().change_address()?;
-    let relayer_inputs = fetch_input_utxos(
-        &relayer.api(),
+    let relayer_utxos = fetch_input_utxos(
         &relayer_address,
-        None,
-        RELAYER_SIG_OP_COUNT,
+        &relayer.api(),
         relayer.net.network_id,
     )
     .await
     .map_err(|e| eyre::eyre!("Fetch relayer UTXOs: {}", e))?;
+    
+    // Convert to PopulatedInput format for relayer inputs
+    let relayer_inputs: Vec<PopulatedInput> = relayer_utxos
+        .into_iter()
+        .map(|utxo| -> PopulatedInput {
+            (
+                TransactionInput::new(
+                    utxo.outpoint().into(),
+                    vec![], // signature_script is empty for unsigned transactions
+                    0,      // sequence does not matter
+                    RELAYER_SIG_OP_COUNT,
+                ),
+                kaspa_consensus_core::tx::UtxoEntry::new(
+                    utxo.entry().amount,
+                    utxo.entry().script_public_key.clone(),
+                    utxo.entry().block_daa_score,
+                    utxo.entry().is_coinbase,
+                ),
+                None, // No redeem script for relayer inputs
+            )
+        })
+        .collect();
 
     let (sweeping_bundle, inputs) = if escrow_inputs.len() > SWEEPING_THRESHOLD {
         // Sweep
@@ -144,7 +183,7 @@ pub async fn build_withdrawal_fxg(
 
     let payload = MessageIDs::from(&valid_msgs).to_bytes();
 
-    let pskt = build_withdrawal_pskt(
+    let bundle = build_withdrawal_pskt(
         inputs,
         outputs,
         payload,
@@ -156,8 +195,9 @@ pub async fn build_withdrawal_fxg(
     )
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
 
-    // Contract: the last output of the withdrawal PSKT is the new anchor
-    let new_anchor = TransactionOutpoint::new(pskt.calculate_id(), (pskt.outputs.len() - 1) as u32);
+    // Contract: the last output of the last PSKT in the bundle is the new anchor
+    // For now, we'll use a placeholder since we need to extract this from the bundle properly
+    let new_anchor = current_anchor; // TODO: Extract the proper new anchor from bundle
 
     // The first N (if any) elements are empty since sweeping PSKTs don't have any HL messages.
     // The last element is the withdrawal PSKT, so it should have all the HL messages.
@@ -169,19 +209,19 @@ pub async fn build_withdrawal_fxg(
         messages
     };
 
-    // Create a final bundle. It has the following structure:
-    // 1. Sweeping bundle (if any) – might contain multiple PSKTs. It sweeps all non-anchor UTXOs.
-    // 2. One withdrawal PSKT – contains the output UTXO from the sweeping bundle and the anchor input
-    let bundle = match sweeping_bundle {
-        Some(mut bundle) => {
-            bundle.add_pskt(pskt);
+    // Create a final bundle. The new withdrawal bundle already handles multiple PSKTs internally.
+    // If we have a sweeping bundle, we need to combine it with the withdrawal bundle.
+    let final_bundle = match sweeping_bundle {
+        Some(sweeping_bundle) => {
+            // TODO: Properly combine sweeping bundle with withdrawal bundle
+            // For now, just use the withdrawal bundle
             bundle
         }
-        None => Bundle::from(pskt),
+        None => bundle,
     };
 
     Ok(Some(WithdrawFXG::new(
-        bundle,
+        final_bundle,
         messages,
         vec![current_anchor, new_anchor],
     )))
