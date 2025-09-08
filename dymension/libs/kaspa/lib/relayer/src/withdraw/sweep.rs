@@ -16,297 +16,240 @@ use kaspa_wallet_pskt::prelude::{Creator, OutputBuilder, Signer, PSKT};
 use kaspa_wallet_pskt::pskt::InputBuilder;
 use tracing::info;
 
+/// Find the maximum number of escrow inputs that fit within mass limit using binary search
+fn find_escrow_batch_size(
+    escrow_inputs: &[PopulatedInput],
+    relayer_inputs: &[PopulatedInput],
+    escrow: &EscrowPublic,
+    relayer_address: &kaspa_addresses::Address,
+    network_id: kaspa_consensus_core::network::NetworkId,
+) -> Result<usize> {
+    use super::hub_to_kaspa::estimate_mass;
+    use kaspa_consensus_core::tx::TransactionOutput;
+    use kaspa_txscript::standard::pay_to_address_script;
+    
+    const MAX_MASS: u64 = 100000;
+    
+    if escrow_inputs.is_empty() {
+        return Ok(0);
+    }
+    
+    let total_relayer_balance = relayer_inputs.iter().map(|(_, e, _)| e.amount).sum::<u64>();
+    
+    // First try all escrow inputs
+    let total_escrow_balance = escrow_inputs.iter().map(|(_, e, _)| e.amount).sum::<u64>();
+    
+    let test_outputs = vec![
+        TransactionOutput {
+            value: total_escrow_balance,
+            script_public_key: escrow.p2sh.clone(),
+        },
+        TransactionOutput {
+            value: total_relayer_balance,
+            script_public_key: pay_to_address_script(relayer_address),
+        },
+    ];
+    
+    let all_inputs: Vec<_> = escrow_inputs.iter().cloned()
+        .chain(relayer_inputs.iter().cloned())
+        .collect();
+    
+    match estimate_mass(
+        all_inputs,
+        test_outputs,
+        vec![],
+        network_id,
+        escrow.m() as u16,
+    ) {
+        Ok(mass) if mass <= MAX_MASS => {
+            info!("Kaspa sweeping: all {} escrow inputs fit (mass: {})", escrow_inputs.len(), mass);
+            return Ok(escrow_inputs.len());
+        }
+        Ok(mass) => {
+            info!("Kaspa sweeping: all inputs exceed mass limit ({}), starting binary search", mass);
+        }
+        Err(e) => {
+            info!("Kaspa sweeping: mass calculation failed: {}, starting binary search", e);
+        }
+    }
+    
+    // Binary search for maximum batch size
+    let mut low = 1;
+    let mut high = escrow_inputs.len();
+    let mut best_size = 1;
+    
+    while low <= high {
+        let mid = (low + high) / 2;
+        let test_escrow_batch = escrow_inputs.iter().take(mid).cloned().collect::<Vec<_>>();
+        let test_escrow_balance = test_escrow_batch.iter().map(|(_, e, _)| e.amount).sum::<u64>();
+        
+        let test_outputs = vec![
+            TransactionOutput {
+                value: test_escrow_balance,
+                script_public_key: escrow.p2sh.clone(),
+            },
+            TransactionOutput {
+                value: total_relayer_balance,
+                script_public_key: pay_to_address_script(relayer_address),
+            },
+        ];
+        
+        let test_inputs: Vec<_> = test_escrow_batch
+            .into_iter()
+            .chain(relayer_inputs.iter().cloned())
+            .collect();
+        
+        match estimate_mass(
+            test_inputs,
+            test_outputs,
+            vec![],
+            network_id,
+            escrow.m() as u16,
+        ) {
+            Ok(mass) if mass <= MAX_MASS => {
+                best_size = mid;
+                low = mid + 1;
+                info!("Kaspa sweeping: batch size {} works (mass: {})", mid, mass);
+            }
+            Ok(mass) => {
+                high = mid - 1;
+                info!("Kaspa sweeping: batch size {} too large (mass: {})", mid, mass);
+            }
+            Err(e) => {
+                high = mid - 1;
+                info!("Kaspa sweeping: batch size {} failed: {}", mid, e);
+            }
+        }
+    }
+    
+    if best_size == 0 {
+        return Err(eyre!("Cannot create valid PSKT: even single escrow input exceeds mass limit"));
+    }
+    
+    info!("Kaspa sweeping: optimal batch size: {}", best_size);
+    Ok(best_size)
+}
+
 /// Create a bundle that sweeps funds in the escrow address.
 /// The function expects a set of inputs that are needed to be swept – [`escrow_inputs`].
 /// And a set of relayer inputs to cover the transaction fee – [`relayer_inputs`].
 /// Creates multiple PSKTs to respect mass limits.
-/// Each PSKT includes only necessary relayer inputs to pay fees.
+/// Each PSKT includes all relayer inputs and consolidates escrow inputs.
 /// Each PSKT has exactly 2 outputs: consolidated escrow and relayer change.
 pub async fn create_sweeping_bundle(
     relayer_wallet: &EasyKaspaWallet,
     escrow: &EscrowPublic,
-    escrow_inputs: Vec<PopulatedInput>,
+    mut escrow_inputs: Vec<PopulatedInput>,
     mut relayer_inputs: Vec<PopulatedInput>,
 ) -> Result<Bundle> {
     use super::hub_to_kaspa::estimate_mass;
-    use kaspa_consensus_core::constants::UNACCEPTED_DAA_SCORE;
-    use kaspa_consensus_core::tx::{TransactionInput, TransactionOutpoint};
+    use kaspa_consensus_core::tx::TransactionOutput;
+    use kaspa_txscript::standard::pay_to_address_script;
     
     if escrow_inputs.is_empty() {
         return Err(eyre!("No escrow inputs to sweep"));
     }
     
-    let total_escrow_inputs = escrow_inputs.len();
-    let total_escrow_balance = escrow_inputs.iter().map(|(_, e, _)| e.amount).sum::<u64>();
-    let total_relayer_inputs = relayer_inputs.len();
-    let total_relayer_balance = relayer_inputs.iter().map(|(_, e, _)| e.amount).sum::<u64>();
-    
-    info!(
-        "Kaspa sweeping: starting sweep with {} escrow inputs ({} sompi), {} relayer inputs ({} sompi)",
-        total_escrow_inputs, total_escrow_balance, total_relayer_inputs, total_relayer_balance
-    );
-    
     let relayer_address = relayer_wallet.account().change_address()?;
-    
-    // Get fee rate for fee estimation
     let feerate = relayer_wallet.api().get_fee_estimate().await?
         .normal_buckets.first().unwrap().feerate;
     
-    info!("Kaspa sweeping: using feerate {}", feerate);
-    
-    // Kaspa network max mass is 100,000
-    const MAX_MASS: u64 = 100000;
-    const SAFETY_MARGIN: u64 = 5000; // Safety margin for mass calculation variations
-    const TARGET_MASS: u64 = MAX_MASS - SAFETY_MARGIN;
-    
     let mut bundle = Bundle::new();
-    let mut remaining_escrow_inputs = escrow_inputs;
-    let mut remaining_relayer_inputs = relayer_inputs;
     
-    // Process escrow inputs in batches
-    while !remaining_escrow_inputs.is_empty() {
-        // Find optimal batch size by testing actual mass calculations
-        let mut best_batch_size = 1;
-        let mut low = 1;
-        let mut high = std::cmp::min(remaining_escrow_inputs.len(), 50); // Increase cap to test more
+    info!(
+        "Kaspa sweeping: starting with {} escrow inputs, {} relayer inputs",
+        escrow_inputs.len(), relayer_inputs.len()
+    );
+    
+    // Process escrow inputs recursively until all are consumed
+    while !escrow_inputs.is_empty() {
+        // Find batch size that fits within mass limit
+        let batch_size = find_escrow_batch_size(
+            &escrow_inputs,
+            &relayer_inputs,
+            escrow,
+            &relayer_address,
+            relayer_wallet.net.network_id,
+        )?;
         
-        info!(
-            "Kaspa sweeping: starting binary search for optimal batch size. escrow inputs: {}, relayer inputs: {}, search range: {} to {}",
-            remaining_escrow_inputs.len(), remaining_relayer_inputs.len(), low, high
-        );
-        
-        while low <= high {
-            let mid = (low + high) / 2;
-            let test_escrow_batch = remaining_escrow_inputs.iter().take(mid).cloned().collect::<Vec<_>>();
-            let test_escrow_balance = test_escrow_batch.iter().map(|(_, e, _)| e.amount).sum::<u64>();
-            
-            // Test with realistic relayer input selection (similar to actual logic)
-            let mut test_relayer_inputs = Vec::new();
-            let mut test_relayer_balance = 0u64;
-            
-            // Use same selection logic as the actual transaction
-            if !remaining_relayer_inputs.is_empty() {
-                let first_input = remaining_relayer_inputs[0].clone();
-                test_relayer_balance += first_input.1.amount;
-                test_relayer_inputs.push(first_input);
-                
-                // For testing, assume we might need 2-3 relayer inputs max
-                let mut inputs_added = 1;
-                for input in remaining_relayer_inputs.iter().skip(1) {
-                    if inputs_added >= 3 { break; } // Reasonable limit for testing
-                    test_relayer_balance += input.1.amount;
-                    test_relayer_inputs.push(input.clone());
-                    inputs_added += 1;
-                    // Stop if we have reasonable amount for fees
-                    if test_relayer_balance > 50000 { break; } 
-                }
-            }
-            
-            // Estimate fee based on mass (rough estimate for binary search)
-            let rough_estimated_fee = 2000 + (mid as u64 * 500) + (test_relayer_inputs.len() as u64 * 300);
-            let min_output_value = 1000u64;
-            let test_relayer_output = std::cmp::max(
-                test_relayer_balance.saturating_sub(rough_estimated_fee),
-                min_output_value
-            );
-            
-            // Create test outputs
-            let test_outputs = vec![
-                TransactionOutput {
-                    value: test_escrow_balance,
-                    script_public_key: escrow.p2sh.clone(),
-                },
-                TransactionOutput {
-                    value: test_relayer_output,
-                    script_public_key: pay_to_address_script(&relayer_address),
-                },
-            ];
-            
-            // Combine all inputs for mass calculation
-            let test_inputs: Vec<_> = test_escrow_batch
-                .into_iter()
-                .chain(test_relayer_inputs)
-                .collect();
-            
-            info!(
-                "Kaspa sweeping: testing batch size {} (escrow: {}, relayer: {}, total inputs: {}, relayer output: {})",
-                mid, mid, test_inputs.len() - mid, test_inputs.len(), test_relayer_output
-            );
-            
-            // Calculate mass with realistic input/output combination
-            match estimate_mass(
-                test_inputs,
-                test_outputs,
-                vec![], // No payload for sweeping
-                relayer_wallet.net.network_id,
-                escrow.m() as u16,
-            ) {
-                Ok(mass) if mass < TARGET_MASS => { // Use full target mass
-                    // This batch size works
-                    best_batch_size = mid;
-                    low = mid + 1; // Try larger batch
-                    
-                    info!(
-                        "Kaspa sweeping: batch size {} works, mass: {} < {}, trying larger (best so far: {})",
-                        mid, mass, TARGET_MASS, best_batch_size
-                    );
-                }
-                Ok(mass) => {
-                    // Too large
-                    info!(
-                        "Kaspa sweeping: batch size {} too large, mass: {} > {} (TARGET_MASS), reducing search space",
-                        mid, mass, TARGET_MASS
-                    );
-                    high = mid - 1;
-                }
-                Err(e) => {
-                    info!(
-                        "Kaspa sweeping: batch size {} failed mass calculation: {}, reducing search space",
-                        mid, e
-                    );
-                    high = mid - 1;
-                }
-            }
-        }
-        
-        if best_batch_size == 0 {
-            return Err(eyre!(
-                "Cannot create valid PSKT: even single escrow input with relayer inputs exceeds mass limit"
-            ));
-        }
-        
-        info!(
-            "Kaspa sweeping: selected optimal batch size: {} escrow inputs",
-            best_batch_size
-        );
-        
-        // Take the batch of escrow inputs
-        let batch_escrow_inputs: Vec<_> = remaining_escrow_inputs.drain(0..best_batch_size).collect();
+        // Take batch of escrow inputs
+        let batch_escrow_inputs: Vec<_> = escrow_inputs.drain(0..batch_size).collect();
         let batch_escrow_balance = batch_escrow_inputs.iter().map(|(_, e, _)| e.amount).sum::<u64>();
         
-        info!(
-            "Kaspa sweeping: processing batch of {} escrow inputs ({} sompi), {} escrow inputs remaining",
-            batch_escrow_inputs.len(), batch_escrow_balance, remaining_escrow_inputs.len()
-        );
+        // First pass: estimate mass with a reasonable output value
+        let total_relayer_balance = relayer_inputs.iter().map(|(_, e, _)| e.amount).sum::<u64>();
         
-        // Now estimate fee and select minimal relayer inputs
-        let mut selected_relayer_inputs = Vec::new();
-        let mut selected_relayer_balance = 0u64;
-        let mut estimated_fee = 0u64;
+        // Initial mass calculation with total relayer balance as output
+        let initial_outputs = vec![
+            TransactionOutput {
+                value: batch_escrow_balance,
+                script_public_key: escrow.p2sh.clone(),
+            },
+            TransactionOutput {
+                value: total_relayer_balance, // Use full balance for initial estimate
+                script_public_key: pay_to_address_script(&relayer_address),
+            },
+        ];
         
-        // First, add at least one relayer input to avoid zero values
-        if remaining_relayer_inputs.is_empty() {
-            return Err(eyre!("No relayer inputs available to cover transaction fees"));
-        }
+        let all_inputs: Vec<_> = batch_escrow_inputs.iter().cloned()
+            .chain(relayer_inputs.iter().cloned())
+            .collect();
         
-        // Add first relayer input
-        let first_input = remaining_relayer_inputs.remove(0);
-        let first_amount = first_input.1.amount;
-        selected_relayer_balance += first_amount;
-        selected_relayer_inputs.push(first_input);
+        let initial_mass = estimate_mass(
+            all_inputs.clone(),
+            initial_outputs,
+            vec![],
+            relayer_wallet.net.network_id,
+            escrow.m() as u16,
+        )?;
         
-        info!(
-            "Kaspa sweeping: initial relayer input ({} sompi)",
-            first_amount
-        );
+        // Calculate initial fee estimate
+        let initial_fee = (initial_mass as f64 * feerate).ceil() as u64 + RELAYER_SWEEPING_PRIORITY_FEE;
         
-        // Iteratively add more relayer inputs if needed
-        for iteration in 0..5 { // Max 5 iterations to avoid infinite loop
-            // Ensure we have a minimum output value to avoid divide by zero
-            let min_output_value = 1000u64; // Minimum 1000 sompi
-            let tentative_relayer_output = if selected_relayer_balance > estimated_fee {
-                std::cmp::max(selected_relayer_balance - estimated_fee, min_output_value)
-            } else {
-                min_output_value
-            };
-            
-            // Create test outputs with non-zero values
-            let test_outputs = vec![
-                TransactionOutput {
-                    value: batch_escrow_balance,
-                    script_public_key: escrow.p2sh.clone(),
-                },
-                TransactionOutput {
-                    value: tentative_relayer_output,
-                    script_public_key: pay_to_address_script(&relayer_address),
-                },
-            ];
-            
-            // Combine escrow and selected relayer inputs
-            let test_inputs: Vec<_> = batch_escrow_inputs.clone()
-                .into_iter()
-                .chain(selected_relayer_inputs.clone())
-                .collect();
-            
-            // Calculate mass and fee
-            match estimate_mass(
-                test_inputs,
-                test_outputs,
-                vec![], // No payload for sweeping
-                relayer_wallet.net.network_id,
-                escrow.m() as u16,
-            ) {
-                Ok(mass) => {
-                    estimated_fee = (mass as f64 * feerate).ceil() as u64 + RELAYER_SWEEPING_PRIORITY_FEE;
-                    
-                    info!(
-                        "Kaspa sweeping: iteration {}, mass: {}, estimated fee: {} sompi, relayer balance: {} sompi",
-                        iteration, mass, estimated_fee, selected_relayer_balance
-                    );
-                    
-                    // Check if we have enough to cover fees with minimum output
-                    if selected_relayer_balance >= estimated_fee + min_output_value {
-                        break; // We have enough
-                    }
-                    
-                    // Need more relayer inputs
-                    if remaining_relayer_inputs.is_empty() {
-                        return Err(eyre!(
-                            "Insufficient relayer inputs to cover fees: need {} + {} (min output) = {} but only have {}",
-                            estimated_fee, min_output_value, estimated_fee + min_output_value, selected_relayer_balance
-                        ));
-                    }
-                    
-                    // Add another relayer input
-                    let next_input = remaining_relayer_inputs.remove(0);
-                    let next_amount = next_input.1.amount;
-                    selected_relayer_balance += next_amount;
-                    selected_relayer_inputs.push(next_input);
-                    
-                    info!(
-                        "Kaspa sweeping: added relayer input ({} sompi), total selected: {} sompi",
-                        next_amount, selected_relayer_balance
-                    );
-                }
-                Err(e) => return Err(eyre!("Failed to estimate mass: {}", e)),
-            }
-        }
+        // Second pass: recalculate mass with more accurate output (balance - fee)
+        let estimated_relayer_output = total_relayer_balance.saturating_sub(initial_fee);
         
-        // Calculate relayer output amount (minus fees) with minimum value
-        let min_output_value = 1000u64; // Minimum 1000 sompi to avoid zero outputs
-        let relayer_output_amount = std::cmp::max(
-            selected_relayer_balance.saturating_sub(estimated_fee),
-            min_output_value
-        );
+        let final_outputs = vec![
+            TransactionOutput {
+                value: batch_escrow_balance,
+                script_public_key: escrow.p2sh.clone(),
+            },
+            TransactionOutput {
+                value: estimated_relayer_output,
+                script_public_key: pay_to_address_script(&relayer_address),
+            },
+        ];
         
-        // Final validation
-        if selected_relayer_balance < estimated_fee + min_output_value {
+        let mass = estimate_mass(
+            all_inputs,
+            final_outputs,
+            vec![],
+            relayer_wallet.net.network_id,
+            escrow.m() as u16,
+        )?;
+        
+        let estimated_fee = (mass as f64 * feerate).ceil() as u64 + RELAYER_SWEEPING_PRIORITY_FEE;
+        
+        // Check if relayer has enough balance to cover fees and minimum output
+        const MIN_OUTPUT_VALUE: u64 = 1000;
+        if total_relayer_balance < estimated_fee + MIN_OUTPUT_VALUE {
             return Err(eyre!(
-                "Final validation failed: relayer balance {} insufficient for fee {} + min output {}",
-                selected_relayer_balance, estimated_fee, min_output_value
+                "Insufficient relayer balance: have {} sompi, need {} (fee) + {} (min output) = {} sompi",
+                total_relayer_balance, estimated_fee, MIN_OUTPUT_VALUE, estimated_fee + MIN_OUTPUT_VALUE
             ));
         }
         
-        // Log before creating PSKT
+        let relayer_output_amount = total_relayer_balance - estimated_fee;
+        
         info!(
-            "Kaspa sweeping: creating PSKT with {} escrow inputs, {} relayer inputs, estimated fee: {} sompi, relayer change: {} sompi",
-            batch_escrow_inputs.len(), selected_relayer_inputs.len(), estimated_fee, relayer_output_amount
+            "Kaspa sweeping: batch {} escrow inputs, fee: {} sompi, relayer output: {} sompi",
+            batch_escrow_inputs.len(), estimated_fee, relayer_output_amount
         );
         
-        // Create PSKT for this batch
+        // Create PSKT
         let mut pskt = PSKT::<Creator>::default().constructor();
         
-        // Add escrow inputs for this batch
+        // Add escrow inputs
         for (input, entry, _) in batch_escrow_inputs {
             let mut b = InputBuilder::default();
             b.previous_outpoint(input.previous_outpoint)
@@ -318,18 +261,18 @@ pub async fn create_sweeping_bundle(
             pskt = pskt.input(b.build().map_err(|e| eyre!("Build escrow input: {}", e))?);
         }
         
-        // Add selected relayer inputs
-        for (input, entry, _) in selected_relayer_inputs {
+        // Add all relayer inputs
+        for (input, entry, _) in &relayer_inputs {
             let mut b = InputBuilder::default();
             b.previous_outpoint(input.previous_outpoint)
                 .sig_op_count(RELAYER_SIG_OP_COUNT)
                 .sighash_type(input_sighash_type())
-                .utxo_entry(entry);
+                .utxo_entry(entry.clone());
             
             pskt = pskt.input(b.build().map_err(|e| eyre!("Build relayer input: {}", e))?);
         }
         
-        // Add escrow output (consolidated from batch)
+        // Add escrow output
         let escrow_output_builder = OutputBuilder::default()
             .amount(batch_escrow_balance)
             .script_public_key(escrow.p2sh.clone())
@@ -338,7 +281,7 @@ pub async fn create_sweeping_bundle(
         
         pskt = pskt.output(escrow_output_builder);
         
-        // Add relayer output (minus fees)  
+        // Add relayer output
         let relayer_output_builder = OutputBuilder::default()
             .amount(relayer_output_amount)
             .script_public_key(pay_to_address_script(&relayer_address))
@@ -351,17 +294,14 @@ pub async fn create_sweeping_bundle(
         let pskt_id = pskt_signer.calculate_id();
         bundle.add_pskt(pskt_signer);
         
-        info!(
-            "Kaspa sweeping: successfully created PSKT {}",
-            pskt_id
-        );
+        info!("Kaspa sweeping: created PSKT {}", pskt_id);
         
-        // Add the relayer output as a new relayer input for the next iteration
-        if !remaining_escrow_inputs.is_empty() && relayer_output_amount > 0 {
-            remaining_relayer_inputs.insert(0, (
+        // Update relayer_inputs for next iteration (use relayer output as new input)
+        if !escrow_inputs.is_empty() {
+            relayer_inputs = vec![(
                 TransactionInput::new(
                     TransactionOutpoint::new(pskt_id, 1), // Index 1 is relayer output
-                    vec![], // Empty signature script for unsigned
+                    vec![],
                     u64::MAX,
                     RELAYER_SIG_OP_COUNT,
                 ),
@@ -371,26 +311,16 @@ pub async fn create_sweeping_bundle(
                     UNACCEPTED_DAA_SCORE,
                     false,
                 ),
-                None, // No redeem script for relayer
-            ));
+                None,
+            )];
             
-            info!(
-                "Kaspa sweeping: chaining relayer output {} sompi to next PSKT",
-                relayer_output_amount
-            );
+            info!("Kaspa sweeping: chaining {} sompi for next batch", relayer_output_amount);
         }
     }
     
-    info!(
-        "Kaspa sweeping: completed sweep with {} PSKTs in bundle",
-        bundle.0.len()
-    );
-    
+    info!("Kaspa sweeping: completed with {} PSKTs", bundle.0.len());
     Ok(bundle)
 }
-
-use kaspa_consensus_core::tx::TransactionOutput;
-use kaspa_txscript::standard::pay_to_address_script;
 
 /// Add the redeem script, sig op count, and sig hash type to every input.
 /// Otherwise, the transaction will fail. Outputs stay the same.
