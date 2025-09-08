@@ -1,3 +1,4 @@
+use super::mass_utils::split_inputs_by_mass;
 use super::messages::PopulatedInput;
 use super::minimum::{is_dust, is_small_value};
 use crate::withdraw::sweep::utxo_reference_from_populated_input;
@@ -101,9 +102,82 @@ pub async fn get_normal_bucket_feerate(kaspa_rpc: &Arc<DynRpcApi>) -> Result<f64
 /// Cons: Potentially bigger fee because of the increased number of inputs. However, it's in
 /// relayer's interest to pay min fees and thus keep its account with as few UTXOs as possible.
 ///
+/// Build withdrawal PSKTs, potentially splitting into multiple if mass exceeds limits.
+/// Returns a Bundle containing one or more PSKTs.
+/// 
+/// CONTRACT:
+/// Escrow change is always the last output in the final PSKT.
+pub fn build_withdrawal_pskts(
+    inputs: Vec<PopulatedInput>,
+    mut outputs: Vec<TransactionOutput>,
+    payload: Vec<u8>,
+    escrow: &EscrowPublic,
+    relayer_addr: &kaspa_addresses::Address,
+    network_id: NetworkId,
+    min_deposit_sompi: U256,
+    feerate: f64,
+) -> Result<Bundle> {
+    // First try to build a single PSKT
+    match build_single_withdrawal_pskt(
+        inputs.clone(),
+        outputs.clone(),
+        payload.clone(),
+        escrow,
+        relayer_addr,
+        network_id,
+        min_deposit_sompi,
+        feerate,
+    ) {
+        Ok(pskt) => {
+            let mut bundle = Bundle::new();
+            bundle.add_pskt(pskt);
+            return Ok(bundle);
+        }
+        Err(e) => {
+            info!("Single PSKT failed due to mass limit, splitting into batches: {}", e);
+        }
+    }
+
+    // If single PSKT fails, split into multiple batches
+    build_multi_withdrawal_pskts(
+        inputs,
+        outputs,
+        payload,
+        escrow,
+        relayer_addr,
+        network_id,
+        min_deposit_sompi,
+        feerate,
+    )
+}
+
+/// Legacy function for backward compatibility - builds a single PSKT
 /// CONTRACT:
 /// Escrow change is always the last output.
 pub fn build_withdrawal_pskt(
+    inputs: Vec<PopulatedInput>,
+    mut outputs: Vec<TransactionOutput>,
+    payload: Vec<u8>,
+    escrow: &EscrowPublic,
+    relayer_addr: &kaspa_addresses::Address,
+    network_id: NetworkId,
+    min_deposit_sompi: U256,
+    feerate: f64,
+) -> Result<PSKT<Signer>> {
+    build_single_withdrawal_pskt(
+        inputs,
+        outputs,
+        payload,
+        escrow,
+        relayer_addr,
+        network_id,
+        min_deposit_sompi,
+        feerate,
+    )
+}
+
+/// Builds a single withdrawal PSKT - internal function
+fn build_single_withdrawal_pskt(
     inputs: Vec<PopulatedInput>,
     mut outputs: Vec<TransactionOutput>,
     payload: Vec<u8>,
@@ -396,6 +470,161 @@ pub(crate) fn estimate_mass(
         min_signatures,
     )
     .map_err(|e| eyre::eyre!(e))
+}
+
+/// Builds multiple withdrawal PSKTs when mass limits require splitting
+fn build_multi_withdrawal_pskts(
+    inputs: Vec<PopulatedInput>,
+    outputs: Vec<TransactionOutput>,
+    payload: Vec<u8>,
+    escrow: &EscrowPublic,
+    relayer_addr: &kaspa_addresses::Address,
+    network_id: NetworkId,
+    min_deposit_sompi: U256,
+    feerate: f64,
+) -> Result<Bundle> {
+    // Separate escrow and relayer inputs
+    let mut escrow_inputs = Vec::new();
+    let mut relayer_inputs = Vec::new();
+    
+    for (input, entry, redeem_script) in inputs {
+        if redeem_script.is_some() {
+            // Escrow inputs have redeem scripts
+            escrow_inputs.push((input, entry, redeem_script));
+        } else {
+            // Relayer inputs don't have redeem scripts
+            relayer_inputs.push((input, entry, redeem_script));
+        }
+    }
+    
+    // Check total balances
+    let escrow_balance: u64 = escrow_inputs.iter().map(|(_, e, _)| e.amount).sum();
+    let relayer_balance: u64 = relayer_inputs.iter().map(|(_, e, _)| e.amount).sum();
+    let withdrawal_balance: u64 = outputs.iter().map(|w| w.value).sum();
+    
+    if escrow_balance < withdrawal_balance {
+        return Err(eyre::eyre!(
+            "Insufficient funds in escrow: {} < {}",
+            escrow_balance,
+            withdrawal_balance
+        ));
+    }
+    
+    // Split escrow inputs into batches that fit within mass limit
+    let escrow_batches = split_inputs_by_mass(
+        escrow_inputs,
+        &relayer_inputs,
+        escrow,
+        &escrow.addr,
+        relayer_addr,
+        network_id,
+        estimate_mass,
+    )?;
+    
+    let mut bundle = Bundle::new();
+    let total_batches = escrow_batches.len();
+    
+    info!("Split withdrawal into {} batches due to mass limits", total_batches);
+    
+    // Calculate how to distribute withdrawals across batches
+    let outputs_per_batch = if total_batches == 1 {
+        vec![outputs.len()]
+    } else {
+        // Distribute outputs as evenly as possible across batches
+        let base_count = outputs.len() / total_batches;
+        let remainder = outputs.len() % total_batches;
+        (0..total_batches)
+            .map(|i| if i < remainder { base_count + 1 } else { base_count })
+            .collect::<Vec<_>>()
+    };
+    
+    let mut outputs_iter = outputs.into_iter();
+    let escrow_change_total = escrow_balance - withdrawal_balance;
+    
+    for (batch_idx, escrow_batch) in escrow_batches.into_iter().enumerate() {
+        let is_last_batch = batch_idx == total_batches - 1;
+        let outputs_count = outputs_per_batch[batch_idx];
+        
+        // All relayer inputs go into each PSKT for fee payment
+        let batch_inputs: Vec<_> = escrow_batch.into_iter()
+            .chain(relayer_inputs.iter().cloned())
+            .collect();
+        
+        let batch_escrow_balance = batch_inputs.iter()
+            .filter(|(_, _, redeem_script)| redeem_script.is_some())
+            .map(|(_, e, _)| e.amount)
+            .sum::<u64>();
+        
+        // Take this batch's share of withdrawal outputs
+        let mut batch_outputs: Vec<_> = outputs_iter.by_ref().take(outputs_count).collect();
+        let batch_withdrawal_amount: u64 = batch_outputs.iter().map(|o| o.value).sum();
+        
+        // Calculate escrow change for this batch
+        let batch_escrow_change = batch_escrow_balance - batch_withdrawal_amount;
+        
+        // Add escrow change output (this becomes input for next batch or final change)
+        if is_last_batch {
+            // Last batch gets any remaining escrow change
+            if escrow_change_total > 0 {
+                batch_outputs.push(TransactionOutput {
+                    value: escrow_change_total,
+                    script_public_key: escrow.p2sh.clone(),
+                });
+            }
+        } else {
+            // Intermediate batches create escrow output for remaining funds
+            if batch_escrow_change > 0 {
+                batch_outputs.push(TransactionOutput {
+                    value: batch_escrow_change,
+                    script_public_key: escrow.p2sh.clone(),
+                });
+            }
+        }
+        
+        // Estimate mass and fee for this batch
+        let batch_mass = estimate_mass(
+            batch_inputs.clone(),
+            batch_outputs.clone(),
+            if is_last_batch { payload.clone() } else { vec![] },
+            network_id,
+            escrow.m() as u16,
+        )?;
+        
+        let batch_fee = (batch_mass as f64 * feerate).round() as u64;
+        
+        if relayer_balance < batch_fee {
+            return Err(eyre::eyre!(
+                "Insufficient relayer funds for batch {}: {} < {}",
+                batch_idx, relayer_balance, batch_fee
+            ));
+        }
+        
+        // Add relayer change
+        let relayer_change = relayer_balance - batch_fee;
+        if relayer_change > 0 {
+            batch_outputs.push(TransactionOutput {
+                value: relayer_change,
+                script_public_key: pay_to_address_script(relayer_addr),
+            });
+        }
+        
+        // Create PSKT for this batch
+        let pskt = create_withdrawal_pskt(
+            batch_inputs,
+            batch_outputs,
+            if is_last_batch { payload.clone() } else { vec![] },
+        )?;
+        
+        bundle.add_pskt(pskt);
+        
+        info!(
+            "Created batch {} PSKT with {} withdrawals, mass {}, fee {} sompi, escrow change {} sompi", 
+            batch_idx, outputs_count, batch_mass, batch_fee, 
+            if is_last_batch { escrow_change_total } else { batch_escrow_change }
+        );
+    }
+    
+    Ok(bundle)
 }
 
 pub async fn combine_bundles_with_fee(
