@@ -25,6 +25,7 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use tracing::error;
+use tracing::info;
 
 #[derive(Debug, Clone)]
 pub struct TaskResources {
@@ -146,7 +147,7 @@ impl RoundTrip {
     }
 
     async fn deposit(&self) -> Result<(TransactionId, SystemTime)> {
-        debug!(
+        info!(
             "start deposit, task_id: {}, hub_addr: {}",
             self.task_id,
             self.hub_key.signer().address_string
@@ -169,7 +170,7 @@ impl RoundTrip {
 
     async fn await_hub_credit(&self) -> Result<()> {
         let a = self.hub_key.signer().address_string;
-        debug!(
+        info!(
             "start await_hub_credit, task_id: {}, addr: {}",
             self.task_id, a
         );
@@ -180,6 +181,7 @@ impl RoundTrip {
                 .rpc()
                 .get_balance_denom(a.clone(), "adym".to_string())
                 .await?;
+            info!("hub balance: {}", balance);
             if balance == U256::from(0) {
                 if self.cancel.is_cancelled() {
                     return Err(RoundTripError::Cancelled.into());
@@ -196,6 +198,7 @@ impl RoundTrip {
                 .rpc()
                 .get_balance_denom(a.clone(), self.res.args.hub_denom())
                 .await?;
+            info!("hub token balance: {}", balance);
             if balance == U256::from(0) {
                 if self.cancel.is_cancelled() {
                     return Err(RoundTripError::Cancelled.into());
@@ -218,7 +221,7 @@ impl RoundTrip {
 
     async fn withdraw(&self) -> Result<(Address, TendermintHash, SystemTime)> {
         let kaspa_recipient = get_kaspa_keypair();
-        debug!(
+        info!(
             "start withdraw, task_id: {}, kaspa_addr: {}",
             self.task_id, kaspa_recipient.address
         );
@@ -228,7 +231,7 @@ impl RoundTrip {
         let amount = self.value.to_string();
         let recipient = x::addr::hl_recipient(&kaspa_recipient.address.to_string());
         let token_id = self.res.args.token_hub_str();
-        debug!("withdraw token_id: {}, recipient: {}", token_id, recipient);
+        info!("withdraw token_id: {}, recipient: {}", token_id, recipient);
 
         let req = MsgRemoteTransfer {
             sender: rpc.get_signer()?.address_string.clone(),
@@ -264,7 +267,7 @@ impl RoundTrip {
     }
 
     async fn await_kaspa_credit(&self, kaspa_addr: Address) -> Result<()> {
-        debug!("start await_kaspa_credit, task_id: {}", self.task_id);
+        info!("start await_kaspa_credit, task_id: {}", self.task_id);
         loop {
             let balance = self
                 .res

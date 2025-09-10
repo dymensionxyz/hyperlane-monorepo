@@ -43,8 +43,8 @@ const DEFAULT_CHAIN_ID: &str = "dymension_3405-1";
 const DEFAULT_PREFIX: &str = "dym";
 const DEFAULT_DENOM: &str = "adym";
 const DEFAULT_DECIMALS: u32 = 18;
-const DEFAULT_WRPC_URL: &str = "localhost:17210";
-const DEFAULT_REST_URL: &str = "https://api-tn10.kaspa.org/";
+const DEFAULT_WRPC_URL: &str = "api-kaspa.mzonder.com:17210";
+const DEFAULT_REST_URL: &str = "https://kaspa-testnet-rest.mzonder.com/";
 
 async fn cosmos_provider(signer_key_hex: &str) -> Result<CosmosNativeProvider> {
     let conf = CosmosConnectionConf::new(
@@ -166,7 +166,7 @@ impl TrafficSim {
     pub async fn new(args: SimulateTrafficArgs) -> Result<Self> {
         let w = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
             wallet_secret: args.wallet.wallet_secret,
-            wrpc_url: DEFAULT_WRPC_URL.to_string(),
+            wrpc_url: args.wallet.rpc_url.to_string(),
             net: Network::KaspaTest10,
             storage_folder: None,
         })
@@ -267,10 +267,14 @@ async fn fund_hub_addr(
     amount: u64,
 ) -> Result<()> {
     let hub_addr = hub_key.signer().address_string.clone();
-    debug!("funding hub address: {}", hub_addr);
+
     let rpc = hub.rpc();
+
+    //let from_address = rpc.get_signer()?.address_string.clone();
+    let from_address = "dym1f79cr4r2v34arp9kfafw8ala8qhkpmdtx2zghc".to_string(); // hardcode whale
+    info!("funding hub address: {} from {}", hub_addr,from_address);
     let msg = MsgSend {
-        from_address: rpc.get_signer()?.address_string.clone(),
+        from_address: from_address,
         to_address: hub_addr.clone(),
         amount: vec![Coin {
             amount: amount.to_string(),
@@ -303,6 +307,15 @@ async fn fund_hub_addr(
             }
             info!("Funded hub address: {}", hub_addr);
             Ok(())
+            /*if response.tx_result.code.is_ok() {
+                info!("Funded hub address: {}", hub_addr);
+                Ok(())
+            } else {
+                Err(eyre::eyre!(
+                    "Failed to fund hub address, non success code: {:?}",
+                    response.tx_result.code
+                ))
+            }*/
         }
         Err(e) => Err(eyre::eyre!("Failed to fund hub address: {:?}", e)),
     }
