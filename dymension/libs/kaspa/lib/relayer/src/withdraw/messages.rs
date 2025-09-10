@@ -107,12 +107,20 @@ pub async fn build_withdrawal_fxg(
                 .map_err(|e| eyre::eyre!("Extract current anchor: {}", e))?;
 
         let to_sweep_num = escrow_inputs_to_sweep.len();
+        
+        // Calculate total withdrawal amount needed
+        let total_withdrawal_amount: u64 = outputs.iter().map(|o| o.value).sum();
+        
+        // Get anchor amount (not swept but available for withdrawals)
+        let anchor_amount = anchor_input.1.amount; // anchor_input is (TransactionInput, UtxoEntry, Option<Vec<u8>>)
 
         let sweeping_bundle = create_sweeping_bundle(
             &relayer,
             &escrow_public,
             escrow_inputs_to_sweep,
             relayer_inputs,
+            total_withdrawal_amount,
+            anchor_amount,
         )
         .await
         .map_err(|e| eyre::eyre!("Create sweeping bundle: {}", e))?;
