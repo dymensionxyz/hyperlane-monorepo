@@ -16,14 +16,11 @@ use hyperlane_cosmos_rs::hyperlane::warp::v1::MsgRemoteTransfer;
 use hyperlane_cosmos_rs::prost::{Message, Name};
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionId;
-use std::str::FromStr;
 use std::time::Duration;
-use std::time::{Instant, SystemTime};
-use tendermint::abci::Code;
+use std::time::SystemTime;
 use tendermint::hash::Hash as TendermintHash;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
-use tracing::debug;
 use tracing::error;
 use tracing::info;
 
@@ -117,6 +114,116 @@ async fn do_round_trip_inner(hub_key: EasyHubKey, rt: &mut RoundTrip) {
     };
 }
 
+#[derive(Debug, Clone)]
+pub struct DepositData {
+    pub kaspa_deposit_tx_id: TransactionId,
+    pub kaspa_deposit_tx_time: SystemTime,
+}
+
+#[derive(Debug, Clone)]
+pub struct WithdrawalData {
+    pub kaspa_deposit_tx_id: TransactionId,
+    pub kaspa_deposit_tx_time: SystemTime,
+    pub deposit_credit_time: SystemTime,
+}
+
+/// Execute deposit phase only (can be parallel, just sends the deposit transaction)
+pub async fn do_deposit_phase(
+    res: TaskResources,
+    value: u64,
+    task_id: u64,
+    hub_key: &EasyHubKey,
+    cancel_token: CancellationToken,
+) -> Result<DepositData> {
+    let mut rt = RoundTrip::new(res, value, task_id, hub_key.clone(), cancel_token);
+    rt.stats.deposit_addr_hub = Some(hub_key.signer().address_string.clone());
+    
+    // Execute deposit only (don't wait for credit)
+    let (tx_id, deposit_time) = rt.deposit().await?;
+    rt.stats.kaspa_deposit_tx_id = Some(tx_id);
+    rt.stats.kaspa_deposit_tx_time = Some(deposit_time);
+    
+    Ok(DepositData {
+        kaspa_deposit_tx_id: tx_id,
+        kaspa_deposit_tx_time: deposit_time,
+    })
+}
+
+/// Wait for hub credit after deposit
+pub async fn await_hub_credit_phase(
+    res: TaskResources,
+    value: u64,
+    task_id: u64,
+    hub_key: &EasyHubKey,
+    deposit_data: DepositData,
+    cancel_token: CancellationToken,
+) -> Result<WithdrawalData> {
+    let mut rt = RoundTrip::new(res, value, task_id, hub_key.clone(), cancel_token);
+    rt.stats.deposit_addr_hub = Some(hub_key.signer().address_string.clone());
+    rt.stats.kaspa_deposit_tx_id = Some(deposit_data.kaspa_deposit_tx_id);
+    rt.stats.kaspa_deposit_tx_time = Some(deposit_data.kaspa_deposit_tx_time);
+    
+    // Wait for hub credit
+    rt.await_hub_credit().await?;
+    let deposit_credit_time = SystemTime::now();
+    rt.stats.deposit_credit_time = Some(deposit_credit_time);
+    
+    Ok(WithdrawalData {
+        kaspa_deposit_tx_id: deposit_data.kaspa_deposit_tx_id,
+        kaspa_deposit_tx_time: deposit_data.kaspa_deposit_tx_time,
+        deposit_credit_time,
+    })
+}
+
+/// Execute withdrawal phase only (parallel, after all deposits complete)
+pub async fn do_withdrawal_phase(
+    res: TaskResources,
+    value: u64,
+    tx: &mpsc::Sender<RoundTripStats>,
+    task_id: u64,
+    hub_key: EasyHubKey,
+    withdrawal_data: Option<WithdrawalData>,
+    cancel_token: CancellationToken,
+) {
+    let mut rt = RoundTrip::new(res, value, task_id, hub_key.clone(), cancel_token);
+    rt.stats.deposit_addr_hub = Some(hub_key.signer().address_string.clone());
+    
+    // Fill in deposit data from previous phase if available
+    if let Some(data) = withdrawal_data {
+        rt.stats.kaspa_deposit_tx_id = Some(data.kaspa_deposit_tx_id);
+        rt.stats.kaspa_deposit_tx_time = Some(data.kaspa_deposit_tx_time);
+        rt.stats.deposit_credit_time = Some(data.deposit_credit_time);
+        
+        // Execute withdrawal
+        let withdraw_res = rt.withdraw().await;
+        if !withdraw_res.is_ok() {
+            let e = withdraw_res.err().unwrap();
+            error!("withdrawal failed: {:?}", e);
+            tx.send(rt.stats).await.unwrap();
+            return;
+        }
+        let (kaspa_addr, tx_id, withdrawal_time) = withdraw_res.unwrap();
+        rt.stats.hub_withdraw_tx_id = Some(tx_id);
+        rt.stats.hub_withdraw_tx_time = Some(withdrawal_time);
+        rt.stats.withdraw_addr_kaspa = Some(kaspa_addr.clone());
+        
+        // Wait for kaspa credit
+        match rt.await_kaspa_credit(kaspa_addr.clone()).await {
+            Ok(()) => {
+                rt.stats.withdraw_credit_time = Some(SystemTime::now());
+            }
+            Err(e) => {
+                rt.stats.withdraw_credit_error = Some(e.to_string());
+            }
+        };
+    } else {
+        // Deposit failed, mark withdrawal as not attempted
+        error!("Skipping withdrawal for task {} due to deposit failure", task_id);
+    }
+    
+    tx.send(rt.stats).await.unwrap();
+}
+
 struct RoundTrip {
     res: TaskResources,
     value: u64,
@@ -164,6 +271,7 @@ impl RoundTrip {
             amt,
             &self.hub_key.signer(),
         );
+        info!("deposit payload: 0x{}", hex::encode(&payload));
         let tx_id = deposit_with_payload(&w.wallet, &s, a, amt, payload).await?;
         Ok((tx_id, SystemTime::now()))
     }

@@ -1,5 +1,5 @@
 use super::key_cosmos::EasyHubKey;
-use super::round_trip::do_round_trip;
+use super::round_trip::{do_deposit_phase, await_hub_credit_phase, do_withdrawal_phase, DepositData};
 use super::round_trip::TaskArgs;
 use super::round_trip::TaskResources;
 use super::stats::render_stats;
@@ -11,7 +11,6 @@ use corelib::api::client::HttpClient;
 use corelib::wallet::EasyKaspaWallet;
 use corelib::wallet::{EasyKaspaWalletArgs, Network};
 use eyre::Result;
-use hardcode;
 use hyperlane_cosmos_native::ConnectionConf as CosmosConnectionConf;
 use hyperlane_cosmos_native::CosmosNativeProvider;
 use rand_distr::{Distribution, Exp};
@@ -20,6 +19,8 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
+use tracing::error;
+use tracing::warn;
 
 use crate::x::args::{SimulateTrafficCli, WalletCli};
 use cosmos_sdk_proto::cosmos::bank::v1beta1::MsgSend;
@@ -186,7 +187,6 @@ impl TrafficSim {
 
     pub async fn run(&self) -> Result<()> {
         let mut rng = rand::rng();
-        let start_time = Instant::now();
         let mut total_ops = 0;
         let mut total_spend = 0;
 
@@ -200,34 +200,67 @@ impl TrafficSim {
             collected_stats
         });
 
-        info!("Starting tasks");
+        // Pre-generate and fund hub keys before starting the simulation timer
+        // Add small buffer (10%) to account for variance in exponential distribution timing
+        let base_estimated_ops = self.params.num_ops() as usize;
+        let estimated_ops = (base_estimated_ops as f64 * 1.1).ceil() as usize;
+        info!("Pre-funding {} hub addresses for {} base estimated operations (10% buffer for timing variance)", 
+              estimated_ops, base_estimated_ops);
+        
+        let mut pre_funded_keys = Vec::new();
+        
+        for i in 0..estimated_ops {
+            let hub_key = EasyHubKey::new();
+            let hub = self.resources.hub.clone();
+            let hub_fund_amount = self.params.hub_fund_amount;
+            let key_clone = hub_key.clone();
+            pre_funded_keys.push(hub_key);
+            
+            if let Err(e) = fund_hub_addr(&key_clone, &hub, hub_fund_amount).await {
+                error!("Failed to pre-fund hub address {}: {}", i, e);
+                return Err(e);
+            }
+        }
+        
+        info!("Pre-funding complete, starting simulation");
+        info!("Total pre-funded keys available: {}", pre_funded_keys.len());
+        
+        let mut key_iter = pre_funded_keys.into_iter();
+        
+        // Now start the actual simulation timer
+        let start_time = Instant::now();
+        info!("Starting deposit phase (parallel, no waiting for credit)");
         let cancel = CancellationToken::new();
+        
+        // Collect all task parameters first
+        let mut task_params = Vec::new();
+        
         while start_time.elapsed() < self.params.time_limit {
+            // Check if we still have pre-funded keys available
+            let hub_key = match key_iter.next() {
+                Some(key) => key,
+                None => {
+                    warn!("Reached pre-funded address limit ({} addresses). Stopping operation generation early at {} ops.", 
+                          estimated_ops, total_ops);
+                    break; // Stop generating new operations when we run out of pre-funded keys
+                }
+            };
+            
             let nominal_value = self.params.sample_value();
-            let tx_clone = stats_tx.clone();
             let r = self.resources.clone();
             let task_id = total_ops;
-            let hub_key = EasyHubKey::new();
-            fund_hub_addr(&hub_key, &r.hub, self.params.hub_fund_amount).await?;
-            let cancel_token_clone = cancel.clone();
-            tokio::spawn(async move {
-                do_round_trip(
-                    r,
-                    nominal_value,
-                    &tx_clone,
-                    task_id,
-                    hub_key,
-                    cancel_token_clone,
-                )
-                .await;
-                drop(tx_clone); // TODO: needed?
-            });
+            
+            let hub_address = hub_key.signer().address_string.clone();
+            info!("Task {} assigned hub address: {}", task_id, hub_address);
+            
+            task_params.push((r, nominal_value, task_id, hub_key));
+            
             total_spend += nominal_value;
             total_ops += 1;
             let sleep_millis = self.params.distr_time().sample(&mut rng) as u64;
             tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
             info!(
-                "elasped millis {}, interval {}, value {}",
+                "elapsed millis {}, interval {}, value {}",
                 start_time.elapsed().as_millis(),
                 sleep_millis,
                 som_to_kas(nominal_value)
@@ -236,10 +269,125 @@ impl TrafficSim {
                 break;
             }
         }
-        info!("Waiting for tasks to finish");
+        
+        // Phase 1: Execute deposits sequentially with delays (since they come from same wallet)
+        let task_params_len = task_params.len();
+        info!("Phase 1: Executing {} deposits sequentially with delays", task_params_len);
+        let mut credit_tasks = Vec::new();
+        for (i, (resources, value, task_id, hub_key)) in task_params.into_iter().enumerate() {
+            let cancel_token_clone = cancel.clone();
+            
+            // Retry logic for deposits
+            let mut retry_count = 0;
+            const MAX_RETRIES: u32 = 3;
+            let mut deposit_result = None;
+            
+            while retry_count < MAX_RETRIES {
+                match do_deposit_phase(resources.clone(), value, task_id, &hub_key, cancel_token_clone.clone()).await {
+                    Ok(deposit_data) => {
+                        info!("Deposit {} successful (attempt {}), tx_id: {:?}", task_id, retry_count + 1, deposit_data.kaspa_deposit_tx_id);
+                        deposit_result = Some(deposit_data);
+                        break;
+                    }
+                    Err(e) => {
+                        retry_count += 1;
+                        if retry_count < MAX_RETRIES {
+                            error!("Deposit failed for task {} (attempt {}): {:?}, retrying...", task_id, retry_count, e);
+                            // Wait longer before retry to let wallet state settle
+                            tokio::time::sleep(Duration::from_millis(3000)).await;
+                        } else {
+                            error!("Deposit failed for task {} after {} attempts: {:?}", task_id, MAX_RETRIES, e);
+                        }
+                    }
+                }
+            }
+            
+            if let Some(deposit_data) = deposit_result {
+                credit_tasks.push((resources, value, task_id, hub_key, Some(deposit_data)));
+            } else {
+                credit_tasks.push((resources, value, task_id, hub_key, None));
+            }
+            
+            // Add longer delay between deposits to let wallet UTXO set update
+            // Skip delay after last deposit
+            if i < task_params_len - 1 {
+                info!("Waiting 3 seconds before next deposit to let wallet state update...");
+                tokio::time::sleep(Duration::from_millis(3000)).await;
+            }
+        }
+        
+        // Phase 2: Wait for all hub credits sequentially to avoid RPC subscription limit
+        let credit_tasks_len = credit_tasks.len();
+        info!("Phase 2: Waiting for {} hub credits sequentially to avoid RPC limits", credit_tasks_len);
+        let mut withdrawal_tasks = Vec::new();
+        
+        // Process credits completely sequentially to avoid any RPC connection issues
+        for (i, (resources, value, task_id, hub_key, deposit_data)) in credit_tasks.into_iter().enumerate() {
+            if let Some(deposit_data) = deposit_data {
+                let cancel_token_clone = cancel.clone();
+                match await_hub_credit_phase(resources.clone(), value, task_id, &hub_key, deposit_data, cancel_token_clone).await {
+                    Ok(withdrawal_data) => {
+                        info!("Hub credit confirmed for task {} ({}/{})", task_id, i + 1, credit_tasks_len);
+                        withdrawal_tasks.push((resources, value, task_id, hub_key, Some(withdrawal_data)));
+                    }
+                    Err(e) => {
+                        error!("Hub credit wait failed for task {}: {:?}", task_id, e);
+                        withdrawal_tasks.push((resources, value, task_id, hub_key, None));
+                    }
+                }
+                
+                // Small delay between credit checks to be gentle on RPC
+                tokio::time::sleep(Duration::from_millis(200)).await;
+            } else {
+                // Deposit failed earlier, skip credit check
+                withdrawal_tasks.push((resources, value, task_id, hub_key, None));
+            }
+        }
+        
+        // Phase 3: Execute withdrawals with staggered startup (independent execution)
+        info!("Phase 3: Executing {} withdrawals with staggered startup", withdrawal_tasks.len());
+
+        // Start all withdrawals independently with a small stagger to avoid overwhelming RPC
+        let mut withdrawal_handles = Vec::new();
+
+        for (i, (resources, value, task_id, hub_key, withdrawal_data)) in withdrawal_tasks.into_iter().enumerate() {
+            let tx_clone = stats_tx.clone();
+            let cancel_token_clone = cancel.clone();
+
+            let handle = tokio::spawn(async move {
+                // Small staggered startup delay to avoid RPC burst
+                if i > 0 {
+                    let delay_ms = (i * 200) as u64; // 200ms stagger between each withdrawal start
+                    tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+                }
+
+                do_withdrawal_phase(
+                    resources,
+                    value,
+                    &tx_clone,
+                    task_id,
+                    hub_key,
+                    withdrawal_data,
+                    cancel_token_clone,
+                )
+                .await;
+                drop(tx_clone);
+            });
+            withdrawal_handles.push(handle);
+        }
+
+        // Wait for all withdrawals to complete independently
+        info!("All {} withdrawals started, waiting for completion...", withdrawal_handles.len());
+        for (i, handle) in withdrawal_handles.into_iter().enumerate() {
+            if let Err(e) = handle.await {
+                error!("Withdrawal task {} failed: {:?}", i, e);
+            }
+        }
+        
+        info!("All tasks completed");
 
         drop(stats_tx);
-        tokio::time::sleep(self.params.max_wait_for_cancel).await; // TODO: should only wait if need to
+        //tokio::time::sleep(self.params.max_wait_for_cancel).await; // TODO: should only wait if need to
         cancel.cancel();
 
         let final_stats = collector_handle.await?;
@@ -270,8 +418,8 @@ async fn fund_hub_addr(
 
     let rpc = hub.rpc();
 
-    //let from_address = rpc.get_signer()?.address_string.clone();
-    let from_address = "dym1f79cr4r2v34arp9kfafw8ala8qhkpmdtx2zghc".to_string(); // hardcode whale
+    let from_address = rpc.get_signer()?.address_string.clone();
+    //let from_address = "dym1f79cr4r2v34arp9kfafw8ala8qhkpmdtx2zghc".to_string(); // hardcode whale
     info!("funding hub address: {} from {}", hub_addr,from_address);
     let msg = MsgSend {
         from_address: from_address,

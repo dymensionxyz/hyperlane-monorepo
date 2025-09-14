@@ -25,6 +25,7 @@ use kaspa_core::info;
 use kaspa_grpc_client::GrpcClient;
 use kaspa_wallet_core::api::{AccountsSendRequest, WalletApi};
 use kaspa_wallet_core::error::Error as KaspaError;
+use kaspa_wallet_core::storage::keydata::info;
 use kaspa_wallet_core::tx::Fees;
 use std::error::Error;
 use std::sync::Arc;
@@ -71,7 +72,7 @@ pub async fn deposit_with_payload(
             None,
         )
         .await?;
-
+    info!("Deposit transaction sent: {:?}", summary);
     summary.final_transaction_id().ok_or_else(|| {
         KaspaError::Custom("Deposit transaction failed to generate a transaction ID".to_string())
     })
