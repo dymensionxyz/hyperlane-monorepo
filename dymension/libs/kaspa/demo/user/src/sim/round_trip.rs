@@ -289,7 +289,6 @@ impl RoundTrip {
                 .rpc()
                 .get_balance_denom(a.clone(), "adym".to_string())
                 .await?;
-            info!("hub balance: {}", balance);
             if balance == U256::from(0) {
                 if self.cancel.is_cancelled() {
                     return Err(RoundTripError::Cancelled.into());
@@ -306,7 +305,6 @@ impl RoundTrip {
                 .rpc()
                 .get_balance_denom(a.clone(), self.res.args.hub_denom())
                 .await?;
-            info!("hub token balance: {}", balance);
             if balance == U256::from(0) {
                 if self.cancel.is_cancelled() {
                     return Err(RoundTripError::Cancelled.into());
