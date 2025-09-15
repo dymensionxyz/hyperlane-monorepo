@@ -1,6 +1,6 @@
 use super::hub_to_kaspa::{
     build_withdrawal_pskt, extract_current_anchor, fetch_input_utxos, get_normal_bucket_feerate,
-    get_outputs_from_msgs,
+    get_outputs_from_msgs_with_mass_limit,
 };
 use crate::withdraw::sweep::{create_inputs_from_sweeping_bundle, create_sweeping_bundle};
 use corelib::consts::RELAYER_SIG_OP_COUNT;
@@ -57,9 +57,26 @@ pub async fn build_withdrawal_fxg(
     min_deposit_sompi: U256,
     tx_fee_multiplier: f64,
 ) -> Result<Option<WithdrawFXG>> {
-    // Filter out dust messages and create Kaspa outputs for the rest
-    let (valid_msgs, outputs) =
-        get_outputs_from_msgs(pending_msgs, relayer.net.address_prefix, min_deposit_sompi);
+    // Get sample inputs for mass estimation
+    let escrow_inputs = fetch_input_utxos(
+        &relayer.api(),
+        &escrow_public.addr,
+        Some(escrow_public.redeem_script.clone()),
+        escrow_public.n() as u8,
+        relayer.net.network_id,
+    )
+    .await
+    .map_err(|e| eyre::eyre!("Fetch sample escrow UTXOs for mass estimation: {}", e))?;
+
+    // Filter out dust messages and create Kaspa outputs with mass limit
+    let (valid_msgs, outputs) = get_outputs_from_msgs_with_mass_limit(
+        pending_msgs,
+        relayer.net.address_prefix,
+        min_deposit_sompi,
+        escrow_inputs.clone(),
+        relayer.net.network_id,
+        escrow_public.m() as u16,
+    );
 
     let feerate = get_normal_bucket_feerate(&relayer.api())
         .await
@@ -73,17 +90,6 @@ pub async fn build_withdrawal_fxg(
         "Kaspa relayer, got pending withdrawals, building PSKT, withdrawal num: {}",
         outputs.len()
     );
-
-    // Get all the UTXOs for the escrow and the relayer
-    let escrow_inputs = fetch_input_utxos(
-        &relayer.api(),
-        &escrow_public.addr,
-        Some(escrow_public.redeem_script.clone()),
-        escrow_public.n() as u8,
-        relayer.net.network_id,
-    )
-    .await
-    .map_err(|e| eyre::eyre!("Fetch escrow UTXOs: {}", e))?;
 
     let relayer_address = relayer.account().change_address()?;
     let relayer_inputs = fetch_input_utxos(
@@ -107,20 +113,12 @@ pub async fn build_withdrawal_fxg(
                 .map_err(|e| eyre::eyre!("Extract current anchor: {}", e))?;
 
         let to_sweep_num = escrow_inputs_to_sweep.len();
-        
-        // Calculate total withdrawal amount needed
-        let total_withdrawal_amount: u64 = outputs.iter().map(|o| o.value).sum();
-        
-        // Get anchor amount (not swept but available for withdrawals)
-        let anchor_amount = anchor_input.1.amount; // anchor_input is (TransactionInput, UtxoEntry, Option<Vec<u8>>)
 
         let sweeping_bundle = create_sweeping_bundle(
             &relayer,
             &escrow_public,
             escrow_inputs_to_sweep,
             relayer_inputs,
-            total_withdrawal_amount,
-            anchor_amount,
         )
         .await
         .map_err(|e| eyre::eyre!("Create sweeping bundle: {}", e))?;
@@ -160,7 +158,7 @@ pub async fn build_withdrawal_fxg(
         &relayer_address,
         relayer.net.network_id,
         min_deposit_sompi,
-        feerate*tx_fee_multiplier,
+        feerate * tx_fee_multiplier,
     )
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
 
@@ -249,12 +247,12 @@ mod tests {
             ],
         ];
 
-        for (_i, bytes) in bytes_a.iter().enumerate() {
+        for (i, bytes) in bytes_a.iter().enumerate() {
             // Create a Cursor around the byte array for the reader
             let mut reader = Cursor::new(bytes);
 
             // Decode the byte array into a TokenMessage
-            let _token_message =
+            let token_message =
                 TokenMessage::read_from(&mut reader).expect("Failed to decode TokenMessage");
         }
     }

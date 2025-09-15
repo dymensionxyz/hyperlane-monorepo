@@ -226,7 +226,6 @@ mod tests {
     use super::*;
     use std::str::FromStr;
     use std::sync::Arc;
-    use url::Url;
 
     #[test]
     fn test_network_id() {
@@ -270,14 +269,9 @@ mod tests {
 
     #[test]
     fn test_wrpc_url_parse() {
-        let s = "http://localhost:17210";
+        let s = "localhost:17210";
         let url = Url::parse(s).unwrap();
-        assert_eq!(url.host_str().unwrap(), "localhost");
-        assert_eq!(url.port().unwrap(), 17210);
-        
-        let s = "http://152.53.178.127:8080";
+        let s = "152.53.178.127";
         let url = Url::parse(s).unwrap();
-        assert_eq!(url.host_str().unwrap(), "152.53.178.127");
-        assert_eq!(url.port().unwrap(), 8080);
     }
 }

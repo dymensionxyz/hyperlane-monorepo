@@ -283,14 +283,18 @@ fn create_withdrawal_pskt(
 }
 
 /// Return outputs generated based on the provided messages. Filter out messages
-/// with dust amount.
-pub fn get_outputs_from_msgs(
+/// with dust amount. It limits outputs based on transaction mass estimation
+pub fn get_outputs_from_msgs_with_mass_limit(
     messages: Vec<HyperlaneMessage>,
     prefix: Prefix,
     min_deposit_sompi: U256,
+    inputs: Vec<PopulatedInput>,
+    network_id: NetworkId,
+    min_signatures: u16,
 ) -> (Vec<HyperlaneMessage>, Vec<TransactionOutput>) {
     let mut hl_msgs: Vec<HyperlaneMessage> = Vec::new();
     let mut outputs: Vec<TransactionOutput> = Vec::new();
+
     for m in messages {
         let tm = match parse_hyperlane_metadata(&m) {
             Ok(tm) => tm,
@@ -304,7 +308,6 @@ pub fn get_outputs_from_msgs(
         };
 
         let recipient = get_recipient_script_pubkey(tm.recipient(), prefix);
-
         let o = TransactionOutput::new(tm.amount().as_u64(), recipient);
 
         if is_dust(&o, min_deposit_sompi) {
@@ -312,9 +315,55 @@ pub fn get_outputs_from_msgs(
             continue;
         }
 
+        // Check if adding this output would exceed mass limit
+        let mut test_outputs = outputs.clone();
+        test_outputs.push(o.clone());
+
+        // Create test messages list with the current message added
+        let mut test_msgs = hl_msgs.clone();
+        test_msgs.push(m.clone());
+
+        // Calculate actual payload size from current messages
+        let payload = Vec::<u8>::from(&MessageIDs::from(&test_msgs));
+
+        match estimate_mass(
+            inputs.clone(),
+            test_outputs,
+            payload,
+            network_id,
+            min_signatures,
+        ) {
+            Ok(estimated_mass) => {
+                if estimated_mass > MAXIMUM_STANDARD_TRANSACTION_MASS {
+                    info!(
+                        "Kaspa relayer, stopping at {} outputs due to mass limit. Estimated mass: {}, limit: {}, messages: {}",
+                        outputs.len(),
+                        estimated_mass,
+                        MAXIMUM_STANDARD_TRANSACTION_MASS,
+                        test_msgs.len()
+                    );
+                    break;
+                }
+            }
+            Err(e) => {
+                info!(
+                    "Kaspa relayer, failed to estimate mass, continuing without limit: {}",
+                    e
+                );
+            }
+        }
+        // If we are here, it means the output is valid and does not exceed mass limit
+
         outputs.push(o);
         hl_msgs.push(m);
     }
+
+    info!(
+        "Kaspa relayer, selected {} outputs from {} messages",
+        outputs.len(),
+        hl_msgs.len()
+    );
+
     (hl_msgs, outputs)
 }
 
@@ -362,7 +411,7 @@ pub(crate) fn extract_current_anchor(
     Ok((anchor_input, escrow_inputs))
 }
 
-pub fn estimate_mass(
+fn estimate_mass(
     populated_inputs: Vec<PopulatedInput>,
     outputs: Vec<TransactionOutput>,
     payload: Vec<u8>,
@@ -732,7 +781,7 @@ mod tests {
 
         for input_count in MIN_INPUTS..=MAX_INPUTS {
             let inputs: Vec<PopulatedInput> = (0..input_count)
-                .map(|_i| {
+                .map(|i| {
                     (
                         TransactionInput {
                             previous_outpoint: TransactionOutpoint {
@@ -749,7 +798,6 @@ mod tests {
                             block_daa_score: 0,
                             is_coinbase: false,
                         },
-                        None, // No redeem script for this test input
                     )
                 })
                 .collect();
@@ -763,9 +811,9 @@ mod tests {
                     })
                     .collect();
 
-                let _inputs_num = inputs.len();
-                let _outputs_num = outputs.len();
-                let _payload_len = payload.len();
+                let inputs_num = inputs.len();
+                let outputs_num = outputs.len();
+                let payload_len = payload.len();
 
                 // Call the function under test
                 let v = estimate_mass(

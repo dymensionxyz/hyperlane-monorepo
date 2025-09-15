@@ -22,7 +22,6 @@ use prost::Message;
 /// PSKT inside the bundle and its HL messages should live on respective indices, i.e.,
 /// Bundle[0] = PSKT1, messages[0] = {M1, M2} <=> PSKT1 covers M1 and M2.
 ///
-/// ```text
 ///      Bundle
 ///        /\
 ///       /  \
@@ -32,12 +31,10 @@ use prost::Message;
 ///   /  \     /  \
 ///  /    \   /    \
 /// M1    M2 M3    M4
-/// ```
 ///
 /// Also, PSKT inside the bundle and output anchor should live on respective indices.
 /// Anchor(N) is an input for PSKT(N+1)
 ///
-/// ```text
 ///      Bundle
 ///        /\
 ///       /  \
@@ -47,7 +44,6 @@ use prost::Message;
 ///    |        |
 ///    |        |
 /// Anchor1  Anchor2
-/// ```
 #[derive(Debug)]
 pub struct WithdrawFXG {
     pub bundle: Bundle,
