@@ -165,9 +165,15 @@ pub struct TrafficSim {
 
 impl TrafficSim {
     pub async fn new(args: SimulateTrafficArgs) -> Result<Self> {
+        let wrpc_url = if args.wallet.rpc_url.is_empty() {
+            DEFAULT_WRPC_URL.to_string()
+        } else {
+            args.wallet.rpc_url.to_string()
+        };
+
         let w = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
             wallet_secret: args.wallet.wallet_secret,
-            wrpc_url: args.wallet.rpc_url.to_string(),
+            wrpc_url,
             net: Network::KaspaTest10,
             storage_folder: None,
         })
