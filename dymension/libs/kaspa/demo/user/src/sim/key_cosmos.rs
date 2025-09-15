@@ -16,7 +16,6 @@ impl EasyHubKey {
     pub fn signer(&self) -> Signer {
         let priv_k = self.private.to_bytes().to_vec();
         Signer::new(priv_k, "dym".to_string(), &AccountAddressType::Bitcoin).unwrap()
-        //Signer::new(priv_k, "dym".to_string(), &AccountAddressType::Ethereum).unwrap()
     }
     pub fn from_hex(hex: &str) -> Self {
         let priv_k = hex::decode(hex).unwrap();
