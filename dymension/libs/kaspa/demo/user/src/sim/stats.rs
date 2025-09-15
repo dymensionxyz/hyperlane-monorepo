@@ -2,12 +2,28 @@ use crate::sim::util::som_to_kas;
 use eyre::Error;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionId;
-use serde::Serialize;
+use serde::{Serialize, Serializer};
 use std::fs::File;
 use std::time::Duration;
-use std::time::{Instant, SystemTime};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tendermint::hash::Hash as TendermintHash;
 use tracing::info;
+
+// Custom serializer for SystemTime to milliseconds since epoch
+fn serialize_systemtime_as_millis<S>(time: &Option<SystemTime>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match time {
+        Some(t) => {
+            let millis = t.duration_since(UNIX_EPOCH)
+                .map_err(serde::ser::Error::custom)?
+                .as_millis() as u64;
+            serializer.serialize_u64(millis)
+        }
+        None => serializer.serialize_none(),
+    }
+}
 
 pub fn render_stats(stats: Vec<RoundTripStats>, total_spend: u64, total_ops: u64) {
     info!("Total spend: {}", som_to_kas(total_spend));
@@ -34,11 +50,15 @@ pub struct RoundTripStats {
     pub op_id: u64,
     pub value: u64,
     pub kaspa_deposit_tx_id: Option<TransactionId>,
+    #[serde(serialize_with = "serialize_systemtime_as_millis")]
     pub kaspa_deposit_tx_time: Option<SystemTime>,
+    #[serde(serialize_with = "serialize_systemtime_as_millis")]
     pub deposit_credit_time: Option<SystemTime>,
     pub deposit_credit_error: Option<String>,
     pub hub_withdraw_tx_id: Option<TendermintHash>,
+    #[serde(serialize_with = "serialize_systemtime_as_millis")]
     pub hub_withdraw_tx_time: Option<SystemTime>,
+    #[serde(serialize_with = "serialize_systemtime_as_millis")]
     pub withdraw_credit_time: Option<SystemTime>,
     pub withdraw_credit_error: Option<String>,
     pub deposit_addr_hub: Option<String>,
@@ -62,13 +82,15 @@ impl RoundTripStats {
         d
     }
     pub fn deposit_time(&self) -> Duration {
-        self.kaspa_deposit_tx_time
+        // Time from deposit submission to hub credit
+        self.deposit_credit_time
             .unwrap()
             .duration_since(self.kaspa_deposit_tx_time.unwrap())
             .unwrap()
     }
     pub fn withdraw_time(&self) -> Duration {
-        self.hub_withdraw_tx_time
+        // Time from withdrawal submission to kaspa credit
+        self.withdraw_credit_time
             .unwrap()
             .duration_since(self.hub_withdraw_tx_time.unwrap())
             .unwrap()

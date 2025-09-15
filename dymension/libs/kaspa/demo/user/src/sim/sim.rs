@@ -387,7 +387,6 @@ impl TrafficSim {
         info!("All tasks completed");
 
         drop(stats_tx);
-        //tokio::time::sleep(self.params.max_wait_for_cancel).await; // TODO: should only wait if need to
         cancel.cancel();
 
         let final_stats = collector_handle.await?;
@@ -419,7 +418,6 @@ async fn fund_hub_addr(
     let rpc = hub.rpc();
 
     let from_address = rpc.get_signer()?.address_string.clone();
-    //let from_address = "dym1f79cr4r2v34arp9kfafw8ala8qhkpmdtx2zghc".to_string(); // hardcode whale
     info!("funding hub address: {} from {}", hub_addr,from_address);
     let msg = MsgSend {
         from_address: from_address,
@@ -454,16 +452,7 @@ async fn fund_hub_addr(
                 ));
             }
             info!("Funded hub address: {}", hub_addr);
-            Ok(())
-            /*if response.tx_result.code.is_ok() {
-                info!("Funded hub address: {}", hub_addr);
-                Ok(())
-            } else {
-                Err(eyre::eyre!(
-                    "Failed to fund hub address, non success code: {:?}",
-                    response.tx_result.code
-                ))
-            }*/
+            Ok(())  
         }
         Err(e) => Err(eyre::eyre!("Failed to fund hub address: {:?}", e)),
     }
