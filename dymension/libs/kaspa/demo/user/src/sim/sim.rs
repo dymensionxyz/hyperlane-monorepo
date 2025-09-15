@@ -293,8 +293,8 @@ impl TrafficSim {
                         retry_count += 1;
                         if retry_count < MAX_RETRIES {
                             error!("Deposit failed for task {} (attempt {}): {:?}, retrying...", task_id, retry_count, e);
-                            // Wait longer before retry to let wallet state settle
-                            tokio::time::sleep(Duration::from_millis(3000)).await;
+                            // Wait before retry to let wallet state settle
+                            tokio::time::sleep(Duration::from_millis(1500)).await;
                         } else {
                             error!("Deposit failed for task {} after {} attempts: {:?}", task_id, MAX_RETRIES, e);
                         }
@@ -308,11 +308,11 @@ impl TrafficSim {
                 credit_tasks.push((resources, value, task_id, hub_key, None));
             }
             
-            // Add longer delay between deposits to let wallet UTXO set update
+            // Add delay between deposits to let wallet UTXO set update
             // Skip delay after last deposit
             if i < task_params_len - 1 {
-                info!("Waiting 3 seconds before next deposit to let wallet state update...");
-                tokio::time::sleep(Duration::from_millis(3000)).await;
+                info!("Waiting 1.5 seconds before next deposit to let wallet state update...");
+                tokio::time::sleep(Duration::from_millis(1500)).await;
             }
         }
         
