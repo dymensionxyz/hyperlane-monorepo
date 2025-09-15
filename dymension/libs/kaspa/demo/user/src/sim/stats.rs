@@ -29,13 +29,50 @@ pub fn render_stats(stats: Vec<RoundTripStats>, total_spend: u64, total_ops: u64
     info!("Total spend: {}", som_to_kas(total_spend));
     info!("Total ops: {}", total_ops);
     for s in stats {
-        info!("{:#?}", s);
+        info!("=== Round Trip Stats ===");
+        info!("op_id: {}, value: {}", s.op_id, som_to_kas(s.value));
         info!("stage: {:?}", s.stage());
+
+        // Show timestamps in milliseconds
+        if let Some(time) = s.kaspa_deposit_tx_time {
+            let millis = time.duration_since(UNIX_EPOCH).unwrap().as_millis();
+            info!("kaspa_deposit_tx_time: {}ms", millis);
+        }
+        if let Some(time) = s.deposit_credit_time {
+            let millis = time.duration_since(UNIX_EPOCH).unwrap().as_millis();
+            info!("deposit_credit_time: {}ms", millis);
+        }
+        if let Some(time) = s.hub_withdraw_tx_time {
+            let millis = time.duration_since(UNIX_EPOCH).unwrap().as_millis();
+            info!("hub_withdraw_tx_time: {}ms", millis);
+        }
+        if let Some(time) = s.withdraw_credit_time {
+            let millis = time.duration_since(UNIX_EPOCH).unwrap().as_millis();
+            info!("withdraw_credit_time: {}ms", millis);
+        }
+
+        // Show durations
         if s.deposit_credit_time.is_some() {
-            info!("deposit credit time: {:?}", s.deposit_time());
+            info!("deposit duration: {}ms", s.deposit_time().as_millis());
         }
         if s.withdraw_credit_time.is_some() {
-            info!("withdraw credit time: {:?}", s.withdraw_time());
+            info!("withdraw duration: {}ms", s.withdraw_time().as_millis());
+        }
+
+        // Show addresses
+        if let Some(ref addr) = s.deposit_addr_hub {
+            info!("deposit_addr_hub: {}", addr);
+        }
+        if let Some(ref addr) = s.withdraw_addr_kaspa {
+            info!("withdraw_addr_kaspa: {}", addr);
+        }
+
+        // Show errors if any
+        if let Some(ref error) = s.deposit_credit_error {
+            info!("deposit_credit_error: {}", error);
+        }
+        if let Some(ref error) = s.withdraw_credit_error {
+            info!("withdraw_credit_error: {}", error);
         }
     }
 }
