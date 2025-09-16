@@ -167,7 +167,17 @@ pub async fn await_hub_credit_phase(
     rt.await_hub_credit().await?;
     let deposit_credit_time = SystemTime::now();
     rt.stats.deposit_credit_time = Some(deposit_credit_time);
-    
+
+    // Calculate and log deposit time
+    let deposit_duration = deposit_credit_time
+        .duration_since(deposit_data.kaspa_deposit_tx_time)
+        .unwrap();
+    info!(
+        "Task {} deposit credited! Deposit time: {}ms (from Kaspa tx to hub credit)",
+        task_id,
+        deposit_duration.as_millis()
+    );
+
     Ok(WithdrawalData {
         kaspa_deposit_tx_id: deposit_data.kaspa_deposit_tx_id,
         kaspa_deposit_tx_time: deposit_data.kaspa_deposit_tx_time,
