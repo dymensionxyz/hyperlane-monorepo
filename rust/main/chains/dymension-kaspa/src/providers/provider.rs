@@ -7,6 +7,7 @@ use crate::RelayerStuff;
 use crate::ValidatorStuff;
 use dym_kas_core::confirmation::ConfirmationFXG;
 use dym_kas_core::escrow::EscrowPublic;
+use dym_kas_core::message::{calculate_total_withdrawal_amount, create_withdrawal_batch_id};
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs};
 use dym_kas_relayer::withdraw::hub_to_kaspa::combine_bundles_with_fee;
 use dym_kas_relayer::withdraw::messages::on_new_withdrawals;
@@ -57,42 +58,6 @@ pub struct KaspaProvider {
 }
 
 impl KaspaProvider {
-    /// Parse withdrawal amount from HyperlaneMessage
-    fn parse_withdrawal_amount(msg: &HyperlaneMessage) -> Option<u64> {
-        match dym_kas_core::message::parse_hyperlane_metadata(msg) {
-            Ok(token_message) => {
-                let amount_u256 = token_message.amount();
-                // Convert U256 to u64, handling overflow
-                if amount_u256 > U256::from(u64::MAX) {
-                    tracing::warn!("Withdrawal amount exceeds u64::MAX, using u64::MAX");
-                    Some(u64::MAX)
-                } else {
-                    Some(amount_u256.as_u64())
-                }
-            }
-            Err(e) => {
-                tracing::error!(
-                    "Failed to parse token message for withdrawal amount: {:?}",
-                    e
-                );
-                None
-            }
-        }
-    }
-
-    /// Create withdrawal batch ID from messages
-    fn create_withdrawal_batch_id(msgs: &[HyperlaneMessage]) -> String {
-        msgs.iter()
-            .next()
-            .map(|msg| format!("{:?}", msg.id()))
-            .unwrap_or_else(|| "unknown".to_string())
-    }
-
-    /// Calculate total withdrawal amount from messages
-    fn calculate_total_withdrawal_amount(msgs: &[HyperlaneMessage]) -> u64 {
-        msgs.iter().filter_map(Self::parse_withdrawal_amount).sum()
-    }
-
     /// dococo
     pub async fn new(
         conf: &ConnectionConf,
@@ -236,8 +201,8 @@ impl KaspaProvider {
 
                 // Create withdrawal batch ID and calculate total amount
                 let all_msgs: Vec<_> = fxg.messages.iter().flatten().cloned().collect();
-                let withdrawal_batch_id = Self::create_withdrawal_batch_id(&all_msgs);
-                let total_amount = Self::calculate_total_withdrawal_amount(&all_msgs);
+                let withdrawal_batch_id = create_withdrawal_batch_id(&all_msgs);
+                let total_amount = calculate_total_withdrawal_amount(&all_msgs);
 
                 let bundles_validators = match self.validators().get_withdraw_sigs(&fxg).await {
                     Ok(bundles) => bundles,
@@ -310,8 +275,8 @@ impl KaspaProvider {
             }
             Err(e) => {
                 // Create withdrawal batch ID and calculate failed amount
-                let withdrawal_batch_id = Self::create_withdrawal_batch_id(&msgs);
-                let failed_amount = Self::calculate_total_withdrawal_amount(&msgs);
+                let withdrawal_batch_id = create_withdrawal_batch_id(&msgs);
+                let failed_amount = calculate_total_withdrawal_amount(&msgs);
                 self.metrics
                     .record_withdrawal_failed(&withdrawal_batch_id, failed_amount);
                 Err(e)
