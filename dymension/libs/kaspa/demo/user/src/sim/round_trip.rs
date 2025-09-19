@@ -137,12 +137,12 @@ pub async fn do_deposit_phase(
 ) -> Result<DepositData> {
     let mut rt = RoundTrip::new(res, value, task_id, hub_key.clone(), cancel_token);
     rt.stats.deposit_addr_hub = Some(hub_key.signer().address_string.clone());
-    
+
     // Execute deposit only (don't wait for credit)
     let (tx_id, deposit_time) = rt.deposit().await?;
     rt.stats.kaspa_deposit_tx_id = Some(tx_id);
     rt.stats.kaspa_deposit_tx_time = Some(deposit_time);
-    
+
     Ok(DepositData {
         kaspa_deposit_tx_id: tx_id,
         kaspa_deposit_tx_time: deposit_time,
@@ -162,7 +162,7 @@ pub async fn await_hub_credit_phase(
     rt.stats.deposit_addr_hub = Some(hub_key.signer().address_string.clone());
     rt.stats.kaspa_deposit_tx_id = Some(deposit_data.kaspa_deposit_tx_id);
     rt.stats.kaspa_deposit_tx_time = Some(deposit_data.kaspa_deposit_tx_time);
-    
+
     // Wait for hub credit
     rt.await_hub_credit().await?;
     let deposit_credit_time = SystemTime::now();
@@ -197,13 +197,13 @@ pub async fn do_withdrawal_phase(
 ) {
     let mut rt = RoundTrip::new(res, value, task_id, hub_key.clone(), cancel_token);
     rt.stats.deposit_addr_hub = Some(hub_key.signer().address_string.clone());
-    
+
     // Fill in deposit data from previous phase if available
     if let Some(data) = withdrawal_data {
         rt.stats.kaspa_deposit_tx_id = Some(data.kaspa_deposit_tx_id);
         rt.stats.kaspa_deposit_tx_time = Some(data.kaspa_deposit_tx_time);
         rt.stats.deposit_credit_time = Some(data.deposit_credit_time);
-        
+
         // Execute withdrawal
         let withdraw_res = rt.withdraw().await;
         if !withdraw_res.is_ok() {
@@ -216,7 +216,7 @@ pub async fn do_withdrawal_phase(
         rt.stats.hub_withdraw_tx_id = Some(tx_id);
         rt.stats.hub_withdraw_tx_time = Some(withdrawal_time);
         rt.stats.withdraw_addr_kaspa = Some(kaspa_addr.clone());
-        
+
         // Wait for kaspa credit
         match rt.await_kaspa_credit(kaspa_addr.clone()).await {
             Ok(()) => {
@@ -228,9 +228,12 @@ pub async fn do_withdrawal_phase(
         };
     } else {
         // Deposit failed, mark withdrawal as not attempted
-        error!("Skipping withdrawal for task {} due to deposit failure", task_id);
+        error!(
+            "Skipping withdrawal for task {} due to deposit failure",
+            task_id
+        );
     }
-    
+
     tx.send(rt.stats).await.unwrap();
 }
 

@@ -10,13 +10,17 @@ use tendermint::hash::Hash as TendermintHash;
 use tracing::info;
 
 // Custom serializer for SystemTime to milliseconds since epoch
-fn serialize_systemtime_as_millis<S>(time: &Option<SystemTime>, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_systemtime_as_millis<S>(
+    time: &Option<SystemTime>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
     match time {
         Some(t) => {
-            let millis = t.duration_since(UNIX_EPOCH)
+            let millis = t
+                .duration_since(UNIX_EPOCH)
                 .map_err(serde::ser::Error::custom)?
                 .as_millis() as u64;
             serializer.serialize_u64(millis)

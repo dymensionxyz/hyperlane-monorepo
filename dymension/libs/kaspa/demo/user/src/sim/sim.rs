@@ -1,7 +1,9 @@
 use super::key_cosmos::EasyHubKey;
-use super::round_trip::{do_deposit_phase, await_hub_credit_phase, do_withdrawal_phase, DepositData, WithdrawalData};
 use super::round_trip::TaskArgs;
 use super::round_trip::TaskResources;
+use super::round_trip::{
+    await_hub_credit_phase, do_deposit_phase, do_withdrawal_phase, DepositData, WithdrawalData,
+};
 use super::stats::render_stats;
 use super::stats::write_stats;
 use super::util::som_to_kas;
@@ -213,32 +215,32 @@ impl TrafficSim {
         let estimated_ops = (base_estimated_ops as f64 * 1.1).ceil() as usize;
         info!("Pre-funding {} hub addresses for {} base estimated operations (10% buffer for timing variance)", 
               estimated_ops, base_estimated_ops);
-        
+
         let mut pre_funded_keys = Vec::new();
-        
+
         for i in 0..estimated_ops {
             let hub_key = EasyHubKey::new();
             let hub = self.resources.hub.clone();
             let hub_fund_amount = self.params.hub_fund_amount;
             let key_clone = hub_key.clone();
             pre_funded_keys.push(hub_key);
-            
+
             if let Err(e) = fund_hub_addr(&key_clone, &hub, hub_fund_amount).await {
                 error!("Failed to pre-fund hub address {}: {}", i, e);
                 return Err(e);
             }
         }
-        
+
         info!("Pre-funding complete, starting simulation");
         info!("Total pre-funded keys available: {}", pre_funded_keys.len());
-        
+
         let mut key_iter = pre_funded_keys.into_iter();
-        
+
         // Now start the actual simulation timer
         let start_time = Instant::now();
         info!("Starting deposit phase (parallel, no waiting for credit)");
         let cancel = CancellationToken::new();
-        
+
         // Collect all task parameters first (as fast as possible)
         let mut task_params = Vec::new();
 
@@ -272,15 +274,21 @@ impl TrafficSim {
                 break;
             }
         }
-        
+
         // Phase 1: Execute deposits sequentially with delays (since they come from same wallet)
         let task_params_len = task_params.len();
-        info!("Phase 1: Executing {} deposits sequentially with delays", task_params_len);
+        info!(
+            "Phase 1: Executing {} deposits sequentially with delays",
+            task_params_len
+        );
         let mut credit_tasks = Vec::new();
-        for (i, (resources, value, task_id, hub_key, sleep_millis)) in task_params.into_iter().enumerate() {
+        for (i, (resources, value, task_id, hub_key, sleep_millis)) in
+            task_params.into_iter().enumerate()
+        {
             // Apply the timing delay that was sampled during task creation
             // Enforce a minimum delay of 1500ms to allow wallet UTXO set to update
-            if i > 0 {  // No delay before first deposit
+            if i > 0 {
+                // No delay before first deposit
                 const MIN_DEPOSIT_INTERVAL_MS: u64 = 1500;
                 let actual_sleep_millis = sleep_millis.max(MIN_DEPOSIT_INTERVAL_MS);
 
@@ -300,27 +308,46 @@ impl TrafficSim {
             let mut retry_count = 0;
             const MAX_RETRIES: u32 = 3;
             let mut deposit_result = None;
-            
+
             while retry_count < MAX_RETRIES {
-                match do_deposit_phase(resources.clone(), value, task_id, &hub_key, cancel_token_clone.clone()).await {
+                match do_deposit_phase(
+                    resources.clone(),
+                    value,
+                    task_id,
+                    &hub_key,
+                    cancel_token_clone.clone(),
+                )
+                .await
+                {
                     Ok(deposit_data) => {
-                        info!("Deposit {} successful (attempt {}), tx_id: {:?}", task_id, retry_count + 1, deposit_data.kaspa_deposit_tx_id);
+                        info!(
+                            "Deposit {} successful (attempt {}), tx_id: {:?}",
+                            task_id,
+                            retry_count + 1,
+                            deposit_data.kaspa_deposit_tx_id
+                        );
                         deposit_result = Some(deposit_data);
                         break;
                     }
                     Err(e) => {
                         retry_count += 1;
                         if retry_count < MAX_RETRIES {
-                            error!("Deposit failed for task {} (attempt {}): {:?}, retrying...", task_id, retry_count, e);
+                            error!(
+                                "Deposit failed for task {} (attempt {}): {:?}, retrying...",
+                                task_id, retry_count, e
+                            );
                             // Wait before retry to let wallet state settle
                             tokio::time::sleep(Duration::from_millis(1500)).await;
                         } else {
-                            error!("Deposit failed for task {} after {} attempts: {:?}", task_id, MAX_RETRIES, e);
+                            error!(
+                                "Deposit failed for task {} after {} attempts: {:?}",
+                                task_id, MAX_RETRIES, e
+                            );
                         }
                     }
                 }
             }
-            
+
             if let Some(deposit_data) = deposit_result {
                 // Start hub credit waiting immediately after successful deposit
                 let credit_resources = resources.clone();
@@ -328,7 +355,16 @@ impl TrafficSim {
                 let credit_cancel_token = cancel_token_clone.clone();
 
                 let credit_task = tokio::spawn(async move {
-                    match await_hub_credit_phase(credit_resources, value, task_id, &credit_hub_key, deposit_data, credit_cancel_token).await {
+                    match await_hub_credit_phase(
+                        credit_resources,
+                        value,
+                        task_id,
+                        &credit_hub_key,
+                        deposit_data,
+                        credit_cancel_token,
+                    )
+                    .await
+                    {
                         Ok(withdrawal_data) => {
                             info!("Hub credit confirmed for task {}", task_id);
                             (task_id, Some(withdrawal_data))
@@ -345,20 +381,36 @@ impl TrafficSim {
                 credit_tasks.push((resources, value, task_id, hub_key, None));
             }
         }
-        
+
         // Phase 2: Collect results from parallel hub credit tasks
         let credit_tasks_len = credit_tasks.len();
-        info!("Phase 2: Collecting results from {} parallel hub credit tasks", credit_tasks_len);
+        info!(
+            "Phase 2: Collecting results from {} parallel hub credit tasks",
+            credit_tasks_len
+        );
         let mut withdrawal_tasks = Vec::new();
 
         // Collect results from spawned hub credit tasks
-        for (i, (resources, value, task_id, hub_key, credit_task_opt)) in credit_tasks.into_iter().enumerate() {
+        for (i, (resources, value, task_id, hub_key, credit_task_opt)) in
+            credit_tasks.into_iter().enumerate()
+        {
             if let Some(credit_task) = credit_task_opt {
                 match credit_task.await {
                     Ok((returned_task_id, withdrawal_data_opt)) => {
                         if let Some(withdrawal_data) = withdrawal_data_opt {
-                            info!("Hub credit confirmed for task {} ({}/{})", returned_task_id, i + 1, credit_tasks_len);
-                            withdrawal_tasks.push((resources, value, task_id, hub_key, Some(withdrawal_data)));
+                            info!(
+                                "Hub credit confirmed for task {} ({}/{})",
+                                returned_task_id,
+                                i + 1,
+                                credit_tasks_len
+                            );
+                            withdrawal_tasks.push((
+                                resources,
+                                value,
+                                task_id,
+                                hub_key,
+                                Some(withdrawal_data),
+                            ));
                         } else {
                             error!("Hub credit failed for task {}", returned_task_id);
                             withdrawal_tasks.push((resources, value, task_id, hub_key, None));
@@ -374,14 +426,19 @@ impl TrafficSim {
                 withdrawal_tasks.push((resources, value, task_id, hub_key, None));
             }
         }
-        
+
         // Phase 3: Execute withdrawals with staggered startup (independent execution)
-        info!("Phase 3: Executing {} withdrawals with staggered startup", withdrawal_tasks.len());
+        info!(
+            "Phase 3: Executing {} withdrawals with staggered startup",
+            withdrawal_tasks.len()
+        );
 
         // Start all withdrawals independently with a small stagger to avoid overwhelming RPC
         let mut withdrawal_handles = Vec::new();
 
-        for (i, (resources, value, task_id, hub_key, withdrawal_data)) in withdrawal_tasks.into_iter().enumerate() {
+        for (i, (resources, value, task_id, hub_key, withdrawal_data)) in
+            withdrawal_tasks.into_iter().enumerate()
+        {
             let tx_clone = stats_tx.clone();
             let cancel_token_clone = cancel.clone();
 
@@ -408,13 +465,16 @@ impl TrafficSim {
         }
 
         // Wait for all withdrawals to complete independently
-        info!("All {} withdrawals started, waiting for completion...", withdrawal_handles.len());
+        info!(
+            "All {} withdrawals started, waiting for completion...",
+            withdrawal_handles.len()
+        );
         for (i, handle) in withdrawal_handles.into_iter().enumerate() {
             if let Err(e) = handle.await {
                 error!("Withdrawal task {} failed: {:?}", i, e);
             }
         }
-        
+
         info!("All tasks completed");
 
         drop(stats_tx);
@@ -449,7 +509,7 @@ async fn fund_hub_addr(
     let rpc = hub.rpc();
 
     let from_address = rpc.get_signer()?.address_string.clone();
-    info!("funding hub address: {} from {}", hub_addr,from_address);
+    info!("funding hub address: {} from {}", hub_addr, from_address);
     let msg = MsgSend {
         from_address: from_address,
         to_address: hub_addr.clone(),
@@ -483,7 +543,7 @@ async fn fund_hub_addr(
                 ));
             }
             info!("Funded hub address: {}", hub_addr);
-            Ok(())  
+            Ok(())
         }
         Err(e) => Err(eyre::eyre!("Failed to fund hub address: {:?}", e)),
     }
