@@ -5,7 +5,7 @@ pub use rocks::*;
 use hyperlane_core::{
     identifiers::UniqueIdentifier, GasPaymentKey, HyperlaneDomain, HyperlaneMessage,
     InterchainGasPayment, InterchainGasPaymentMeta, MerkleTreeInsertion, PendingOperationStatus,
-    H256,
+    H256, H512,
 };
 
 mod error;
@@ -173,4 +173,24 @@ pub trait HyperlaneDb: Send + Sync {
         &self,
         message_id: &H256,
     ) -> DbResult<Option<Vec<UniqueIdentifier>>>;
+
+    /// Store the dispatch transaction hash for a message by its nonce
+    fn store_dispatch_tx_id_by_nonce(&self, nonce: &u32, tx_id: &H512) -> DbResult<()>;
+
+    /// Retrieve the dispatch transaction hash for a message by its nonce
+    fn retrieve_dispatch_tx_id_by_nonce(&self, nonce: &u32) -> DbResult<Option<H512>>;
+
+    /// Store the delivery transaction hash for a message by its message id
+    /// Also stores reverse index: tx_id -> message_id
+    fn store_delivery_tx_id_by_message_id(&self, message_id: &H256, tx_id: &H512) -> DbResult<()>;
+
+    /// Retrieve the delivery transaction hash for a message by its message id
+    fn retrieve_delivery_tx_id_by_message_id(&self, message_id: &H256)
+        -> DbResult<Option<H512>>;
+
+    /// Retrieve the message nonce by its dispatch transaction hash
+    fn retrieve_nonce_by_dispatch_tx_id(&self, tx_id: &H512) -> DbResult<Option<u32>>;
+
+    /// Retrieve the message id by its delivery transaction hash
+    fn retrieve_message_id_by_delivery_tx_id(&self, tx_id: &H512) -> DbResult<Option<H256>>;
 }

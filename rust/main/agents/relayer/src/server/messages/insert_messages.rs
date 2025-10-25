@@ -72,7 +72,7 @@ pub async fn handler(
         let dispatched_block_number = message.dispatched_block_number;
         match state.dbs.get(&message.message.origin) {
             Some(db) => {
-                db.upsert_message(&message.message, dispatched_block_number)
+                db.upsert_message(&message.message, dispatched_block_number, None)
                     .map_err(|err| {
                         let error_msg = "Failed to upsert message";
                         tracing::debug!(message_id=?message.message.id(), ?err, "{error_msg}");

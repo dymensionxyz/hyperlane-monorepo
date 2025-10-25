@@ -4,11 +4,11 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use hyperlane_base::server::{
-    messages::fetch_messages,
-    utils::{ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse},
+use hyperlane_base::{
+    db::HyperlaneDb,
+    server::utils::{ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse},
 };
-use hyperlane_core::HyperlaneMessage;
+use hyperlane_core::{HyperlaneMessage, PendingOperationStatus};
 
 use crate::server::messages::ServerState;
 
@@ -23,6 +23,19 @@ pub struct QueryParams {
 pub struct MessageResponse {
     pub message_id: String,
     pub message: HyperlaneMessage,
+    pub status: MessageStatus,
+    pub dispatched_block_number: Option<u64>,
+    pub dispatch_tx_id: Option<String>,
+    pub delivery_tx_id: Option<String>,
+    pub operation_status: Option<String>,
+    pub retry_count: Option<u32>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum MessageStatus {
+    Dispatched,
+    Delivered,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -65,15 +78,77 @@ pub async fn handler(
         )
     })?;
 
-    let messages = fetch_messages(db, nonce_start, nonce_end).await?;
+    let mut messages = Vec::new();
 
-    let messages: Vec<_> = messages
-        .into_iter()
-        .map(|m| MessageResponse {
-            message_id: format!("{:x}", m.id()),
-            message: m,
-        })
-        .collect();
+    for nonce in nonce_start..nonce_end.saturating_add(1) {
+        let msg = match db.retrieve_message_by_nonce(nonce) {
+            Ok(Some(m)) => m,
+            Ok(None) => continue,
+            Err(err) => {
+                tracing::debug!(nonce, ?err, "Failed to fetch message");
+                continue;
+            }
+        };
+
+        let message_id = msg.id();
+
+        // Check if message has been delivered
+        let processed = db
+            .retrieve_processed_by_nonce(&nonce)
+            .ok()
+            .flatten()
+            .unwrap_or(false);
+
+        let status = if processed {
+            MessageStatus::Delivered
+        } else {
+            MessageStatus::Dispatched
+        };
+
+        // Get dispatched block number
+        let dispatched_block_number = db
+            .retrieve_dispatched_block_number_by_nonce(&nonce)
+            .ok()
+            .flatten();
+
+        // Get dispatch transaction ID
+        let dispatch_tx_id = db
+            .retrieve_dispatch_tx_id_by_nonce(&nonce)
+            .ok()
+            .flatten()
+            .map(|h| format!("0x{:x}", h));
+
+        // Get delivery transaction ID
+        let delivery_tx_id = db
+            .retrieve_delivery_tx_id_by_message_id(&message_id)
+            .ok()
+            .flatten()
+            .map(|h| format!("0x{:x}", h));
+
+        // Get operation status
+        let operation_status = db
+            .retrieve_status_by_message_id(&message_id)
+            .ok()
+            .flatten()
+            .map(|s| format!("{:?}", s));
+
+        // Get retry count
+        let retry_count = db
+            .retrieve_pending_message_retry_count_by_message_id(&message_id)
+            .ok()
+            .flatten();
+
+        messages.push(MessageResponse {
+            message_id: format!("{:x}", message_id),
+            message: msg,
+            status,
+            dispatched_block_number,
+            dispatch_tx_id,
+            delivery_tx_id,
+            operation_status,
+            retry_count,
+        });
+    }
 
     let resp = ResponseBody { messages };
     Ok(ServerSuccessResponse::new(resp))
@@ -146,7 +221,7 @@ mod tests {
     ) {
         dbs.get(&domain.id())
             .expect("DB not found")
-            .store_message(&message, dispatched_block_number)
+            .store_message(&message, dispatched_block_number, None)
             .expect("DB Error");
     }
 
@@ -249,6 +324,12 @@ mod tests {
             .map(|(_, msg)| MessageResponse {
                 message_id: format!("{:x}", msg.id()),
                 message: msg,
+                status: MessageStatus::Dispatched,
+                dispatched_block_number: None,
+                dispatch_tx_id: None,
+                delivery_tx_id: None,
+                operation_status: None,
+                retry_count: None,
             })
             .collect();
 

@@ -7,6 +7,7 @@ use axum::{
 use derive_new::new;
 use hyperlane_base::db::HyperlaneRocksDB;
 
+pub mod get_message_by_tx;
 pub mod insert_messages;
 pub mod list_messages;
 
@@ -20,6 +21,7 @@ impl ServerState {
         Router::new()
             .route("/messages", get(list_messages::handler))
             .route("/messages", post(insert_messages::handler))
+            .route("/messages/by-tx/:tx_hash", get(get_message_by_tx::handler))
             .with_state(self)
     }
 }

@@ -877,6 +877,14 @@ impl PendingMessage {
         self.ctx
             .origin_db
             .store_processed_by_nonce(&self.message.nonce, &true)?;
+
+        // Store the delivery transaction hash if available (also stores reverse index)
+        if let Some(ref outcome) = self.submission_outcome {
+            self.ctx
+                .origin_db
+                .store_delivery_tx_id_by_message_id(&self.message.id(), &outcome.transaction_id)?;
+        }
+
         self.ctx.metrics.update_nonce(&self.message);
         self.ctx.metrics.messages_processed.inc();
         Ok(())

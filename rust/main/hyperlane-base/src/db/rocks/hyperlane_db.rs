@@ -8,7 +8,7 @@ use hyperlane_core::{
     identifiers::UniqueIdentifier, Decode, Encode, GasPaymentKey, HyperlaneDomain,
     HyperlaneLogStore, HyperlaneMessage, HyperlaneSequenceAwareIndexerStoreReader,
     HyperlaneWatermarkedLogStore, Indexed, InterchainGasExpenditure, InterchainGasPayment,
-    InterchainGasPaymentMeta, LogMeta, MerkleTreeInsertion, PendingOperationStatus, H256,
+    InterchainGasPaymentMeta, LogMeta, MerkleTreeInsertion, PendingOperationStatus, H256, H512,
 };
 
 use crate::db::{
@@ -40,6 +40,10 @@ const MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX: &str =
     "merkle_tree_insertion_block_number_by_leaf_index_";
 const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
 const PAYLOAD_UUIDS_BY_MESSAGE_ID: &str = "payload_uuids_by_message_id_";
+const MESSAGE_DISPATCH_TX_ID_BY_NONCE: &str = "message_dispatch_tx_id_by_nonce_";
+const MESSAGE_DELIVERY_TX_ID_BY_MESSAGE_ID: &str = "message_delivery_tx_id_by_message_id_";
+const NONCE_BY_DISPATCH_TX_ID: &str = "nonce_by_dispatch_tx_id_";
+const MESSAGE_ID_BY_DELIVERY_TX_ID: &str = "message_id_by_delivery_tx_id_";
 
 /// Rocks DB result type
 pub type DbResult<T> = std::result::Result<T, DbError>;
@@ -85,16 +89,18 @@ impl HyperlaneRocksDB {
     /// - `nonce` --> `id`
     /// - `id` --> `message`
     /// - `nonce` --> `dispatched block number`
+    /// - `nonce` --> `dispatch transaction id`
     pub fn store_message(
         &self,
         message: &HyperlaneMessage,
         dispatched_block_number: u64,
+        dispatch_tx_id: Option<H512>,
     ) -> DbResult<bool> {
         if let Ok(Some(_)) = self.retrieve_message_id_by_nonce(&message.nonce) {
             trace!(hyp_message=?message, "Message already stored in db");
             return Ok(false);
         }
-        self.upsert_message(message, dispatched_block_number)?;
+        self.upsert_message(message, dispatched_block_number, dispatch_tx_id)?;
         Ok(true)
     }
 
@@ -104,10 +110,12 @@ impl HyperlaneRocksDB {
     /// - `nonce` --> `id`
     /// - `id` --> `message`
     /// - `nonce` --> `dispatched block number`
+    /// - `nonce` --> `dispatch transaction id`
     pub fn upsert_message(
         &self,
         message: &HyperlaneMessage,
         dispatched_block_number: u64,
+        dispatch_tx_id: Option<H512>,
     ) -> DbResult<()> {
         let id = message.id();
         debug!(hyp_message=?message,  "Storing new message in db",);
@@ -120,6 +128,12 @@ impl HyperlaneRocksDB {
         self.try_update_max_seen_message_nonce(message.nonce)?;
         // - `nonce` --> `dispatched block number`
         self.store_dispatched_block_number_by_nonce(&message.nonce, &dispatched_block_number)?;
+        // - `nonce` --> `dispatch transaction id` and reverse index
+        if let Some(tx_id) = dispatch_tx_id {
+            self.store_dispatch_tx_id_by_nonce(&message.nonce, &tx_id)?;
+            // Store reverse index: `dispatch_tx_id` --> `nonce`
+            self.store_value_by_key(NONCE_BY_DISPATCH_TX_ID, &tx_id, &message.nonce)?;
+        }
         Ok(())
     }
 
@@ -315,7 +329,11 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
     async fn store_logs(&self, messages: &[(Indexed<HyperlaneMessage>, LogMeta)]) -> Result<u32> {
         let mut stored: u32 = 0;
         for (message, meta) in messages {
-            let stored_message = self.store_message(message.inner(), meta.block_number)?;
+            let stored_message = self.store_message(
+                message.inner(),
+                meta.block_number,
+                Some(meta.transaction_id),
+            )?;
             if stored_message {
                 stored = stored.saturating_add(1);
             }
@@ -697,6 +715,37 @@ impl HyperlaneDb for HyperlaneRocksDB {
         message_id: &H256,
     ) -> DbResult<Option<Vec<UniqueIdentifier>>> {
         self.retrieve_value_by_key(PAYLOAD_UUIDS_BY_MESSAGE_ID, message_id)
+    }
+
+    fn store_dispatch_tx_id_by_nonce(&self, nonce: &u32, tx_id: &H512) -> DbResult<()> {
+        self.store_value_by_key(MESSAGE_DISPATCH_TX_ID_BY_NONCE, nonce, tx_id)
+    }
+
+    fn retrieve_dispatch_tx_id_by_nonce(&self, nonce: &u32) -> DbResult<Option<H512>> {
+        self.retrieve_value_by_key(MESSAGE_DISPATCH_TX_ID_BY_NONCE, nonce)
+    }
+
+    fn store_delivery_tx_id_by_message_id(&self, message_id: &H256, tx_id: &H512) -> DbResult<()> {
+        // Store forward index: message_id -> tx_id
+        self.store_value_by_key(MESSAGE_DELIVERY_TX_ID_BY_MESSAGE_ID, message_id, tx_id)?;
+        // Store reverse index: tx_id -> message_id
+        self.store_value_by_key(MESSAGE_ID_BY_DELIVERY_TX_ID, tx_id, message_id)?;
+        Ok(())
+    }
+
+    fn retrieve_delivery_tx_id_by_message_id(
+        &self,
+        message_id: &H256,
+    ) -> DbResult<Option<H512>> {
+        self.retrieve_value_by_key(MESSAGE_DELIVERY_TX_ID_BY_MESSAGE_ID, message_id)
+    }
+
+    fn retrieve_nonce_by_dispatch_tx_id(&self, tx_id: &H512) -> DbResult<Option<u32>> {
+        self.retrieve_value_by_key(NONCE_BY_DISPATCH_TX_ID, tx_id)
+    }
+
+    fn retrieve_message_id_by_delivery_tx_id(&self, tx_id: &H512) -> DbResult<Option<H256>> {
+        self.retrieve_value_by_key(MESSAGE_ID_BY_DELIVERY_TX_ID, tx_id)
     }
 }
 

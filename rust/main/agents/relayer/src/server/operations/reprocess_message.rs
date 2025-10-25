@@ -270,7 +270,7 @@ mod tests {
     ) {
         dbs.get(&domain.id())
             .expect("DB not found")
-            .store_message(&message, dispatched_block_number)
+            .store_message(&message, dispatched_block_number, None)
             .expect("DB Error");
     }
 
