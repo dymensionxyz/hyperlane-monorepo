@@ -92,7 +92,23 @@ where
                     }
                     .instrument(info_span!("Kaspa Monitor")),
                 ))
-                .expect("Failed to spawn kaspa progress indication task")
+                .expect("Failed to spawn kaspa progress indication task");
+        }
+
+        /* ---------------------------- hub sync loop --------------------------- */
+        {
+            let foo_clone = foo.clone();
+            let name = "dymension_kaspa_hub_sync_loop";
+            tokio::task::Builder::new()
+                .name(name)
+                .spawn(TaskMonitor::instrument(
+                    &task_monitor,
+                    async move {
+                        foo_clone.hub_sync_loop().await;
+                    }
+                    .instrument(info_span!("Kaspa Hub Sync")),
+                ))
+                .expect("Failed to spawn kaspa hub sync task")
         }
     }
 
@@ -441,6 +457,30 @@ where
             }
 
             time::sleep(self.config.poll_interval()).await;
+        }
+    }
+
+    async fn hub_sync_loop(&self) {
+        info!("Dymension, starting hub sync loop");
+
+        // Initial sync on startup
+        if let Err(e) = self.sync_hub_if_needed().await {
+            error!(error = ?e, "Dymension, initial hub sync failed");
+        }
+
+        loop {
+            // Wait for the configured poll interval before next sync check
+            time::sleep(self.config.poll_interval()).await;
+
+            // Attempt to sync hub state with Kaspa
+            match self.sync_hub_if_needed().await {
+                Ok(_) => {
+                    debug!("Dymension, hub sync check completed successfully");
+                }
+                Err(e) => {
+                    error!(error = ?e, "Dymension, hub sync check failed, will retry on next iteration");
+                }
+            }
         }
     }
 

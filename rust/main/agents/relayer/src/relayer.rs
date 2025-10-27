@@ -1098,9 +1098,7 @@ impl Relayer {
 
         let b = KaspaBridgeFoo::new(kas_provider.clone(), hub_mailbox.clone(), metadata_getter);
 
-        // sync relayer before starting other tasks
-        b.sync_hub_if_needed().await.unwrap();
-
+        // The hub sync loop will handle initial sync and periodic syncing
         tasks.push(b.run_loops(task_monitor.clone()));
         // it observes the local db and makes sure messages are eventually written to the destination chain
         let message_db_loader =
