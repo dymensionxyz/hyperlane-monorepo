@@ -18,7 +18,7 @@ It outputs something like
 ]
 ```
 
-Give Dymension team validator_ism_addr and validator_escrow_pub_key. Don't worry about multisig_escrow_addr.
+Give Dymension team validator_ism_addr and validator_escrow_pub_key. Don't worry about multisig_escrow_addr. Backup the private keys.
 
 ## Config
 
@@ -31,7 +31,7 @@ Copy the dummy kaspa.mainnet.wallet to ~/.kaspa/kaspa.wallet: `cp <dummy> ~/.kas
 Make a database directory in place of your choosing
 
 ```
-DB_VALIDATOR=<>
+DB_VALIDATOR=<your directory>
 ```
 
 ```
