@@ -461,26 +461,34 @@ where
     }
 
     async fn hub_sync_loop(&self) {
-        info!("Dymension, starting hub sync loop");
+        info!("SYNC LOOP: Starting hub sync loop with poll interval of {:?}", self.config.poll_interval());
 
         // Initial sync on startup
+        info!("SYNC LOOP: Performing initial hub sync on startup");
         if let Err(e) = self.sync_hub_if_needed().await {
-            error!(error = ?e, "Dymension, initial hub sync failed");
+            error!(error = ?e, "SYNC LOOP: Initial hub sync failed");
+        } else {
+            info!("SYNC LOOP: Initial hub sync completed");
         }
 
+        let mut iteration = 1u64;
         loop {
             // Wait for the configured poll interval before next sync check
             time::sleep(self.config.poll_interval()).await;
 
+            info!("SYNC LOOP: Running periodic sync check (iteration {})", iteration);
+
             // Attempt to sync hub state with Kaspa
             match self.sync_hub_if_needed().await {
                 Ok(_) => {
-                    debug!("Dymension, hub sync check completed successfully");
+                    info!("SYNC LOOP: Iteration {} completed successfully", iteration);
                 }
                 Err(e) => {
-                    error!(error = ?e, "Dymension, hub sync check failed, will retry on next iteration");
+                    error!(error = ?e, "SYNC LOOP: Iteration {} failed, will retry on next iteration", iteration);
                 }
             }
+
+            iteration += 1;
         }
     }
 
@@ -549,7 +557,8 @@ where
     /// Checks if the outpoint committed on the hub is already spent on Kaspa
     /// If not synced, prepares progress indication and submits to hub
     pub async fn sync_hub_if_needed(&self) -> Result<()> {
-        info!("Checking if hub is out of sync with Kaspa escrow account.");
+        info!("SYNC: Starting hub sync check");
+
         // get anchor utxo from hub
         // Cast the provider to CosmosProvider to access query()
         use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
@@ -573,8 +582,8 @@ where
         let escrow_address = self.provider.escrow_address();
 
         info!(
-            "Dymension, current anchor: {:?}, escrow address: {:?}",
-            old_anchor, escrow_address
+            "SYNC: Hub anchor check - tx_id: {}, index: {}, escrow: {}",
+            old_anchor.transaction_id, old_anchor.index, escrow_address
         );
 
         let all_escrow_utxos = self
@@ -584,7 +593,7 @@ where
             .await?;
 
         info!(
-            "Queried utxos for escrow address: {:?}",
+            "SYNC: Found {} UTXOs in Kaspa escrow address",
             all_escrow_utxos.len()
         );
 
@@ -594,17 +603,34 @@ where
             let ok = utxo.outpoint.transaction_id == old_anchor.transaction_id
                 && utxo.outpoint.index == old_anchor.index;
             if ok {
-                info!(utxo = ?utxo, "Dymension, found utxo matching current anchor");
+                info!(
+                    "SYNC: Found anchor UTXO in Kaspa - tx_id: {}, index: {}",
+                    utxo.outpoint.transaction_id, utxo.outpoint.index
+                );
             }
             ok
         });
-        if !hub_is_synced {
-            info!("Dymension is not synced, preparing progress indication and submitting to hub");
+
+        if hub_is_synced {
+            info!("SYNC: Hub is already synced with Kaspa - no action needed");
+        } else {
+            info!("SYNC: Hub is OUT OF SYNC - anchor UTXO not found in Kaspa, preparing progress indication");
             // we need to iterate over the utxos and find the next utxo of the escrow address
 
             let mut good = false;
-            for utxo in all_escrow_utxos {
+            let utxo_count = all_escrow_utxos.len();
+            info!("SYNC: Attempting to find valid confirmation trace through {} UTXO candidates", utxo_count);
+
+            for (idx, utxo) in all_escrow_utxos.into_iter().enumerate() {
                 let new_anchor_candidate = TransactionOutpoint::from(utxo.outpoint);
+                info!(
+                    "SYNC: Trying candidate {}/{} - tx_id: {}, index: {}",
+                    idx + 1,
+                    utxo_count,
+                    new_anchor_candidate.transaction_id,
+                    new_anchor_candidate.index
+                );
+
                 let fxg = expensive_trace_transactions(
                     &self.provider.rest().client.client,
                     &escrow_address.to_string(),
@@ -613,33 +639,44 @@ where
                 )
                 .await;
                 if !fxg.is_ok() {
-                    error!(
-                        "Dymension, invalid confirmation candidate: error tracing sequence of kaspa withdrawals for syncing: {:?}, candidate: {:?}",
-                        fxg.err(),
-                        new_anchor_candidate,
+                    warn!(
+                        "SYNC: Candidate {}/{} FAILED - cannot trace transaction sequence: {:?}",
+                        idx + 1,
+                        utxo_count,
+                        fxg.err()
                     );
                     continue;
                 }
-                info!("Traced sequence of kaspa withdrawals for syncing");
+                info!("SYNC: Candidate {}/{} SUCCESS - traced withdrawal sequence", idx + 1, utxo_count);
 
                 /*
                 TODO: need to try again here if validators are not unavailable etc, rather than just returning an error and thus a crash
                   */
-                self.confirm_withdrawal_on_hub(fxg.unwrap()).await?;
-                good = true;
-                break;
+                match self.confirm_withdrawal_on_hub(fxg.unwrap()).await {
+                    Ok(_) => {
+                        info!("SYNC: Successfully confirmed withdrawal on hub with candidate {}/{}", idx + 1, utxo_count);
+                        good = true;
+                        break;
+                    }
+                    Err(e) => {
+                        error!("SYNC: Failed to confirm withdrawal on hub: {:?}", e);
+                        return Err(eyre::eyre!("Failed to confirm withdrawal: {:?}", e));
+                    }
+                }
             }
             if !good {
+                error!("SYNC: FAILED - no valid UTXO candidate found for syncing out of {} candidates", utxo_count);
                 return Err(eyre::eyre!("Dymension, no good utxo found for syncing"));
             }
+            info!("SYNC: Hub successfully synced with Kaspa after finding valid confirmation");
         }
-        info!("Dymension hub is synced, proceeding with other tasks");
 
         // Update hub anchor point metric after syncing (in all cases)
         if let Err(e) = self.update_hub_anchor_point_metric().await {
             warn!(error = ?e, "Failed to update hub anchor point metric after syncing");
         }
 
+        info!("SYNC: Sync check completed successfully");
         Ok(())
     }
 
