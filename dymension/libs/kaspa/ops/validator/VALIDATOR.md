@@ -22,7 +22,7 @@ Give Dymension team validator_ism_addr and validator_escrow_pub_key. Don't worry
 
 ## Config
 
-Use the agent-config.json template provided by Dymension team. Populate .chains.<kaspa>.validatorEscrowPrivateKey with the escrow secret validator_escrow_secret (keep quotes). Also populate .valiator.key with validator_ism_priv_key. Check agent-config.example.json for an informational example.
+Use the agent-config.json template provided by Dymension team. Populate .chains.<kaspa>.validatorEscrowPrivateKey with the escrow secret validator_escrow_secret (keep quotes). Also populate .validator.key with validator_ism_priv_key. Check agent-config.example.json for an informational example.
 
 ## Running
 
