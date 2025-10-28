@@ -30,37 +30,20 @@ Copy the dummy kaspa.mainnet.wallet to ~/.kaspa/kaspa.wallet: `cp <dummy> ~/.kas
 
 Make a database directory in place of your choosing
 
-```
-DB_VALIDATOR=<your directory>
+### Build
+
+```bash
+# in hyperlane-monorepo/rust/main
+cd ${HOME}/hyperlane-monorepo/rust/main
+cargo build --release --bin validator
 ```
 
 ### Setup Environment Variables
 
 ```bash
-CONFIG_FILES=<path to populated agent-config.json>
-DB_VALIDATOR=<your database directory>
-ORIGIN_CHAIN=kaspatest10  # or mainnet
-
-# Save to bash profile
-echo 'export CONFIG_FILES='${CONFIG_FILES} > $HOME/.bash_profile
-echo 'export DB_VALIDATOR='${DB_VALIDATOR} >> $HOME/.bash_profile
-
-cat <<'EOF' >> $HOME/.bash_profile
-echo -e "\n\033[0;93mSTATUS:\n======\n"
-echo -n "TMUX: "; tmux ls
-echo
-echo "CONFIG_FILES: ${CONFIG_FILES}"
-echo "DB_VALIDATOR: ${DB_VALIDATOR}"
-echo
-echo -e "\033[0m"
-source "$HOME/.cargo/env"
-EOF
-
-source ~/.bash_profile
-
-# Build the validator
-cd ${HOME}/hyperlane-monorepo/rust/main
-cargo build --release --bin validator
+export CONFIG_FILES=<path to populated agent-config.json>
+export DB_VALIDATOR=<your database directory>
+export ORIGIN_CHAIN=kaspatest10  # or mainnet
 ```
 
 ### Option 1: Run with systemd (recommended)
