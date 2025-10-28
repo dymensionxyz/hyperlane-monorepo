@@ -34,13 +34,77 @@ Make a database directory in place of your choosing
 DB_VALIDATOR=<your directory>
 ```
 
-```
-export CONFIG_FILES=<path to populated agent-config.json>
-ORIGIN_CHAIN=kaspatest10 # or mainnet
+### Setup Environment Variables
 
-# in hyperlane-monorepo/rust/main
+```bash
+CONFIG_FILES=<path to populated agent-config.json>
+DB_VALIDATOR=<your database directory>
+ORIGIN_CHAIN=kaspatest10  # or mainnet
+
+# Save to bash profile
+echo 'export CONFIG_FILES='${CONFIG_FILES} > $HOME/.bash_profile
+echo 'export DB_VALIDATOR='${DB_VALIDATOR} >> $HOME/.bash_profile
+
+cat <<'EOF' >> $HOME/.bash_profile
+echo -e "\n\033[0;93mSTATUS:\n======\n"
+echo -n "TMUX: "; tmux ls
+echo
+echo "CONFIG_FILES: ${CONFIG_FILES}"
+echo "DB_VALIDATOR: ${DB_VALIDATOR}"
+echo
+echo -e "\033[0m"
+source "$HOME/.cargo/env"
+EOF
+
+source ~/.bash_profile
+
+# Build the validator
+cd ${HOME}/hyperlane-monorepo/rust/main
 cargo build --release --bin validator
+```
 
+### Option 1: Run with systemd (recommended)
+
+```bash
+# Create systemd service
+sudo tee <<EOF >/dev/null /etc/systemd/system/validator.service
+[Unit]
+Description=Kaspa Bridge Validator
+After=network-online.target
+[Service]
+WorkingDirectory=${HOME}/hyperlane-monorepo/rust/main
+User=$USER
+Environment="CONFIG_FILES=${CONFIG_FILES}"
+ExecStart=${HOME}/hyperlane-monorepo/rust/main/target/release/validator \
+--db ${DB_VALIDATOR} \
+--originChainName ${ORIGIN_CHAIN} \
+--reorgPeriod 1 \
+--checkpointSyncer.type localStorage \
+--checkpointSyncer.path ARBITRARY_VALUE_FOOBAR \
+--metrics-port 9090 \
+--log.level info
+Restart=on-failure
+RestartSec=10
+LimitNOFILE=65535
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Reload systemd and start the service
+sudo systemctl daemon-reload
+sudo systemctl enable validator
+sudo systemctl start validator
+
+# View logs
+journalctl -u validator -f -o cat
+```
+
+### Option 2: Run with tmux
+
+```bash
+tmux
+echo $DB_VALIDATOR && echo $CONFIG_FILES && sleep 3s
+cd ${HOME}/hyperlane-monorepo/rust/main
 ./target/release/validator \
 --db $DB_VALIDATOR \
 --originChainName $ORIGIN_CHAIN \
@@ -49,6 +113,25 @@ cargo build --release --bin validator
 --checkpointSyncer.path ARBITRARY_VALUE_FOOBAR \
 --metrics-port 9090 \
 --log.level info
+```
+
+### Managing the systemd Service
+
+```bash
+# Check status
+sudo systemctl status validator
+
+# Restart
+sudo systemctl restart validator
+
+# Stop
+sudo systemctl stop validator
+
+# Disable autostart
+sudo systemctl disable validator
+
+# View logs
+journalctl -u validator -f -o cat
 ```
 
 ## Exposure
