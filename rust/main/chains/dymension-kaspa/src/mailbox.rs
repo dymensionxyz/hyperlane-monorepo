@@ -117,52 +117,52 @@ impl Mailbox for KaspaMailbox {
             ops.len()
         );
 
-        let messages: Vec<HyperlaneMessage> = ops
+        let msgs: Vec<HyperlaneMessage> = ops
             .iter()
             .map(|op| op.try_batch().map(|item| item.data))
             .collect::<ChainResult<Vec<HyperlaneMessage>>>()?;
 
-        let current_time = std::time::Instant::now();
+        let current_ts = std::time::Instant::now();
         {
-            let mut timestamps = self.operation_timestamps.lock().await;
-            for msg in &messages {
+            let mut ts_map = self.operation_timestamps.lock().await;
+            for msg in &msgs {
                 let msg_id = format!("{:?}", msg.id());
-                timestamps.entry(msg_id).or_insert(current_time);
+                ts_map.entry(msg_id).or_insert(current_ts);
             }
         }
 
         // Cannot process withdrawals while a confirmation is pending on the Hub.
         // All operations marked failed and will be retried after confirmation completes.
         if self.provider.has_pending_confirmation() {
-            let failed_indexes: Vec<usize> = (0..ops.len()).collect();
+            let failed_idxs: Vec<usize> = (0..ops.len()).collect();
             return Ok(BatchResult {
-                failed_indexes,
+                failed_indexes: failed_idxs,
                 outcome: None,
             });
         }
 
-        let result_processed_messages = self
+        let res_processed = self
             .provider
-            .process_withdrawal_messages(messages.clone())
+            .process_withdrawal_messages(msgs.clone())
             .await;
 
-        let processed_messages = match result_processed_messages {
-            Ok(messages) => {
+        let processed_msgs = match res_processed {
+            Ok(msgs) => {
                 info!("Kaspa mailbox, processed withdrawals TXs");
 
                 let now = std::time::Instant::now();
-                let mut timestamps = self.operation_timestamps.lock().await;
-                for msg in &messages {
+                let mut ts_map = self.operation_timestamps.lock().await;
+                for msg in &msgs {
                     let msg_id = format!("{:?}", msg.id());
-                    if let Some(start_time) = timestamps.remove(&msg_id) {
-                        let latency = now.duration_since(start_time);
+                    if let Some(start_ts) = ts_map.remove(&msg_id) {
+                        let latency = now.duration_since(start_ts);
                         let metrics = self.provider.metrics();
                         metrics.update_withdrawal_latency(latency.as_millis() as i64);
                     }
                 }
-                drop(timestamps);
+                drop(ts_map);
 
-                messages
+                msgs
             }
             Err(e) => {
                 error!("Kaspa mailbox, failed to process withdrawals TXs: {:?}", e);
@@ -175,10 +175,10 @@ impl Mailbox for KaspaMailbox {
         // Return value doesn't correspond 1:1 to what we did since we sent multiple Kaspa TXs.
         // However, since TXs must execute in sequence, we can use the last one knowing prior ones succeeded.
         // failed_indexes indicates which hyperlane messages were NOT accepted.
-        let failed = {
+        let failed_idxs = {
             let mut failed = vec![];
-            for (i, msg) in messages.iter().enumerate() {
-                if !processed_messages.contains(msg) {
+            for (i, msg) in msgs.iter().enumerate() {
+                if !processed_msgs.contains(msg) {
                     failed.push(i);
                 }
             }
@@ -196,16 +196,16 @@ impl Mailbox for KaspaMailbox {
                 gas_used: U256::zero(),
                 gas_price: FixedPointNumber::from(0),
             }),
-            failed_indexes: failed,
+            failed_indexes: failed_idxs,
         })
     }
 
     async fn process_estimate_costs(
         &self,
-        message: &HyperlaneMessage,
+        msg: &HyperlaneMessage,
         _metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
-        let token_msg = match TokenMessage::read_from(&mut message.body.as_slice()) {
+        let token_msg = match TokenMessage::read_from(&mut msg.body.as_slice()) {
             Ok(msg) => msg,
             Err(_e) => {
                 return Ok(TxCostEstimate {

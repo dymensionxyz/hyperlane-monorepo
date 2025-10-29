@@ -42,10 +42,10 @@ impl ValidatorsClient {
     }
 
     pub fn new(
-        conf: ConnectionConf,
+        cfg: ConnectionConf,
         // TODO: prom metrics?
     ) -> ChainResult<Self> {
-        Ok(ValidatorsClient { conf })
+        Ok(ValidatorsClient { conf: cfg })
     }
 
     pub async fn get_deposit_sigs(
@@ -103,12 +103,12 @@ impl ValidatorsClient {
             results.into_iter().filter_map(Result::ok).collect();
 
         let hosts = self.hosts();
-        let mut sigs_map = sigs
+        let mut sig_map = sigs
             .into_iter()
             .collect::<std::collections::HashMap<_, _>>();
         let sigs = hosts
             .into_iter()
-            .filter_map(|h| sigs_map.remove(&h))
+            .filter_map(|h| sig_map.remove(&h))
             .collect::<Vec<SignedCheckpointWithMessageId>>();
 
         Ok(sigs)
@@ -152,12 +152,12 @@ impl ValidatorsClient {
         let sigs: Vec<(String, Signature)> = results.into_iter().filter_map(Result::ok).collect();
 
         let hosts = self.hosts();
-        let mut sigs_map = sigs
+        let mut sig_map = sigs
             .into_iter()
             .collect::<std::collections::HashMap<_, _>>();
         let sigs = hosts
             .into_iter()
-            .filter_map(|h| sigs_map.remove(&h))
+            .filter_map(|h| sig_map.remove(&h))
             .collect::<Vec<Signature>>();
 
         Ok(sigs)
@@ -217,8 +217,8 @@ pub async fn request_validate_new_deposits(
         host
     );
     let bz = Bytes::from(deposits);
-    let c = reqwest::Client::new();
-    let res = c
+    let client = reqwest::Client::new();
+    let res = client
         // calls to https://github.com/dymensionxyz/hyperlane-monorepo/blob/1a603d65e0073037da896534fc52da4332a7a7b1/rust/main/chains/dymension-kaspa/src/router.rs#L40
         .post(format!("{}{}", host, ROUTE_VALIDATE_NEW_DEPOSITS))
         .body(bz)
@@ -230,38 +230,38 @@ pub async fn request_validate_new_deposits(
         let body = res.json::<SignedCheckpointWithMessageId>().await?;
         Ok(Some(body))
     } else {
-        let error_msg = res.text().await.unwrap_or_else(|_| status.to_string());
+        let err_msg = res.text().await.unwrap_or_else(|_| status.to_string());
 
         // Create more specific errors based on HTTP status code for retry semantics
-        let error = match status {
+        let err = match status {
             StatusCode::ACCEPTED => {
                 // 202 Accepted: Deposit not final, retryable with backoff
-                eyre::eyre!("DepositNotFinal: {}", error_msg)
+                eyre::eyre!("DepositNotFinal: {}", err_msg)
             }
             StatusCode::UNPROCESSABLE_ENTITY => {
                 // 422 Unprocessable Entity: Transaction rejected, non-retryable
-                eyre::eyre!("TransactionRejected: {}", error_msg)
+                eyre::eyre!("TransactionRejected: {}", err_msg)
             }
             StatusCode::SERVICE_UNAVAILABLE => {
                 // 503 Service Unavailable: Service down, retryable
-                eyre::eyre!("ServiceUnavailable: {}", error_msg)
+                eyre::eyre!("ServiceUnavailable: {}", err_msg)
             }
             _ => {
-                eyre::eyre!("ValidationFailed: {} - {}", status, error_msg)
+                eyre::eyre!("ValidationFailed: {} - {}", status, err_msg)
             }
         };
 
-        Err(error)
+        Err(err)
     }
 }
 
 pub async fn request_validate_new_confirmation(
     host: String,
-    confirmation: &ConfirmationFXG,
+    conf: &ConfirmationFXG,
 ) -> Result<Option<Signature>> {
-    let bz = Bytes::try_from(confirmation)?;
-    let c = reqwest::Client::new();
-    let res = c
+    let bz = Bytes::try_from(conf)?;
+    let client = reqwest::Client::new();
+    let res = client
         .post(format!("{}{}", host, ROUTE_VALIDATE_CONFIRMED_WITHDRAWALS))
         .body(bz)
         .send()
@@ -272,26 +272,26 @@ pub async fn request_validate_new_confirmation(
         let body = res.json::<Signature>().await?;
         Ok(Some(body))
     } else {
-        let error_msg = res.text().await.unwrap_or_else(|_| status.to_string());
+        let err_msg = res.text().await.unwrap_or_else(|_| status.to_string());
         Err(eyre::eyre!(
             "Failed to validate confirmation: {} - {}",
             status,
-            error_msg
+            err_msg
         ))
     }
 }
 
 pub async fn request_sign_withdrawal_bundle(
     host: String,
-    bundle: &WithdrawFXG,
+    fxg: &WithdrawFXG,
 ) -> Result<Option<Bundle>> {
     info!(
         "Dymension, requesting withdrawal sigs from validator: {:?}",
         host
     );
-    let bz = Bytes::try_from(bundle)?;
-    let c = reqwest::Client::new();
-    let res = c
+    let bz = Bytes::try_from(fxg)?;
+    let client = reqwest::Client::new();
+    let res = client
         .post(format!("{}{}", host, ROUTE_SIGN_PSKTS))
         .body(bz)
         .send()
@@ -302,11 +302,11 @@ pub async fn request_sign_withdrawal_bundle(
         let bundle = res.json::<Bundle>().await?;
         Ok(Some(bundle))
     } else {
-        let error_msg = res.text().await.unwrap_or_else(|_| status.to_string());
+        let err_msg = res.text().await.unwrap_or_else(|_| status.to_string());
         Err(eyre::eyre!(
             "Failed to sign withdrawal bundle: {} - {}",
             status,
-            error_msg
+            err_msg
         ))
     }
 }

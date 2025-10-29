@@ -54,26 +54,26 @@ pub struct KaspaProvider {
 
 impl KaspaProvider {
     pub async fn new(
-        conf: &ConnectionConf,
+        cfg: &ConnectionConf,
         domain: HyperlaneDomain,
         signer: Option<HyperlaneSigner>,
         metrics: PrometheusClientMetrics,
         chain: Option<hyperlane_metric::prometheus_metric::ChainInfo>,
         registry: Option<&Registry>,
     ) -> ChainResult<Self> {
-        let rest = RestProvider::new(conf.clone(), signer, metrics.clone(), chain.clone())?;
-        let validators = ValidatorsClient::new(conf.clone())?;
+        let rest = RestProvider::new(cfg.clone(), signer, metrics.clone(), chain.clone())?;
+        let validators = ValidatorsClient::new(cfg.clone())?;
 
         let easy_wallet = get_easy_wallet(
             domain.clone(),
-            conf.kaspa_urls_wrpc[0].clone(), // TODO: try all of them as needed
-            conf.wallet_secret.clone(),
-            conf.wallet_dir.clone(),
+            cfg.kaspa_urls_wrpc[0].clone(), // TODO: try all of them as needed
+            cfg.wallet_secret.clone(),
+            cfg.wallet_dir.clone(),
         )
         .await
         .map_err(|e| eyre::eyre!("Failed to create easy wallet: {}", e))?;
 
-        let kas_key = match &conf.validator_stuff {
+        let kas_key = match &cfg.validator_stuff {
             Some(v) => {
                 let kp: KaspaSecpKeypair = serde_json::from_str(&v.kas_escrow_private).unwrap();
                 Some(kp)
@@ -90,11 +90,11 @@ impl KaspaProvider {
 
         let provider = KaspaProvider {
             domain: domain.clone(),
-            conf: conf.clone(),
+            conf: cfg.clone(),
             easy_wallet,
             rest,
             validators,
-            cosmos_rpc: cosmos_grpc_client(conf.hub_grpc_urls.clone()),
+            cosmos_rpc: cosmos_grpc_client(cfg.hub_grpc_urls.clone()),
             kas_key,
             pending_confirmation: Arc::new(PendingConfirmation::new()),
             metrics: kaspa_metrics,
@@ -155,7 +155,7 @@ impl KaspaProvider {
         self.conf.relayer_stuff.as_ref().unwrap()
     }
 
-    pub fn kaspa_time_config(&self) -> Option<crate::conf::KaspaTimeConfig> {
+    pub fn kaspa_time_cfg(&self) -> Option<crate::conf::KaspaTimeConfig> {
         self.conf
             .relayer_stuff
             .as_ref()
@@ -168,13 +168,13 @@ impl KaspaProvider {
         &self,
         msgs: Vec<HyperlaneMessage>,
     ) -> Result<Vec<HyperlaneMessage>> {
-        let min_withdrawal_amount = self.conf.min_deposit_sompi;
+        let min_withdrawal_amt = self.conf.min_deposit_sompi;
         let res = on_new_withdrawals(
             msgs.clone(),
             self.easy_wallet.clone(),
             self.cosmos_rpc.clone(),
             self.escrow(),
-            min_withdrawal_amount,
+            min_withdrawal_amt,
             self.must_relayer_stuff().tx_fee_multiplier,
         )
         .await;
@@ -187,14 +187,14 @@ impl KaspaProvider {
                 // Create withdrawal batch ID and calculate total amount
                 let all_msgs: Vec<_> = fxg.messages.iter().flatten().cloned().collect();
                 let withdrawal_batch_id = create_withdrawal_batch_id(&all_msgs);
-                let total_amount = calculate_total_withdrawal_amount(&all_msgs);
+                let total_amt = calculate_total_withdrawal_amount(&all_msgs);
 
                 let bundles_validators = match self.validators().get_withdraw_sigs(&fxg).await {
                     Ok(bundles) => bundles,
                     Err(e) => {
                         // Record withdrawal failure with deduplication
                         self.metrics
-                            .record_withdrawal_failed(&withdrawal_batch_id, total_amount);
+                            .record_withdrawal_failed(&withdrawal_batch_id, total_amt);
                         return Err(e.into());
                     }
                 };
@@ -212,7 +212,7 @@ impl KaspaProvider {
                     Err(e) => {
                         // Record withdrawal failure with deduplication
                         self.metrics
-                            .record_withdrawal_failed(&withdrawal_batch_id, total_amount);
+                            .record_withdrawal_failed(&withdrawal_batch_id, total_amt);
                         return Err(e);
                     }
                 };
@@ -221,20 +221,20 @@ impl KaspaProvider {
                     Ok(_) => {
                         info!("Kaspa provider, submitted TXs, now indicating progress on the Hub");
 
-                        let message_count =
+                        let msg_count =
                             fxg.messages.iter().map(|msgs| msgs.len()).sum::<usize>() as u64;
                         self.metrics.record_withdrawal_processed(
                             &withdrawal_batch_id,
-                            total_amount,
-                            message_count,
+                            total_amt,
+                            msg_count,
                         );
 
                         if let Some(last_anchor) = fxg.anchors.last() {
-                            let current_timestamp = kaspa_core::time::unix_now();
+                            let current_ts = kaspa_core::time::unix_now();
                             self.metrics.update_last_anchor_point(
                                 &last_anchor.transaction_id.to_string(),
                                 last_anchor.index as u64,
-                                current_timestamp,
+                                current_ts,
                             );
                         }
 
@@ -246,7 +246,7 @@ impl KaspaProvider {
                     }
                     Err(e) => {
                         self.metrics
-                            .record_withdrawal_failed(&withdrawal_batch_id, total_amount);
+                            .record_withdrawal_failed(&withdrawal_batch_id, total_amt);
                         Err(e)
                     }
                 }
@@ -257,16 +257,16 @@ impl KaspaProvider {
             }
             Err(e) => {
                 let withdrawal_batch_id = create_withdrawal_batch_id(&msgs);
-                let failed_amount = calculate_total_withdrawal_amount(&msgs);
+                let failed_amt = calculate_total_withdrawal_amount(&msgs);
                 self.metrics
-                    .record_withdrawal_failed(&withdrawal_batch_id, failed_amount);
+                    .record_withdrawal_failed(&withdrawal_batch_id, failed_amt);
                 Err(e)
             }
         }
     }
 
     async fn submit_txs(&self, txs: Vec<RpcTransaction>) -> Result<Vec<RpcTransactionId>> {
-        let mut ret = Vec::new();
+        let mut tx_ids = Vec::new();
         for tx in txs {
             // allow_orphan controls whether TX can be submitted without parent TX being in DAG. Set to false to ensure TX chain integrity
             let allow_orphan = false;
@@ -275,14 +275,14 @@ impl KaspaProvider {
                 .api()
                 .submit_transaction(tx, allow_orphan)
                 .await?;
-            ret.push(tx_id);
+            tx_ids.push(tx_id);
         }
 
         if let Err(e) = self.update_balance_metrics().await {
             tracing::error!("Failed to update balance metrics: {:?}", e);
         }
 
-        Ok(ret)
+        Ok(tx_ids)
     }
 
     pub async fn update_balance_metrics(&self) -> Result<()> {
@@ -292,25 +292,25 @@ impl KaspaProvider {
             .await
             .map_err(|e| eyre::eyre!("Failed to get UTXOs for escrow address: {}", e))?;
 
-        let total_escrow_balance: u64 = utxos.iter().map(|utxo| utxo.utxo_entry.amount).sum();
+        let total_escrow_bal: u64 = utxos.iter().map(|utxo| utxo.utxo_entry.amount).sum();
 
         self.metrics()
-            .update_funds_escrowed(total_escrow_balance as i64);
+            .update_funds_escrowed(total_escrow_bal as i64);
         self.metrics().update_escrow_utxo_count(utxos.len() as i64);
 
-        let account = self.wallet().account();
+        let acct = self.wallet().account();
         // Wallet balance may not be immediately available, retry a few times
-        let mut balance_opt = None;
+        let mut bal_opt = None;
         for _ in 0..5 {
-            if let Some(b) = account.balance() {
-                balance_opt = Some(b);
+            if let Some(b) = acct.balance() {
+                bal_opt = Some(b);
                 break;
             }
             tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         }
 
-        if let Some(balance) = balance_opt {
-            self.metrics().update_relayer_funds(balance.mature as i64);
+        if let Some(bal) = bal_opt {
+            self.metrics().update_relayer_funds(bal.mature as i64);
         }
 
         Ok(())
@@ -373,19 +373,19 @@ async fn get_easy_wallet(
     domain: HyperlaneDomain,
     rpc_url: String,
     wallet_secret: String,
-    storage_folder: Option<String>,
+    storage_dir: Option<String>,
 ) -> Result<EasyKaspaWallet> {
     let args = EasyKaspaWalletArgs {
         wallet_secret,
         wrpc_url: rpc_url,
         net: domain_to_kas_network(&domain),
-        storage_folder,
+        storage_folder: storage_dir,
     };
     EasyKaspaWallet::try_new(args).await
 }
 
 fn cosmos_grpc_client(urls: Vec<Url>) -> CosmosProvider<ModuleQueryClient> {
-    let hub_conf = HubConnectionConf::new(
+    let hub_cfg = HubConnectionConf::new(
         urls.clone(), // grpc_urls
         vec![],       // rpc_urls
         "".to_string(),
@@ -406,11 +406,11 @@ fn cosmos_grpc_client(urls: Vec<Url>) -> CosmosProvider<ModuleQueryClient> {
     let chain = None;
     // Create dummy locator since we only need the query client, not full provider functionality
     let dummy_domain = hyperlane_core::HyperlaneDomain::new_test_domain("dummy");
-    let locator = hyperlane_core::ContractLocator {
+    let loc = hyperlane_core::ContractLocator {
         domain: &dummy_domain,
         address: hyperlane_core::H256::zero(),
     };
-    CosmosProvider::<ModuleQueryClient>::new(&hub_conf, &locator, None, metrics, chain).unwrap()
+    CosmosProvider::<ModuleQueryClient>::new(&hub_cfg, &loc, None, metrics, chain).unwrap()
     // TODO: no unwrap
 }
 

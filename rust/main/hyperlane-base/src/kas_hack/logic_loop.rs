@@ -18,7 +18,7 @@ use kaspa_core::time::unix_now;
 use std::{collections::HashSet, fmt::Debug, hash::Hash, sync::Arc, time::Duration};
 use tokio::{sync::Mutex, task::JoinHandle, time};
 use tokio_metrics::TaskMonitor;
-use tracing::{debug, error, info, info_span, warn, Instrument};
+use tracing::{debug, error, info, info_span, Instrument};
 
 use super::{
     deposit_operation::{DepositOpQueue, DepositOperation},
@@ -45,7 +45,7 @@ where
         metadata_constructor: C,
     ) -> Self {
         let config = provider
-            .kaspa_time_config()
+            .kaspa_time_cfg()
             .unwrap_or_else(KaspaTimeConfig::default);
         Self {
             provider,
@@ -98,14 +98,14 @@ where
             match self.provider.must_relayer_stuff().deposit_look_back_mins {
                 Some(offset) => {
                     let secs = offset * 60;
-                    let d = Duration::new(secs, 0);
-                    Some(unix_now() as i64 - d.as_millis() as i64)
+                    let dur = Duration::new(secs, 0);
+                    Some(unix_now() as i64 - dur.as_millis() as i64)
                 }
                 None => None,
             };
         loop {
             self.process_deposit_queue().await;
-            let deposits_res = self
+            let result = self
                 .provider
                 .rest()
                 .get_deposits(
@@ -113,7 +113,7 @@ where
                     lower_bound_unix_time,
                 )
                 .await;
-            let deposits = match deposits_res {
+            let deposits = match result {
                 Ok(deposits) => deposits,
                 Err(e) => {
                     error!(error = ?e, "Dymension, query new Kaspa deposits failed");
@@ -132,37 +132,36 @@ where
     }
 
     async fn handle_new_deposits(&self, deposits: Vec<Deposit>) {
-        let mut deposits_new = Vec::new();
+        let mut new_deposits = Vec::new();
         let escrow_address = self.provider.escrow_address().to_string();
 
-        for d in deposits.into_iter() {
-            if !self.deposit_cache.has_seen(&d).await {
-                self.deposit_cache.mark_as_seen(d.clone()).await;
-                match self.is_deposit(&d, &escrow_address).await {
+        for dep in deposits.into_iter() {
+            if !self.deposit_cache.has_seen(&dep).await {
+                self.deposit_cache.mark_as_seen(dep.clone()).await;
+                match self.is_deposit(&dep, &escrow_address).await {
                     Ok(true) => {
-                        info!(deposit = ?d, "Dymension, new deposit seen");
-                        deposits_new.push(d);
+                        info!(deposit = ?dep, "Dymension, new deposit seen");
+                        new_deposits.push(dep);
                     }
                     Ok(false) => {
-                        info!(deposit_id = %d.id, "Dymension, skipping deposit with invalid or missing Hyperlane payload");
+                        info!(deposit_id = %dep.id, "Dymension, skipping deposit with invalid or missing Hyperlane payload");
                     }
                     Err(e) => {
-                        error!(deposit_id = %d.id, error = ?e, "Dymension, failed to check if deposit is genuine, skipping");
+                        error!(deposit_id = %dep.id, error = ?e, "Dymension, failed to check if deposit is genuine, skipping");
                     }
                 }
             }
         }
 
-        if !deposits_new.is_empty() {
+        if !new_deposits.is_empty() {
             if let Err(e) = self.provider.update_balance_metrics().await {
                 error!("Failed to update balance metrics: {:?}", e);
             }
         }
 
-        for d in &deposits_new {
-            let operation =
-                DepositOperation::new(d.clone(), self.provider.escrow_address().to_string());
-            self.process_deposit_operation(operation).await;
+        for dep in &new_deposits {
+            let op = DepositOperation::new(dep.clone(), self.provider.escrow_address().to_string());
+            self.process_deposit_operation(op).await;
         }
     }
 
@@ -198,21 +197,21 @@ where
     }
 
     async fn process_deposit_queue(&self) {
-        let mut queue = self.deposit_queue.lock().await;
+        let mut q = self.deposit_queue.lock().await;
 
-        while let Some(operation) = queue.pop_ready() {
-            drop(queue);
-            self.process_deposit_operation(operation).await;
-            queue = self.deposit_queue.lock().await;
+        while let Some(op) = q.pop_ready() {
+            drop(q);
+            self.process_deposit_operation(op).await;
+            q = self.deposit_queue.lock().await;
         }
     }
 
-    async fn process_deposit_operation(&self, mut operation: DepositOperation) {
-        info!(deposit_id = %operation.deposit.id, "Processing deposit operation");
+    async fn process_deposit_operation(&self, mut op: DepositOperation) {
+        info!(deposit_id = %op.deposit.id, "Processing deposit operation");
 
-        let operation_start_time = operation.created_at;
+        let start_time = op.created_at;
 
-        let deposit_amount = if let Some(payload) = &operation.deposit.payload {
+        let amount = if let Some(payload) = &op.deposit.payload {
             match dym_kas_core::message::ParsedHL::parse_string(payload) {
                 Ok(parsed_hl) => parsed_hl.token_message.amount().low_u64(),
                 Err(e) => {
@@ -228,19 +227,19 @@ where
             0
         };
 
-        let new_deposit_res = relayer_on_new_deposit(
-            &operation.escrow_address,
-            &operation.deposit,
+        let result = relayer_on_new_deposit(
+            &op.escrow_address,
+            &op.deposit,
             &self.provider.rest().client.client,
         )
         .await;
 
-        match new_deposit_res {
+        match result {
             Ok(Some(fxg)) => {
                 info!(fxg = ?fxg, "Dymension, built new deposit FXG");
 
-                let delivered_res = self.hub_mailbox.delivered(fxg.hl_message.id()).await;
-                match delivered_res {
+                let result = self.hub_mailbox.delivered(fxg.hl_message.id()).await;
+                match result {
                     Ok(true) => {
                         info!(
                             message_id = ?fxg.hl_message.id(),
@@ -250,25 +249,25 @@ where
                     }
                     Err(e) => {
                         error!(error = ?e, "Dymension, check if deposit is delivered");
-                        let deposit_id = format!("{:?}", operation.deposit.id);
+                        let deposit_id = format!("{:?}", op.deposit.id);
                         self.provider
                             .metrics()
-                            .record_deposit_failed(&deposit_id, deposit_amount);
-                        operation.mark_failed(&self.config);
-                        self.deposit_queue.lock().await.requeue(operation);
+                            .record_deposit_failed(&deposit_id, amount);
+                        op.mark_failed(&self.config);
+                        self.deposit_queue.lock().await.requeue(op);
                         return;
                     }
                     _ => {}
                 };
 
-                let res = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
-                match res {
+                let result = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
+                match result {
                     Ok(outcome) => {
                         let tx_hash =
                             hyperlane_cosmos::native::h512_to_cosmos_hash(outcome.transaction_id)
                                 .encode_hex_upper::<String>();
-                        let deposit_amount = fxg.amount.low_u64();
-                        let deposit_id = format!("{:?}", operation.deposit.id);
+                        let amount = fxg.amount.low_u64();
+                        let deposit_id = format!("{:?}", op.deposit.id);
 
                         if !outcome.executed {
                             error!(
@@ -280,10 +279,10 @@ where
 
                             self.provider
                                 .metrics()
-                                .record_deposit_failed(&deposit_id, deposit_amount);
+                                .record_deposit_failed(&deposit_id, amount);
 
-                            operation.mark_failed(&self.config);
-                            self.deposit_queue.lock().await.requeue(operation);
+                            op.mark_failed(&self.config);
+                            self.deposit_queue.lock().await.requeue(op);
                         } else {
                             info!(
                                 fxg = ?fxg,
@@ -291,14 +290,14 @@ where
                                 "Dymension, got sigs and sent new deposit to hub"
                             );
 
-                            let latency_ms = operation_start_time.elapsed().as_millis() as i64;
+                            let latency_ms = start_time.elapsed().as_millis() as i64;
 
                             self.provider
                                 .metrics()
-                                .record_deposit_processed(&deposit_id, deposit_amount);
+                                .record_deposit_processed(&deposit_id, amount);
                             self.provider.metrics().update_deposit_latency(latency_ms);
 
-                            operation.reset_attempts();
+                            op.reset_attempts();
                         }
                     }
                     Err(e) => {
@@ -308,23 +307,23 @@ where
                                 error = ?e,
                                 "Dymension, gather sigs and send deposit to hub (retryable)"
                             );
-                            let deposit_id = format!("{:?}", operation.deposit.id);
+                            let deposit_id = format!("{:?}", op.deposit.id);
                             self.provider
                                 .metrics()
-                                .record_deposit_failed(&deposit_id, deposit_amount);
-                            operation.mark_failed(&self.config);
-                            self.deposit_queue.lock().await.requeue(operation);
+                                .record_deposit_failed(&deposit_id, amount);
+                            op.mark_failed(&self.config);
+                            self.deposit_queue.lock().await.requeue(op);
                         } else {
                             error!(
                                 error = ?e,
                                 "Dymension, gather sigs and send deposit to hub (non-retryable)"
                             );
-                            let deposit_id = format!("{:?}", operation.deposit.id);
+                            let deposit_id = format!("{:?}", op.deposit.id);
                             self.provider
                                 .metrics()
-                                .record_deposit_failed(&deposit_id, deposit_amount);
+                                .record_deposit_failed(&deposit_id, amount);
                             info!(
-                                deposit_id = %operation.deposit.id,
+                                deposit_id = %op.deposit.id,
                                 "Dropping operation due to non-retryable error"
                             );
                         }
@@ -333,32 +332,32 @@ where
             }
             Ok(None) => {
                 info!("Dymension, F() new deposit returned none, will retry");
-                let deposit_id = format!("{:?}", operation.deposit.id);
+                let deposit_id = format!("{:?}", op.deposit.id);
                 self.provider
                     .metrics()
-                    .record_deposit_failed(&deposit_id, deposit_amount);
-                operation.mark_failed(&self.config);
-                self.deposit_queue.lock().await.requeue(operation);
+                    .record_deposit_failed(&deposit_id, amount);
+                op.mark_failed(&self.config);
+                self.deposit_queue.lock().await.requeue(op);
             }
             Err(e) => {
                 let kaspa_err = KaspaDepositError::from(e);
 
-                let deposit_id = format!("{:?}", operation.deposit.id);
+                let deposit_id = format!("{:?}", op.deposit.id);
                 self.provider
                     .metrics()
-                    .record_deposit_failed(&deposit_id, deposit_amount);
+                    .record_deposit_failed(&deposit_id, amount);
 
                 if let Some(retry_delay_secs) = kaspa_err.retry_delay_hint() {
                     let delay = Duration::from_secs_f64(retry_delay_secs);
-                    operation.mark_failed_with_custom_delay(delay, &kaspa_err.to_string());
+                    op.mark_failed_with_custom_delay(delay, &kaspa_err.to_string());
                 } else {
                     error!(
                         error = ?kaspa_err,
                         "Dymension, F() new deposit processing error, will retry"
                     );
-                    operation.mark_failed(&self.config);
+                    op.mark_failed(&self.config);
                 }
-                self.deposit_queue.lock().await.requeue(operation);
+                self.deposit_queue.lock().await.requeue(op);
             }
         }
     }
@@ -372,14 +371,14 @@ where
         // Process only the last confirmation. If Hub outpoint != prev_outpoint,
         // Hub moved forward - clear confirmation list and get new ones next iteration.
         loop {
-            let confirmation = self.provider.get_pending_confirmation().await;
+            let conf = self.provider.get_pending_confirmation().await;
 
-            match confirmation {
-                Some(confirmation) => {
-                    let res = self.confirm_withdrawal_on_hub(confirmation.clone()).await;
-                    match res {
+            match conf {
+                Some(conf) => {
+                    let result = self.confirm_withdrawal_on_hub(conf.clone()).await;
+                    match result {
                         Ok(_) => {
-                            info!(confirmation = ?confirmation, "Dymension, confirmed withdrawal on hub");
+                            info!(confirmation = ?conf, "Dymension, confirmed withdrawal on hub");
                             self.provider.metrics().update_confirmations_pending(0);
                             self.provider.consume_pending_confirmation();
 
@@ -433,8 +432,8 @@ where
             .await
     }
 
-    fn chain_error_to_kaspa_error(&self, error: &ChainCommunicationError) -> KaspaDepositError {
-        KaspaDepositError::ProcessingError(error.to_string())
+    fn chain_error_to_kaspa_error(&self, err: &ChainCommunicationError) -> KaspaDepositError {
+        KaspaDepositError::ProcessingError(err.to_string())
     }
 
     async fn _deposits_to_logs<T>(&self, _deposits: Vec<Deposit>) -> Vec<(Indexed<T>, LogMeta)>
@@ -447,18 +446,18 @@ where
     // Unused - Kaspa bridge bypasses normal DB management for deposits/withdrawals
     async fn _dedupe_and_store_logs<T, S>(
         &self,
-        store: &S,
+        s: &S,
         logs: Vec<(Indexed<T>, LogMeta)>,
     ) -> Vec<(Indexed<T>, LogMeta)>
     where
         T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
         S: HyperlaneLogStore<T> + Clone + 'static,
     {
-        let deduped_logs = HashSet::<_>::from_iter(logs);
-        let logs = Vec::from_iter(deduped_logs);
+        let deduped = HashSet::<_>::from_iter(logs);
+        let logs = Vec::from_iter(deduped);
 
-        if let Err(err) = store.store_logs(&logs).await {
-            debug!(error = ?err, "Error storing logs in db");
+        if let Err(e) = s.store_logs(&logs).await {
+            debug!(error = ?e, "Error storing logs in db");
         }
 
         logs
@@ -469,13 +468,13 @@ where
     pub async fn sync_hub_if_needed(&self) -> Result<()> {
         info!("Checking if hub is out of sync with Kaspa escrow account.");
         use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
-        let provider = self.hub_mailbox.provider();
-        let cosmos_provider = provider
+        let prov = self.hub_mailbox.provider();
+        let cosmos_prov = prov
             .as_any()
             .downcast_ref::<CosmosProvider<ModuleQueryClient>>()
             .expect("Hub mailbox provider must be CosmosProvider");
-        let resp = cosmos_provider.query().outpoint(None).await?;
-        let old_anchor = resp
+        let resp = cosmos_prov.query().outpoint(None).await?;
+        let anchor_old = resp
             .outpoint
             .map(|o| TransactionOutpoint {
                 transaction_id: kaspa_hashes::Hash::from_bytes(
@@ -485,61 +484,58 @@ where
             })
             .ok_or_else(|| eyre::eyre!("No outpoint found"))?;
 
-        let escrow_address = self.provider.escrow_address();
+        let escrow_addr = self.provider.escrow_address();
 
         info!(
             "Dymension, current anchor: {:?}, escrow address: {:?}",
-            old_anchor, escrow_address
+            anchor_old, escrow_addr
         );
 
-        let all_escrow_utxos = self
+        let utxos = self
             .provider
             .rpc()
-            .get_utxos_by_addresses(vec![escrow_address.clone()])
+            .get_utxos_by_addresses(vec![escrow_addr.clone()])
             .await?;
 
-        info!(
-            "Queried utxos for escrow address: {:?}",
-            all_escrow_utxos.len()
-        );
+        info!("Queried utxos for escrow address: {:?}", utxos.len());
 
         // Check if anchor UTXO exists in current escrow UTXOs - if yes, we're synced
-        let hub_is_synced = all_escrow_utxos.iter().any(|utxo| {
-            let ok = utxo.outpoint.transaction_id == old_anchor.transaction_id
-                && utxo.outpoint.index == old_anchor.index;
+        let synced = utxos.iter().any(|utxo| {
+            let ok = utxo.outpoint.transaction_id == anchor_old.transaction_id
+                && utxo.outpoint.index == anchor_old.index;
             if ok {
                 info!(utxo = ?utxo, "Dymension, found utxo matching current anchor");
             }
             ok
         });
-        if !hub_is_synced {
+        if !synced {
             info!("Dymension is not synced, preparing progress indication and submitting to hub");
-            // Find the next UTXO in sequence by tracing from old_anchor to each candidate
-            let mut good = false;
-            for utxo in all_escrow_utxos {
-                let new_anchor_candidate = TransactionOutpoint::from(utxo.outpoint);
-                let fxg = expensive_trace_transactions(
+            // Find the next UTXO in sequence by tracing from anchor_old to each candidate
+            let mut found = false;
+            for utxo in utxos {
+                let candidate = TransactionOutpoint::from(utxo.outpoint);
+                let result = expensive_trace_transactions(
                     &self.provider.rest().client.client,
-                    &escrow_address.to_string(),
-                    new_anchor_candidate.clone(),
-                    old_anchor,
+                    &escrow_addr.to_string(),
+                    candidate.clone(),
+                    anchor_old,
                 )
                 .await;
-                if !fxg.is_ok() {
+                if !result.is_ok() {
                     error!(
                         "Dymension, tracing kaspa withdrawals for syncing: {:?}, candidate: {:?}",
-                        fxg.err(),
-                        new_anchor_candidate,
+                        result.err(),
+                        candidate,
                     );
                     continue;
                 }
                 info!("Traced sequence of kaspa withdrawals for syncing");
 
-                self.confirm_withdrawal_on_hub(fxg.unwrap()).await?;
-                good = true;
+                self.confirm_withdrawal_on_hub(result.unwrap()).await?;
+                found = true;
                 break;
             }
-            if !good {
+            if !found {
                 return Err(eyre::eyre!("Dymension, no good utxo found for syncing"));
             }
         }
@@ -554,32 +550,31 @@ where
 
     async fn update_hub_anchor_point_metric(&self) -> Result<()> {
         use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
-        let provider = self.hub_mailbox.provider();
-        let cosmos_provider = provider
+        let prov = self.hub_mailbox.provider();
+        let cosmos_prov = prov
             .as_any()
             .downcast_ref::<CosmosProvider<ModuleQueryClient>>()
             .expect("Hub mailbox provider must be CosmosProvider");
-        let resp = cosmos_provider.query().outpoint(None).await?;
+        let resp = cosmos_prov.query().outpoint(None).await?;
 
-        if let Some(outpoint) = resp.outpoint {
+        if let Some(op) = resp.outpoint {
             let tx_id = kaspa_hashes::Hash::from_bytes(
-                outpoint
-                    .transaction_id
+                op.transaction_id
                     .as_slice()
                     .try_into()
                     .map_err(|e| eyre::eyre!("Invalid transaction ID bytes: {:?}", e))?,
             );
-            let current_timestamp = kaspa_core::time::unix_now();
+            let ts = kaspa_core::time::unix_now();
 
             self.provider.metrics().update_hub_anchor_point(
                 &tx_id.to_string(),
-                outpoint.index as u64,
-                current_timestamp,
+                op.index as u64,
+                ts,
             );
 
             info!(
                 tx_id = %tx_id,
-                outpoint_index = outpoint.index,
+                outpoint_index = op.index,
                 "Updated hub anchor point metric"
             );
         } else {
@@ -594,31 +589,30 @@ where
     // - https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/types/d.go#L76-L84
     async fn confirm_withdrawal_on_hub(&self, fxg: ConfirmationFXG) -> Result<(), KaspaTxError> {
         // Use the last outpoint (new anchor) from the withdrawal sequence
-        let new_anchor = fxg.outpoints.last().ok_or_else(|| {
+        let anchor_new = fxg.outpoints.last().ok_or_else(|| {
             KaspaTxError::ProcessingError(eyre::eyre!("No outpoints in confirmation FXG"))
         })?;
 
-        let finality_status = is_safe_against_reorg(
+        let finality = is_safe_against_reorg(
             &self.provider.rest().client.client,
-            &new_anchor.transaction_id.to_string(),
+            &anchor_new.transaction_id.to_string(),
             None,
         )
         .await
         .map_err(|e| KaspaTxError::ProcessingError(e))?;
 
-        if !finality_status.is_final() {
+        if !finality.is_final() {
             return Err(KaspaTxError::NotFinalError {
-                confirmations: finality_status.confirmations,
-                required_confirmations: finality_status.required_confirmations,
-                retry_after_secs: (finality_status.required_confirmations
-                    - finality_status.confirmations) as f64
+                confirmations: finality.confirmations,
+                required_confirmations: finality.required_confirmations,
+                retry_after_secs: (finality.required_confirmations - finality.confirmations) as f64
                     * 0.1,
             });
         }
 
         info!(
-            confirmations = finality_status.confirmations,
-            required = finality_status.required_confirmations,
+            confirmations = finality.confirmations,
+            required = finality.required_confirmations,
             "Finality check passed for withdrawal confirmation"
         );
 
@@ -632,7 +626,7 @@ where
             })?;
 
         info!(sig_count = sigs.len(), "Dymension, got confirmation sigs");
-        let formatted_sigs = self
+        let formatted = self
             .format_ad_hoc_signatures(
                 &mut sigs,
                 self.provider.validators().multisig_threshold_hub_ism() as usize,
@@ -641,14 +635,11 @@ where
                 KaspaTxError::ProcessingError(eyre::eyre!("Failed to format signatures: {}", e))
             })?;
 
-        info!(
-            "Dymension, formatted confirmation sigs: {:?}",
-            formatted_sigs
-        );
+        info!("Dymension, formatted confirmation sigs: {:?}", formatted);
 
         let outcome = self
             .hub_mailbox
-            .indicate_progress(&formatted_sigs, &fxg.progress_indication)
+            .indicate_progress(&formatted, &fxg.progress_indication)
             .await
             .map_err(|e| {
                 KaspaTxError::ProcessingError(eyre::eyre!("Indicate progress failed: {}", e))
@@ -674,45 +665,45 @@ where
     fn format_checkpoint_signatures(
         &self,
         sigs: &mut Vec<SignedCheckpointWithMessageId>,
-        require: usize,
+        min: usize,
     ) -> ChainResult<Vec<u8>> {
-        if sigs.len() < require {
+        if sigs.len() < min {
             return Err(ChainCommunicationError::InvalidRequest {
                 msg: format!(
                     "insufficient validator signatures: got {}, need {}",
                     sigs.len(),
-                    require
+                    min
                 ),
             });
         }
 
-        let checkpoint = MultisigSignedCheckpoint::try_from(sigs).map_err(|_| {
+        let ckpt = MultisigSignedCheckpoint::try_from(sigs).map_err(|_| {
             ChainCommunicationError::InvalidRequest {
                 msg: "to convert sigs to checkpoint".to_string(),
             }
         })?;
-        let metadata = self.metadata_constructor.metadata(&checkpoint)?;
-        Ok(metadata.to_vec())
+        let meta = self.metadata_constructor.metadata(&ckpt)?;
+        Ok(meta.to_vec())
     }
 
     fn format_ad_hoc_signatures(
         &self,
         sigs: &mut Vec<Signature>,
-        require: usize,
+        min: usize,
     ) -> ChainResult<Vec<u8>> {
-        if sigs.len() < require {
+        if sigs.len() < min {
             return Err(ChainCommunicationError::InvalidRequest {
                 msg: format!(
                     "insufficient validator signatures: got {}, need {}",
                     sigs.len(),
-                    require
+                    min
                 ),
             });
         }
 
         // Checkpoint struct not actually used in metadata formatting, only signatures matter.
         // Create directly without needing real checkpoint data.
-        let checkpoint = MultisigSignedCheckpoint {
+        let ckpt = MultisigSignedCheckpoint {
             checkpoint: CheckpointWithMessageId {
                 checkpoint: Checkpoint {
                     merkle_tree_hook_address: H256::default(),
@@ -725,8 +716,8 @@ where
             signatures: sigs.clone(),
         };
 
-        let metadata = self.metadata_constructor.metadata(&checkpoint)?;
-        Ok(metadata.to_vec())
+        let meta = self.metadata_constructor.metadata(&ckpt)?;
+        Ok(meta.to_vec())
     }
 }
 
@@ -741,17 +732,17 @@ impl DepositCache {
         }
     }
 
-    async fn has_seen(&self, deposit: &Deposit) -> bool {
-        let seen_guard = self.seen.lock().await;
-        seen_guard.contains(deposit)
+    async fn has_seen(&self, dep: &Deposit) -> bool {
+        let guard = self.seen.lock().await;
+        guard.contains(dep)
     }
 
-    async fn mark_as_seen(&self, deposit: Deposit) {
-        let mut seen_guard = self.seen.lock().await;
-        seen_guard.insert(deposit);
+    async fn mark_as_seen(&self, dep: Deposit) {
+        let mut guard = self.seen.lock().await;
+        guard.insert(dep);
     }
 }
 
 pub trait MetadataConstructor {
-    fn metadata(&self, checkpoint: &MultisigSignedCheckpoint) -> Result<Vec<u8>>;
+    fn metadata(&self, ckpt: &MultisigSignedCheckpoint) -> Result<Vec<u8>>;
 }
