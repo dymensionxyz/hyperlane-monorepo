@@ -35,7 +35,7 @@ use std::sync::Arc;
 use tracing::{error, info};
 
 #[derive(Clone)]
-pub struct SigningResources<
+pub struct ValidatorISMSigningResources<
     S: HyperlaneSignerExt + Send + Sync + 'static,
     H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
 > {
@@ -46,7 +46,7 @@ pub struct SigningResources<
 impl<
         S: HyperlaneSignerExt + Send + Sync + 'static,
         H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
-    > SigningResources<S, H>
+    > ValidatorISMSigningResources<S, H>
 {
     pub fn new(direct_signer: Arc<S>, singleton_signer: H) -> Self {
         Self {
@@ -69,13 +69,11 @@ impl<
                     return Ok(signed);
                 }
                 Err(err) => {
-                    tracing::warn!(?err, attempt, "Direct signer failed");
                     tokio::time::sleep(tokio::time::Duration::from_millis(RETRY_DELAY_MS)).await;
                 }
             }
         }
 
-        tracing::warn!("Falling back to singleton signer");
         Ok(self.singleton_signer.sign(signable).await?)
     }
 }
@@ -150,7 +148,7 @@ pub struct ValidatorServerResources<
     S: HyperlaneSignerExt + Send + Sync + 'static,
     H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
 > {
-    signing: Option<SigningResources<S, H>>,
+    signing: Option<ValidatorISMSigningResources<S, H>>,
     kas_provider: Option<Box<KaspaProvider>>,
 }
 
@@ -159,13 +157,13 @@ impl<
         H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
     > ValidatorServerResources<S, H>
 {
-    pub fn new(signing: SigningResources<S, H>, kas_provider: Box<KaspaProvider>) -> Self {
+    pub fn new(signing: ValidatorISMSigningResources<S, H>, kas_provider: Box<KaspaProvider>) -> Self {
         Self {
             signing: Some(signing),
             kas_provider: Some(kas_provider),
         }
     }
-    fn must_signing(&self) -> &SigningResources<S, H> {
+    fn must_signing(&self) -> &ValidatorISMSigningResources<S, H> {
         self.signing.as_ref().unwrap()
     }
     fn must_kas_key(&self) -> KaspaSecpKeypair {

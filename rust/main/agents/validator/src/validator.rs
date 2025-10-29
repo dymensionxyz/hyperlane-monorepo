@@ -221,7 +221,7 @@ impl BaseAgent for Validator {
 
         if is_kas(&self.origin_chain) {
             let prov = self.dymension_kaspa_args.clone().unwrap().kas_provider;
-            let signing = dymension_kaspa::SigningResources::new(
+            let signing = dymension_kaspa::ValidatorISMSigningResources::new(
                 Arc::new(self.raw_signer.clone()),
                 self.signer.clone(),
             );
