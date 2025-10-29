@@ -31,10 +31,6 @@ impl BlockNumberGetter for ValidatorsClient {
     }
 }
 
-/// It needs to
-/// 1. Call validator.G() to see if validator is OK with a new deposit on Kaspa
-/// 2. Call validator.G() to get a signed batch of PSKT for withdrawal TX flow
-/// 2. Call validator.G() to see if validator is OK with a confirmation of withdrawal on Kaspa
 impl ValidatorsClient {
     fn hosts(&self) -> Vec<String> {
         self.conf
@@ -45,14 +41,13 @@ impl ValidatorsClient {
             .clone()
     }
 
-    /// Returns a new Rpc Provider
     pub fn new(
         conf: ConnectionConf,
         // TODO: prom metrics?
     ) -> ChainResult<Self> {
         Ok(ValidatorsClient { conf })
     }
-    /// this runs on relayer
+
     pub async fn get_deposit_sigs(
         &self,
         fxg: &DepositFXG,
@@ -119,7 +114,6 @@ impl ValidatorsClient {
         Ok(sigs)
     }
 
-    /// this runs on relayer
     pub async fn get_confirmation_sigs(
         &self,
         fxg: &ConfirmationFXG,
@@ -169,7 +163,6 @@ impl ValidatorsClient {
         Ok(sigs)
     }
 
-    /// this runs on relayer
     pub async fn get_withdraw_sigs(&self, fxg: &WithdrawFXG) -> ChainResult<Vec<Bundle>> {
         info!(
             "Dymension, getting withdrawal sigs, number of validators: {:?}",
@@ -232,13 +225,11 @@ pub async fn request_validate_new_deposits(
         .send()
         .await?;
 
-    // TODO: need to return sigs here
     let status = res.status();
     if status == StatusCode::OK {
         let body = res.json::<SignedCheckpointWithMessageId>().await?;
         Ok(Some(body))
     } else {
-        // Try to extract the error message from the response body
         let error_msg = res.text().await.unwrap_or_else(|_| status.to_string());
 
         // Create more specific errors based on HTTP status code
@@ -256,7 +247,6 @@ pub async fn request_validate_new_deposits(
                 eyre::eyre!("ServiceUnavailable: {}", error_msg)
             }
             _ => {
-                // Default error format
                 eyre::eyre!("ValidationFailed: {} - {}", status, error_msg)
             }
         };
@@ -282,7 +272,6 @@ pub async fn request_validate_new_confirmation(
         let body = res.json::<Signature>().await?;
         Ok(Some(body))
     } else {
-        // Try to extract the error message from the response body
         let error_msg = res.text().await.unwrap_or_else(|_| status.to_string());
         Err(eyre::eyre!(
             "Failed to validate confirmation: {} - {}",
@@ -313,7 +302,6 @@ pub async fn request_sign_withdrawal_bundle(
         let bundle = res.json::<Bundle>().await?;
         Ok(Some(bundle))
     } else {
-        // Try to extract the error message from the response body
         let error_msg = res.text().await.unwrap_or_else(|_| status.to_string());
         Err(eyre::eyre!(
             "Failed to sign withdrawal bundle: {} - {}",

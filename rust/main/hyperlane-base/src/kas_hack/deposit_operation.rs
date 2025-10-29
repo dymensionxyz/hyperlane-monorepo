@@ -1,6 +1,6 @@
 use dymension_kaspa::{conf::KaspaTimeConfig, Deposit};
 use std::time::{Duration, Instant};
-use tracing::{debug, info};
+use tracing::{debug, error};
 
 #[derive(Debug, Clone)]
 pub struct DepositOperation {
@@ -8,7 +8,6 @@ pub struct DepositOperation {
     pub escrow_address: String,
     pub retry_count: u32,
     pub next_attempt_after: Option<Instant>,
-    /// When this deposit operation was first created/detected
     pub created_at: Instant,
 }
 
@@ -32,10 +31,9 @@ impl DepositOperation {
 
     pub fn mark_failed(&mut self, config: &KaspaTimeConfig) {
         self.retry_count += 1;
-        // Exponential backoff with configurable base
         let delay_secs = config.base_retry_delay_secs * (1 << (self.retry_count - 1).min(5));
         self.next_attempt_after = Some(Instant::now() + Duration::from_secs(delay_secs));
-        info!(
+        error!(
             deposit_id = %self.deposit.id,
             retry_count = self.retry_count,
             retry_after_secs = delay_secs,
@@ -43,11 +41,10 @@ impl DepositOperation {
         );
     }
 
-    /// Mark failed with custom retry timing (for finality-based delays)
     pub fn mark_failed_with_custom_delay(&mut self, delay: Duration, reason: &str) {
         self.retry_count += 1;
         self.next_attempt_after = Some(Instant::now() + delay);
-        info!(
+        error!(
             deposit_id = %self.deposit.id,
             retry_count = self.retry_count,
             retry_after_secs = delay.as_secs_f64(),
@@ -62,7 +59,6 @@ impl DepositOperation {
     }
 }
 
-/// Simple operation queue for managing deposit retries
 #[derive(Debug)]
 pub struct DepositOpQueue {
     operations: std::collections::VecDeque<DepositOperation>,

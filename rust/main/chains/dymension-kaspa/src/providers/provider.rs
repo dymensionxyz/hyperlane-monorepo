@@ -34,7 +34,6 @@ use tonic::async_trait;
 use tracing::info;
 use url::Url;
 
-/// dococo
 #[derive(Debug, Clone)]
 pub struct KaspaProvider {
     conf: ConnectionConf,
@@ -44,21 +43,17 @@ pub struct KaspaProvider {
     validators: ValidatorsClient,
     cosmos_rpc: CosmosProvider<ModuleQueryClient>,
 
-    /*
-      TODO: this is just a quick hack to get access to a kaspa escrow private key, we should change to wallet managed
-    */
+    // TODO: this is just a quick hack to get access to a kaspa escrow private key, we should change to wallet managed
     kas_key: Option<KaspaSecpKeypair>,
 
     /// Optimistically give a hint for the next confirmation needed to be done on the Hub
     /// If this value is out of date, the relayer can still manually poll Kaspa to figure out how to get synced
     pending_confirmation: Arc<PendingConfirmation>,
 
-    /// Kaspa bridge metrics for monitoring deposits, withdrawals, and failures
     metrics: KaspaBridgeMetrics,
 }
 
 impl KaspaProvider {
-    /// dococo
     pub async fn new(
         conf: &ConnectionConf,
         domain: HyperlaneDomain,
@@ -90,7 +85,6 @@ impl KaspaProvider {
         let kaspa_metrics = if let Some(reg) = registry {
             KaspaBridgeMetrics::new(reg).expect("Failed to create KaspaBridgeMetrics")
         } else {
-            // Use default registry as fallback
             KaspaBridgeMetrics::new(&prometheus::default_registry())
                 .expect("Failed to create default KaspaBridgeMetrics")
         };
@@ -107,15 +101,13 @@ impl KaspaProvider {
             metrics: kaspa_metrics,
         };
 
-        // Initialize balance metrics on startup
         if let Err(e) = provider.update_balance_metrics().await {
-            tracing::warn!("Failed to initialize balance metrics on startup: {:?}", e);
+            tracing::error!("Failed to initialize balance metrics on startup: {:?}", e);
         }
 
         Ok(provider)
     }
 
-    /// dococo
     pub fn consume_pending_confirmation(&self) -> Option<ConfirmationFXG> {
         self.pending_confirmation.consume()
     }
@@ -128,32 +120,26 @@ impl KaspaProvider {
         self.pending_confirmation.get_pending()
     }
 
-    /// Get the minimum deposit amount in sompi from configuration
     pub fn get_min_deposit_sompi(&self) -> U256 {
         self.conf.min_deposit_sompi
     }
 
-    /// dococo
     pub fn must_kas_key(&self) -> KaspaSecpKeypair {
         self.kas_key.unwrap()
     }
 
-    /// dococo
     pub fn rest(&self) -> &RestProvider {
         &self.rest
     }
 
-    /// dococo
     pub fn rpc(&self) -> Arc<DynRpcApi> {
         self.easy_wallet.api()
     }
 
-    /// dococo
     pub fn validators(&self) -> &ValidatorsClient {
         &self.validators
     }
 
-    /// dococo
     pub fn hub_rpc(&self) -> &CosmosProvider<ModuleQueryClient> {
         &self.cosmos_rpc
     }
@@ -170,7 +156,6 @@ impl KaspaProvider {
         self.conf.relayer_stuff.as_ref().unwrap()
     }
 
-    /// Get the Kaspa deposit configuration if available
     pub fn kaspa_time_config(&self) -> Option<crate::conf::KaspaTimeConfig> {
         self.conf
             .relayer_stuff
@@ -178,8 +163,6 @@ impl KaspaProvider {
             .map(|r| r.kaspa_time_config.clone())
     }
 
-    /// dococo
-    /// Returns next outpoint
     pub async fn process_withdrawal_messages(
         &self,
         msgs: Vec<HyperlaneMessage>,
@@ -237,7 +220,6 @@ impl KaspaProvider {
                     Ok(_) => {
                         info!("Kaspa provider, submitted TXs, now indicating progress on the Hub");
 
-                        // Record successful withdrawal with message count
                         let message_count =
                             fxg.messages.iter().map(|msgs| msgs.len()).sum::<usize>() as u64;
                         self.metrics.record_withdrawal_processed(
@@ -246,7 +228,6 @@ impl KaspaProvider {
                             message_count,
                         );
 
-                        // Update last withdrawal anchor point metric
                         if let Some(last_anchor) = fxg.anchors.last() {
                             let current_timestamp = kaspa_core::time::unix_now();
                             self.metrics.update_last_anchor_point(
@@ -263,7 +244,6 @@ impl KaspaProvider {
                         Ok(all_msgs)
                     }
                     Err(e) => {
-                        // Record withdrawal failure with deduplication
                         self.metrics
                             .record_withdrawal_failed(&withdrawal_batch_id, total_amount);
                         Err(e)
@@ -275,7 +255,6 @@ impl KaspaProvider {
                 Ok(msgs)
             }
             Err(e) => {
-                // Create withdrawal batch ID and calculate failed amount
                 let withdrawal_batch_id = create_withdrawal_batch_id(&msgs);
                 let failed_amount = calculate_total_withdrawal_amount(&msgs);
                 self.metrics
@@ -297,7 +276,6 @@ impl KaspaProvider {
             ret.push(tx_id);
         }
 
-        // Update balance metrics after successful transaction submission
         if let Err(e) = self.update_balance_metrics().await {
             tracing::error!("Failed to update balance metrics: {:?}", e);
         }
@@ -305,24 +283,19 @@ impl KaspaProvider {
         Ok(ret)
     }
 
-    /// Update balance metrics for relayer funds and escrow balance
     pub async fn update_balance_metrics(&self) -> Result<()> {
-        // Get UTXOs for escrow address using RPC API
         let utxos = self
             .rpc()
             .get_utxos_by_addresses(vec![self.escrow_address()])
             .await
             .map_err(|e| eyre::eyre!("Failed to get UTXOs for escrow address: {}", e))?;
 
-        // Calculate total escrow balance from UTXOs
         let total_escrow_balance: u64 = utxos.iter().map(|utxo| utxo.utxo_entry.amount).sum();
 
-        // Update metrics
         self.metrics()
             .update_funds_escrowed(total_escrow_balance as i64);
         self.metrics().update_escrow_utxo_count(utxos.len() as i64);
 
-        // Also update relayer balance if we have a wallet account
         let account = self.wallet().account();
         // Try to get balance with a few retries
         let mut balance_opt = None;
@@ -335,7 +308,6 @@ impl KaspaProvider {
         }
 
         if let Some(balance) = balance_opt {
-            // Use mature balance for relayer funds metric
             self.metrics().update_relayer_funds(balance.mature as i64);
         }
 
@@ -350,24 +322,20 @@ impl KaspaProvider {
         )
     }
 
-    /// get escrow address
     pub fn escrow_address(&self) -> Address {
         self.escrow().addr
     }
 
-    /// Get access to Kaspa bridge metrics
     pub fn metrics(&self) -> &KaspaBridgeMetrics {
         &self.metrics
     }
 }
 
 impl HyperlaneChain for KaspaProvider {
-    /// Return the domain
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
     }
 
-    /// A provider for the chain
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
         Box::new(self.clone())
     }
@@ -375,12 +343,10 @@ impl HyperlaneChain for KaspaProvider {
 
 #[async_trait]
 impl HyperlaneProvider for KaspaProvider {
-    // only used by scraper
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
         Err(HyperlaneProviderError::CouldNotFindBlockByHeight(height).into())
     }
 
-    // only used by scraper
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
         return Err(HyperlaneProviderError::CouldNotFindTransactionByHash(*hash).into());
     }

@@ -13,24 +13,21 @@ use hyperlane_core::{
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use hyperlane_warp_route::TokenMessage;
 use tonic::async_trait;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
-// pretends to be a mailbox
 #[derive(Debug, Clone)]
 pub struct KaspaMailbox {
     provider: KaspaProvider,
     domain: HyperlaneDomain,
     address: H256,
-    /// Track first seen time for operations to measure true end-to-end latency
     operation_timestamps: Arc<Mutex<HashMap<String, std::time::Instant>>>,
 }
 
 impl KaspaMailbox {
-    /// new kaspa native mailbox instance
     pub fn new(provider: KaspaProvider, locator: ContractLocator) -> ChainResult<KaspaMailbox> {
         Ok(KaspaMailbox {
             provider,
-            address: locator.address, // TODO: will be zero?
+            address: locator.address,
             domain: locator.domain.clone(),
             operation_timestamps: Arc::new(Mutex::new(HashMap::new())),
         })
@@ -47,7 +44,6 @@ impl KaspaMailbox {
 }
 
 impl HyperlaneChain for KaspaMailbox {
-    /// Hardcoded // TODO: security implications?
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
     }
@@ -58,7 +54,6 @@ impl HyperlaneChain for KaspaMailbox {
 }
 
 impl HyperlaneContract for KaspaMailbox {
-    /// Hardcoded // TODO: security implications?
     fn address(&self) -> H256 {
         self.address
     }
@@ -66,15 +61,10 @@ impl HyperlaneContract for KaspaMailbox {
 
 #[async_trait]
 impl Mailbox for KaspaMailbox {
-    // TODO: not sure where used
-    // it should return the number of dispatched messages so far
     async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         return Ok(0);
     }
 
-    // check if a message already delivered TO kaspa
-    // not a precise answer since actually depends on subsequent confirmation step
-    // so may often return false negative
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
         info!("Kaspa mailbox, checking if message is delivered already (querying hub), id: {id:?}");
         let wid = WithdrawalId {
@@ -96,13 +86,10 @@ impl Mailbox for KaspaMailbox {
         }
     }
 
-    // there is no ism so return hardcode
     async fn default_ism(&self) -> ChainResult<H256> {
         Ok(KASPA_ISM_ADDRESS)
     }
 
-    /// Get the recipient ism address
-    // (Supposed to use app router to the get ISM on Kaspa which will handle a specific token contract)
     async fn recipient_ism(&self, _recipient: H256) -> ChainResult<H256> {
         Ok(KASPA_ISM_ADDRESS)
     }
@@ -110,23 +97,16 @@ impl Mailbox for KaspaMailbox {
     async fn process(
         &self,
         _message: &HyperlaneMessage,
-        _metadata: &[u8], // contains sigs etc
+        _metadata: &[u8],
         _tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
-        /*
-        There is a flow where the relayer will try to submit a batch and any failures will get retried via this method
-        We should
-         */
         unimplemented!("kas does not support single message processing")
     }
 
-    /// True if the destination chain supports batching
-    /// (i.e. if the mailbox contract will succeed on a `process_batch` call)
     fn supports_batching(&self) -> bool {
         true
     }
 
-    // We hijack this https://github.com/dymensionxyz/hyperlane-monorepo/blob/4ecb864de578648e0c0ef39561f291cd7f4dfe7c/rust/main/agents/relayer/src/msg/op_submitter.rs#L1084
     async fn process_batch<'a>(&self, ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
         info!(
             "Kaspa mailbox, processing/submitting kaspa batch of size: {}",
@@ -135,10 +115,9 @@ impl Mailbox for KaspaMailbox {
 
         let messages: Vec<HyperlaneMessage> = ops
             .iter()
-            .map(|op| op.try_batch().map(|item| item.data)) // TODO: please work...
+            .map(|op| op.try_batch().map(|item| item.data))
             .collect::<ChainResult<Vec<HyperlaneMessage>>>()?;
 
-        // Record first-seen timestamp for each message (only if not already tracked)
         let current_time = std::time::Instant::now();
         {
             let mut timestamps = self.operation_timestamps.lock().await;
@@ -146,10 +125,9 @@ impl Mailbox for KaspaMailbox {
                 let msg_id = format!("{:?}", msg.id());
                 timestamps.entry(msg_id).or_insert(current_time);
             }
-        } // Release the lock
+        }
 
         if self.provider.has_pending_confirmation() {
-            // All indexes are considered failed if there is a pending confirmation. they will be retried later.
             let failed_indexes: Vec<usize> = (0..ops.len()).collect();
             return Ok(BatchResult {
                 failed_indexes,
@@ -166,7 +144,6 @@ impl Mailbox for KaspaMailbox {
             Ok(messages) => {
                 info!("Kaspa mailbox, processed withdrawals TXs");
 
-                // Calculate and record withdrawal latency for successfully processed messages
                 let now = std::time::Instant::now();
                 let mut timestamps = self.operation_timestamps.lock().await;
                 for msg in &messages {
@@ -189,10 +166,6 @@ impl Mailbox for KaspaMailbox {
 
         info!("Kaspa mailbox, processed withdrawals TXs");
 
-        // Note: this return value doesn't really correspond well to what we did, since we sent (possibly) multiple TXs to Kaspa
-        // however, since the TXs must go in sequence, we can take the last one, knowing all the prior ones were accepted
-        // failed indexes should say which hyperlane messages were accepted
-
         let failed = {
             let mut failed = vec![];
             for (i, msg) in messages.iter().enumerate() {
@@ -200,7 +173,7 @@ impl Mailbox for KaspaMailbox {
                     failed.push(i);
                 }
             }
-            warn!(
+            error!(
                 "Kaspa mailbox, processed batch, failed indexes: {:?}",
                 failed
             );
@@ -252,17 +225,14 @@ impl Mailbox for KaspaMailbox {
         }
     }
 
-    // used in payload derivation: https://github.com/dymensionxyz/hyperlane-monorepo/blob/7d0ae7590decd9ea09f6c88f8eeeb49df0295e19/rust/main/agents/relayer/src/msg/pending_message.rs#L551
-    // although not sure what payload is for, seems like for 'lander'
     async fn process_calldata(
         &self,
         _message: &HyperlaneMessage,
         _metadata: &[u8],
     ) -> ChainResult<Vec<u8>> {
-        todo!() // we dont need this for now (original HL comment)
+        todo!()
     }
 
-    // again, seems for lander mode only
     fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
         todo!()
     }

@@ -32,9 +32,8 @@ use kaspa_wallet_pskt::prelude::*;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha3::{digest::Update, Digest, Keccak256};
 use std::sync::Arc;
-use tracing::{info, warn};
+use tracing::{error, info};
 
-/// Allows automatic error mapping
 struct AppError(eyre::Report);
 
 impl IntoResponse for AppError {
@@ -67,10 +66,8 @@ impl IntoResponse for AppError {
     }
 }
 
-/// Allows handler to have some state
 type HandlerResult<T> = Result<T, AppError>;
 
-/// Signer here refers to the typical Hyperlane signer which will need to sign attestations to be able to relay TO the hub
 pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(
     resources: ValidatorServerResources<S>,
 ) -> Router {
@@ -92,19 +89,17 @@ async fn respond_kaspa_ping<S: HyperlaneSignerExt + Send + Sync + 'static>(
     State(_): State<Arc<ValidatorServerResources<S>>>,
     _body: Bytes,
 ) -> HandlerResult<Json<String>> {
-    warn!("VALIDATOR SERVER, GOT KASPA PING");
+    error!("VALIDATOR SERVER, GOT KASPA PING");
     Ok(Json("pong".to_string()))
 }
 
-/// dococo
 #[derive(Clone)]
 pub struct ValidatorServerResources<S: HyperlaneSignerExt + Send + Sync + 'static> {
     ism_signer: Option<Arc<S>>,
-    kas_provider: Option<Box<KaspaProvider>>, // TODO: box, need multithread object? need to lock when signing?
+    kas_provider: Option<Box<KaspaProvider>>,
 }
 
 impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> {
-    /// dococo
     pub fn new(signer: Arc<S>, kas_provider: Box<KaspaProvider>) -> Self {
         Self {
             ism_signer: Some(signer),
@@ -161,7 +156,6 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
 ) -> HandlerResult<Json<SignedCheckpointWithMessageId>> {
     info!("Validator: checking new kaspa deposit");
     let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
-    // Call to validator.G()
     if resources.must_val_stuff().toggles.deposit_enabled {
         validate_new_deposit(
             &resources.must_api(),
@@ -179,7 +173,6 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
         )
         .await
         .map_err(|e| {
-            // Log the detailed error for debugging
             eprintln!("Deposit validation failed: {:?}", e);
             AppError(Report::from(e))
         })?;
@@ -205,7 +198,7 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
 
     let sig = resources
         .must_ism_signer()
-        .sign(to_sign) // TODO: need to lock first?
+        .sign(to_sign)
         .await
         .map_err(|e| AppError(e.into()))?;
     info!("Validator: signed deposit");
@@ -278,9 +271,6 @@ impl<'de> Deserialize<'de> for SignableProgressIndication {
 
 impl Signable for SignableProgressIndication {
     fn signing_hash(&self) -> H256 {
-        // see bytes derivation https://github.com/dymensionxyz/dymension/blob/64f69cae45ea93797299b97716e63bcada64ca25/x/kas/types/d.go#L87-L98
-        // see checkpoint example https://github.com/dymensionxyz/hyperlane-monorepo/blob/b372a9062d8cc6de604c32cc0ba200337707c350/rust/main/hyperlane-core/src/types/checkpoint.rs#L35
-
         let mut bz = vec![];
         bz.extend(
             self.progress_indication
@@ -327,7 +317,6 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
     let confirmation_fxg: ConfirmationFXG =
         body.try_into().map_err(|e: eyre::Report| AppError(e))?;
 
-    // Call to validator
     if resources
         .must_val_stuff()
         .toggles
@@ -349,7 +338,7 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
     let progress_indication = &confirmation_fxg.progress_indication;
 
     let sig = resources
-        .must_ism_signer() // TODO: need to lock?
+        .must_ism_signer()
         .sign(SignableProgressIndication {
             progress_indication: progress_indication.clone(),
         })
