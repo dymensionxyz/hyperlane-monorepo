@@ -121,7 +121,7 @@ where
             let deposits = match deposits_res {
                 Ok(deposits) => deposits,
                 Err(e) => {
-                    warn!(error = ?e, "Dymension, query new Kaspa deposits failed");
+                    error!(error = ?e, "Dymension, query new Kaspa deposits failed");
                     time::sleep(self.config.poll_interval()).await;
                     continue;
                 }
@@ -146,7 +146,7 @@ where
                 // always mark as seen
                 self.deposit_cache.mark_as_seen(d.clone()).await;
                 // Check if this is actually a withdrawal by looking at transaction inputs
-                match self.is_genuine_deposit(&d, &escrow_address).await {
+                match self.is_deposit(&d, &escrow_address).await {
                     // valid deposit. queue for processing
                     Ok(true) => {
                         info!(deposit = ?d, "Dymension, new deposit seen");
@@ -178,9 +178,9 @@ where
         }
     }
 
-    /// Check if a deposit is genuine by validating the payload contains a valid Hyperlane message
+    /// Check if a tx is definitely a deposit by validating the payload contains a valid Hyperlane message
     /// Returns true if it's a genuine deposit with valid Hyperlane payload, false otherwise
-    async fn is_genuine_deposit(&self, deposit: &Deposit, _escrow_address: &str) -> Result<bool> {
+    async fn is_deposit(&self, deposit: &Deposit, _escrow_address: &str) -> Result<bool> {
         use dym_kas_core::message::ParsedHL;
 
         // Check if deposit has a payload
@@ -229,7 +229,7 @@ where
         info!(deposit_id = %operation.deposit.id, "Processing deposit operation");
 
         // Use the operation creation time for accurate end-to-end latency measurement
-        let operation_start_time = operation.created_at;
+        let operation_start_time = operation.created_at; /// TODO: fix it, its wrong because deposit happened a long time ago from user perspective
 
         // Calculate deposit amount early (for metrics in case of failure)
         let deposit_amount = if let Some(payload) = &operation.deposit.payload {
@@ -248,6 +248,7 @@ where
             0
         };
 
+        // get something validators can process 
         let new_deposit_res = relayer_on_new_deposit(
             &operation.escrow_address,
             &operation.deposit,
@@ -259,6 +260,7 @@ where
             Ok(Some(fxg)) => {
                 info!(fxg = ?fxg, "Dymension, built new deposit FXG");
 
+                // Double check if this was already handled?
                 let delivered_res = self.hub_mailbox.delivered(fxg.hl_message.id()).await;
                 match delivered_res {
                     Ok(true) => {
