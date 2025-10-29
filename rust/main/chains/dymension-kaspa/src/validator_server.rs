@@ -34,6 +34,52 @@ use sha3::{digest::Update, Digest, Keccak256};
 use std::sync::Arc;
 use tracing::{error, info};
 
+#[derive(Clone)]
+pub struct SigningResources<
+    S: HyperlaneSignerExt + Send + Sync + 'static,
+    H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
+> {
+    direct_signer: Arc<S>,
+    singleton_signer: H,
+}
+
+impl<
+        S: HyperlaneSignerExt + Send + Sync + 'static,
+        H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
+    > SigningResources<S, H>
+{
+    pub fn new(direct_signer: Arc<S>, singleton_signer: H) -> Self {
+        Self {
+            direct_signer,
+            singleton_signer,
+        }
+    }
+
+    pub async fn sign_with_fallback<T: Signable + Send + Clone>(
+        &self,
+        signable: T,
+    ) -> Result<hyperlane_core::SignedType<T>, eyre::Report> {
+        const RETRIES: usize = 5;
+        const RETRY_DELAY_MS: u64 = 100;
+
+        for attempt in 0..RETRIES {
+            match self.direct_signer.sign(signable.clone()).await {
+                Ok(signed) => {
+                    tracing::debug!(attempt, "Signed with direct signer");
+                    return Ok(signed);
+                }
+                Err(err) => {
+                    tracing::warn!(?err, attempt, "Direct signer failed");
+                    tokio::time::sleep(tokio::time::Duration::from_millis(RETRY_DELAY_MS)).await;
+                }
+            }
+        }
+
+        tracing::warn!("Falling back to singleton signer");
+        Ok(self.singleton_signer.sign(signable).await?)
+    }
+}
+
 struct AppError(eyre::Report);
 
 impl IntoResponse for AppError {
@@ -68,25 +114,31 @@ impl IntoResponse for AppError {
 
 type HandlerResult<T> = Result<T, AppError>;
 
-pub fn router<S: HyperlaneSignerExt + Send + Sync + 'static>(
-    resources: ValidatorServerResources<S>,
+pub fn router<
+    S: HyperlaneSignerExt + Send + Sync + 'static,
+    H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
+>(
+    resources: ValidatorServerResources<S, H>,
 ) -> Router {
     Router::new()
         .route(
             ROUTE_VALIDATE_NEW_DEPOSITS,
-            post(respond_validate_new_deposits::<S>),
+            post(respond_validate_new_deposits::<S, H>),
         )
         .route(
             ROUTE_VALIDATE_CONFIRMED_WITHDRAWALS,
-            post(respond_validate_confirmed_withdrawals::<S>),
+            post(respond_validate_confirmed_withdrawals::<S, H>),
         )
-        .route(ROUTE_SIGN_PSKTS, post(respond_sign_pskts::<S>))
-        .route("/kaspa-ping", post(respond_kaspa_ping::<S>))
+        .route(ROUTE_SIGN_PSKTS, post(respond_sign_pskts::<S, H>))
+        .route("/kaspa-ping", post(respond_kaspa_ping::<S, H>))
         .with_state(Arc::new(resources))
 }
 
-async fn respond_kaspa_ping<S: HyperlaneSignerExt + Send + Sync + 'static>(
-    State(_): State<Arc<ValidatorServerResources<S>>>,
+async fn respond_kaspa_ping<
+    S: HyperlaneSignerExt + Send + Sync + 'static,
+    H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
+>(
+    State(_): State<Arc<ValidatorServerResources<S, H>>>,
     _body: Bytes,
 ) -> HandlerResult<Json<String>> {
     error!("VALIDATOR SERVER, GOT KASPA PING");
@@ -94,20 +146,27 @@ async fn respond_kaspa_ping<S: HyperlaneSignerExt + Send + Sync + 'static>(
 }
 
 #[derive(Clone)]
-pub struct ValidatorServerResources<S: HyperlaneSignerExt + Send + Sync + 'static> {
-    ism_signer: Option<Arc<S>>,
+pub struct ValidatorServerResources<
+    S: HyperlaneSignerExt + Send + Sync + 'static,
+    H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
+> {
+    signing: Option<SigningResources<S, H>>,
     kas_provider: Option<Box<KaspaProvider>>,
 }
 
-impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> {
-    pub fn new(ism_signer: Arc<S>, kas_provider: Box<KaspaProvider>) -> Self {
+impl<
+        S: HyperlaneSignerExt + Send + Sync + 'static,
+        H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
+    > ValidatorServerResources<S, H>
+{
+    pub fn new(signing: SigningResources<S, H>, kas_provider: Box<KaspaProvider>) -> Self {
         Self {
-            ism_signer: Some(ism_signer),
+            signing: Some(signing),
             kas_provider: Some(kas_provider),
         }
     }
-    fn must_ism_signer(&self) -> Arc<S> {
-        self.ism_signer.as_ref().unwrap().clone()
+    fn must_signing(&self) -> &SigningResources<S, H> {
+        self.signing.as_ref().unwrap()
     }
     fn must_kas_key(&self) -> KaspaSecpKeypair {
         self.kas_provider.as_ref().unwrap().must_kas_key()
@@ -141,17 +200,24 @@ impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> 
     }
 }
 
-impl<S: HyperlaneSignerExt + Send + Sync + 'static> Default for ValidatorServerResources<S> {
+impl<
+        S: HyperlaneSignerExt + Send + Sync + 'static,
+        H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
+    > Default for ValidatorServerResources<S, H>
+{
     fn default() -> Self {
         Self {
-            ism_signer: None,
+            signing: None,
             kas_provider: None,
         }
     }
 }
 
-async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'static>(
-    State(res): State<Arc<ValidatorServerResources<S>>>,
+async fn respond_validate_new_deposits<
+    S: HyperlaneSignerExt + Send + Sync + 'static,
+    H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
+>(
+    State(res): State<Arc<ValidatorServerResources<S, H>>>,
     body: Bytes,
 ) -> HandlerResult<Json<SignedCheckpointWithMessageId>> {
     info!("Validator: checking new kaspa deposit");
@@ -197,8 +263,8 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
     };
 
     let sig = res
-        .must_ism_signer()
-        .sign(to_sign)
+        .must_signing()
+        .sign_with_fallback(to_sign)
         .await
         .map_err(|e| AppError(e.into()))?;
     info!("Validator: signed deposit");
@@ -206,8 +272,11 @@ async fn respond_validate_new_deposits<S: HyperlaneSignerExt + Send + Sync + 'st
     Ok(Json(sig))
 }
 
-async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
-    State(res): State<Arc<ValidatorServerResources<S>>>,
+async fn respond_sign_pskts<
+    S: HyperlaneSignerExt + Send + Sync + 'static,
+    H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
+>(
+    State(res): State<Arc<ValidatorServerResources<S, H>>>,
     body: Bytes,
 ) -> HandlerResult<Json<Bundle>> {
     info!("Validator: signing pskts");
@@ -241,6 +310,7 @@ async fn respond_sign_pskts<S: HyperlaneSignerExt + Send + Sync + 'static>(
     Ok(Json(bundle))
 }
 
+#[derive(Clone)]
 pub struct SignableProgressIndication {
     progress_indication: ProgressIndication,
 }
@@ -310,8 +380,11 @@ impl Signable for SignableProgressIndication {
     }
 }
 
-async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + Sync + 'static>(
-    State(res): State<Arc<ValidatorServerResources<S>>>,
+async fn respond_validate_confirmed_withdrawals<
+    S: HyperlaneSignerExt + Send + Sync + 'static,
+    H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
+>(
+    State(res): State<Arc<ValidatorServerResources<S, H>>>,
     body: Bytes,
 ) -> HandlerResult<Json<HLCoreSignature>> {
     info!("Validator: checking confirmed kaspa withdrawal");
@@ -330,8 +403,8 @@ async fn respond_validate_confirmed_withdrawals<S: HyperlaneSignerExt + Send + S
     let progress_indication = &conf_fxg.progress_indication;
 
     let sig = res
-        .must_ism_signer()
-        .sign(SignableProgressIndication {
+        .must_signing()
+        .sign_with_fallback(SignableProgressIndication {
             progress_indication: progress_indication.clone(),
         })
         .await
