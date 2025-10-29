@@ -100,9 +100,9 @@ pub struct ValidatorServerResources<S: HyperlaneSignerExt + Send + Sync + 'stati
 }
 
 impl<S: HyperlaneSignerExt + Send + Sync + 'static> ValidatorServerResources<S> {
-    pub fn new(signer: Arc<S>, kas_provider: Box<KaspaProvider>) -> Self {
+    pub fn new(ism_signer: Arc<S>, kas_provider: Box<KaspaProvider>) -> Self {
         Self {
-            ism_signer: Some(signer),
+            ism_signer: Some(ism_signer),
             kas_provider: Some(kas_provider),
         }
     }
