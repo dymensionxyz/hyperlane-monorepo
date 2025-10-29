@@ -228,7 +228,6 @@ where
             0
         };
 
-
         let new_deposit_res = relayer_on_new_deposit(
             &operation.escrow_address,
             &operation.deposit,
