@@ -43,11 +43,10 @@ pub struct KaspaProvider {
     validators: ValidatorsClient,
     cosmos_rpc: CosmosProvider<ModuleQueryClient>,
 
-    // TODO: this is just a quick hack to get access to a kaspa escrow private key, we should change to wallet managed
+    // Quick hack for validator access to Kaspa escrow private key, should eventually be wallet-managed
     kas_key: Option<KaspaSecpKeypair>,
 
-    /// Optimistically give a hint for the next confirmation needed to be done on the Hub
-    /// If this value is out of date, the relayer can still manually poll Kaspa to figure out how to get synced
+    // Optimistic hint for next confirmation needed on Hub. If out of date, relayer polls Kaspa to sync
     pending_confirmation: Arc<PendingConfirmation>,
 
     metrics: KaspaBridgeMetrics,
@@ -163,6 +162,8 @@ impl KaspaProvider {
             .map(|r| r.kaspa_time_config.clone())
     }
 
+    // Process withdrawals from Hub to Kaspa by building and submitting Kaspa transactions.
+    // Returns the subset of messages that were successfully processed.
     pub async fn process_withdrawal_messages(
         &self,
         msgs: Vec<HyperlaneMessage>,
@@ -267,7 +268,8 @@ impl KaspaProvider {
     async fn submit_txs(&self, txs: Vec<RpcTransaction>) -> Result<Vec<RpcTransactionId>> {
         let mut ret = Vec::new();
         for tx in txs {
-            let allow_orphan = false; // TODO: what is this?
+            // allow_orphan controls whether TX can be submitted without parent TX being in DAG. Set to false to ensure TX chain integrity
+            let allow_orphan = false;
             let tx_id = self
                 .easy_wallet
                 .api()
@@ -297,7 +299,7 @@ impl KaspaProvider {
         self.metrics().update_escrow_utxo_count(utxos.len() as i64);
 
         let account = self.wallet().account();
-        // Try to get balance with a few retries
+        // Wallet balance may not be immediately available, retry a few times
         let mut balance_opt = None;
         for _ in 0..5 {
             if let Some(b) = account.balance() {
@@ -341,6 +343,7 @@ impl HyperlaneChain for KaspaProvider {
     }
 }
 
+// Only used by scraper, not implemented for Kaspa
 #[async_trait]
 impl HyperlaneProvider for KaspaProvider {
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
@@ -401,7 +404,7 @@ fn cosmos_grpc_client(urls: Vec<Url>) -> CosmosProvider<ModuleQueryClient> {
     .unwrap(); // TODO: no unwrap for Result
     let metrics = PrometheusClientMetrics::default();
     let chain = None;
-    // Create a dummy locator since we only need the query client
+    // Create dummy locator since we only need the query client, not full provider functionality
     let dummy_domain = hyperlane_core::HyperlaneDomain::new_test_domain("dummy");
     let locator = hyperlane_core::ContractLocator {
         domain: &dummy_domain,

@@ -31,6 +31,7 @@ impl DepositOperation {
 
     pub fn mark_failed(&mut self, config: &KaspaTimeConfig) {
         self.retry_count += 1;
+        // Exponential backoff capped at 2^5 to prevent excessive delays
         let delay_secs = config.base_retry_delay_secs * (1 << (self.retry_count - 1).min(5));
         self.next_attempt_after = Some(Instant::now() + Duration::from_secs(delay_secs));
         error!(

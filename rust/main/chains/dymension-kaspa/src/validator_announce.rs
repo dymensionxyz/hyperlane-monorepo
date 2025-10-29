@@ -42,7 +42,7 @@ impl HyperlaneChain for KaspaValidatorAnnounce {
 #[async_trait]
 impl ValidatorAnnounce for KaspaValidatorAnnounce {
     async fn get_announced_storage_locations(&self, _: &[H256]) -> ChainResult<Vec<Vec<String>>> {
-        // This value must match what was passed to the agent on CLI boot, it's not used semantically
+        // This value must match what was passed to the agent on CLI boot, it's not semantically used by the protocol
         let c = "ARBITRARY_VALUE_FOOBAR";
         Ok(vec![vec![format!("file://{}", c)]])
     }

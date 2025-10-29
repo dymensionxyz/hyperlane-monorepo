@@ -65,6 +65,8 @@ impl Mailbox for KaspaMailbox {
         return Ok(0);
     }
 
+    // Not a precise answer since actually depends on subsequent confirmation step on Kaspa,
+    // so may often return false negative (says not delivered when it actually is)
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
         info!("Kaspa mailbox, checking if message is delivered already (querying hub), id: {id:?}");
         let wid = WithdrawalId {
@@ -107,6 +109,8 @@ impl Mailbox for KaspaMailbox {
         true
     }
 
+    // Hijacks the batch processing flow since Kaspa uses different TX submission model than EVM chains.
+    // Instead of single mailbox.process() call, we build multiple Kaspa TXs that must execute in sequence.
     async fn process_batch<'a>(&self, ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
         info!(
             "Kaspa mailbox, processing/submitting kaspa batch of size: {}",
@@ -127,6 +131,8 @@ impl Mailbox for KaspaMailbox {
             }
         }
 
+        // Cannot process withdrawals while a confirmation is pending on the Hub.
+        // All operations marked failed and will be retried after confirmation completes.
         if self.provider.has_pending_confirmation() {
             let failed_indexes: Vec<usize> = (0..ops.len()).collect();
             return Ok(BatchResult {
@@ -166,6 +172,9 @@ impl Mailbox for KaspaMailbox {
 
         info!("Kaspa mailbox, processed withdrawals TXs");
 
+        // Return value doesn't correspond 1:1 to what we did since we sent multiple Kaspa TXs.
+        // However, since TXs must execute in sequence, we can use the last one knowing prior ones succeeded.
+        // failed_indexes indicates which hyperlane messages were NOT accepted.
         let failed = {
             let mut failed = vec![];
             for (i, msg) in messages.iter().enumerate() {
@@ -225,6 +234,7 @@ impl Mailbox for KaspaMailbox {
         }
     }
 
+    // Only used in 'lander' mode, not applicable for Kaspa bridge
     async fn process_calldata(
         &self,
         _message: &HyperlaneMessage,
@@ -233,6 +243,7 @@ impl Mailbox for KaspaMailbox {
         todo!()
     }
 
+    // Only used in 'lander' mode, not applicable for Kaspa bridge
     fn delivered_calldata(&self, _message_id: H256) -> ChainResult<Option<Vec<u8>>> {
         todo!()
     }

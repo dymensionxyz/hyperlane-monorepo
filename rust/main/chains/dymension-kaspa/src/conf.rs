@@ -9,15 +9,17 @@ use hyperlane_core::{
 
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
+    // Used by both validator and relayer since easiest way to get WRPC client is through wallet
     pub wallet_secret: String,
     pub wallet_dir: Option<String>,
 
-    pub kaspa_urls_wrpc: Vec<String>,
-    pub kaspa_urls_rest: Vec<Url>,
+    pub kaspa_urls_wrpc: Vec<String>, // Direct connection to Kaspa DAG node, e.g. localhost:17210
+    pub kaspa_urls_rest: Vec<Url>, // Connection to Kaspa indexer server, e.g. https://api.kaspa.org
 
+    // Used by both agents to build escrow public object
     pub validator_pub_keys: Vec<String>,
 
-    pub multisig_threshold_hub_ism: usize,
+    pub multisig_threshold_hub_ism: usize, // Could be queried from Dymension destination object instead
     pub multisig_threshold_kaspa: usize,
 
     pub hub_grpc_urls: Vec<Url>,

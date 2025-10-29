@@ -41,7 +41,7 @@ impl IntoResponse for AppError {
         let err_msg = self.0.to_string();
         eprintln!("Validator error: {}", err_msg);
 
-        // Differentiate between error types for different HTTP status codes
+        // HTTP status code differentiation enables retryable vs non-retryable error handling in clients
         let (status_code, response_body) = if err_msg.contains("not safe against reorg") {
             // Use 202 Accepted for non-final deposits (retryable)
             (
@@ -271,6 +271,7 @@ impl<'de> Deserialize<'de> for SignableProgressIndication {
 
 impl Signable for SignableProgressIndication {
     fn signing_hash(&self) -> H256 {
+        // Byte derivation matches Hub code: https://github.com/dymensionxyz/dymension/blob/main/x/kas/types/signing.go
         let mut bz = vec![];
         bz.extend(
             self.progress_indication

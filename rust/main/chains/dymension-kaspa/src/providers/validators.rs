@@ -232,18 +232,18 @@ pub async fn request_validate_new_deposits(
     } else {
         let error_msg = res.text().await.unwrap_or_else(|_| status.to_string());
 
-        // Create more specific errors based on HTTP status code
+        // Create more specific errors based on HTTP status code for retry semantics
         let error = match status {
             StatusCode::ACCEPTED => {
-                // 202: Deposit not final (retryable with backoff)
+                // 202 Accepted: Deposit not final, retryable with backoff
                 eyre::eyre!("DepositNotFinal: {}", error_msg)
             }
             StatusCode::UNPROCESSABLE_ENTITY => {
-                // 422: Transaction rejected (non-retryable)
+                // 422 Unprocessable Entity: Transaction rejected, non-retryable
                 eyre::eyre!("TransactionRejected: {}", error_msg)
             }
             StatusCode::SERVICE_UNAVAILABLE => {
-                // 503: Service unavailable (retryable)
+                // 503 Service Unavailable: Service down, retryable
                 eyre::eyre!("ServiceUnavailable: {}", error_msg)
             }
             _ => {

@@ -364,6 +364,13 @@ where
     }
 
     async fn progress_indication_loop(&self) {
+        // Confirmation list structure before IndicateProgress is called on Hub:
+        // prev: 100, next: 101
+        // prev: 100, next: 102
+        // prev: 100, next: 103
+        // All prev_outpoint are same since Hub last outpoint doesn't change.
+        // Process only the last confirmation. If Hub outpoint != prev_outpoint,
+        // Hub moved forward - clear confirmation list and get new ones next iteration.
         loop {
             let confirmation = self.provider.get_pending_confirmation().await;
 
@@ -437,6 +444,7 @@ where
         unimplemented!()
     }
 
+    // Unused - Kaspa bridge bypasses normal DB management for deposits/withdrawals
     async fn _dedupe_and_store_logs<T, S>(
         &self,
         store: &S,
@@ -456,6 +464,8 @@ where
         logs
     }
 
+    // Check if Hub's committed outpoint is already spent on Kaspa chain.
+    // If not synced, prepare progress indication and submit to Hub.
     pub async fn sync_hub_if_needed(&self) -> Result<()> {
         info!("Checking if hub is out of sync with Kaspa escrow account.");
         use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
@@ -493,6 +503,7 @@ where
             all_escrow_utxos.len()
         );
 
+        // Check if anchor UTXO exists in current escrow UTXOs - if yes, we're synced
         let hub_is_synced = all_escrow_utxos.iter().any(|utxo| {
             let ok = utxo.outpoint.transaction_id == old_anchor.transaction_id
                 && utxo.outpoint.index == old_anchor.index;
@@ -503,7 +514,7 @@ where
         });
         if !hub_is_synced {
             info!("Dymension is not synced, preparing progress indication and submitting to hub");
-
+            // Find the next UTXO in sequence by tracing from old_anchor to each candidate
             let mut good = false;
             for utxo in all_escrow_utxos {
                 let new_anchor_candidate = TransactionOutpoint::from(utxo.outpoint);
@@ -578,7 +589,11 @@ where
         Ok(())
     }
 
+    // Needs to satisfy Hub validation:
+    // - https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/keeper/msg_server.go#L42-L48
+    // - https://github.com/dymensionxyz/dymension/blob/2ddaf251568713d45a6900c0abb8a30158efc9aa/x/kas/types/d.go#L76-L84
     async fn confirm_withdrawal_on_hub(&self, fxg: ConfirmationFXG) -> Result<(), KaspaTxError> {
+        // Use the last outpoint (new anchor) from the withdrawal sequence
         let new_anchor = fxg.outpoints.last().ok_or_else(|| {
             KaspaTxError::ProcessingError(eyre::eyre!("No outpoints in confirmation FXG"))
         })?;
@@ -695,6 +710,8 @@ where
             });
         }
 
+        // Checkpoint struct not actually used in metadata formatting, only signatures matter.
+        // Create directly without needing real checkpoint data.
         let checkpoint = MultisigSignedCheckpoint {
             checkpoint: CheckpointWithMessageId {
                 checkpoint: Checkpoint {

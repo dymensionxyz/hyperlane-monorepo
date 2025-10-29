@@ -16,6 +16,8 @@ impl KaspaDepositError {
         true
     }
 
+    // Returns suggested retry delay based on missing confirmations.
+    // Kaspa produces ~10 blocks/sec, so 0.1 sec per confirmation.
     pub fn retry_delay_hint(&self) -> Option<f64> {
         match self {
             Self::NotFinalError { needed, current } => {
