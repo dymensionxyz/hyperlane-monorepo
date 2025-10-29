@@ -5,6 +5,7 @@ use rocksdb::{Options, DB as Rocks};
 use tracing::info;
 
 pub use hyperlane_db::*;
+pub use kaspa_db::*;
 pub use typed_db::*;
 
 /// Shared functionality surrounding use of rocksdb
@@ -12,6 +13,8 @@ pub mod iterator;
 
 /// DB operations tied to specific Mailbox
 mod hyperlane_db;
+/// DB operations tied to Kaspa Mailbox
+mod kaspa_db;
 /// Type-specific db operations
 mod typed_db;
 

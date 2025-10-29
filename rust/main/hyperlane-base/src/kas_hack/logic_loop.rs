@@ -1,4 +1,5 @@
 use crate::contract_sync::cursors::Indexable;
+use crate::db::KaspaRocksDB;
 use dym_kas_core::{
     confirmation::ConfirmationFXG, deposit::DepositFXG, finality::is_safe_against_reorg,
 };
@@ -33,6 +34,8 @@ pub struct Foo<C: MetadataConstructor> {
     deposit_cache: DepositCache,
     deposit_queue: Mutex<DepositOpQueue>,
     config: KaspaTimeConfig,
+    /// Database for storing Kaspa-related data
+    db: Option<Arc<KaspaRocksDB>>,
 }
 
 impl<C: MetadataConstructor> Foo<C>
@@ -55,7 +58,34 @@ where
             deposit_cache: DepositCache::new(),
             deposit_queue: Mutex::new(DepositOpQueue::new()),
             config,
+            db: None,
         }
+    }
+
+    pub fn new_with_db(
+        provider: Box<KaspaProvider>,
+        hub_mailbox: Arc<CosmosNativeMailbox>,
+        metadata_constructor: C,
+        db: Arc<KaspaRocksDB>,
+    ) -> Self {
+        // Get config from provider, or use defaults if not available
+        let config = provider
+            .kaspa_time_config()
+            .unwrap_or_else(KaspaTimeConfig::default);
+        Self {
+            provider,
+            hub_mailbox,
+            metadata_constructor,
+            deposit_cache: DepositCache::new(),
+            deposit_queue: Mutex::new(DepositOpQueue::new()),
+            config,
+            db: Some(db),
+        }
+    }
+
+    /// Get the database reference
+    pub fn db(&self) -> Option<&Arc<KaspaRocksDB>> {
+        self.db.as_ref()
     }
 
     /// Run deposit and progress indication loops

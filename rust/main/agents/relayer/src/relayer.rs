@@ -568,14 +568,29 @@ impl BaseAgent for Relayer {
             .iter()
             .map(|(key, origin)| (key.id(), origin.prover_sync.clone()))
             .collect();
-        let relayer_router = relayer_server::Server::new(self.destinations.len())
+
+        // Create KaspaRocksDB if we have a kaspa origin
+        let kaspa_db = self.origins.iter()
+            .find(|(domain, _)| is_kas(domain))
+            .map(|(domain, origin)| {
+                use hyperlane_base::db::{KaspaRocksDB, DB};
+                let db: &DB = origin.database.as_ref();
+                Arc::new(KaspaRocksDB::new(domain, db.clone()))
+            });
+
+        let mut server_builder = relayer_server::Server::new(self.destinations.len())
             .with_op_retry(sender.clone())
             .with_message_queue(prep_queues)
             .with_dbs(dbs)
             .with_gas_enforcers(gas_enforcers)
             .with_msg_ctxs(msg_ctxs)
-            .with_prover_sync(prover_syncs)
-            .router();
+            .with_prover_sync(prover_syncs);
+
+        if let Some(kaspa_db) = kaspa_db {
+            server_builder = server_builder.with_kaspa_db(kaspa_db);
+        }
+
+        let relayer_router = server_builder.router();
 
         let server = self
             .core
