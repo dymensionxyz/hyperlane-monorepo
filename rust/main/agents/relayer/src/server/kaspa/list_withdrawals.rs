@@ -57,9 +57,9 @@ pub async fn handler(
     let db = &state.kaspa_db;
     let mut withdrawals = Vec::new();
 
-    // Iterate through the nonce range and fetch messages
+    // Iterate through the nonce range and fetch withdrawal messages
     for nonce in nonce_start..nonce_end {
-        match db.as_ref().retrieve_message_by_nonce(nonce) {
+        match db.as_ref().retrieve_kaspa_withdrawal_by_nonce(nonce) {
             Ok(Some(message)) => {
                 // Check if the message has been processed
                 let processed = db

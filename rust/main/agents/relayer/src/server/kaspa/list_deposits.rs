@@ -55,9 +55,9 @@ pub async fn handler(
     let db = &state.kaspa_db;
     let mut deposits = Vec::new();
 
-    // Iterate through the nonce range and fetch messages
+    // Iterate through the nonce range and fetch deposit messages
     for nonce in nonce_start..nonce_end {
-        match db.as_ref().retrieve_message_by_nonce(nonce) {
+        match db.as_ref().retrieve_kaspa_deposit_by_nonce(nonce) {
             Ok(Some(message)) => {
                 deposits.push(DepositResponse {
                     message_id: format!("{:x}", message.id()),

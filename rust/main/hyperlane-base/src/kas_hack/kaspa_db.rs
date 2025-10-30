@@ -40,6 +40,15 @@ const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block
 const PAYLOAD_UUIDS_BY_MESSAGE_ID: &str = "payload_uuids_by_message_id_";
 const KASPA_DEPOSIT_NONCE_COUNTER: &str = "kaspa_deposit_nonce_counter";
 
+// Separate storage for Kaspa deposits and withdrawals
+const KASPA_DEPOSIT_MESSAGE_ID: &str = "kaspa_deposit_message_id_";
+const KASPA_DEPOSIT_MESSAGE: &str = "kaspa_deposit_message_";
+const KASPA_DEPOSIT_BLOCK_NUMBER: &str = "kaspa_deposit_block_number_";
+const KASPA_WITHDRAWAL_MESSAGE_ID: &str = "kaspa_withdrawal_message_id_";
+const KASPA_WITHDRAWAL_MESSAGE: &str = "kaspa_withdrawal_message_";
+const KASPA_WITHDRAWAL_BLOCK_NUMBER: &str = "kaspa_withdrawal_block_number_";
+const KASPA_WITHDRAWAL_NONCE_COUNTER: &str = "kaspa_withdrawal_nonce_counter";
+
 /// Rocks DB result type
 pub type DbResult<T> = std::result::Result<T, DbError>;
 
@@ -756,6 +765,100 @@ impl KaspaRocksDB {
         // Store the message with the new nonce
         self.upsert_message(&message, dispatched_block_number)?;
 
+        // Also store in deposit-specific storage
+        self.store_kaspa_deposit(&message, dispatched_block_number)?;
+
         Ok(nonce)
+    }
+
+    /// Store a Kaspa deposit message in deposit-specific storage
+    fn store_kaspa_deposit(
+        &self,
+        message: &HyperlaneMessage,
+        dispatched_block_number: u64,
+    ) -> DbResult<()> {
+        let id = message.id();
+        debug!(message_id=?id, nonce=message.nonce, "Storing Kaspa deposit");
+
+        // Store deposit message by nonce
+        self.store_value_by_key(KASPA_DEPOSIT_MESSAGE, &message.nonce, message)?;
+        // Store deposit message_id by nonce
+        self.store_value_by_key(KASPA_DEPOSIT_MESSAGE_ID, &message.nonce, &id)?;
+        // Store deposit block number
+        self.store_value_by_key(KASPA_DEPOSIT_BLOCK_NUMBER, &message.nonce, &dispatched_block_number)?;
+
+        Ok(())
+    }
+
+    /// Retrieve a Kaspa deposit message by nonce
+    pub fn retrieve_kaspa_deposit_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>> {
+        self.retrieve_value_by_key(KASPA_DEPOSIT_MESSAGE, &nonce)
+    }
+
+    /// Get the current withdrawal nonce counter
+    pub fn get_withdrawal_nonce_counter(&self) -> DbResult<u32> {
+        Ok(self
+            .retrieve_decodable("", KASPA_WITHDRAWAL_NONCE_COUNTER)?
+            .unwrap_or(0))
+    }
+
+    /// Increment and return the next withdrawal nonce
+    pub fn increment_withdrawal_nonce(&self) -> DbResult<u32> {
+        let current = self.get_withdrawal_nonce_counter()?;
+        let next = current + 1;
+        self.store_encodable("", KASPA_WITHDRAWAL_NONCE_COUNTER, &next)?;
+        Ok(current)
+    }
+
+    /// Store a withdrawal message with auto-incremented nonce
+    /// Returns the assigned nonce
+    pub fn store_withdrawal_message(
+        &self,
+        mut message: HyperlaneMessage,
+        dispatched_block_number: u64,
+    ) -> DbResult<u32> {
+        // Get and increment nonce
+        let nonce = self.increment_withdrawal_nonce()?;
+
+        // Override the message nonce with our counter
+        message.nonce = nonce;
+
+        debug!(
+            message_id = ?message.id(),
+            assigned_nonce = nonce,
+            "Storing withdrawal message with auto-incremented nonce"
+        );
+
+        // Store the message with the new nonce
+        self.upsert_message(&message, dispatched_block_number)?;
+
+        // Also store in withdrawal-specific storage
+        self.store_kaspa_withdrawal(&message, dispatched_block_number)?;
+
+        Ok(nonce)
+    }
+
+    /// Store a Kaspa withdrawal message in withdrawal-specific storage
+    fn store_kaspa_withdrawal(
+        &self,
+        message: &HyperlaneMessage,
+        dispatched_block_number: u64,
+    ) -> DbResult<()> {
+        let id = message.id();
+        debug!(message_id=?id, nonce=message.nonce, "Storing Kaspa withdrawal");
+
+        // Store withdrawal message by nonce
+        self.store_value_by_key(KASPA_WITHDRAWAL_MESSAGE, &message.nonce, message)?;
+        // Store withdrawal message_id by nonce
+        self.store_value_by_key(KASPA_WITHDRAWAL_MESSAGE_ID, &message.nonce, &id)?;
+        // Store withdrawal block number
+        self.store_value_by_key(KASPA_WITHDRAWAL_BLOCK_NUMBER, &message.nonce, &dispatched_block_number)?;
+
+        Ok(())
+    }
+
+    /// Retrieve a Kaspa withdrawal message by nonce
+    pub fn retrieve_kaspa_withdrawal_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>> {
+        self.retrieve_value_by_key(KASPA_WITHDRAWAL_MESSAGE, &nonce)
     }
 }
