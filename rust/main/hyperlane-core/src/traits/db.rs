@@ -57,3 +57,31 @@ pub trait HyperlaneWatermarkedLogStore<T>: HyperlaneLogStore<T> {
     /// Stores the block number high watermark
     async fn store_high_watermark(&self, block_number: u32) -> Result<()>;
 }
+
+/// Trait for Kaspa-specific database operations (deposits/withdrawals tracking)
+/// This trait is defined in hyperlane-core to avoid circular dependencies between
+/// dymension-kaspa and hyperlane-base.
+#[auto_impl(&, Box, Arc)]
+pub trait KaspaDb: Send + Sync + Debug {
+    /// Store a withdrawal message with auto-incremented nonce
+    /// Returns the assigned nonce
+    fn store_withdrawal_message(
+        &self,
+        message: crate::HyperlaneMessage,
+        dispatched_block_number: u64,
+    ) -> Result<u32>;
+
+    /// Retrieve a withdrawal message by nonce
+    fn retrieve_kaspa_withdrawal_by_nonce(&self, nonce: u32) -> Result<Option<crate::HyperlaneMessage>>;
+
+    /// Store a deposit message with auto-incremented nonce
+    /// Returns the assigned nonce
+    fn store_deposit_message(
+        &self,
+        message: crate::HyperlaneMessage,
+        dispatched_block_number: u64,
+    ) -> Result<u32>;
+
+    /// Retrieve a deposit message by nonce
+    fn retrieve_kaspa_deposit_by_nonce(&self, nonce: u32) -> Result<Option<crate::HyperlaneMessage>>;
+}

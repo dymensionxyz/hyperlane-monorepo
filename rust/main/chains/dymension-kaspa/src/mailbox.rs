@@ -16,13 +16,28 @@ use tonic::async_trait;
 use tracing::{error, info, warn};
 
 // pretends to be a mailbox
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct KaspaMailbox {
     provider: KaspaProvider,
     domain: HyperlaneDomain,
     address: H256,
     /// Track first seen time for operations to measure true end-to-end latency
     operation_timestamps: Arc<Mutex<HashMap<String, std::time::Instant>>>,
+    /// Optional Kaspa database for tracking deposits/withdrawals
+    kaspa_db: Option<Arc<dyn hyperlane_core::KaspaDb>>,
+}
+
+// Manual Debug implementation since dyn KaspaDb doesn't implement Debug
+impl std::fmt::Debug for KaspaMailbox {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KaspaMailbox")
+            .field("provider", &self.provider)
+            .field("domain", &self.domain)
+            .field("address", &self.address)
+            .field("operation_timestamps", &self.operation_timestamps)
+            .field("kaspa_db", &self.kaspa_db.is_some())
+            .finish()
+    }
 }
 
 impl KaspaMailbox {
@@ -33,6 +48,7 @@ impl KaspaMailbox {
             address: locator.address, // TODO: will be zero?
             domain: locator.domain.clone(),
             operation_timestamps: Arc::new(Mutex::new(HashMap::new())),
+            kaspa_db: None,
         })
     }
 
@@ -42,7 +58,19 @@ impl KaspaMailbox {
             domain: self.domain.clone(),
             address: self.address,
             operation_timestamps: self.operation_timestamps.clone(),
+            kaspa_db: self.kaspa_db.clone(),
         }
+    }
+
+    /// Set the Kaspa database instance
+    pub fn with_kaspa_db(mut self, kaspa_db: Arc<dyn hyperlane_core::KaspaDb>) -> Self {
+        self.kaspa_db = Some(kaspa_db);
+        self
+    }
+
+    /// Get a reference to the Kaspa database if set
+    pub fn kaspa_db(&self) -> Option<&Arc<dyn hyperlane_core::KaspaDb>> {
+        self.kaspa_db.as_ref()
     }
 }
 

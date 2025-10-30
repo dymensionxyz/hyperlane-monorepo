@@ -862,3 +862,31 @@ impl KaspaRocksDB {
         self.retrieve_value_by_key(KASPA_WITHDRAWAL_MESSAGE, &nonce)
     }
 }
+
+// Implement the KaspaDb trait from hyperlane-core to allow dymension-kaspa
+// to access kaspa_db functionality without creating circular dependencies
+impl hyperlane_core::KaspaDb for KaspaRocksDB {
+    fn store_withdrawal_message(
+        &self,
+        message: HyperlaneMessage,
+        dispatched_block_number: u64,
+    ) -> Result<u32> {
+        Ok(self.store_withdrawal_message(message, dispatched_block_number)?)
+    }
+
+    fn retrieve_kaspa_withdrawal_by_nonce(&self, nonce: u32) -> Result<Option<HyperlaneMessage>> {
+        Ok(self.retrieve_kaspa_withdrawal_by_nonce(nonce)?)
+    }
+
+    fn store_deposit_message(
+        &self,
+        message: HyperlaneMessage,
+        dispatched_block_number: u64,
+    ) -> Result<u32> {
+        Ok(self.store_deposit_message(message, dispatched_block_number)?)
+    }
+
+    fn retrieve_kaspa_deposit_by_nonce(&self, nonce: u32) -> Result<Option<HyperlaneMessage>> {
+        Ok(self.retrieve_kaspa_deposit_by_nonce(nonce)?)
+    }
+}

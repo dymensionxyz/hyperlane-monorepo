@@ -430,14 +430,27 @@ impl BaseAgent for Relayer {
         }
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started processors", "Relayer startup duration measurement");
 
+        // Create KaspaRocksDB early if we have a kaspa origin, to be used in both kaspa tasks and server
+        let kaspa_db = self.origins.iter()
+            .find(|(domain, _)| is_kas(domain))
+            .map(|(domain, origin)| {
+                use hyperlane_base::kas_hack::KaspaRocksDB;
+                use hyperlane_base::db::DB;
+                let db: &DB = origin.database.as_ref();
+                Arc::new(KaspaRocksDB::new(domain, db.clone()))
+            });
+
         start_entity_init = Instant::now();
         for (origin_domain, origin) in self.origins.iter() {
             if is_kas(&origin.domain) && self.dymension_kaspa_args.is_some() {
+                // Get the kaspa_db that was already created above
+                let kaspa_db = kaspa_db.as_ref().expect("kaspa_db should exist for kaspa origin");
                 self.launch_dymension_kaspa_tasks(
                     origin,
                     &mut tasks,
                     task_monitor.clone(),
                     send_channels.clone(),
+                    kaspa_db.clone(),
                 )
                 .await;
                 continue;
@@ -569,15 +582,7 @@ impl BaseAgent for Relayer {
             .map(|(key, origin)| (key.id(), origin.prover_sync.clone()))
             .collect();
 
-        // Create KaspaRocksDB if we have a kaspa origin
-        let kaspa_db = self.origins.iter()
-            .find(|(domain, _)| is_kas(domain))
-            .map(|(domain, origin)| {
-                use hyperlane_base::kas_hack::KaspaRocksDB;
-                use hyperlane_base::db::DB;
-                let db: &DB = origin.database.as_ref();
-                Arc::new(KaspaRocksDB::new(domain, db.clone()))
-            });
+        // kaspa_db was already created earlier, before the origin loop
 
         let mut server_builder = relayer_server::Server::new(self.destinations.len())
             .with_op_retry(sender.clone())
@@ -1062,10 +1067,22 @@ impl Relayer {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct DymensionKaspaArgs {
     kas_provider: Box<KaspaProvider>,
+    kas_mailbox: Arc<dymension_kaspa::KaspaMailbox>,
     dym_mailbox: Arc<CosmosNativeMailbox>,
+}
+
+// Manual Debug since KaspaMailbox now has a trait object
+impl std::fmt::Debug for DymensionKaspaArgs {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DymensionKaspaArgs")
+            .field("kas_provider", &self.kas_provider)
+            .field("kas_mailbox", &"KaspaMailbox")
+            .field("dym_mailbox", &self.dym_mailbox)
+            .finish()
+    }
 }
 
 impl Relayer {
@@ -1078,6 +1095,10 @@ impl Relayer {
         };
         let kas_provider_trait = kas_mailbox_trait.provider();
         let kas_provider = kas_provider_trait.downcast::<KaspaProvider>().unwrap();
+
+        let kas_mailbox = kas_mailbox_trait
+            .downcast_arc::<dymension_kaspa::KaspaMailbox>()
+            .unwrap();
 
         let dym_mailbox_trait = {
             dsts.iter()
@@ -1094,6 +1115,7 @@ impl Relayer {
 
         Ok(Some(DymensionKaspaArgs {
             kas_provider,
+            kas_mailbox,
             dym_mailbox,
         }))
     }
@@ -1104,21 +1126,21 @@ impl Relayer {
         tasks: &mut Vec<JoinHandle<()>>,
         task_monitor: TaskMonitor,
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
+        kaspa_db: Arc<hyperlane_base::kas_hack::KaspaRocksDB>,
     ) {
         let args = self.dymension_kaspa_args.as_ref().unwrap();
 
         let kas_provider = args.kas_provider.clone();
         let hub_mailbox = args.dym_mailbox.clone();
 
-        let metadata_getter = PendingMessageMetadataGetter::new();
+        // Set kaspa_db on the kaspa mailbox
+        let kas_mailbox_with_db = Arc::new(
+            Arc::try_unwrap(args.kas_mailbox.clone())
+                .unwrap_or_else(|arc| (*arc).clone())
+                .with_kaspa_db(kaspa_db.clone())
+        );
 
-        // Create KaspaRocksDB for deposit tracking
-        let kaspa_db = {
-            use hyperlane_base::kas_hack::KaspaRocksDB;
-            use hyperlane_base::db::DB;
-            let db: &DB = origin.database.as_ref();
-            Arc::new(KaspaRocksDB::new(&origin.domain, db.clone()))
-        };
+        let metadata_getter = PendingMessageMetadataGetter::new();
 
         let b = KaspaBridgeFoo::new_with_db(
             kas_provider.clone(),
