@@ -176,6 +176,28 @@ impl Mailbox for KaspaMailbox {
             }
         } // Release the lock
 
+        // Store withdrawal messages in kaspa_db before processing
+        if let Some(kaspa_db) = self.kaspa_db() {
+            for msg in &messages {
+                match kaspa_db.store_withdrawal_message(msg.clone(), 0) {
+                    Ok(nonce) => {
+                        info!(
+                            message_id = ?msg.id(),
+                            assigned_nonce = nonce,
+                            "Stored withdrawal message in kaspa_db"
+                        );
+                    }
+                    Err(e) => {
+                        error!(
+                            message_id = ?msg.id(),
+                            error = ?e,
+                            "Failed to store withdrawal message in kaspa_db"
+                        );
+                    }
+                }
+            }
+        }
+
         if self.provider.has_pending_confirmation() {
             // All indexes are considered failed if there is a pending confirmation. they will be retried later.
             let failed_indexes: Vec<usize> = (0..ops.len()).collect();
