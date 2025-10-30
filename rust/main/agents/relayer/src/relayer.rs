@@ -181,7 +181,7 @@ impl BaseAgent for Relayer {
         start_entity_init = Instant::now();
         let dispatcher_metrics = DispatcherMetrics::new(core_metrics.registry())
             .expect("Creating dispatcher metrics is infallible");
-        let destinations = Self::build_destinations(
+        let mut destinations = Self::build_destinations(
             &settings,
             db.clone(),
             core_metrics.clone(),
@@ -191,6 +191,37 @@ impl BaseAgent for Relayer {
         .await;
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized destination chains", "Relayer startup duration measurement");
         let dymension_args = Self::get_dymension_kaspa_args(&destinations).await?;
+
+        // Create KaspaRocksDB early if we have a kaspa origin, before creating message contexts
+        let kaspa_db = origins.iter()
+            .find(|(domain, _)| is_kas(domain))
+            .map(|(domain, origin)| {
+                use hyperlane_base::kas_hack::KaspaRocksDB;
+                use hyperlane_base::db::DB;
+                let db: &DB = origin.database.as_ref();
+                Arc::new(KaspaRocksDB::new(domain, db.clone()))
+            });
+
+        // Update the kaspa mailbox in destinations with kaspa_db BEFORE creating message contexts
+        if let Some(kaspa_db_ref) = kaspa_db.as_ref() {
+            if let Some(kas_domain) = origins.iter().find(|(domain, _)| is_kas(domain)).map(|(d, _)| d.clone()) {
+                if let Some(destination) = destinations.get_mut(&kas_domain) {
+                    let current_mailbox = destination.mailbox.clone();
+                    match dymension_kaspa::update_mailbox_with_db(
+                        current_mailbox,
+                        kaspa_db_ref.clone() as Arc<dyn hyperlane_core::KaspaDb>
+                    ) {
+                        Ok(updated_mailbox) => {
+                            destination.mailbox = updated_mailbox;
+                            info!("Set kaspa_db on kaspa mailbox in destinations before creating message contexts");
+                        }
+                        Err(e) => {
+                            error!(error = ?e, "Failed to update kaspa mailbox with kaspa_db");
+                        }
+                    }
+                }
+            }
+        }
 
         let message_whitelist = Arc::new(settings.whitelist);
         let message_blacklist = Arc::new(settings.blacklist);
@@ -430,7 +461,7 @@ impl BaseAgent for Relayer {
         }
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started processors", "Relayer startup duration measurement");
 
-        // Create KaspaRocksDB early if we have a kaspa origin, to be used in both kaspa tasks and server
+        // Retrieve the kaspa_db that was already created in from_settings
         let kaspa_db = self.origins.iter()
             .find(|(domain, _)| is_kas(domain))
             .map(|(domain, origin)| {
@@ -1132,13 +1163,6 @@ impl Relayer {
 
         let kas_provider = args.kas_provider.clone();
         let hub_mailbox = args.dym_mailbox.clone();
-
-        // Set kaspa_db on the kaspa mailbox
-        let kas_mailbox_with_db = Arc::new(
-            Arc::try_unwrap(args.kas_mailbox.clone())
-                .unwrap_or_else(|arc| (*arc).clone())
-                .with_kaspa_db(kaspa_db.clone())
-        );
 
         let metadata_getter = PendingMessageMetadataGetter::new();
 

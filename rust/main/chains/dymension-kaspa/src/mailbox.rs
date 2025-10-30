@@ -74,6 +74,25 @@ impl KaspaMailbox {
     }
 }
 
+/// Updates a trait object Mailbox with kaspa_db if it's a KaspaMailbox.
+/// Returns the updated mailbox as a trait object.
+pub fn update_mailbox_with_db(
+    mailbox: Arc<dyn Mailbox>,
+    kaspa_db: Arc<dyn hyperlane_core::KaspaDb>,
+) -> ChainResult<Arc<dyn Mailbox>> {
+    let kas_mailbox = mailbox
+        .downcast_arc::<KaspaMailbox>()
+        .map_err(|_| hyperlane_core::ChainCommunicationError::CustomError(
+            "Failed to downcast mailbox to KaspaMailbox".to_string()
+        ))?;
+
+    let updated_mailbox = Arc::try_unwrap(kas_mailbox)
+        .unwrap_or_else(|arc| (*arc).clone())
+        .with_kaspa_db(kaspa_db);
+
+    Ok(Arc::new(updated_mailbox))
+}
+
 impl HyperlaneChain for KaspaMailbox {
     /// Hardcoded // TODO: security implications?
     fn domain(&self) -> &HyperlaneDomain {
@@ -196,6 +215,8 @@ impl Mailbox for KaspaMailbox {
                     }
                 }
             }
+        } else {
+            warn!("Kaspa mailbox, no kaspa_db set, skipping storing withdrawal messages");
         }
 
         if self.provider.has_pending_confirmation() {
