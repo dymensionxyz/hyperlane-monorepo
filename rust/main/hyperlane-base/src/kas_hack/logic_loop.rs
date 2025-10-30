@@ -1,5 +1,5 @@
 use crate::contract_sync::cursors::Indexable;
-use crate::db::KaspaRocksDB;
+use crate::kas_hack::KaspaRocksDB;
 use dym_kas_core::{
     confirmation::ConfirmationFXG, deposit::DepositFXG, finality::is_safe_against_reorg,
 };
@@ -329,6 +329,41 @@ where
                             .metrics()
                             .record_deposit_processed(&deposit_id, deposit_amount);
                         self.provider.metrics().update_deposit_latency(latency_ms);
+
+                        // Store deposit message in database if available
+                        if let Some(db) = self.db.as_ref() {
+                            let original_nonce = fxg.hl_message.nonce;
+                            info!(
+                                message_id = ?fxg.hl_message.id(),
+                                original_nonce = original_nonce,
+                                origin = fxg.hl_message.origin,
+                                destination = fxg.hl_message.destination,
+                                db_domain = db.domain().id(),
+                                "Attempting to store deposit message in database with auto-incremented nonce"
+                            );
+                            // Use a synthetic block number (could be from deposit metadata if available)
+                            let block_number = 0u64; // TODO: get actual block number from deposit
+                            match db.store_deposit_message(fxg.hl_message.clone(), block_number) {
+                                Ok(assigned_nonce) => {
+                                    info!(
+                                        message_id = ?fxg.hl_message.id(),
+                                        original_nonce = original_nonce,
+                                        assigned_nonce = assigned_nonce,
+                                        "Successfully stored deposit message with auto-incremented nonce"
+                                    );
+                                }
+                                Err(e) => {
+                                    error!(
+                                        error = ?e,
+                                        message_id = ?fxg.hl_message.id(),
+                                        original_nonce = original_nonce,
+                                        "Failed to store deposit message in database"
+                                    );
+                                }
+                            }
+                        } else {
+                            warn!("No database available for storing deposit message - this should not happen!");
+                        }
 
                         // Success! Operation complete
                         operation.reset_attempts();

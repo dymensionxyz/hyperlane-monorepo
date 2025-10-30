@@ -7,7 +7,8 @@ use derive_new::new;
 use hyperlane_core::HyperlaneDomain;
 use tokio::sync::broadcast::Sender;
 
-use hyperlane_base::db::{HyperlaneRocksDB, KaspaRocksDB};
+use hyperlane_base::db::HyperlaneRocksDB;
+use hyperlane_base::kas_hack::KaspaRocksDB;
 use tokio::sync::RwLock;
 
 use crate::merkle_tree::builder::MerkleTreeBuilder;

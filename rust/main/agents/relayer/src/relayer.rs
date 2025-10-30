@@ -573,7 +573,8 @@ impl BaseAgent for Relayer {
         let kaspa_db = self.origins.iter()
             .find(|(domain, _)| is_kas(domain))
             .map(|(domain, origin)| {
-                use hyperlane_base::db::{KaspaRocksDB, DB};
+                use hyperlane_base::kas_hack::KaspaRocksDB;
+                use hyperlane_base::db::DB;
                 let db: &DB = origin.database.as_ref();
                 Arc::new(KaspaRocksDB::new(domain, db.clone()))
             });
@@ -1111,7 +1112,20 @@ impl Relayer {
 
         let metadata_getter = PendingMessageMetadataGetter::new();
 
-        let b = KaspaBridgeFoo::new(kas_provider.clone(), hub_mailbox.clone(), metadata_getter);
+        // Create KaspaRocksDB for deposit tracking
+        let kaspa_db = {
+            use hyperlane_base::kas_hack::KaspaRocksDB;
+            use hyperlane_base::db::DB;
+            let db: &DB = origin.database.as_ref();
+            Arc::new(KaspaRocksDB::new(&origin.domain, db.clone()))
+        };
+
+        let b = KaspaBridgeFoo::new_with_db(
+            kas_provider.clone(),
+            hub_mailbox.clone(),
+            metadata_getter,
+            kaspa_db,
+        );
 
         // sync relayer before starting other tasks
         b.sync_hub_if_needed().await.unwrap();

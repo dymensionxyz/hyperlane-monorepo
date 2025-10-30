@@ -13,10 +13,8 @@ use hyperlane_core::{
 
 use crate::db::{
     storage_types::{InterchainGasExpenditureData, InterchainGasPaymentData},
-    HyperlaneDb,
+    DbError, HyperlaneDb, TypedDB, DB,
 };
-
-use super::{DbError, TypedDB, DB};
 
 // these keys MUST not be given multiple uses in case multiple agents are
 // started with the same database and domain.
@@ -40,6 +38,7 @@ const MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX: &str =
     "merkle_tree_insertion_block_number_by_leaf_index_";
 const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
 const PAYLOAD_UUIDS_BY_MESSAGE_ID: &str = "payload_uuids_by_message_id_";
+const KASPA_DEPOSIT_NONCE_COUNTER: &str = "kaspa_deposit_nonce_counter";
 
 /// Rocks DB result type
 pub type DbResult<T> = std::result::Result<T, DbError>;
@@ -718,5 +717,45 @@ impl KaspaRocksDB {
         key: &K,
     ) -> DbResult<Option<V>> {
         self.retrieve_decodable(prefix, key.to_vec())
+    }
+
+    /// Get the current deposit nonce counter
+    pub fn get_deposit_nonce_counter(&self) -> DbResult<u32> {
+        Ok(self
+            .retrieve_decodable("", KASPA_DEPOSIT_NONCE_COUNTER)?
+            .unwrap_or(0))
+    }
+
+    /// Increment and return the next deposit nonce
+    pub fn increment_deposit_nonce(&self) -> DbResult<u32> {
+        let current = self.get_deposit_nonce_counter()?;
+        let next = current + 1;
+        self.store_encodable("", KASPA_DEPOSIT_NONCE_COUNTER, &next)?;
+        Ok(current)
+    }
+
+    /// Store a deposit message with auto-incremented nonce
+    /// Returns the assigned nonce
+    pub fn store_deposit_message(
+        &self,
+        mut message: HyperlaneMessage,
+        dispatched_block_number: u64,
+    ) -> DbResult<u32> {
+        // Get and increment nonce
+        let nonce = self.increment_deposit_nonce()?;
+
+        // Override the message nonce with our counter
+        message.nonce = nonce;
+
+        debug!(
+            message_id = ?message.id(),
+            assigned_nonce = nonce,
+            "Storing deposit message with auto-incremented nonce"
+        );
+
+        // Store the message with the new nonce
+        self.upsert_message(&message, dispatched_block_number)?;
+
+        Ok(nonce)
     }
 }

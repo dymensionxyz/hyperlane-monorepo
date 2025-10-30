@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use axum::{routing::get, Router};
 use derive_new::new;
-use hyperlane_base::db::KaspaRocksDB;
+use hyperlane_base::kas_hack::KaspaRocksDB;
 
 pub mod list_deposits;
 pub mod list_withdrawals;
