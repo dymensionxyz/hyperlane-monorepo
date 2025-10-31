@@ -286,7 +286,7 @@ async fn respond_sign_pskts<
     let escrow = res.must_escrow();
     let val_stuff = res.must_val_stuff();
 
-    let kas_key_source = res.kas_key_source();
+    let kas_key_source = res.kas_key_source().clone();
 
     let bundle = validate_sign_withdrawal_fxg(
         fxg,
