@@ -14,83 +14,80 @@ use crate::server::kaspa::ServerState;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct QueryParams {
-    pub nonce_start: u32,
-    pub nonce_end: u32,
+    pub message_id: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct WithdrawalResponse {
     pub message_id: String,
     pub message: HyperlaneMessage,
-    pub nonce: u32,
-    pub processed: bool,
+    pub status: String,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct ResponseBody {
-    pub withdrawals: Vec<WithdrawalResponse>,
-}
-
-/// Fetch Kaspa withdrawals from the database
+/// Fetch a Kaspa withdrawal by message_id
 pub async fn handler(
     State(state): State<ServerState>,
     Query(query_params): Query<QueryParams>,
-) -> ServerResult<ServerSuccessResponse<ResponseBody>> {
-    let QueryParams {
-        nonce_start,
-        nonce_end,
-    } = query_params;
+) -> ServerResult<ServerSuccessResponse<WithdrawalResponse>> {
+    use hyperlane_core::H256;
 
-    tracing::debug!(nonce_start, nonce_end, "Fetching Kaspa withdrawals");
+    let message_id_str = query_params.message_id;
 
-    if nonce_end <= nonce_start {
-        let error_msg = "nonce_end must be greater than nonce_start";
-        let err = ServerErrorResponse::new(
-            StatusCode::BAD_REQUEST,
-            ServerErrorBody {
-                message: error_msg.to_string(),
-            },
-        );
-        return Err(err);
-    }
+    tracing::debug!(%message_id_str, "Fetching Kaspa withdrawal by message_id");
 
     let db = &state.kaspa_db;
-    let mut withdrawals = Vec::new();
 
-    // Iterate through the nonce range and fetch withdrawal messages
-    for nonce in nonce_start..nonce_end {
-        match db.as_ref().retrieve_kaspa_withdrawal_by_nonce(nonce) {
-            Ok(Some(message)) => {
-                // Check if the message has been processed
-                let processed = db
-                    .as_ref()
-                    .retrieve_processed_by_nonce(&nonce)
-                    .unwrap_or(Some(false))
-                    .unwrap_or(false);
-
-                withdrawals.push(WithdrawalResponse {
-                    message_id: format!("{:x}", message.id()),
-                    nonce,
-                    message,
-                    processed,
-                });
-            }
-            Ok(None) => {
-                // No message at this nonce, continue
-                tracing::trace!(nonce, "No withdrawal found at nonce");
-            }
-            Err(e) => {
-                tracing::error!(nonce, error = ?e, "Error retrieving withdrawal from database");
-                return Err(ServerErrorResponse::new(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    ServerErrorBody {
-                        message: format!("Database error: {}", e),
-                    },
-                ));
-            }
+    // Parse message_id from hex string
+    let message_id = match message_id_str.parse::<H256>() {
+        Ok(id) => id,
+        Err(e) => {
+            tracing::error!(%message_id_str, error = ?e, "Invalid message_id format");
+            return Err(ServerErrorResponse::new(
+                StatusCode::BAD_REQUEST,
+                ServerErrorBody {
+                    message: format!("Invalid message_id format: {}", e),
+                },
+            ));
         }
-    }
+    };
 
-    let resp = ResponseBody { withdrawals };
-    Ok(ServerSuccessResponse::new(resp))
+    // Retrieve the withdrawal message directly by message_id
+    let message = match db.as_ref().retrieve_kaspa_withdrawal_by_message_id(&message_id) {
+        Ok(Some(message)) => message,
+        Ok(None) => {
+            return Err(ServerErrorResponse::new(
+                StatusCode::NOT_FOUND,
+                ServerErrorBody {
+                    message: format!("No withdrawal found for message_id: {}", message_id_str),
+                },
+            ));
+        }
+        Err(e) => {
+            tracing::error!(%message_id_str, error = ?e, "Error retrieving withdrawal from database");
+            return Err(ServerErrorResponse::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ServerErrorBody {
+                    message: format!("Database error: {}", e),
+                },
+            ));
+        }
+    };
+
+    // Determine status: check if message has been processed on Kaspa
+    let status = if db.as_ref().retrieve_processed_by_nonce(&message.nonce)
+        .unwrap_or(Some(false))
+        .unwrap_or(false)
+    {
+        "completed".to_string()
+    } else {
+        "pending".to_string()
+    };
+
+    let response = WithdrawalResponse {
+        message_id: format!("{:x}", message.id()),
+        message,
+        status,
+    };
+
+    Ok(ServerSuccessResponse::new(response))
 }

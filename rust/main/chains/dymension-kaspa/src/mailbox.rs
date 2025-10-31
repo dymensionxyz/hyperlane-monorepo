@@ -198,17 +198,17 @@ impl Mailbox for KaspaMailbox {
         // Store withdrawal messages in kaspa_db before processing
         if let Some(kaspa_db) = self.kaspa_db() {
             for msg in &messages {
+                let message_id = format!("0x{:x}", msg.id());
                 match kaspa_db.store_withdrawal_message(msg.clone(), 0) {
-                    Ok(nonce) => {
+                    Ok(()) => {
                         info!(
-                            message_id = ?msg.id(),
-                            assigned_nonce = nonce,
+                            message_id = %message_id,
                             "Stored withdrawal message in kaspa_db"
                         );
                     }
                     Err(e) => {
                         error!(
-                            message_id = ?msg.id(),
+                            message_id = %message_id,
                             error = ?e,
                             "Failed to store withdrawal message in kaspa_db"
                         );

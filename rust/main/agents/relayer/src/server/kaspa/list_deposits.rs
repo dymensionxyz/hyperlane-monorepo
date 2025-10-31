@@ -4,6 +4,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
+use hyperlane_base::db::HyperlaneDb;
 use hyperlane_base::server::utils::{
     ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse,
 };
@@ -13,74 +14,68 @@ use crate::server::kaspa::ServerState;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct QueryParams {
-    pub nonce_start: u32,
-    pub nonce_end: u32,
+    pub kaspa_tx: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct DepositResponse {
     pub message_id: String,
     pub message: HyperlaneMessage,
-    pub nonce: u32,
+    pub kaspa_tx: String,
+    pub status: String,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct ResponseBody {
-    pub deposits: Vec<DepositResponse>,
-}
-
-/// Fetch Kaspa deposits from the database
+/// Fetch a Kaspa deposit by kaspa transaction hash
 pub async fn handler(
     State(state): State<ServerState>,
     Query(query_params): Query<QueryParams>,
-) -> ServerResult<ServerSuccessResponse<ResponseBody>> {
-    let QueryParams {
-        nonce_start,
-        nonce_end,
-    } = query_params;
+) -> ServerResult<ServerSuccessResponse<DepositResponse>> {
+    let kaspa_tx = query_params.kaspa_tx;
 
-    tracing::debug!(nonce_start, nonce_end, "Fetching Kaspa deposits");
-
-    if nonce_end <= nonce_start {
-        let error_msg = "nonce_end must be greater than nonce_start";
-        let err = ServerErrorResponse::new(
-            StatusCode::BAD_REQUEST,
-            ServerErrorBody {
-                message: error_msg.to_string(),
-            },
-        );
-        return Err(err);
-    }
+    tracing::debug!(%kaspa_tx, "Fetching Kaspa deposit by kaspa_tx");
 
     let db = &state.kaspa_db;
-    let mut deposits = Vec::new();
 
-    // Iterate through the nonce range and fetch deposit messages
-    for nonce in nonce_start..nonce_end {
-        match db.as_ref().retrieve_kaspa_deposit_by_nonce(nonce) {
-            Ok(Some(message)) => {
-                deposits.push(DepositResponse {
-                    message_id: format!("{:x}", message.id()),
-                    nonce,
-                    message,
-                });
-            }
-            Ok(None) => {
-                // No message at this nonce, continue
-                tracing::trace!(nonce, "No deposit found at nonce");
-            }
-            Err(e) => {
-                tracing::error!(nonce, error = ?e, "Error retrieving deposit from database");
-                return Err(ServerErrorResponse::new(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    ServerErrorBody {
-                        message: format!("Database error: {}", e),
-                    },
-                ));
-            }
+    // Retrieve the deposit message directly by tx_hash
+    let message = match db.as_ref().retrieve_kaspa_deposit_by_tx_hash(&kaspa_tx) {
+        Ok(Some(message)) => message,
+        Ok(None) => {
+            return Err(ServerErrorResponse::new(
+                StatusCode::NOT_FOUND,
+                ServerErrorBody {
+                    message: format!("No deposit found for kaspa_tx: {}", kaspa_tx),
+                },
+            ));
         }
-    }
+        Err(e) => {
+            tracing::error!(%kaspa_tx, error = ?e, "Error retrieving deposit from database");
+            return Err(ServerErrorResponse::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ServerErrorBody {
+                    message: format!("Database error: {}", e),
+                },
+            ));
+        }
+    };
 
-    let resp = ResponseBody { deposits };
-    Ok(ServerSuccessResponse::new(resp))
+    let message_id = message.id();
+
+    // Determine status: check if message has been processed on Hub
+    let status = if db.as_ref().retrieve_processed_by_nonce(&message.nonce)
+        .unwrap_or(Some(false))
+        .unwrap_or(false)
+    {
+        "completed".to_string()
+    } else {
+        "pending".to_string()
+    };
+
+    let response = DepositResponse {
+        message_id: format!("{:x}", message_id),
+        message,
+        kaspa_tx,
+        status,
+    };
+
+    Ok(ServerSuccessResponse::new(response))
 }

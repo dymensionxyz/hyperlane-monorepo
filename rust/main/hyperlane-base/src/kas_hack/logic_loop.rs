@@ -332,31 +332,34 @@ where
 
                         // Store deposit message in database if available
                         if let Some(db) = self.db.as_ref() {
-                            let original_nonce = fxg.hl_message.nonce;
                             info!(
                                 message_id = ?fxg.hl_message.id(),
-                                original_nonce = original_nonce,
+                                nonce = fxg.hl_message.nonce,
+                                tx_id = %fxg.tx_id,
                                 origin = fxg.hl_message.origin,
                                 destination = fxg.hl_message.destination,
                                 db_domain = db.domain().id(),
-                                "Attempting to store deposit message in database with auto-incremented nonce"
+                                "Attempting to store deposit message in database"
                             );
                             // Use a synthetic block number (could be from deposit metadata if available)
                             let block_number = 0u64; // TODO: get actual block number from deposit
-                            match db.store_deposit_message(fxg.hl_message.clone(), block_number) {
-                                Ok(assigned_nonce) => {
+                            match db.store_deposit_message(
+                                fxg.hl_message.clone(),
+                                block_number,
+                                fxg.tx_id.clone(),
+                            ) {
+                                Ok(()) => {
                                     info!(
                                         message_id = ?fxg.hl_message.id(),
-                                        original_nonce = original_nonce,
-                                        assigned_nonce = assigned_nonce,
-                                        "Successfully stored deposit message with auto-incremented nonce"
+                                        tx_id = %fxg.tx_id,
+                                        "Successfully stored deposit message"
                                     );
                                 }
                                 Err(e) => {
                                     error!(
                                         error = ?e,
                                         message_id = ?fxg.hl_message.id(),
-                                        original_nonce = original_nonce,
+                                        tx_id = %fxg.tx_id,
                                         "Failed to store deposit message in database"
                                     );
                                 }

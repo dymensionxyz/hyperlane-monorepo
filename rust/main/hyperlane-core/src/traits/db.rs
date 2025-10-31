@@ -63,25 +63,36 @@ pub trait HyperlaneWatermarkedLogStore<T>: HyperlaneLogStore<T> {
 /// dymension-kaspa and hyperlane-base.
 #[auto_impl(&, Box, Arc)]
 pub trait KaspaDb: Send + Sync + Debug {
-    /// Store a withdrawal message with auto-incremented nonce
-    /// Returns the assigned nonce
+    /// Store a withdrawal message indexed by message_id
     fn store_withdrawal_message(
         &self,
         message: crate::HyperlaneMessage,
         dispatched_block_number: u64,
-    ) -> Result<u32>;
+    ) -> Result<()>;
 
-    /// Retrieve a withdrawal message by nonce
-    fn retrieve_kaspa_withdrawal_by_nonce(&self, nonce: u32) -> Result<Option<crate::HyperlaneMessage>>;
+    /// Retrieve a withdrawal message by message_id
+    fn retrieve_kaspa_withdrawal_by_message_id(
+        &self,
+        message_id: &crate::H256,
+    ) -> Result<Option<crate::HyperlaneMessage>>;
 
-    /// Store a deposit message with auto-incremented nonce
-    /// Returns the assigned nonce
+    /// Store a deposit message indexed by both message_id and tx_hash
     fn store_deposit_message(
         &self,
         message: crate::HyperlaneMessage,
         dispatched_block_number: u64,
-    ) -> Result<u32>;
+        tx_hash: String,
+    ) -> Result<()>;
 
-    /// Retrieve a deposit message by nonce
-    fn retrieve_kaspa_deposit_by_nonce(&self, nonce: u32) -> Result<Option<crate::HyperlaneMessage>>;
+    /// Retrieve a deposit message by message_id
+    fn retrieve_kaspa_deposit_by_message_id(
+        &self,
+        message_id: &crate::H256,
+    ) -> Result<Option<crate::HyperlaneMessage>>;
+
+    /// Retrieve a deposit message by kaspa transaction hash
+    fn retrieve_kaspa_deposit_by_tx_hash(
+        &self,
+        tx_hash: &str,
+    ) -> Result<Option<crate::HyperlaneMessage>>;
 }
