@@ -12,7 +12,6 @@ use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs};
 use dym_kas_relayer::withdraw::hub_to_kaspa::combine_bundles_with_fee;
 use dym_kas_relayer::withdraw::messages::on_new_withdrawals;
 use dym_kas_relayer::KaspaBridgeMetrics;
-pub use dym_kas_validator::KaspaSecpKeypair;
 use eyre::Result;
 use hyperlane_core::config::OpSubmissionConfig;
 use hyperlane_core::NativeToken;
@@ -120,21 +119,10 @@ impl KaspaProvider {
         self.conf.min_deposit_sompi
     }
 
-    pub async fn load_kas_key(&self) -> ChainResult<KaspaSecpKeypair> {
-        let key_source = self
-            .kas_key_source
+    pub fn kas_key_source(&self) -> &crate::conf::KaspaEscrowKeySource {
+        self.kas_key_source
             .as_ref()
-            .ok_or_else(|| eyre::eyre!("Kaspa key source not configured"))?;
-
-        match key_source {
-            crate::conf::KaspaEscrowKeySource::Direct(json_str) => serde_json::from_str(json_str)
-                .map_err(|e| eyre::eyre!("parse Kaspa keypair from JSON: {}", e).into()),
-            crate::conf::KaspaEscrowKeySource::Aws(aws_config) => {
-                dym_kas_kms::load_kaspa_keypair_from_aws(aws_config)
-                    .await
-                    .map_err(|e| eyre::eyre!("load Kaspa keypair from AWS: {}", e).into())
-            }
-        }
+            .expect("Kaspa key source not configured")
     }
 
     pub fn rest(&self) -> &RestProvider {

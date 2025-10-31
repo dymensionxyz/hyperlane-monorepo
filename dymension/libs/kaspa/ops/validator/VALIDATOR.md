@@ -2,29 +2,11 @@
 
 ## Key Generation
 
-In hyperlane-monorepo/dymension/libs/kaspa/demo/user do `cargo run validator`.
-
-It outputs something like
-
-```
-[
-  {
-    "validator_ism_addr": "0x2541ca4d67d89897d51c2bf25b1fb602eca4ae5c",
-    "validator_ism_priv_key": "92940b5c00eb0e8c62f4c0d344b4fee4064c3ac51297159bf77874744e47e016",
-    "validator_escrow_secret": "\"b55335e614dacb747ee4bfb5bd95e9cdb7291d32542b27924f06cb1299a2cc5a\"",
-    "validator_escrow_pub_key": "0200b77b8e8f871121cda5a5c98938c7057ddee9aed930eea0dbb86dd23cbfd300",
-    "multisig_escrow_addr": null
-  }
-]
-```
-
-Give Dymension team validator_ism_addr and validator_escrow_pub_key. Don't worry about multisig_escrow_addr. Backup the private keys.
+TODO: art complete
 
 ## Config
 
-The validator uses AWS Secrets Manager and KMS for secure key management. The Dymension team will provide you with the agent-config.json containing your AWS configuration.
-
-Your agent-config.json will look like:
+The validator uses AWS Secrets Manager and KMS for secure key management. To configure the agent to use the key, edit your agent-config.json template:
 
 ```json
 {
@@ -38,9 +20,6 @@ Your agent-config.json will look like:
       }
     }
   },
-  "validator": {
-    "key": "<validator_ism_priv_key>"
-  }
 }
 ```
 
