@@ -44,15 +44,10 @@ pub struct ValidatorStuff {
 #[derive(Debug, Clone)]
 pub enum KaspaEscrowKeySource {
     Direct(String),
-    Aws(AwsKeyConfig),
+    Aws(dym_kas_kms::AwsKeyConfig),
 }
 
-#[derive(Debug, Clone)]
-pub struct AwsKeyConfig {
-    pub secret_id: String,
-    pub kms_key_id: String,
-    pub region: String,
-}
+pub use dym_kas_kms::AwsKeyConfig;
 
 #[derive(Debug, Clone)]
 pub struct RelayerStuff {

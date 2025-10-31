@@ -169,8 +169,13 @@ impl<
     fn must_signing(&self) -> &ValidatorISMSigningResources<S, H> {
         self.signing.as_ref().unwrap()
     }
-    fn must_kas_key(&self) -> KaspaSecpKeypair {
-        self.kas_provider.as_ref().unwrap().must_kas_key()
+    async fn load_kas_key(&self) -> Result<KaspaSecpKeypair, eyre::Report> {
+        self.kas_provider
+            .as_ref()
+            .unwrap()
+            .load_kas_key()
+            .await
+            .map_err(|e| eyre::eyre!("load Kaspa key: {}", e))
     }
     fn must_api(&self) -> Arc<DynRpcApi> {
         self.must_wallet().api()
@@ -286,12 +291,14 @@ async fn respond_sign_pskts<
     let escrow = res.must_escrow();
     let val_stuff = res.must_val_stuff();
 
+    let kas_key = res.load_kas_key().await.map_err(|e| AppError(e))?;
+
     let bundle = validate_sign_withdrawal_fxg(
         fxg,
         val_stuff.toggles.withdrawal_enabled,
         res.must_hub_rpc().query(),
         escrow,
-        &res.must_kas_key(),
+        &kas_key,
         WithdrawMustMatch::new(
             res.must_wallet().net.address_prefix,
             res.must_escrow(),

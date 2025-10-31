@@ -331,26 +331,26 @@ pub fn build_kaspa_connection_conf(
         .collect();
 
     let kaspa_escrow_key_source =
-        if let Some(validator_config) = chain.chain(err).get_opt_key("kaspaValidator").end() {
-            let validator_type = validator_config
+        if let Some(key_config) = chain.chain(err).get_opt_key("kaspaKey").end() {
+            let key_type = key_config
                 .chain(err)
                 .get_opt_key("type")
                 .parse_string()
                 .end();
 
-            match validator_type {
+            match key_type {
                 Some("aws") => {
-                    let secret_id = validator_config
+                    let secret_id = key_config
                         .chain(err)
                         .get_key("secretId")
                         .parse_string()
                         .end()?;
-                    let kms_key_id = validator_config
+                    let kms_key_id = key_config
                         .chain(err)
                         .get_key("kmsKeyId")
                         .parse_string()
                         .end()?;
-                    let region = validator_config
+                    let region = key_config
                         .chain(err)
                         .get_key("region")
                         .parse_string()
