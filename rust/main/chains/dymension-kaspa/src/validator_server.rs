@@ -157,7 +157,10 @@ impl<
         H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
     > ValidatorServerResources<S, H>
 {
-    pub fn new(signing: ValidatorISMSigningResources<S, H>, kas_provider: Box<KaspaProvider>) -> Self {
+    pub fn new(
+        signing: ValidatorISMSigningResources<S, H>,
+        kas_provider: Box<KaspaProvider>,
+    ) -> Self {
         Self {
             signing: Some(signing),
             kas_provider: Some(kas_provider),

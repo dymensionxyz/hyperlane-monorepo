@@ -22,7 +22,61 @@ Give Dymension team validator_ism_addr and validator_escrow_pub_key. Don't worry
 
 ## Config
 
-Use the agent-config.json template provided by Dymension team. Populate .chains.<kaspa>.validatorEscrowPrivateKey with the escrow secret validator_escrow_secret (keep quotes). Also populate .validator.key with validator_ism_priv_key. Check agent-config.example.json for an informational example.
+### AWS Secrets Manager Setup
+
+The validator uses AWS Secrets Manager and KMS for secure key management. Follow these steps:
+
+1. **Store the Kaspa escrow private key in AWS Secrets Manager:**
+
+   ```bash
+   # Encrypt the validator_escrow_secret with your KMS key
+   aws kms encrypt \
+     --key-id <your-kms-key-id> \
+     --plaintext '{"secret":"<validator_escrow_secret>"}' \
+     --output text \
+     --query CiphertextBlob > encrypted-key.txt
+
+   # Store the encrypted key in Secrets Manager
+   aws secretsmanager create-secret \
+     --name kaspa-validator-escrow-key \
+     --secret-string file://encrypted-key.txt \
+     --region eu-central-1
+   ```
+
+2. **Configure the agent-config.json:**
+
+   ```json
+   {
+     "chains": {
+       "kaspatest10": {
+         "kaspaValidator": {
+           "type": "aws",
+           "secretId": "kaspa-validator-escrow-key",
+           "kmsKeyId": "<your-kms-key-id>",
+           "region": "eu-central-1"
+         }
+       }
+     },
+     "validator": {
+       "key": "<validator_ism_priv_key>"
+     }
+   }
+   ```
+
+3. **Ensure IAM permissions:**
+   The process must have IAM permissions for:
+
+   - `secretsmanager:GetSecretValue` on the secret
+   - `kms:Decrypt` on the KMS key
+
+4. **Set AWS credentials:**
+   ```bash
+   export AWS_ACCESS_KEY_ID=<your-access-key>
+   export AWS_SECRET_ACCESS_KEY=<your-secret-key>
+   export AWS_REGION=eu-central-1
+   ```
+
+Use the agent-config.json template provided by Dymension team. Also populate .validator.key with validator_ism_priv_key. Check agent-config.example.json for an informational example.
 
 ## Running
 

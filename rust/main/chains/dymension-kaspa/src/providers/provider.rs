@@ -74,10 +74,24 @@ impl KaspaProvider {
         .map_err(|e| eyre::eyre!("Failed to create easy wallet: {}", e))?;
 
         let kas_key = match &cfg.validator_stuff {
-            Some(v) => {
-                let kp: KaspaSecpKeypair = serde_json::from_str(&v.kas_escrow_private).unwrap();
-                Some(kp)
-            }
+            Some(v) => match &v.kas_escrow_key_source {
+                crate::conf::KaspaEscrowKeySource::Direct(json_str) => {
+                    let kp: KaspaSecpKeypair = serde_json::from_str(json_str)
+                        .map_err(|e| eyre::eyre!("parse Kaspa keypair from JSON: {}", e))?;
+                    Some(kp)
+                }
+                crate::conf::KaspaEscrowKeySource::Aws(aws_config) => {
+                    let aws_kms_config = dym_kas_kms::AwsKeyConfig {
+                        secret_id: aws_config.secret_id.clone(),
+                        kms_key_id: aws_config.kms_key_id.clone(),
+                        region: aws_config.region.clone(),
+                    };
+                    let kp = dym_kas_kms::load_kaspa_keypair_from_aws(&aws_kms_config)
+                        .await
+                        .map_err(|e| eyre::eyre!("load Kaspa keypair from AWS: {}", e))?;
+                    Some(kp)
+                }
+            },
             None => None,
         };
 
