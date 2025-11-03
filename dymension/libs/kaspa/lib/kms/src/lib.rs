@@ -32,10 +32,10 @@ pub async fn load_kaspa_keypair_from_aws(config: &AwsKeyConfig) -> Result<KaspaS
         .context("get secret value from AWS Secrets Manager")?;
 
     let encrypted_key_material = secret_value
-        .secret_string()
-        .ok_or_else(|| eyre!("secret string not found in AWS secret"))?;
+        .secret_binary()
+        .ok_or_else(|| eyre!("secret binary data not found in AWS secret - ensure the secret was created with binary storage, not string"))?;
 
-    let mut key_bytes = encrypted_key_material.as_bytes().to_vec();
+    let mut key_bytes = encrypted_key_material.as_ref().to_vec();
 
     let kms_client = KmsClient::new(&aws_config);
 
