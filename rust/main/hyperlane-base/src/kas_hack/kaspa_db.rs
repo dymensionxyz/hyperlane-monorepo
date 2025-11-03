@@ -6,9 +6,9 @@ use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
     identifiers::UniqueIdentifier, Decode, Encode, GasPaymentKey, HyperlaneDomain,
-    HyperlaneLogStore, HyperlaneMessage, HyperlaneSequenceAwareIndexerStoreReader,
+    HyperlaneLogStore, HyperlaneMessage, HyperlaneProtocolError, HyperlaneSequenceAwareIndexerStoreReader,
     HyperlaneWatermarkedLogStore, Indexed, InterchainGasExpenditure, InterchainGasPayment,
-    InterchainGasPaymentMeta, LogMeta, MerkleTreeInsertion, PendingOperationStatus, H256,
+    InterchainGasPaymentMeta, LogMeta, MerkleTreeInsertion, PendingOperationStatus, H256, H512,
 };
 
 use crate::db::{
@@ -48,6 +48,8 @@ const KASPA_WITHDRAWAL_BLOCK_NUMBER: &str = "kaspa_withdrawal_block_number_";
 const KASPA_DEPOSIT_MESSAGE: &str = "kaspa_deposit_message_";
 const KASPA_DEPOSIT_BLOCK_NUMBER: &str = "kaspa_deposit_block_number_";
 const KASPA_DEPOSIT_MESSAGE_ID_BY_TX_HASH: &str = "kaspa_deposit_message_id_by_tx_hash_";
+//const KASPA_DEPOSIT_STATUS: &str = "kaspa_deposit_status_";
+const KASPA_DEPOSIT_HUB_TX: &str = "kaspa_deposit_hub_tx_";
 
 /// Rocks DB result type
 pub type DbResult<T> = std::result::Result<T, DbError>;
@@ -118,7 +120,6 @@ impl KaspaRocksDB {
         dispatched_block_number: u64,
     ) -> DbResult<()> {
         let id = message.id();
-        debug!(hyp_message=?message,  "Storing new message in db",);
 
         // - `id` --> `message`
         self.store_message_by_id(&id, message)?;
@@ -807,6 +808,53 @@ impl KaspaRocksDB {
     pub fn retrieve_kaspa_withdrawal_by_message_id(&self, message_id: &H256) -> DbResult<Option<HyperlaneMessage>> {
         self.retrieve_value_by_key(KASPA_WITHDRAWAL_MESSAGE, message_id)
     }
+
+    /// Store deposit status (pending=0 or completed=1) by message_id
+    /*pub fn store_deposit_status(&self, message_id: &H256, status: &str) -> DbResult<()> {
+        debug!(
+            message_id = ?message_id,
+            status = %status,
+            "Storing deposit status"
+        );
+        // Convert status string to u32 (0=pending, 1=completed)
+        let status_code: u32 = if status == "completed" { 1 } else { 0 };
+        self.store_value_by_key(KASPA_DEPOSIT_STATUS, message_id, &status_code)
+    }
+
+    /// Retrieve deposit status by message_id
+    pub fn retrieve_deposit_status(&self, message_id: &H256) -> DbResult<Option<String>> {
+        let status_code: Option<u32> = self.retrieve_value_by_key(KASPA_DEPOSIT_STATUS, message_id)?;
+        Ok(status_code.map(|code| {
+            if code == 1 {
+                "completed".to_string()
+            } else {
+                "pending".to_string()
+            }
+        }))
+    }*/
+
+    /// Store Hub transaction ID for a deposit by message_id (stored as H512)
+    pub fn store_deposit_hub_tx(&self, message_id: &H256, hub_tx: &str) -> DbResult<()> {
+        debug!(
+            message_id = ?message_id,
+            hub_tx = %hub_tx,
+            "Storing deposit Hub transaction ID"
+        );
+        // Parse hub_tx as H512 (64 bytes = 128 hex chars) and store it
+        let hub_tx_h512: H512 = hub_tx.parse().map_err(|e| {
+            DbError::from(HyperlaneProtocolError::IoError(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Invalid hub_tx format: {}", e)
+            )))
+        })?;
+        self.store_value_by_key(KASPA_DEPOSIT_HUB_TX, message_id, &hub_tx_h512)
+    }
+
+    /// Retrieve Hub transaction ID for a deposit by message_id
+    pub fn retrieve_deposit_hub_tx(&self, message_id: &H256) -> DbResult<Option<String>> {
+        let hub_tx_h512: Option<H512> = self.retrieve_value_by_key(KASPA_DEPOSIT_HUB_TX, message_id)?;
+        Ok(hub_tx_h512.map(|h| format!("{:x}", h)))
+    }
 }
 
 // Implement the KaspaDb trait from hyperlane-core to allow dymension-kaspa
@@ -848,5 +896,35 @@ impl hyperlane_core::KaspaDb for KaspaRocksDB {
         tx_hash: &str,
     ) -> Result<Option<HyperlaneMessage>> {
         Ok(self.retrieve_kaspa_deposit_by_tx_hash(tx_hash)?)
+    }
+
+   /*  fn store_deposit_status(
+        &self,
+        message_id: &H256,
+        status: &str,
+    ) -> Result<()> {
+        Ok(self.store_deposit_status(message_id, status)?)
+    }
+
+    fn retrieve_deposit_status(
+        &self,
+        message_id: &H256,
+    ) -> Result<Option<String>> {
+        Ok(self.retrieve_deposit_status(message_id)?)
+    }*/
+
+    fn store_deposit_hub_tx(
+        &self,
+        message_id: &H256,
+        hub_tx: &str,
+    ) -> Result<()> {
+        Ok(self.store_deposit_hub_tx(message_id, hub_tx)?)
+    }
+
+    fn retrieve_deposit_hub_tx(
+        &self,
+        message_id: &H256,
+    ) -> Result<Option<String>> {
+        Ok(self.retrieve_deposit_hub_tx(message_id)?)
     }
 }

@@ -243,6 +243,46 @@ where
         }
     }
 
+    /// Store a deposit message in the database after FXG is built
+    /// This ensures the message has the correct nonce assigned by relayer_on_new_deposit
+    fn store_deposit_from_fxg(&self, fxg: &DepositFXG, deposit_id: &str) {
+        if let Some(db) = self.db.as_ref() {
+            let message = &fxg.hl_message;
+            let message_id = message.id();
+            info!(
+                deposit_id = %deposit_id,
+                message_id = ?message_id,
+                nonce = message.nonce,
+                "Storing deposit message in database after FXG built"
+            );
+            let block_number = 0u64; // TODO: get actual block number from deposit
+            match db.store_deposit_message(
+                message.clone(),
+                block_number,
+                deposit_id.to_string(),
+            ) {
+                Ok(()) => {
+                    info!(
+                        message_id = ?message_id,
+                        deposit_id = %deposit_id,
+                        "Successfully stored deposit message after FXG built"
+                    );
+
+                }
+                Err(e) => {
+                    error!(
+                        error = ?e,
+                        message_id = ?message_id,
+                        deposit_id = %deposit_id,
+                        "Failed to store deposit message in database after FXG built"
+                    );
+                }
+            }
+        } else {
+            warn!("No database available for storing deposit message");
+        }
+    }
+
     /// Process the retry queue for failed deposit operations
     async fn process_deposit_queue(&self) {
         let mut queue = self.deposit_queue.lock().await;
@@ -289,6 +329,9 @@ where
             Ok(Some(fxg)) => {
                 info!(fxg = ?fxg, "Dymension, built new deposit FXG");
 
+                // Store deposit message in database with the FXG's message (which has the correct nonce)
+                self.store_deposit_from_fxg(&fxg, &operation.deposit.id.to_string());
+
                 let delivered_res = self.hub_mailbox.delivered(fxg.hl_message.id()).await;
                 match delivered_res {
                     Ok(true) => {
@@ -316,8 +359,41 @@ where
                 // Send to hub
                 let res = self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await;
                 match res {
-                    Ok(_) => {
-                        info!(fxg = ?fxg, "Dymension, got sigs and sent new deposit to hub");
+                    Ok(tx_outcome) => {
+                        info!(fxg = ?fxg, hub_tx = ?tx_outcome.transaction_id, "Dymension, got sigs and sent new deposit to hub");
+
+                        // Update deposit status to "completed" and store Hub transaction ID
+                        if let Some(db) = self.db.as_ref() {
+                            let message_id = fxg.hl_message.id();
+                            let hub_tx_id = format!("{:x}", tx_outcome.transaction_id);
+
+                            info!(
+                                message_id = ?message_id,
+                                hub_tx = %hub_tx_id,
+                                hub_tx_len = hub_tx_id.len(),
+                                "Updating deposit status to completed and storing hub_tx"
+                            );
+
+                            match db.store_deposit_hub_tx(&message_id, &hub_tx_id) {
+                                Ok(()) => {
+                                    info!(
+                                        message_id = ?message_id,
+                                        hub_tx = %hub_tx_id,
+                                        "Successfully stored Hub transaction ID"
+                                    );
+                                }
+                                Err(e) => {
+                                    error!(
+                                        error = ?e,
+                                        message_id = ?message_id,
+                                        hub_tx = %hub_tx_id,
+                                        "Failed to store Hub transaction ID"
+                                    );
+                                }
+                            }
+                        } else {
+                            warn!("No database available for updating deposit status");
+                        }
 
                         // Calculate end-to-end processing latency from initial detection to hub confirmation
                         let latency_ms = operation_start_time.elapsed().as_millis() as i64;
@@ -329,44 +405,6 @@ where
                             .metrics()
                             .record_deposit_processed(&deposit_id, deposit_amount);
                         self.provider.metrics().update_deposit_latency(latency_ms);
-
-                        // Store deposit message in database if available
-                        if let Some(db) = self.db.as_ref() {
-                            info!(
-                                message_id = ?fxg.hl_message.id(),
-                                nonce = fxg.hl_message.nonce,
-                                tx_id = %fxg.tx_id,
-                                origin = fxg.hl_message.origin,
-                                destination = fxg.hl_message.destination,
-                                db_domain = db.domain().id(),
-                                "Attempting to store deposit message in database"
-                            );
-                            // Use a synthetic block number (could be from deposit metadata if available)
-                            let block_number = 0u64; // TODO: get actual block number from deposit
-                            match db.store_deposit_message(
-                                fxg.hl_message.clone(),
-                                block_number,
-                                fxg.tx_id.clone(),
-                            ) {
-                                Ok(()) => {
-                                    info!(
-                                        message_id = ?fxg.hl_message.id(),
-                                        tx_id = %fxg.tx_id,
-                                        "Successfully stored deposit message"
-                                    );
-                                }
-                                Err(e) => {
-                                    error!(
-                                        error = ?e,
-                                        message_id = ?fxg.hl_message.id(),
-                                        tx_id = %fxg.tx_id,
-                                        "Failed to store deposit message in database"
-                                    );
-                                }
-                            }
-                        } else {
-                            warn!("No database available for storing deposit message - this should not happen!");
-                        }
 
                         // Success! Operation complete
                         operation.reset_attempts();

@@ -4,7 +4,6 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use hyperlane_base::db::HyperlaneDb;
 use hyperlane_base::server::utils::{
     ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse,
 };
@@ -22,7 +21,8 @@ pub struct DepositResponse {
     pub message_id: String,
     pub message: HyperlaneMessage,
     pub kaspa_tx: String,
-    pub status: String,
+  //  pub status: String,
+    pub hub_tx: Option<String>,
 }
 
 /// Fetch a Kaspa deposit by kaspa transaction hash
@@ -60,21 +60,23 @@ pub async fn handler(
 
     let message_id = message.id();
 
-    // Determine status: check if message has been processed on Hub
-    let status = if db.as_ref().retrieve_processed_by_nonce(&message.nonce)
-        .unwrap_or(Some(false))
-        .unwrap_or(false)
-    {
-        "completed".to_string()
-    } else {
-        "pending".to_string()
-    };
+    // Retrieve status from database (defaults to "pending" if not found)
+    /*let status = db.as_ref()
+        .retrieve_deposit_status(&message_id)
+        .unwrap_or(None)
+        .unwrap_or_else(|| "pending".to_string());*/
+
+    // Retrieve Hub transaction ID if available
+    let hub_tx = db.as_ref()
+        .retrieve_deposit_hub_tx(&message_id)
+        .unwrap_or(None);
 
     let response = DepositResponse {
         message_id: format!("{:x}", message_id),
         message,
         kaspa_tx,
-        status,
+  //      status,
+        hub_tx,
     };
 
     Ok(ServerSuccessResponse::new(response))

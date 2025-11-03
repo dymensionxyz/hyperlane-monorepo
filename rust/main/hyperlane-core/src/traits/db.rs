@@ -95,4 +95,30 @@ pub trait KaspaDb: Send + Sync + Debug {
         &self,
         tx_hash: &str,
     ) -> Result<Option<crate::HyperlaneMessage>>;
+
+    /// Store deposit status (pending or completed)
+    /*fn store_deposit_status(
+        &self,
+        message_id: &crate::H256,
+        status: &str,
+    ) -> Result<()>;
+
+    /// Retrieve deposit status by message_id
+    fn retrieve_deposit_status(
+        &self,
+        message_id: &crate::H256,
+    ) -> Result<Option<String>>;*/
+
+    /// Store Hub transaction ID for a deposit
+    fn store_deposit_hub_tx(
+        &self,
+        message_id: &crate::H256,
+        hub_tx: &str,
+    ) -> Result<()>;
+
+    /// Retrieve Hub transaction ID for a deposit
+    fn retrieve_deposit_hub_tx(
+        &self,
+        message_id: &crate::H256,
+    ) -> Result<Option<String>>;
 }
