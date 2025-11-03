@@ -80,7 +80,6 @@ pub trait KaspaDb: Send + Sync + Debug {
     fn store_deposit_message(
         &self,
         message: crate::HyperlaneMessage,
-        dispatched_block_number: u64,
         tx_hash: String,
     ) -> Result<()>;
 
@@ -96,28 +95,28 @@ pub trait KaspaDb: Send + Sync + Debug {
         tx_hash: &str,
     ) -> Result<Option<crate::HyperlaneMessage>>;
 
-    /// Store deposit status (pending or completed)
-    /*fn store_deposit_status(
-        &self,
-        message_id: &crate::H256,
-        status: &str,
-    ) -> Result<()>;
-
-    /// Retrieve deposit status by message_id
-    fn retrieve_deposit_status(
-        &self,
-        message_id: &crate::H256,
-    ) -> Result<Option<String>>;*/
-
-    /// Store Hub transaction ID for a deposit
+    /// Store Hub transaction ID for a deposit indexed by kaspa_tx
     fn store_deposit_hub_tx(
         &self,
-        message_id: &crate::H256,
+        kaspa_tx: &str,
         hub_tx: &str,
     ) -> Result<()>;
 
-    /// Retrieve Hub transaction ID for a deposit
+    /// Retrieve Hub transaction ID for a deposit by kaspa_tx
     fn retrieve_deposit_hub_tx(
+        &self,
+        kaspa_tx: &str,
+    ) -> Result<Option<String>>;
+
+    /// Store Kaspa transaction ID for a withdrawal indexed by message_id
+    fn store_withdrawal_kaspa_tx(
+        &self,
+        message_id: &crate::H256,
+        kaspa_tx: &str,
+    ) -> Result<()>;
+
+    /// Retrieve Kaspa transaction ID for a withdrawal by message_id
+    fn retrieve_withdrawal_kaspa_tx(
         &self,
         message_id: &crate::H256,
     ) -> Result<Option<String>>;

@@ -183,7 +183,7 @@ impl KaspaProvider {
     pub async fn process_withdrawal_messages(
         &self,
         msgs: Vec<HyperlaneMessage>,
-    ) -> Result<Vec<HyperlaneMessage>> {
+    ) -> Result<Vec<(HyperlaneMessage, String)>> {
         let min_withdrawal_amount = self.conf.min_deposit_sompi;
         let res = on_new_withdrawals(
             msgs.clone(),
@@ -234,7 +234,7 @@ impl KaspaProvider {
                 };
 
                 match self.submit_txs(finalized.clone()).await {
-                    Ok(_) => {
+                    Ok(tx_ids) => {
                         info!("Kaspa provider, submitted TXs, now indicating progress on the Hub");
 
                         // Record successful withdrawal with message count
@@ -260,7 +260,16 @@ impl KaspaProvider {
                             .push(ConfirmationFXG::from_msgs_outpoints(fxg.ids(), fxg.anchors));
                         info!("Kaspa provider, added to progress indication work queue");
 
-                        Ok(all_msgs)
+                        // Create result with messages and their corresponding kaspa_tx
+                        let mut result = Vec::new();
+                        for (tx_id, msgs) in tx_ids.iter().zip(fxg.messages.iter()) {
+                            let kaspa_tx = format!("{}", tx_id);
+                            for msg in msgs {
+                                result.push((msg.clone(), kaspa_tx.clone()));
+                            }
+                        }
+
+                        Ok(result)
                     }
                     Err(e) => {
                         // Record withdrawal failure with deduplication
@@ -272,7 +281,8 @@ impl KaspaProvider {
             }
             Ok(None) => {
                 info!("On new withdrawals decided not to handle withdrawal messages");
-                Ok(msgs)
+                // No tx was created, return messages with empty kaspa_tx
+                Ok(msgs.into_iter().map(|msg| (msg, String::new())).collect())
             }
             Err(e) => {
                 // Create withdrawal batch ID and calculate failed amount

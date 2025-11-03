@@ -4,7 +4,6 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use hyperlane_base::db::HyperlaneDb;
 use hyperlane_base::server::utils::{
     ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse,
 };
@@ -21,7 +20,7 @@ pub struct QueryParams {
 pub struct WithdrawalResponse {
     pub message_id: String,
     pub message: HyperlaneMessage,
-    pub status: String,
+    pub kaspa_tx: Option<String>,
 }
 
 /// Fetch a Kaspa withdrawal by message_id
@@ -73,20 +72,15 @@ pub async fn handler(
         }
     };
 
-    // Determine status: check if message has been processed on Kaspa
-    let status = if db.as_ref().retrieve_processed_by_nonce(&message.nonce)
-        .unwrap_or(Some(false))
-        .unwrap_or(false)
-    {
-        "completed".to_string()
-    } else {
-        "pending".to_string()
-    };
+    // Retrieve kaspa transaction ID if available
+    let kaspa_tx = db.as_ref()
+        .retrieve_withdrawal_kaspa_tx(&message_id)
+        .unwrap_or(None);
 
     let response = WithdrawalResponse {
         message_id: format!("{:x}", message.id()),
         message,
-        status,
+        kaspa_tx,
     };
 
     Ok(ServerSuccessResponse::new(response))

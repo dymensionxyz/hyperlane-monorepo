@@ -245,9 +245,8 @@ where
 
     /// Store a deposit message in the database after FXG is built
     /// This ensures the message has the correct nonce assigned by relayer_on_new_deposit
-    fn store_deposit_from_fxg(&self, fxg: &DepositFXG, deposit_id: &str) {
+    fn store_deposit(&self, message: &hyperlane_core::HyperlaneMessage, deposit_id: &str) {
         if let Some(db) = self.db.as_ref() {
-            let message = &fxg.hl_message;
             let message_id = message.id();
             info!(
                 deposit_id = %deposit_id,
@@ -255,10 +254,8 @@ where
                 nonce = message.nonce,
                 "Storing deposit message in database after FXG built"
             );
-            let block_number = 0u64; // TODO: get actual block number from deposit
             match db.store_deposit_message(
                 message.clone(),
-                block_number,
                 deposit_id.to_string(),
             ) {
                 Ok(()) => {
@@ -283,6 +280,39 @@ where
         }
     }
 
+    /// Update a stored deposit with the Hub transaction ID after successful submission
+    /// Stores hub_tx indexed by kaspa_tx
+    fn update_deposit_stored(&self, kaspa_tx_hash: &str, hub_tx_id: &str) {
+        if let Some(db) = self.db.as_ref() {
+            info!(
+                kaspa_tx = %kaspa_tx_hash,
+                hub_tx = %hub_tx_id,
+                "Updating deposit with Hub transaction ID"
+            );
+
+            // Store the hub transaction ID indexed by kaspa_tx
+            match db.store_deposit_hub_tx(kaspa_tx_hash, hub_tx_id) {
+                Ok(()) => {
+                    info!(
+                        kaspa_tx = %kaspa_tx_hash,
+                        hub_tx = %hub_tx_id,
+                        "Successfully updated deposit with Hub transaction ID"
+                    );
+                }
+                Err(e) => {
+                    error!(
+                        error = ?e,
+                        kaspa_tx = %kaspa_tx_hash,
+                        hub_tx = %hub_tx_id,
+                        "Failed to store Hub transaction ID"
+                    );
+                }
+            }
+        } else {
+            warn!("No database available for updating deposit");
+        }
+    }
+
     /// Process the retry queue for failed deposit operations
     async fn process_deposit_queue(&self) {
         let mut queue = self.deposit_queue.lock().await;
@@ -304,7 +334,11 @@ where
         // Calculate deposit amount early (for metrics in case of failure)
         let deposit_amount = if let Some(payload) = &operation.deposit.payload {
             match dym_kas_core::message::ParsedHL::parse_string(payload) {
-                Ok(parsed_hl) => parsed_hl.token_message.amount().low_u64(),
+                Ok(parsed_hl) => {
+                    // Store deposit message in database with the FXG's message (which has the correct nonce)
+                    self.store_deposit(&parsed_hl.hl_message, &operation.deposit.id.to_string());
+                    parsed_hl.token_message.amount().low_u64()
+                },
                 Err(e) => {
                     tracing::warn!(
                         "Failed to parse deposit payload for amount, using 0: {:?}",
@@ -318,6 +352,7 @@ where
             0
         };
 
+
         let new_deposit_res = relayer_on_new_deposit(
             &operation.escrow_address,
             &operation.deposit,
@@ -328,9 +363,6 @@ where
         match new_deposit_res {
             Ok(Some(fxg)) => {
                 info!(fxg = ?fxg, "Dymension, built new deposit FXG");
-
-                // Store deposit message in database with the FXG's message (which has the correct nonce)
-                self.store_deposit_from_fxg(&fxg, &operation.deposit.id.to_string());
 
                 let delivered_res = self.hub_mailbox.delivered(fxg.hl_message.id()).await;
                 match delivered_res {
@@ -362,38 +394,9 @@ where
                     Ok(tx_outcome) => {
                         info!(fxg = ?fxg, hub_tx = ?tx_outcome.transaction_id, "Dymension, got sigs and sent new deposit to hub");
 
-                        // Update deposit status to "completed" and store Hub transaction ID
-                        if let Some(db) = self.db.as_ref() {
-                            let message_id = fxg.hl_message.id();
-                            let hub_tx_id = format!("{:x}", tx_outcome.transaction_id);
-
-                            info!(
-                                message_id = ?message_id,
-                                hub_tx = %hub_tx_id,
-                                hub_tx_len = hub_tx_id.len(),
-                                "Updating deposit status to completed and storing hub_tx"
-                            );
-
-                            match db.store_deposit_hub_tx(&message_id, &hub_tx_id) {
-                                Ok(()) => {
-                                    info!(
-                                        message_id = ?message_id,
-                                        hub_tx = %hub_tx_id,
-                                        "Successfully stored Hub transaction ID"
-                                    );
-                                }
-                                Err(e) => {
-                                    error!(
-                                        error = ?e,
-                                        message_id = ?message_id,
-                                        hub_tx = %hub_tx_id,
-                                        "Failed to store Hub transaction ID"
-                                    );
-                                }
-                            }
-                        } else {
-                            warn!("No database available for updating deposit status");
-                        }
+                        // Update the stored deposit with Hub transaction ID
+                        let hub_tx_id = format!("{:x}", tx_outcome.transaction_id);
+                        self.update_deposit_stored(&operation.deposit.id.to_string(), &hub_tx_id);
 
                         // Calculate end-to-end processing latency from initial detection to hub confirmation
                         let latency_ms = operation_start_time.elapsed().as_millis() as i64;

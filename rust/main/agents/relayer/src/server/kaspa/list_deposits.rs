@@ -21,7 +21,6 @@ pub struct DepositResponse {
     pub message_id: String,
     pub message: HyperlaneMessage,
     pub kaspa_tx: String,
-  //  pub status: String,
     pub hub_tx: Option<String>,
 }
 
@@ -60,22 +59,15 @@ pub async fn handler(
 
     let message_id = message.id();
 
-    // Retrieve status from database (defaults to "pending" if not found)
-    /*let status = db.as_ref()
-        .retrieve_deposit_status(&message_id)
-        .unwrap_or(None)
-        .unwrap_or_else(|| "pending".to_string());*/
-
-    // Retrieve Hub transaction ID if available
+    // Retrieve Hub transaction ID if available (indexed by kaspa_tx)
     let hub_tx = db.as_ref()
-        .retrieve_deposit_hub_tx(&message_id)
+        .retrieve_deposit_hub_tx(&kaspa_tx)
         .unwrap_or(None);
 
     let response = DepositResponse {
         message_id: format!("{:x}", message_id),
         message,
         kaspa_tx,
-  //      status,
         hub_tx,
     };
 

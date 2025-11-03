@@ -43,10 +43,10 @@ const PAYLOAD_UUIDS_BY_MESSAGE_ID: &str = "payload_uuids_by_message_id_";
 // Withdrawals are indexed by message_id only
 const KASPA_WITHDRAWAL_MESSAGE: &str = "kaspa_withdrawal_message_";
 const KASPA_WITHDRAWAL_BLOCK_NUMBER: &str = "kaspa_withdrawal_block_number_";
+const KASPA_WITHDRAWAL_KASPA_TX: &str = "kaspa_withdrawal_kaspa_tx_";
 
 // Deposits are indexed by both message_id and tx_hash
 const KASPA_DEPOSIT_MESSAGE: &str = "kaspa_deposit_message_";
-const KASPA_DEPOSIT_BLOCK_NUMBER: &str = "kaspa_deposit_block_number_";
 const KASPA_DEPOSIT_MESSAGE_ID_BY_TX_HASH: &str = "kaspa_deposit_message_id_by_tx_hash_";
 //const KASPA_DEPOSIT_STATUS: &str = "kaspa_deposit_status_";
 const KASPA_DEPOSIT_HUB_TX: &str = "kaspa_deposit_hub_tx_";
@@ -733,7 +733,6 @@ impl KaspaRocksDB {
     pub fn store_deposit_message(
         &self,
         message: HyperlaneMessage,
-        dispatched_block_number: u64,
         tx_hash: String,
     ) -> DbResult<()> {
         let id = message.id();
@@ -746,19 +745,13 @@ impl KaspaRocksDB {
         );
 
         // Store the message in the general message storage
-        self.upsert_message(&message, dispatched_block_number)?;
+        self.upsert_message(&message, 0u64)?;
 
         // Store deposit message by message_id
         self.store_value_by_key(KASPA_DEPOSIT_MESSAGE, &id, &message)?;
-        // Store deposit block number by message_id
-        self.store_value_by_key(KASPA_DEPOSIT_BLOCK_NUMBER, &id, &dispatched_block_number)?;
 
-        // Create bidirectional mapping between message_id and tx_hash
-        // Store tx_hash as raw bytes since String doesn't implement Encode
+        // Store mapping from tx_hash to message_id for retrieval by tx_hash
         self.store_encodable(KASPA_DEPOSIT_MESSAGE_ID_BY_TX_HASH, tx_hash.as_bytes(), &id)?;
-        // For now, we'll skip storing the reverse mapping (message_id -> tx_hash)
-        // This can be added later if needed by implementing custom storage logic
-        // The primary lookup path (tx_hash -> message_id -> message) works without it
 
         Ok(())
     }
@@ -809,51 +802,78 @@ impl KaspaRocksDB {
         self.retrieve_value_by_key(KASPA_WITHDRAWAL_MESSAGE, message_id)
     }
 
-    /// Store deposit status (pending=0 or completed=1) by message_id
-    /*pub fn store_deposit_status(&self, message_id: &H256, status: &str) -> DbResult<()> {
+    /// Store Hub transaction ID for a deposit indexed by kaspa_tx
+    pub fn store_deposit_hub_tx(&self, kaspa_tx: &str, hub_tx: &str) -> DbResult<()> {
         debug!(
-            message_id = ?message_id,
-            status = %status,
-            "Storing deposit status"
-        );
-        // Convert status string to u32 (0=pending, 1=completed)
-        let status_code: u32 = if status == "completed" { 1 } else { 0 };
-        self.store_value_by_key(KASPA_DEPOSIT_STATUS, message_id, &status_code)
-    }
-
-    /// Retrieve deposit status by message_id
-    pub fn retrieve_deposit_status(&self, message_id: &H256) -> DbResult<Option<String>> {
-        let status_code: Option<u32> = self.retrieve_value_by_key(KASPA_DEPOSIT_STATUS, message_id)?;
-        Ok(status_code.map(|code| {
-            if code == 1 {
-                "completed".to_string()
-            } else {
-                "pending".to_string()
-            }
-        }))
-    }*/
-
-    /// Store Hub transaction ID for a deposit by message_id (stored as H512)
-    pub fn store_deposit_hub_tx(&self, message_id: &H256, hub_tx: &str) -> DbResult<()> {
-        debug!(
-            message_id = ?message_id,
+            kaspa_tx = %kaspa_tx,
             hub_tx = %hub_tx,
             "Storing deposit Hub transaction ID"
         );
-        // Parse hub_tx as H512 (64 bytes = 128 hex chars) and store it
+
+        // Parse hub_tx as H512 first
         let hub_tx_h512: H512 = hub_tx.parse().map_err(|e| {
             DbError::from(HyperlaneProtocolError::IoError(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 format!("Invalid hub_tx format: {}", e)
             )))
         })?;
-        self.store_value_by_key(KASPA_DEPOSIT_HUB_TX, message_id, &hub_tx_h512)
+
+        // Check if first 32 bytes (64 hex chars) are all zeros
+        let bytes = hub_tx_h512.as_bytes();
+        let first_half_is_zero = bytes[..32].iter().all(|&b| b == 0);
+
+        if first_half_is_zero {
+            // Convert second half to H256 and store
+            let mut h256_bytes = [0u8; 32];
+            h256_bytes.copy_from_slice(&bytes[32..]);
+            let hub_tx_h256 = H256::from(h256_bytes);
+            debug!(
+                kaspa_tx = %kaspa_tx,
+                hub_tx_h256 = ?hub_tx_h256,
+                "Storing hub_tx as H256 (first half was zeros)"
+            );
+            self.store_encodable(KASPA_DEPOSIT_HUB_TX, kaspa_tx.as_bytes(), &hub_tx_h256)
+        } else {
+            // Store full H512
+            self.store_encodable(KASPA_DEPOSIT_HUB_TX, kaspa_tx.as_bytes(), &hub_tx_h512)
+        }
     }
 
-    /// Retrieve Hub transaction ID for a deposit by message_id
-    pub fn retrieve_deposit_hub_tx(&self, message_id: &H256) -> DbResult<Option<String>> {
-        let hub_tx_h512: Option<H512> = self.retrieve_value_by_key(KASPA_DEPOSIT_HUB_TX, message_id)?;
+    /// Retrieve Hub transaction ID for a deposit by kaspa_tx
+    pub fn retrieve_deposit_hub_tx(&self, kaspa_tx: &str) -> DbResult<Option<String>> {
+        // Try to retrieve as H256 first
+        let hub_tx_h256: Option<H256> = self.retrieve_decodable(KASPA_DEPOSIT_HUB_TX, kaspa_tx.as_bytes())?;
+        if let Some(h256) = hub_tx_h256 {
+            return Ok(Some(format!("{:x}", h256)));
+        }
+
+        // If not found as H256, try as H512
+        let hub_tx_h512: Option<H512> = self.retrieve_decodable(KASPA_DEPOSIT_HUB_TX, kaspa_tx.as_bytes())?;
         Ok(hub_tx_h512.map(|h| format!("{:x}", h)))
+    }
+
+    /// Store Kaspa transaction ID for a withdrawal indexed by message_id
+    /// Kaspa tx is stored as H256 (64 hex characters)
+    pub fn store_withdrawal_kaspa_tx(&self, message_id: &H256, kaspa_tx: &str) -> DbResult<()> {
+        debug!(
+            message_id = ?message_id,
+            kaspa_tx = %kaspa_tx,
+            "Storing withdrawal Kaspa transaction ID"
+        );
+        // Parse kaspa_tx as H256 and store
+        let kaspa_tx_h256: H256 = kaspa_tx.parse().map_err(|e| {
+            DbError::from(HyperlaneProtocolError::IoError(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Invalid kaspa_tx format: {}", e)
+            )))
+        })?;
+        self.store_value_by_key(KASPA_WITHDRAWAL_KASPA_TX, message_id, &kaspa_tx_h256)
+    }
+
+    /// Retrieve Kaspa transaction ID for a withdrawal by message_id
+    pub fn retrieve_withdrawal_kaspa_tx(&self, message_id: &H256) -> DbResult<Option<String>> {
+        let kaspa_tx_h256: Option<H256> = self.retrieve_value_by_key(KASPA_WITHDRAWAL_KASPA_TX, message_id)?;
+        Ok(kaspa_tx_h256.map(|h| format!("{:x}", h)))
     }
 }
 
@@ -878,10 +898,9 @@ impl hyperlane_core::KaspaDb for KaspaRocksDB {
     fn store_deposit_message(
         &self,
         message: HyperlaneMessage,
-        dispatched_block_number: u64,
         tx_hash: String,
     ) -> Result<()> {
-        Ok(self.store_deposit_message(message, dispatched_block_number, tx_hash)?)
+        Ok(self.store_deposit_message(message, tx_hash)?)
     }
 
     fn retrieve_kaspa_deposit_by_message_id(
@@ -898,33 +917,33 @@ impl hyperlane_core::KaspaDb for KaspaRocksDB {
         Ok(self.retrieve_kaspa_deposit_by_tx_hash(tx_hash)?)
     }
 
-   /*  fn store_deposit_status(
-        &self,
-        message_id: &H256,
-        status: &str,
-    ) -> Result<()> {
-        Ok(self.store_deposit_status(message_id, status)?)
-    }
-
-    fn retrieve_deposit_status(
-        &self,
-        message_id: &H256,
-    ) -> Result<Option<String>> {
-        Ok(self.retrieve_deposit_status(message_id)?)
-    }*/
-
     fn store_deposit_hub_tx(
         &self,
-        message_id: &H256,
+        kaspa_tx: &str,
         hub_tx: &str,
     ) -> Result<()> {
-        Ok(self.store_deposit_hub_tx(message_id, hub_tx)?)
+        Ok(self.store_deposit_hub_tx(kaspa_tx, hub_tx)?)
     }
 
     fn retrieve_deposit_hub_tx(
         &self,
+        kaspa_tx: &str,
+    ) -> Result<Option<String>> {
+        Ok(self.retrieve_deposit_hub_tx(kaspa_tx)?)
+    }
+
+    fn store_withdrawal_kaspa_tx(
+        &self,
+        message_id: &H256,
+        kaspa_tx: &str,
+    ) -> Result<()> {
+        Ok(self.store_withdrawal_kaspa_tx(message_id, kaspa_tx)?)
+    }
+
+    fn retrieve_withdrawal_kaspa_tx(
+        &self,
         message_id: &H256,
     ) -> Result<Option<String>> {
-        Ok(self.retrieve_deposit_hub_tx(message_id)?)
+        Ok(self.retrieve_withdrawal_kaspa_tx(message_id)?)
     }
 }

@@ -234,13 +234,39 @@ impl Mailbox for KaspaMailbox {
             .await;
 
         let processed_messages = match result_processed_messages {
-            Ok(messages) => {
+            Ok(messages_with_tx) => {
                 info!("Kaspa mailbox, processed withdrawals TXs");
+
+                // Store kaspa_tx for each successfully processed message
+                if let Some(kaspa_db) = self.kaspa_db() {
+                    for (msg, kaspa_tx) in &messages_with_tx {
+                        if !kaspa_tx.is_empty() {
+                            let message_id = msg.id();
+                            match kaspa_db.store_withdrawal_kaspa_tx(&message_id, kaspa_tx) {
+                                Ok(()) => {
+                                    info!(
+                                        message_id = ?message_id,
+                                        kaspa_tx = %kaspa_tx,
+                                        "Stored kaspa_tx for withdrawal"
+                                    );
+                                }
+                                Err(e) => {
+                                    error!(
+                                        error = ?e,
+                                        message_id = ?message_id,
+                                        kaspa_tx = %kaspa_tx,
+                                        "Failed to store kaspa_tx for withdrawal"
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
 
                 // Calculate and record withdrawal latency for successfully processed messages
                 let now = std::time::Instant::now();
                 let mut timestamps = self.operation_timestamps.lock().await;
-                for msg in &messages {
+                for (msg, _) in &messages_with_tx {
                     let msg_id = format!("{:?}", msg.id());
                     if let Some(start_time) = timestamps.remove(&msg_id) {
                         let latency = now.duration_since(start_time);
@@ -250,7 +276,8 @@ impl Mailbox for KaspaMailbox {
                 }
                 drop(timestamps);
 
-                messages
+                // Extract just the messages for further processing
+                messages_with_tx.into_iter().map(|(msg, _)| msg).collect()
             }
             Err(e) => {
                 error!("Kaspa mailbox, failed to process withdrawals TXs: {:?}", e);
