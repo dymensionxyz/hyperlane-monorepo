@@ -473,8 +473,8 @@ impl BaseAgent for Relayer {
 
         start_entity_init = Instant::now();
         for (origin_domain, origin) in self.origins.iter() {
+            // assign kaspadb to kaspa deposit loop
             if is_kas(&origin.domain) && self.dymension_kaspa_args.is_some() {
-                // Get the kaspa_db that was already created above
                 let kaspa_db = kaspa_db.as_ref().expect("kaspa_db should exist for kaspa origin");
                 self.launch_dymension_kaspa_tasks(
                     origin,
