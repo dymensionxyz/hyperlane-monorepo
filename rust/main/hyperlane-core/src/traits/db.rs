@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use eyre::Result;
 
-use crate::{Indexed, LogMeta};
+use crate::{H256, Indexed, LogMeta};
 
 /// Interface for a HyperlaneLogStore that ingests logs.
 #[async_trait]
@@ -73,7 +73,7 @@ pub trait KaspaDb: Send + Sync + Debug {
     /// Retrieve a withdrawal message by message_id
     fn retrieve_kaspa_withdrawal_by_message_id(
         &self,
-        message_id: &crate::H256,
+        message_id: &H256,
     ) -> Result<Option<crate::HyperlaneMessage>>;
 
     /// Store a deposit message indexed by both message_id and tx_hash
@@ -86,7 +86,7 @@ pub trait KaspaDb: Send + Sync + Debug {
     /// Retrieve a deposit message by message_id
     fn retrieve_kaspa_deposit_by_message_id(
         &self,
-        message_id: &crate::H256,
+        message_id: &H256,
     ) -> Result<Option<crate::HyperlaneMessage>>;
 
     /// Retrieve a deposit message by kaspa transaction hash
@@ -99,25 +99,25 @@ pub trait KaspaDb: Send + Sync + Debug {
     fn store_deposit_hub_tx(
         &self,
         kaspa_tx: &str,
-        hub_tx: &str,
+        hub_tx: &H256,
     ) -> Result<()>;
 
     /// Retrieve Hub transaction ID for a deposit by kaspa_tx
     fn retrieve_deposit_hub_tx(
         &self,
         kaspa_tx: &str,
-    ) -> Result<Option<String>>;
+    ) -> Result<Option<H256>>;
 
     /// Store Kaspa transaction ID for a withdrawal indexed by message_id
     fn store_withdrawal_kaspa_tx(
         &self,
-        message_id: &crate::H256,
+        message_id: &H256,
         kaspa_tx: &str,
     ) -> Result<()>;
 
     /// Retrieve Kaspa transaction ID for a withdrawal by message_id
     fn retrieve_withdrawal_kaspa_tx(
         &self,
-        message_id: &crate::H256,
+        message_id: &H256,
     ) -> Result<Option<String>>;
 }

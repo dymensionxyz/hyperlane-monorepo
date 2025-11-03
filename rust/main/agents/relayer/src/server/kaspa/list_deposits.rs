@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use hyperlane_base::server::utils::{
     ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse,
 };
-use hyperlane_core::HyperlaneMessage;
+use hyperlane_core::{HyperlaneMessage,H256};
 
 use crate::server::kaspa::ServerState;
 
@@ -21,7 +21,7 @@ pub struct DepositResponse {
     pub message_id: String,
     pub message: HyperlaneMessage,
     pub kaspa_tx: String,
-    pub hub_tx: Option<String>,
+    pub hub_tx: Option<H256>,
 }
 
 /// Fetch a Kaspa deposit by kaspa transaction hash

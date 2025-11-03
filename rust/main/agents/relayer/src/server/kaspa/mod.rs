@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{sync::Arc};
 
 use axum::{routing::get, Router};
 use derive_new::new;

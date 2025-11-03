@@ -9,9 +9,7 @@ use dymension_kaspa::{Deposit, KaspaProvider};
 use ethers::utils::hex::ToHex;
 use eyre::Result;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, Checkpoint, CheckpointWithMessageId, HyperlaneChain,
-    HyperlaneLogStore, Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint, Signature,
-    SignedCheckpointWithMessageId, TxOutcome, H256,
+    ChainCommunicationError, ChainResult, Checkpoint, CheckpointWithMessageId, H256, H512, HyperlaneChain, HyperlaneLogStore, Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint, Signature, SignedCheckpointWithMessageId, TxOutcome
 };
 use hyperlane_cosmos::native::{h512_to_cosmos_hash, CosmosNativeMailbox};
 use kaspa_consensus_core::tx::TransactionOutpoint;
@@ -265,7 +263,7 @@ where
 
     /// Update a stored deposit with the Hub transaction ID after successful submission
     /// Stores hub_tx indexed by kaspa_tx
-    fn update_deposit_stored(&self, kaspa_tx_hash: &str, hub_tx_id: &str) {
+    fn update_deposit_stored(&self, kaspa_tx_hash: &str, hub_tx_id: &H256) {
         if let Some(db) = self.db.as_ref() {
             info!(
                 kaspa_tx = %kaspa_tx_hash,
@@ -376,7 +374,10 @@ where
 
 
                         // Update the stored deposit with Hub transaction ID
-                        self.update_deposit_stored(&op.deposit.id.to_string(), &tx_hash);
+                        let mut h256_hub_tx_bytes = [0u8; 32];
+                        h256_hub_tx_bytes.copy_from_slice(&outcome.transaction_id.as_bytes()[32..]);
+                        let h256_hub_tx = H256::from(h256_hub_tx_bytes);
+                        self.update_deposit_stored(&op.deposit.id.to_string(), &h256_hub_tx);
 
                         if !outcome.executed {
                             error!(

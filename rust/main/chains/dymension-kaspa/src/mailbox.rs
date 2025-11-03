@@ -13,7 +13,7 @@ use hyperlane_core::{
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use hyperlane_warp_route::TokenMessage;
 use tonic::async_trait;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 // pretends to be a mailbox
 #[derive(Clone)]
@@ -177,6 +177,30 @@ impl Mailbox for KaspaMailbox {
                 let msg_id = format!("{:?}", msg.id());
                 ts_map.entry(msg_id).or_insert(current_ts);
             }
+        }
+
+        // Store withdrawal messages in kaspa_db before processing
+        if let Some(kaspa_db) = self.kaspa_db() {
+            for msg in &msgs {
+                let message_id = format!("0x{:x}", msg.id());
+                match kaspa_db.store_withdrawal_message(msg.clone(), 0) {
+                    Ok(()) => {
+                        info!(
+                            message_id = %message_id,
+                            "Stored withdrawal message in kaspa_db"
+                        );
+                    }
+                    Err(e) => {
+                        error!(
+                            message_id = %message_id,
+                            error = ?e,
+                            "Failed to store withdrawal message in kaspa_db"
+                        );
+                    }
+                }
+             }
+        } else {
+            warn!("Kaspa mailbox, no kaspa_db set, skipping storing withdrawal messages");
         }
 
         // Cannot process withdrawals while a confirmation is pending on the Hub.

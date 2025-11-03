@@ -158,7 +158,6 @@ impl KaspaRocksDB {
         );
 
         // Store the message in the general message storage
-        //self.upsert_message(&message, 0u64)?;
         self.upsert_message(&message)?;
         // Store deposit message by message_id
         self.store_value_by_key(KASPA_DEPOSIT_MESSAGE, &id, &message)?;
@@ -214,53 +213,22 @@ impl KaspaRocksDB {
     }
 
     /// Store Hub transaction ID for a deposit indexed by kaspa_tx
-    pub fn store_deposit_hub_tx(&self, kaspa_tx: &str, hub_tx: &str) -> DbResult<()> {
+    pub fn store_deposit_hub_tx(&self, kaspa_tx: &str, hub_tx: &H256) -> DbResult<()> {
         debug!(
             kaspa_tx = %kaspa_tx,
             hub_tx = %hub_tx,
             "Storing deposit Hub transaction ID"
         );
 
-        // Parse hub_tx as H512 first
-        let hub_tx_h512: H512 = hub_tx.parse().map_err(|e| {
-            DbError::from(HyperlaneProtocolError::IoError(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!("Invalid hub_tx format: {}", e)
-            )))
-        })?;
-
-        // Check if first 32 bytes (64 hex chars) are all zeros
-        let bytes = hub_tx_h512.as_bytes();
-        let first_half_is_zero = bytes[..32].iter().all(|&b| b == 0);
-
-        if first_half_is_zero {
-            // Convert second half to H256 and store
-            let mut h256_bytes = [0u8; 32];
-            h256_bytes.copy_from_slice(&bytes[32..]);
-            let hub_tx_h256 = H256::from(h256_bytes);
-            debug!(
-                kaspa_tx = %kaspa_tx,
-                hub_tx_h256 = ?hub_tx_h256,
-                "Storing hub_tx as H256 (first half was zeros)"
-            );
-            self.store_encodable(KASPA_DEPOSIT_HUB_TX, kaspa_tx.as_bytes(), &hub_tx_h256)
-        } else {
-            // Store full H512
-            self.store_encodable(KASPA_DEPOSIT_HUB_TX, kaspa_tx.as_bytes(), &hub_tx_h512)
-        }
+        // Store full H256
+        self.store_encodable(KASPA_DEPOSIT_HUB_TX, kaspa_tx.as_bytes(), hub_tx)
+        
     }
 
     /// Retrieve Hub transaction ID for a deposit by kaspa_tx
-    pub fn retrieve_deposit_hub_tx(&self, kaspa_tx: &str) -> DbResult<Option<String>> {
-        // Try to retrieve as H256 first
-        let hub_tx_h256: Option<H256> = self.retrieve_decodable(KASPA_DEPOSIT_HUB_TX, kaspa_tx.as_bytes())?;
-        if let Some(h256) = hub_tx_h256 {
-            return Ok(Some(format!("{:x}", h256)));
-        }
-
-        // If not found as H256, try as H512
-        let hub_tx_h512: Option<H512> = self.retrieve_decodable(KASPA_DEPOSIT_HUB_TX, kaspa_tx.as_bytes())?;
-        Ok(hub_tx_h512.map(|h| format!("{:x}", h)))
+    pub fn retrieve_deposit_hub_tx(&self, kaspa_tx: &str) -> DbResult<Option<H256>> {
+        let hub_tx: Option<H256> = self.retrieve_decodable(KASPA_DEPOSIT_HUB_TX, kaspa_tx.as_bytes())?;
+        Ok(hub_tx)
     }
 
     /// Store Kaspa transaction ID for a withdrawal indexed by message_id
@@ -331,7 +299,7 @@ impl hyperlane_core::KaspaDb for KaspaRocksDB {
     fn store_deposit_hub_tx(
         &self,
         kaspa_tx: &str,
-        hub_tx: &str,
+        hub_tx: &H256,
     ) -> Result<()> {
         Ok(self.store_deposit_hub_tx(kaspa_tx, hub_tx)?)
     }
@@ -339,7 +307,7 @@ impl hyperlane_core::KaspaDb for KaspaRocksDB {
     fn retrieve_deposit_hub_tx(
         &self,
         kaspa_tx: &str,
-    ) -> Result<Option<String>> {
+    ) -> Result<Option<H256>> {
         Ok(self.retrieve_deposit_hub_tx(kaspa_tx)?)
     }
 
