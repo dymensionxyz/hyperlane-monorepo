@@ -243,26 +243,25 @@ where
         }
     }
 
-    /// Store a deposit message in the database after FXG is built
-    /// This ensures the message has the correct nonce assigned by relayer_on_new_deposit
-    fn store_deposit(&self, message: &hyperlane_core::HyperlaneMessage, deposit_id: &str) {
+    /// Store a deposit message in the database with the corresponding kaspa tx as deposit id
+    fn store_deposit(&self, message: &hyperlane_core::HyperlaneMessage, kaspa_tx: &str) {
         if let Some(db) = self.db.as_ref() {
             let message_id = message.id();
             info!(
-                deposit_id = %deposit_id,
+                kaspa_tx = %kaspa_tx,
                 message_id = ?message_id,
                 nonce = message.nonce,
-                "Storing deposit message in database after FXG built"
+                "Storing deposit message in database"
             );
             match db.store_deposit_message(
                 message.clone(),
-                deposit_id.to_string(),
+                kaspa_tx.to_string(),
             ) {
                 Ok(()) => {
                     info!(
                         message_id = ?message_id,
-                        deposit_id = %deposit_id,
-                        "Successfully stored deposit message after FXG built"
+                        kaspa_tx = %kaspa_tx,
+                        "Successfully stored deposit message"
                     );
 
                 }
@@ -270,8 +269,8 @@ where
                     error!(
                         error = ?e,
                         message_id = ?message_id,
-                        deposit_id = %deposit_id,
-                        "Failed to store deposit message in database after FXG built"
+                        kaspa_tx = %kaspa_tx,
+                        "Failed to store deposit message in database"
                     );
                 }
             }
@@ -335,7 +334,7 @@ where
         let deposit_amount = if let Some(payload) = &operation.deposit.payload {
             match dym_kas_core::message::ParsedHL::parse_string(payload) {
                 Ok(parsed_hl) => {
-                    // Store deposit message in database with the FXG's message (which has the correct nonce)
+                    // Store deposit hl message in database with corresponding deposit kaspa tx
                     self.store_deposit(&parsed_hl.hl_message, &operation.deposit.id.to_string());
                     parsed_hl.token_message.amount().low_u64()
                 },
