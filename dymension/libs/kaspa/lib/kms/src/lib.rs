@@ -19,17 +19,17 @@ pub async fn load_kaspa_keypair_from_aws(config: &AwsKeyConfig) -> Result<KaspaS
 
     let secrets_client = SecretsManagerClient::new(&aws_config);
 
-    tracing::info!(
-        "Fetching secret from AWS Secrets Manager: {}",
-        config.secret_id
-    );
-
     let secret_value = secrets_client
         .get_secret_value()
         .secret_id(&config.secret_id)
         .send()
         .await
         .context("get secret value from AWS Secrets Manager")?;
+
+    tracing::info!(
+        "Fetched secret from AWS Secrets Manager: {}",
+        config.secret_id
+    );
 
     let encrypted_key_material = secret_value
         .secret_binary()
@@ -38,11 +38,6 @@ pub async fn load_kaspa_keypair_from_aws(config: &AwsKeyConfig) -> Result<KaspaS
     let mut key_bytes = encrypted_key_material.as_ref().to_vec();
 
     let kms_client = KmsClient::new(&aws_config);
-
-    tracing::info!(
-        "Decrypting key material using AWS KMS: {}",
-        config.kms_key_id
-    );
 
     let decrypt_output = kms_client
         .decrypt()
@@ -55,6 +50,11 @@ pub async fn load_kaspa_keypair_from_aws(config: &AwsKeyConfig) -> Result<KaspaS
     let decrypted_key_material = decrypt_output
         .plaintext()
         .ok_or_else(|| eyre!("plaintext not found in KMS decrypt response"))?;
+
+    tracing::info!(
+        "Decrypted key material using AWS KMS: {}",
+        config.kms_key_id
+    );
 
     let decrypted_str = String::from_utf8(decrypted_key_material.as_ref().to_vec())
         .context("decrypted key material is not valid UTF-8")?;
