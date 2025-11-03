@@ -2,7 +2,7 @@ use aws_config::BehaviorVersion;
 use aws_sdk_kms::Client as KmsClient;
 use aws_sdk_secretsmanager::Client as SecretsManagerClient;
 use dym_kas_validator::KaspaSecpKeypair;
-use eyre::{eyre, Context, Result};
+use eyre::{eyre, Result};
 
 #[derive(Debug, Clone)]
 pub struct AwsKeyConfig {
@@ -24,7 +24,7 @@ pub async fn load_kaspa_keypair_from_aws(config: &AwsKeyConfig) -> Result<KaspaS
         .secret_id(&config.secret_id)
         .send()
         .await
-        .context("get secret value from AWS Secrets Manager")?;
+        .map_err(|_| eyre!("get secret value from AWS Secrets Manager"))?;
 
     tracing::info!(
         "Fetched secret from AWS Secrets Manager: {}",
@@ -45,7 +45,7 @@ pub async fn load_kaspa_keypair_from_aws(config: &AwsKeyConfig) -> Result<KaspaS
         .ciphertext_blob(aws_sdk_kms::primitives::Blob::new(key_bytes.clone()))
         .send()
         .await
-        .context("decrypt key material using AWS KMS")?;
+        .map_err(|_| eyre!("decrypt key material using AWS KMS"))?;
 
     let decrypted_key_material = decrypt_output
         .plaintext()
@@ -57,10 +57,10 @@ pub async fn load_kaspa_keypair_from_aws(config: &AwsKeyConfig) -> Result<KaspaS
     );
 
     let decrypted_str = String::from_utf8(decrypted_key_material.as_ref().to_vec())
-        .context("decrypted key material is not valid UTF-8")?;
+        .map_err(|_| eyre!("decrypted key material is not valid UTF-8"))?;
 
     let keypair: KaspaSecpKeypair = serde_json::from_str(&decrypted_str)
-        .context("parse decrypted key material as KaspaSecpKeypair JSON")?;
+        .map_err(|_| eyre!("parse decrypted key material as KaspaSecpKeypair JSON"))?;
 
     key_bytes.iter_mut().for_each(|b| *b = 0);
 
