@@ -15,8 +15,8 @@ pub struct ServerState {
 impl ServerState {
     pub fn router(self) -> Router {
         Router::new()
-            .route("/kaspa/deposits", get(list_deposits::handler))
-            .route("/kaspa/withdrawals", get(list_withdrawals::handler))
+            .route("/kaspa/deposit", get(list_deposits::handler))
+            .route("/kaspa/withdrawal", get(list_withdrawals::handler))
             .with_state(self)
     }
 }

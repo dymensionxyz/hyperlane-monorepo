@@ -7,11 +7,8 @@ use hyperlane_core::{
 
 use crate::db::{DbError, TypedDB, DB};
 
-const MESSAGE_ID: &str = "message_id_";
-const MESSAGE: &str = "message_";
 const HIGHEST_SEEN_MESSAGE_NONCE: &str = "highest_seen_message_nonce_";
 const KASPA_WITHDRAWAL_MESSAGE: &str = "kaspa_withdrawal_message_";
-const KASPA_WITHDRAWAL_BLOCK_NUMBER: &str = "kaspa_withdrawal_block_number_";
 const KASPA_WITHDRAWAL_KASPA_TX: &str = "kaspa_withdrawal_kaspa_tx_";
 const KASPA_DEPOSIT_MESSAGE: &str = "kaspa_deposit_message_";
 const KASPA_DEPOSIT_MESSAGE_ID_BY_TX_HASH: &str = "kaspa_deposit_message_id_by_tx_hash_";
@@ -45,50 +42,12 @@ impl AsRef<DB> for KaspaRocksDB {
 }
 
 impl KaspaRocksDB {
+
     /// Instantiated new `KaspaRocksDB`
     pub fn new(domain: &HyperlaneDomain, db: DB) -> Self {
         Self(TypedDB::new(domain, db))
     }
 
-    /// Store a raw committed message.
-    pub fn upsert_message(
-        &self,
-        message: &HyperlaneMessage,
-        // dispatched_block_number: u64,
-    ) -> DbResult<()> {
-        let id = message.id();
-
-        // - `id` --> `message`
-        self.store_message_by_id(&id, message)?;
-        // - `nonce` --> `id`
-        self.store_message_id_by_nonce(&message.nonce, &id)?;
-        // Update the max seen nonce to allow forward-backward iteration in the processor
-        self.try_update_max_seen_message_nonce(message.nonce)?;
-        Ok(())
-    }
-
-    /// Retrieve a message by its nonce
-    pub fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>> {
-        let id = self.retrieve_message_id_by_nonce(&nonce)?;
-        match id {
-            None => Ok(None),
-            Some(id) => self.retrieve_message_by_id(&id),
-        }
-    }
-
-    /// Update the nonce of the highest processed message we're aware of
-    pub fn try_update_max_seen_message_nonce(&self, nonce: u32) -> DbResult<()> {
-        let current_max = self
-            .retrieve_highest_seen_message_nonce()?
-            .unwrap_or_default();
-        if nonce >= current_max {
-            self.store_highest_seen_message_nonce_number(&nonce)?;
-        }
-        Ok(())
-    }
-}
-
-impl KaspaRocksDB {
     /// Store a value by key
     pub fn store_value_by_key<K: Encode, V: Encode>(
         &self,
@@ -106,23 +65,6 @@ impl KaspaRocksDB {
         key: &K,
     ) -> DbResult<Option<V>> {
         self.retrieve_decodable(prefix, key.to_vec())
-    }
-
-    // Methods used internally
-    pub fn retrieve_message_id_by_nonce(&self, nonce: &u32) -> DbResult<Option<H256>> {
-        self.retrieve_value_by_key(MESSAGE_ID, nonce)
-    }
-
-    pub fn store_message_by_id(&self, id: &H256, message: &HyperlaneMessage) -> DbResult<()> {
-        self.store_value_by_key(MESSAGE, id, message)
-    }
-
-    pub fn store_message_id_by_nonce(&self, nonce: &u32, id: &H256) -> DbResult<()> {
-        self.store_value_by_key(MESSAGE_ID, nonce, id)
-    }
-
-    pub fn retrieve_message_by_id(&self, id: &H256) -> DbResult<Option<HyperlaneMessage>> {
-        self.retrieve_value_by_key(MESSAGE, id)
     }
 
     pub fn retrieve_highest_seen_message_nonce(&self) -> DbResult<Option<u32>> {
@@ -143,23 +85,21 @@ impl KaspaRocksDB {
     pub fn store_deposit_message(
         &self,
         message: HyperlaneMessage,
-        tx_hash: String,
+        kaspa_tx_id: String,
     ) -> DbResult<()> {
         let id = message.id();
 
         debug!(
             message_id = ?id,
-            tx_hash = %tx_hash,
+            kaspa_tx_id = %kaspa_tx_id,
             nonce = message.nonce,
             "Storing Kaspa deposit"
         );
 
-        // Store the message in the general message storage
-        self.upsert_message(&message)?;
         // Store deposit message by message_id
         self.store_value_by_key(KASPA_DEPOSIT_MESSAGE, &id, &message)?;
         // Store mapping from tx_hash to message_id for retrieval by tx_hash
-        self.store_encodable(KASPA_DEPOSIT_MESSAGE_ID_BY_TX_HASH, tx_hash.as_bytes(), &id)?;
+        self.store_encodable(KASPA_DEPOSIT_MESSAGE_ID_BY_TX_HASH, kaspa_tx_id.as_bytes(), &id)?;
 
         Ok(())
     }
@@ -175,11 +115,11 @@ impl KaspaRocksDB {
     /// Retrieve a Kaspa deposit message by kaspa transaction hash
     pub fn retrieve_kaspa_deposit_by_tx_hash(
         &self,
-        tx_hash: &str,
+        hub_tx_id: &str,
     ) -> DbResult<Option<HyperlaneMessage>> {
         // First get the message_id from tx_hash (stored as bytes)
         let message_id: Option<H256> =
-            self.retrieve_decodable(KASPA_DEPOSIT_MESSAGE_ID_BY_TX_HASH, tx_hash.as_bytes())?;
+            self.retrieve_decodable(KASPA_DEPOSIT_MESSAGE_ID_BY_TX_HASH, hub_tx_id.as_bytes())?;
 
         match message_id {
             Some(id) => self.retrieve_kaspa_deposit_by_message_id(&id),
@@ -200,8 +140,6 @@ impl KaspaRocksDB {
             "Storing Kaspa withdrawal"
         );
 
-        // Store the message in the general message storage
-        self.upsert_message(&message)?;
         // Store withdrawal message by message_id
         self.store_value_by_key(KASPA_WITHDRAWAL_MESSAGE, &id, &message)?;
 
@@ -278,8 +216,8 @@ impl hyperlane_core::KaspaDb for KaspaRocksDB {
         Ok(self.retrieve_kaspa_withdrawal_by_message_id(message_id)?)
     }
 
-    fn store_deposit_message(&self, message: HyperlaneMessage, tx_hash: String) -> Result<()> {
-        Ok(self.store_deposit_message(message, tx_hash)?)
+    fn store_deposit_message(&self, message: HyperlaneMessage, kaspa_tx_id: String) -> Result<()> {
+        Ok(self.store_deposit_message(message, kaspa_tx_id)?)
     }
 
     fn retrieve_kaspa_deposit_by_message_id(
@@ -289,20 +227,20 @@ impl hyperlane_core::KaspaDb for KaspaRocksDB {
         Ok(self.retrieve_kaspa_deposit_by_message_id(message_id)?)
     }
 
-    fn retrieve_kaspa_deposit_by_tx_hash(&self, tx_hash: &str) -> Result<Option<HyperlaneMessage>> {
-        Ok(self.retrieve_kaspa_deposit_by_tx_hash(tx_hash)?)
+    fn retrieve_kaspa_deposit_by_tx_hash(&self, hub_tx_id: &str) -> Result<Option<HyperlaneMessage>> {
+        Ok(self.retrieve_kaspa_deposit_by_tx_hash(hub_tx_id)?)
     }
 
     fn store_deposit_hub_tx(&self, kaspa_tx: &str, hub_tx: &H256) -> Result<()> {
         Ok(self.store_deposit_hub_tx(kaspa_tx, hub_tx)?)
     }
 
-    fn retrieve_deposit_hub_tx(&self, kaspa_tx: &str) -> Result<Option<H256>> {
-        Ok(self.retrieve_deposit_hub_tx(kaspa_tx)?)
+    fn retrieve_deposit_hub_tx(&self, kaspa_tx_id: &str) -> Result<Option<H256>> {
+        Ok(self.retrieve_deposit_hub_tx(kaspa_tx_id)?)
     }
 
-    fn store_withdrawal_kaspa_tx(&self, message_id: &H256, kaspa_tx: &str) -> Result<()> {
-        Ok(self.store_withdrawal_kaspa_tx(message_id, kaspa_tx)?)
+    fn store_withdrawal_kaspa_tx(&self, message_id: &H256, kaspa_tx_id: &str) -> Result<()> {
+        Ok(self.store_withdrawal_kaspa_tx(message_id, kaspa_tx_id)?)
     }
 
     fn retrieve_withdrawal_kaspa_tx(&self, message_id: &H256) -> Result<Option<String>> {

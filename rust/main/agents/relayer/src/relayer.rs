@@ -1174,7 +1174,7 @@ impl Relayer {
 
         let metadata_getter = PendingMessageMetadataGetter::new();
 
-        let b = KaspaBridgeFoo::new_with_db(
+        let b = KaspaBridgeFoo::new(
             kas_provider.clone(),
             hub_mailbox.clone(),
             metadata_getter,

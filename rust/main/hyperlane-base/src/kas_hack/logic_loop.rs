@@ -19,7 +19,7 @@ use kaspa_core::time::unix_now;
 use std::{collections::HashSet, fmt::Debug, hash::Hash, sync::Arc, time::Duration};
 use tokio::{sync::Mutex, task::JoinHandle, time};
 use tokio_metrics::TaskMonitor;
-use tracing::{debug, error, info, info_span, warn, Instrument};
+use tracing::{debug, error, info, info_span, Instrument};
 
 use super::{
     deposit_operation::{DepositOpQueue, DepositOperation},
@@ -42,26 +42,8 @@ impl<C: MetadataConstructor> Foo<C>
 where
     C: Send + Sync + 'static,
 {
-    pub fn new(
-        provider: Box<KaspaProvider>,
-        hub_mailbox: Arc<CosmosNativeMailbox>,
-        metadata_constructor: C,
-    ) -> Self {
-        let config = provider
-            .kaspa_time_cfg()
-            .unwrap_or_else(KaspaTimeConfig::default);
-        Self {
-            provider,
-            hub_mailbox,
-            metadata_constructor,
-            deposit_cache: DepositCache::new(),
-            deposit_queue: Mutex::new(DepositOpQueue::new()),
-            config,
-            db: None,
-        }
-    }
 
-    pub fn new_with_db(
+    pub fn new(
         provider: Box<KaspaProvider>,
         hub_mailbox: Arc<CosmosNativeMailbox>,
         metadata_constructor: C,
@@ -264,7 +246,7 @@ where
 
     /// Update a stored deposit with the Hub transaction ID after successful submission
     /// Stores hub_tx indexed by kaspa_tx
-    fn update_deposit_stored(&self, kaspa_tx_hash: &str, hub_tx_id: &H256) {
+    fn add_hub_tx_id_deposit_stored(&self, kaspa_tx_hash: &str, hub_tx_id: &H256) {
         if let Some(db) = self.db.as_ref() {
             info!(
                 kaspa_tx = %kaspa_tx_hash,
@@ -377,7 +359,7 @@ where
                         let mut h256_hub_tx_bytes = [0u8; 32];
                         h256_hub_tx_bytes.copy_from_slice(&outcome.transaction_id.as_bytes()[32..]);
                         let h256_hub_tx = H256::from(h256_hub_tx_bytes);
-                        self.update_deposit_stored(&op.deposit.id.to_string(), &h256_hub_tx);
+                        self.add_hub_tx_id_deposit_stored(&op.deposit.id.to_string(), &h256_hub_tx);
 
                         if !outcome.executed {
                             error!(

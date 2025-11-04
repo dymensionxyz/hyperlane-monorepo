@@ -79,7 +79,7 @@ pub trait KaspaDb: Send + Sync + Debug {
     fn store_deposit_message(
         &self,
         message: crate::HyperlaneMessage,
-        tx_hash: String,
+        kaspa_tx_id: String,
     ) -> Result<()>;
 
     /// Retrieve a deposit message by message_id
@@ -91,14 +91,14 @@ pub trait KaspaDb: Send + Sync + Debug {
     /// Retrieve a deposit message by kaspa transaction hash
     fn retrieve_kaspa_deposit_by_tx_hash(
         &self,
-        tx_hash: &str,
+        hub_tx_id: &str,
     ) -> Result<Option<crate::HyperlaneMessage>>;
 
     /// Store Hub transaction ID for a deposit indexed by kaspa_tx
-    fn store_deposit_hub_tx(&self, kaspa_tx: &str, hub_tx: &H256) -> Result<()>;
+    fn store_deposit_hub_tx(&self, kaspa_tx_id: &str, hub_tx: &H256) -> Result<()>;
 
     /// Retrieve Hub transaction ID for a deposit by kaspa_tx
-    fn retrieve_deposit_hub_tx(&self, kaspa_tx: &str) -> Result<Option<H256>>;
+    fn retrieve_deposit_hub_tx(&self, kaspa_tx_id: &str) -> Result<Option<H256>>;
 
     /// Store Kaspa transaction ID for a withdrawal indexed by message_id
     fn store_withdrawal_kaspa_tx(&self, message_id: &H256, kaspa_tx: &str) -> Result<()>;
