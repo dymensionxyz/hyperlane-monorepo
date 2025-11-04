@@ -41,7 +41,6 @@ pub fn create_validator() -> (ValidatorInfos, PublicKey) {
 pub fn handle_local_backend(args: ValidatorLocalArgs) -> Result<(), Box<dyn std::error::Error>> {
     let mut infos = vec![];
 
-    // Generate validators
     for _ in 0..args.count {
         let (v, _) = create_validator();
         infos.push(v);
@@ -54,12 +53,10 @@ pub fn handle_local_backend(args: ValidatorLocalArgs) -> Result<(), Box<dyn std:
 
     match args.output {
         Some(path) => {
-            // Write to file
             fs::write(&path, json_output)?;
             println!("Validator keys saved to: {}", path);
         }
         None => {
-            // Print to stdout
             println!("{}", json_output);
         }
     }
@@ -68,7 +65,6 @@ pub fn handle_local_backend(args: ValidatorLocalArgs) -> Result<(), Box<dyn std:
 }
 
 pub async fn handle_aws_backend(args: ValidatorAwsArgs) -> Result<(), Box<dyn std::error::Error>> {
-    // Import AWS modules
     use aws_config::BehaviorVersion;
     use aws_sdk_kms::Client as KmsClient;
     use aws_sdk_secretsmanager::Client as SecretsManagerClient;
@@ -91,7 +87,6 @@ pub async fn handle_aws_backend(args: ValidatorAwsArgs) -> Result<(), Box<dyn st
     println!("Generating validator keys...");
     println!();
     println!("Validator info:");
-    println!("  ISM Address: {}", validator_info.validator_ism_addr);
     println!(
         "  Escrow Pub Key: {}",
         validator_info.validator_escrow_pub_key
