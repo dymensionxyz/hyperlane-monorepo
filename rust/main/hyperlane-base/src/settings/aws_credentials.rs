@@ -4,7 +4,7 @@
 use async_trait::async_trait;
 use rusoto_core::credential::{
     AutoRefreshingProvider, AwsCredentials, CredentialsError, EnvironmentProvider,
-    ProvideAwsCredentials,
+    InstanceMetadataProvider, ProvideAwsCredentials,
 };
 use rusoto_sts::WebIdentityProvider;
 
@@ -17,9 +17,12 @@ use rusoto_sts::WebIdentityProvider;
 /// The primary use case is running Hyperlane agents in AWS Kubernetes cluster (EKS) configured
 /// with [IAM Roles for Service Accounts (IRSA)](https://aws.amazon.com/blogs/containers/diving-into-iam-roles-for-service-accounts/).
 /// The IRSA approach follows security best practices and allows for key rotation.
+/// 3) `InstanceMetadataProvider`: retrieves credentials from EC2 instance metadata service (IMDSv2).
+/// This allows EC2 instances with attached IAM instance profiles to authenticate without static credentials.
 pub(crate) struct AwsChainCredentialsProvider {
     environment_provider: EnvironmentProvider,
     web_identity_provider: AutoRefreshingProvider<WebIdentityProvider>,
+    instance_metadata_provider: AutoRefreshingProvider<InstanceMetadataProvider>,
 }
 
 impl AwsChainCredentialsProvider {
@@ -27,12 +30,20 @@ impl AwsChainCredentialsProvider {
         // Wrap the `WebIdentityProvider` to a caching `AutoRefreshingProvider`.
         // By default, the `WebIdentityProvider` requests AWS Credentials on each call to `credentials()`
         // To save the CPU/network and AWS bills, the `AutoRefreshingProvider` allows to cache the credentials until the expire.
-        let auto_refreshing_provider =
+        let web_identity_auto_refreshing =
             AutoRefreshingProvider::new(WebIdentityProvider::from_k8s_env())
                 .expect("Always returns Ok(...)");
+
+        // Wrap the `InstanceMetadataProvider` to a caching `AutoRefreshingProvider`.
+        // This enables automatic credential refresh for EC2 instance profiles.
+        let instance_metadata_auto_refreshing =
+            AutoRefreshingProvider::new(InstanceMetadataProvider::new())
+                .expect("Always returns Ok(...)");
+
         AwsChainCredentialsProvider {
             environment_provider: EnvironmentProvider::default(),
-            web_identity_provider: auto_refreshing_provider,
+            web_identity_provider: web_identity_auto_refreshing,
+            instance_metadata_provider: instance_metadata_auto_refreshing,
         }
     }
 }
@@ -40,11 +51,19 @@ impl AwsChainCredentialsProvider {
 #[async_trait]
 impl ProvideAwsCredentials for AwsChainCredentialsProvider {
     async fn credentials(&self) -> Result<AwsCredentials, CredentialsError> {
+        // Try providers in priority order:
+        // 1. Environment variables (highest priority for explicit configuration)
         if let Ok(creds) = self.environment_provider.credentials().await {
-            Ok(creds)
-        } else {
-            // Propagate errors from the 'WebIdentityProvider'.
-            self.web_identity_provider.credentials().await
+            return Ok(creds);
         }
+
+        // 2. Web identity provider (for Kubernetes IRSA)
+        if let Ok(creds) = self.web_identity_provider.credentials().await {
+            return Ok(creds);
+        }
+
+        // 3. EC2 Instance Metadata (for EC2 instances with IAM instance profiles)
+        // Propagate errors from the instance metadata provider as the last resort
+        self.instance_metadata_provider.credentials().await
     }
 }
