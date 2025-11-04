@@ -69,8 +69,8 @@ pub async fn handle_aws_backend(args: ValidatorAwsArgs) -> Result<(), Box<dyn st
     use aws_sdk_kms::Client as KmsClient;
     use aws_sdk_secretsmanager::Client as SecretsManagerClient;
 
-    // Generate a single validator
-    let (validator_info, _) = create_validator();
+    let kaspa_keypair = generate_escrow_priv_key();
+    let kaspa_pub_key = kaspa_keypair.public_key();
 
     // Initialize AWS SDK
     let config = aws_config::defaults(BehaviorVersion::latest()).load().await;
@@ -84,37 +84,22 @@ pub async fn handle_aws_backend(args: ValidatorAwsArgs) -> Result<(), Box<dyn st
     // Normalize the path (remove trailing slash if present)
     let secret_path = args.path.trim_end_matches('/');
 
-    println!("Generating validator keys...");
-    println!();
-    println!("Validator info:");
-    println!(
-        "  Escrow Pub Key: {}",
-        validator_info.validator_escrow_pub_key
-    );
-    println!();
+    // Serialize ONLY the Kaspa keypair to JSON
+    // This is compatible with KaspaSecpKeypair deserialization in the validator agent
+    // The secp256k1 crate with serde serializes Keypair as a hex string of the secret key
+    let keypair_json = serde_json::to_string(&kaspa_keypair)?;
 
-    // Serialize the entire validator info to JSON
-    let json_plaintext = serde_json::to_string_pretty(&validator_info)?;
-
-    // Encrypt the entire JSON with KMS
-    println!("Encrypting validator keys with KMS...");
-    let encrypted_json = encrypt_with_kms(&kms_client, &args.kms_key_id, &json_plaintext).await?;
-
-    // Store the encrypted JSON in Secrets Manager
-    println!("Storing encrypted validator keys at: {}", secret_path);
+    let encrypted_keypair = encrypt_with_kms(&kms_client, &args.kms_key_id, &keypair_json).await?;
     let secret_arn =
         store_encrypted_secret(&sm_client, secret_path, encrypted_json, "validator keys").await?;
 
     println!();
-    println!("✓ Successfully created validator secret!");
+    println!("✓ Successfully created Kaspa validator secret!");
     println!();
     println!("Secret ARN: {}", secret_arn);
     println!("Secret ID: {}", secret_path);
-    println!("KMS Key: {}", args.kms_key_id);
-    println!();
-    println!("To retrieve and decrypt the secret:");
-    println!("  aws secretsmanager get-secret-value --secret-id {} --query SecretBinary --output text | base64 -d > ciphertext.bin", secret_path);
-    println!("  aws kms decrypt --ciphertext-blob fileb://ciphertext.bin --query Plaintext --output text | base64 -d");
+    println!("KMS Key ID: {}", args.kms_key_id);
+    println!("Kaspa Escrow Public Key: {}", kaspa_pub_key.to_string());
 
     Ok(())
 }
