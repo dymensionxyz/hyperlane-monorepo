@@ -1,10 +1,10 @@
-use corelib::escrow::generate_escrow_priv_key;
 use corelib::escrow::EscrowPublic;
 use kaspa_addresses::Prefix;
 use secp256k1::PublicKey;
 use serde::Serialize;
 use std::str::FromStr;
-use validator::signer::get_ethereum_style_signer;
+
+use super::validator;
 
 pub fn get_escrow_address(pub_keys: Vec<&str>, required_signatures: u8) -> String {
     let pub_keys = pub_keys
@@ -16,7 +16,7 @@ pub fn get_escrow_address(pub_keys: Vec<&str>, required_signatures: u8) -> Strin
 }
 
 #[derive(Debug, Serialize)]
-pub struct ValidatorInfos {
+pub struct ValidatorInfosWithEscrow {
     // HL style address to register on the Hub for the Kaspa multisig ISM
     pub validator_ism_addr: String,
     /// what validator will use to sign checkpoints for new deposits (and also progress indications)
@@ -26,41 +26,25 @@ pub struct ValidatorInfos {
     /// and pub key...
     validator_escrow_pub_key: String,
     /// the address the bridge end user should deposit to
-    multisig_escrow_addr: Option<String>,
+    multisig_escrow_addr: String,
 }
 
-impl ValidatorInfos {
+impl ValidatorInfosWithEscrow {
     pub fn to_string(&self) -> String {
         serde_json::to_string_pretty(self).unwrap()
     }
 }
 
-pub fn create_validator() -> (ValidatorInfos, PublicKey) {
-    let kp = generate_escrow_priv_key();
-    let s = serde_json::to_string(&kp).unwrap();
-
-    let signer = get_ethereum_style_signer().unwrap();
-    let pub_key = kp.public_key();
-
-    let ism_unescaped = signer.address.replace("\"", "");
-
-    (
-        ValidatorInfos {
-            validator_ism_addr: ism_unescaped,
-            validator_ism_priv_key: signer.private_key,
-            validator_escrow_secret: s,
-            validator_escrow_pub_key: pub_key.to_string(),
-            multisig_escrow_addr: None,
-        },
-        pub_key,
-    )
-}
-
-pub fn create_validator_with_escrow() -> ValidatorInfos {
-    let (mut v, pub_key) = create_validator();
+pub fn create_validator_with_escrow() -> ValidatorInfosWithEscrow {
+    let (v, pub_key) = validator::create_validator();
 
     let e = EscrowPublic::from_pubs(vec![pub_key], Prefix::Testnet, 1);
 
-    v.multisig_escrow_addr = Some(e.addr.to_string());
-    v
+    ValidatorInfosWithEscrow {
+        validator_ism_addr: v.validator_ism_addr,
+        validator_ism_priv_key: v.validator_ism_priv_key,
+        validator_escrow_secret: v.validator_escrow_secret,
+        validator_escrow_pub_key: v.validator_escrow_pub_key,
+        multisig_escrow_addr: e.addr.to_string(),
+    }
 }
