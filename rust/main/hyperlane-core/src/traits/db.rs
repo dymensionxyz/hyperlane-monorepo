@@ -67,7 +67,6 @@ pub trait KaspaDb: Send + Sync + Debug {
     fn store_withdrawal_message(
         &self,
         message: crate::HyperlaneMessage,
-        dispatched_block_number: u64,
     ) -> Result<()>;
 
     /// Retrieve a withdrawal message by message_id

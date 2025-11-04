@@ -228,20 +228,23 @@ where
     }
 
     /// Store a deposit message in the database with the corresponding kaspa tx as deposit id
-    fn store_deposit(&self, message: &hyperlane_core::HyperlaneMessage, kaspa_tx: &str) {
+    fn store_deposit(&self, message: &hyperlane_core::HyperlaneMessage, kaspa_tx_id: &str) {
         if let Some(db) = self.db.as_ref() {
             let message_id = message.id();
             info!(
-                kaspa_tx = %kaspa_tx,
+                kaspa_tx_id = %kaspa_tx_id,
                 message_id = ?message_id,
                 nonce = message.nonce,
                 "Storing deposit message in database"
             );
-            match db.store_deposit_message(message.clone(), kaspa_tx.to_string()) {
+            match db.store_deposit_message(
+                message.clone(),
+                kaspa_tx_id.to_string(),
+            ) {
                 Ok(()) => {
                     info!(
                         message_id = ?message_id,
-                        kaspa_tx = %kaspa_tx,
+                        kaspa_tx_id = %kaspa_tx_id,
                         "Successfully stored deposit message"
                     );
                 }
@@ -249,13 +252,13 @@ where
                     error!(
                         error = ?e,
                         message_id = ?message_id,
-                        kaspa_tx = %kaspa_tx,
+                        kaspa_tx_id = %kaspa_tx_id,
                         "Failed to store deposit message in database"
                     );
                 }
             }
         } else {
-            warn!("No database available for storing deposit message");
+            error!("No database available for storing deposit message");
         }
     }
 
@@ -288,7 +291,7 @@ where
                 }
             }
         } else {
-            warn!("No database available for updating deposit");
+            error!("No database available for updating deposit");
         }
     }
 

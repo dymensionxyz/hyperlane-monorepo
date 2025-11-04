@@ -183,7 +183,7 @@ impl Mailbox for KaspaMailbox {
         if let Some(kaspa_db) = self.kaspa_db() {
             for msg in &msgs {
                 let message_id = format!("0x{:x}", msg.id());
-                match kaspa_db.store_withdrawal_message(msg.clone(), 0) {
+                match kaspa_db.store_withdrawal_message(msg.clone()) {
                     Ok(()) => {
                         info!(
                             message_id = %message_id,
@@ -200,7 +200,7 @@ impl Mailbox for KaspaMailbox {
                 }
             }
         } else {
-            warn!("Kaspa mailbox, no kaspa_db set, skipping storing withdrawal messages");
+            error!("Kaspa mailbox, no kaspa_db set, skipping storing withdrawal messages");
         }
 
         // Cannot process withdrawals while a confirmation is pending on the Hub.

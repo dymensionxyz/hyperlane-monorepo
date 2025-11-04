@@ -191,7 +191,6 @@ impl KaspaRocksDB {
     pub fn store_withdrawal_message(
         &self,
         message: HyperlaneMessage,
-        dispatched_block_number: u64,
     ) -> DbResult<()> {
         let id = message.id();
 
@@ -205,8 +204,6 @@ impl KaspaRocksDB {
         self.upsert_message(&message)?;
         // Store withdrawal message by message_id
         self.store_value_by_key(KASPA_WITHDRAWAL_MESSAGE, &id, &message)?;
-        // Store withdrawal block number by message_id
-        self.store_value_by_key(KASPA_WITHDRAWAL_BLOCK_NUMBER, &id, &dispatched_block_number)?;
 
         Ok(())
     }
@@ -270,9 +267,8 @@ impl hyperlane_core::KaspaDb for KaspaRocksDB {
     fn store_withdrawal_message(
         &self,
         message: HyperlaneMessage,
-        dispatched_block_number: u64,
     ) -> Result<()> {
-        Ok(self.store_withdrawal_message(message, dispatched_block_number)?)
+        Ok(self.store_withdrawal_message(message)?)
     }
 
     fn retrieve_kaspa_withdrawal_by_message_id(
