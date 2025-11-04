@@ -18,12 +18,6 @@ pub struct ValidatorInfos {
     pub validator_escrow_pub_key: String,
 }
 
-impl ValidatorInfos {
-    pub fn to_string(&self) -> String {
-        serde_json::to_string_pretty(self).unwrap()
-    }
-}
-
 pub fn create_validator() -> (ValidatorInfos, PublicKey) {
     let kp = generate_escrow_priv_key();
     let s = serde_json::to_string(&kp).unwrap();
@@ -83,9 +77,7 @@ pub async fn handle_aws_backend(args: ValidatorAwsArgs) -> Result<(), Box<dyn st
     let (validator_info, _) = create_validator();
 
     // Initialize AWS SDK
-    let config = aws_config::defaults(BehaviorVersion::latest())
-        .load()
-        .await;
+    let config = aws_config::defaults(BehaviorVersion::latest()).load().await;
 
     let kms_client = KmsClient::new(&config);
     let sm_client = SecretsManagerClient::new(&config);
@@ -100,7 +92,10 @@ pub async fn handle_aws_backend(args: ValidatorAwsArgs) -> Result<(), Box<dyn st
     println!();
     println!("Validator info:");
     println!("  ISM Address: {}", validator_info.validator_ism_addr);
-    println!("  Escrow Pub Key: {}", validator_info.validator_escrow_pub_key);
+    println!(
+        "  Escrow Pub Key: {}",
+        validator_info.validator_escrow_pub_key
+    );
     println!();
 
     // Serialize the entire validator info to JSON
@@ -112,12 +107,8 @@ pub async fn handle_aws_backend(args: ValidatorAwsArgs) -> Result<(), Box<dyn st
 
     // Store the encrypted JSON in Secrets Manager
     println!("Storing encrypted validator keys at: {}", secret_path);
-    let secret_arn = store_encrypted_secret(
-        &sm_client,
-        secret_path,
-        encrypted_json,
-        "validator keys"
-    ).await?;
+    let secret_arn =
+        store_encrypted_secret(&sm_client, secret_path, encrypted_json, "validator keys").await?;
 
     println!();
     println!("✓ Successfully created validator secret!");
@@ -139,7 +130,8 @@ async fn validate_kms_key(
 ) -> Result<(), Box<dyn std::error::Error>> {
     match kms_client.describe_key().key_id(key_id).send().await {
         Ok(response) => {
-            let key_metadata = response.key_metadata()
+            let key_metadata = response
+                .key_metadata()
                 .ok_or("KMS key metadata not found")?;
 
             // Check if key is enabled
@@ -147,7 +139,8 @@ async fn validate_kms_key(
                 return Err(format!(
                     "KMS key '{}' exists but is not enabled. Please enable it first.",
                     key_id
-                ).into());
+                )
+                .into());
             }
 
             // AWS Secrets Manager only supports symmetric KMS keys for encryption
@@ -178,14 +171,13 @@ async fn validate_kms_key(
 
             Ok(())
         }
-        Err(e) => {
-            Err(format!(
-                "KMS key '{}' not found or not accessible: {}.\n\
+        Err(e) => Err(format!(
+            "KMS key '{}' not found or not accessible: {}.\n\
                 Please create a symmetric KMS key first:\n\
                   aws kms create-key --description \"Hyperlane Validator Keys\"",
-                key_id, e
-            ).into())
-        }
+            key_id, e
+        )
+        .into()),
     }
 }
 
@@ -213,13 +205,12 @@ async fn encrypt_with_kms(
             // Return the binary ciphertext directly (no base64 encoding needed)
             Ok(ciphertext_blob.clone())
         }
-        Err(e) => {
-            Err(format!(
-                "Failed to encrypt with KMS key '{}': {}.\n\
+        Err(e) => Err(format!(
+            "Failed to encrypt with KMS key '{}': {}.\n\
                 Please check your KMS permissions (kms:Encrypt).",
-                key_id, e
-            ).into())
-        }
+            key_id, e
+        )
+        .into()),
     }
 }
 
@@ -239,9 +230,7 @@ async fn store_encrypted_secret(
         .send()
         .await
     {
-        Ok(response) => {
-            Ok(response.arn().unwrap_or("unknown").to_string())
-        }
+        Ok(response) => Ok(response.arn().unwrap_or("unknown").to_string()),
         Err(e) => {
             // Check if secret already exists
             let service_err = e.into_service_error();

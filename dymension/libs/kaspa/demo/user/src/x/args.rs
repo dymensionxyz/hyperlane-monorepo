@@ -29,9 +29,6 @@ pub enum Commands {
         #[command(subcommand)]
         action: ValidatorAction,
     },
-    /// Generate all the info needed for a validator with a 1 of 1 multisig escrow
-    #[clap(name = "validator-with-escrow")]
-    ValidatorAndEscrow,
     /// Make a user deposit (to escrow)
     Deposit(DepositCli),
     /// Create a relayer

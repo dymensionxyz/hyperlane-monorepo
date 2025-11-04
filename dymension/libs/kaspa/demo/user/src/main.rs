@@ -42,12 +42,7 @@ async fn run(cli: Cli) {
                     }
                 }
             },
-        }
-
-        Commands::ValidatorAndEscrow => {
-            let v = x::escrow::create_validator_with_escrow();
-            println!("Validator infos: {}", v.to_string());
-        }
+        },
         Commands::Relayer => {
             let signer = x::relayer::create_relayer();
             println!("Relayer address: {}", signer.address);
