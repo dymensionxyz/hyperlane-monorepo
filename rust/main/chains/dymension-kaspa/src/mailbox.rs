@@ -78,11 +78,11 @@ pub fn update_mailbox_with_db(
     mailbox: Arc<dyn Mailbox>,
     kaspa_db: Arc<dyn hyperlane_core::KaspaDb>,
 ) -> ChainResult<Arc<dyn Mailbox>> {
-    let kas_mailbox = mailbox
-        .downcast_arc::<KaspaMailbox>()
-        .map_err(|_| hyperlane_core::ChainCommunicationError::CustomError(
-            "Failed to downcast mailbox to KaspaMailbox".to_string()
-        ))?;
+    let kas_mailbox = mailbox.downcast_arc::<KaspaMailbox>().map_err(|_| {
+        hyperlane_core::ChainCommunicationError::CustomError(
+            "Failed to downcast mailbox to KaspaMailbox".to_string(),
+        )
+    })?;
 
     let updated_mailbox = Arc::try_unwrap(kas_mailbox)
         .unwrap_or_else(|arc| (*arc).clone())
@@ -198,7 +198,7 @@ impl Mailbox for KaspaMailbox {
                         );
                     }
                 }
-             }
+            }
         } else {
             warn!("Kaspa mailbox, no kaspa_db set, skipping storing withdrawal messages");
         }

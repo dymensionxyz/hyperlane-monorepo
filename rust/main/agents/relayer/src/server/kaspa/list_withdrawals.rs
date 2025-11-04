@@ -51,7 +51,10 @@ pub async fn handler(
     };
 
     // Retrieve the withdrawal message directly by message_id
-    let message = match db.as_ref().retrieve_kaspa_withdrawal_by_message_id(&message_id) {
+    let message = match db
+        .as_ref()
+        .retrieve_kaspa_withdrawal_by_message_id(&message_id)
+    {
         Ok(Some(message)) => message,
         Ok(None) => {
             return Err(ServerErrorResponse::new(
@@ -73,7 +76,8 @@ pub async fn handler(
     };
 
     // Retrieve kaspa transaction ID if available
-    let kaspa_tx = db.as_ref()
+    let kaspa_tx = db
+        .as_ref()
         .retrieve_withdrawal_kaspa_tx(&message_id)
         .unwrap_or(None);
 

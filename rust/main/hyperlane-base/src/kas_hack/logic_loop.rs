@@ -9,7 +9,9 @@ use dymension_kaspa::{Deposit, KaspaProvider};
 use ethers::utils::hex::ToHex;
 use eyre::Result;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, Checkpoint, CheckpointWithMessageId, H256, H512, HyperlaneChain, HyperlaneLogStore, Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint, Signature, SignedCheckpointWithMessageId, TxOutcome
+    ChainCommunicationError, ChainResult, Checkpoint, CheckpointWithMessageId, HyperlaneChain,
+    HyperlaneLogStore, Indexed, LogMeta, Mailbox, MultisigSignedCheckpoint, Signature,
+    SignedCheckpointWithMessageId, TxOutcome, H256, H512,
 };
 use hyperlane_cosmos::native::{h512_to_cosmos_hash, CosmosNativeMailbox};
 use kaspa_consensus_core::tx::TransactionOutpoint;
@@ -17,7 +19,7 @@ use kaspa_core::time::unix_now;
 use std::{collections::HashSet, fmt::Debug, hash::Hash, sync::Arc, time::Duration};
 use tokio::{sync::Mutex, task::JoinHandle, time};
 use tokio_metrics::TaskMonitor;
-use tracing::{debug, error, warn, info, info_span, Instrument};
+use tracing::{debug, error, info, info_span, warn, Instrument};
 
 use super::{
     deposit_operation::{DepositOpQueue, DepositOperation},
@@ -235,17 +237,13 @@ where
                 nonce = message.nonce,
                 "Storing deposit message in database"
             );
-            match db.store_deposit_message(
-                message.clone(),
-                kaspa_tx.to_string(),
-            ) {
+            match db.store_deposit_message(message.clone(), kaspa_tx.to_string()) {
                 Ok(()) => {
                     info!(
                         message_id = ?message_id,
                         kaspa_tx = %kaspa_tx,
                         "Successfully stored deposit message"
                     );
-
                 }
                 Err(e) => {
                     error!(
@@ -316,7 +314,7 @@ where
                     // Store deposit hl message in database with corresponding deposit kaspa tx
                     self.store_deposit(&parsed_hl.hl_message, &op.deposit.id.to_string());
                     parsed_hl.token_message.amount().low_u64()
-                },
+                }
                 Err(e) => {
                     tracing::error!(
                         "Failed to parse deposit payload for amount, using 0: {:?}",
@@ -371,7 +369,6 @@ where
                                 .encode_hex_upper::<String>();
                         let amount = fxg.amount.low_u64();
                         let deposit_id = format!("{:?}", op.deposit.id);
-
 
                         // Update the stored deposit with Hub transaction ID
                         let mut h256_hub_tx_bytes = [0u8; 32];

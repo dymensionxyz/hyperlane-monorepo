@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use hyperlane_base::server::utils::{
     ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse,
 };
-use hyperlane_core::{HyperlaneMessage,H256};
+use hyperlane_core::{HyperlaneMessage, H256};
 
 use crate::server::kaspa::ServerState;
 
@@ -60,7 +60,8 @@ pub async fn handler(
     let message_id = message.id();
 
     // Retrieve Hub transaction ID if available (indexed by kaspa_tx)
-    let hub_tx = db.as_ref()
+    let hub_tx = db
+        .as_ref()
         .retrieve_deposit_hub_tx(&kaspa_tx)
         .unwrap_or(None);
 

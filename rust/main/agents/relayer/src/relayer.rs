@@ -192,23 +192,28 @@ impl BaseAgent for Relayer {
         let dymension_args = Self::get_dymension_kaspa_args(&destinations).await?;
 
         // Create KaspaRocksDB early if we have a kaspa origin, before creating message contexts
-        let kaspa_db = origins.iter()
+        let kaspa_db = origins
+            .iter()
             .find(|(domain, _)| is_kas(domain))
             .map(|(domain, origin)| {
-                use hyperlane_base::kas_hack::KaspaRocksDB;
                 use hyperlane_base::db::DB;
+                use hyperlane_base::kas_hack::KaspaRocksDB;
                 let db: &DB = origin.database.as_ref();
                 Arc::new(KaspaRocksDB::new(domain, db.clone()))
             });
 
         // Update the kaspa mailbox in destinations with kaspa_db BEFORE creating message contexts
         if let Some(kaspa_db_ref) = kaspa_db.as_ref() {
-            if let Some(kas_domain) = origins.iter().find(|(domain, _)| is_kas(domain)).map(|(d, _)| d.clone()) {
+            if let Some(kas_domain) = origins
+                .iter()
+                .find(|(domain, _)| is_kas(domain))
+                .map(|(d, _)| d.clone())
+            {
                 if let Some(destination) = destinations.get_mut(&kas_domain) {
                     let current_mailbox = destination.mailbox.clone();
                     match dymension_kaspa::update_mailbox_with_db(
                         current_mailbox,
-                        kaspa_db_ref.clone() as Arc<dyn hyperlane_core::KaspaDb>
+                        kaspa_db_ref.clone() as Arc<dyn hyperlane_core::KaspaDb>,
                     ) {
                         Ok(updated_mailbox) => {
                             destination.mailbox = updated_mailbox;
@@ -461,20 +466,24 @@ impl BaseAgent for Relayer {
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started processors", "Relayer startup duration measurement");
 
         // Retrieve the kaspa_db that was already created in from_settings
-        let kaspa_db = self.origins.iter()
-            .find(|(domain, _)| is_kas(domain))
-            .map(|(domain, origin)| {
-                use hyperlane_base::kas_hack::KaspaRocksDB;
-                use hyperlane_base::db::DB;
-                let db: &DB = origin.database.as_ref();
-                Arc::new(KaspaRocksDB::new(domain, db.clone()))
-            });
+        let kaspa_db =
+            self.origins
+                .iter()
+                .find(|(domain, _)| is_kas(domain))
+                .map(|(domain, origin)| {
+                    use hyperlane_base::db::DB;
+                    use hyperlane_base::kas_hack::KaspaRocksDB;
+                    let db: &DB = origin.database.as_ref();
+                    Arc::new(KaspaRocksDB::new(domain, db.clone()))
+                });
 
         start_entity_init = Instant::now();
         for (origin_domain, origin) in self.origins.iter() {
             // assign kaspadb to kaspa deposit loop
             if is_kas(&origin.domain) && self.dymension_kaspa_args.is_some() {
-                let kaspa_db = kaspa_db.as_ref().expect("kaspa_db should exist for kaspa origin");
+                let kaspa_db = kaspa_db
+                    .as_ref()
+                    .expect("kaspa_db should exist for kaspa origin");
                 self.launch_dymension_kaspa_tasks(
                     origin,
                     &mut tasks,

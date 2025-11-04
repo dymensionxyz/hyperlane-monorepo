@@ -111,7 +111,7 @@ impl HyperlaneRocksDB {
     ) -> DbResult<()> {
         let id = message.id();
         debug!(hyp_message=?message,  "Storing new message in db",);
-        
+
         // - `id` --> `message`
         self.store_message_by_id(&id, message)?;
         // - `nonce` --> `id`
