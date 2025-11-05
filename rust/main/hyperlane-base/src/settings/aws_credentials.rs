@@ -42,7 +42,7 @@ impl AwsChainCredentialsProvider {
 
         AwsChainCredentialsProvider {
             environment_provider: EnvironmentProvider::default(),
-            web_identity_provider: web_identity_auto_refreshing,
+            web_identity_provider: auto_refreshing_provider,
             instance_metadata_provider: instance_metadata_auto_refreshing,
         }
     }
