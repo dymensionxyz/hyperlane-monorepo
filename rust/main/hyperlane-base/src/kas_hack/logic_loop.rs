@@ -279,9 +279,7 @@ where
                         let deposit_id = format!("{:?}", op.deposit.id);
 
                         // Update the stored deposit with new HyperlaneMessage and Hub transaction ID
-                        let mut h256_hub_tx_bytes = [0u8; 32];
-                        h256_hub_tx_bytes.copy_from_slice(&outcome.transaction_id.as_bytes()[32..]);
-                        let h256_hub_tx = H256::from(h256_hub_tx_bytes);
+                        let h256_hub_tx = hyperlane_cosmos::native::h512_to_h256(outcome.transaction_id);
                         self.provider.update_store_deposit(&op.deposit.id.to_string(), fxg.hl_message.clone(), &h256_hub_tx);
 
                         if !outcome.executed {
