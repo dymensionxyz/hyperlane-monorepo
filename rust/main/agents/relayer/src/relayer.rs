@@ -1160,11 +1160,7 @@ impl Relayer {
 
         let metadata_getter = PendingMessageMetadataGetter::new();
 
-        let b = KaspaBridgeFoo::new(
-            kas_provider.clone(),
-            hub_mailbox.clone(),
-            metadata_getter,
-        );
+        let b = KaspaBridgeFoo::new(kas_provider.clone(),hub_mailbox.clone(),metadata_getter);
 
         // sync relayer before starting other tasks
         b.sync_hub_if_needed().await.unwrap();
