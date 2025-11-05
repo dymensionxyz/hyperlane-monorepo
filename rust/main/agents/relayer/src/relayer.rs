@@ -1177,7 +1177,6 @@ impl Relayer {
             kas_provider.clone(),
             hub_mailbox.clone(),
             metadata_getter,
-            kaspa_db,
         );
 
         // sync relayer before starting other tasks

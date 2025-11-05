@@ -153,7 +153,7 @@ impl Mailbox for KaspaMailbox {
             Ok(results) => {
 
                 // Store withdrawal messages using the provider's store_withdrawals method
-                self.provider.update_withdrawals(&results);
+                self.provider.add_kaspa_tx_id_withdrawals(&results);
 
                 // Calculate and record withdrawal latency for successfully processed messages
                 let now = std::time::Instant::now();

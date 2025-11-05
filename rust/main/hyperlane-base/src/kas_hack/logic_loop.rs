@@ -34,8 +34,6 @@ pub struct Foo<C: MetadataConstructor> {
     deposit_cache: DepositCache,
     deposit_queue: Mutex<DepositOpQueue>,
     config: KaspaTimeConfig,
-    /// Database for storing Kaspa-related data
-    db: Option<Arc<KaspaRocksDB>>,
 }
 
 impl<C: MetadataConstructor> Foo<C>
@@ -47,7 +45,6 @@ where
         provider: Box<KaspaProvider>,
         hub_mailbox: Arc<CosmosNativeMailbox>,
         metadata_constructor: C,
-        db: Arc<KaspaRocksDB>,
     ) -> Self {
         // Get config from provider, or use defaults if not available
         let config = provider
@@ -60,13 +57,7 @@ where
             deposit_cache: DepositCache::new(),
             deposit_queue: Mutex::new(DepositOpQueue::new()),
             config,
-            db: Some(db),
         }
-    }
-
-    /// Get the database reference
-    pub fn db(&self) -> Option<&Arc<KaspaRocksDB>> {
-        self.db.as_ref()
     }
 
     /// Run deposit and progress indication loops
@@ -209,73 +200,6 @@ where
         }
     }
 
-    /// Store a deposit message in the database with the corresponding kaspa tx as deposit id
-    fn store_deposit(&self, message: &hyperlane_core::HyperlaneMessage, kaspa_tx_id: &str) {
-        if let Some(db) = self.db.as_ref() {
-            let message_id = message.id();
-            info!(
-                kaspa_tx_id = %kaspa_tx_id,
-                message_id = ?message_id,
-                nonce = message.nonce,
-                "Storing deposit message in database"
-            );
-            match db.store_deposit_message(
-                message.clone(),
-                kaspa_tx_id.to_string(),
-            ) {
-                Ok(()) => {
-                    info!(
-                        message_id = ?message_id,
-                        kaspa_tx_id = %kaspa_tx_id,
-                        "Successfully stored deposit message"
-                    );
-                }
-                Err(e) => {
-                    error!(
-                        error = ?e,
-                        message_id = ?message_id,
-                        kaspa_tx_id = %kaspa_tx_id,
-                        "Failed to store deposit message in database"
-                    );
-                }
-            }
-        } else {
-            error!("No database available for storing deposit message");
-        }
-    }
-
-    /// Update a stored deposit with the Hub transaction ID after successful submission
-    /// Stores hub_tx indexed by kaspa_tx
-    fn add_hub_tx_id_deposit_stored(&self, kaspa_tx_hash: &str, hub_tx_id: &H256) {
-        if let Some(db) = self.db.as_ref() {
-            info!(
-                kaspa_tx = %kaspa_tx_hash,
-                hub_tx = %hub_tx_id,
-                "Updating deposit with Hub transaction ID"
-            );
-
-            // Store the hub transaction ID indexed by kaspa_tx
-            match db.store_deposit_hub_tx(kaspa_tx_hash, hub_tx_id) {
-                Ok(()) => {
-                    info!(
-                        kaspa_tx = %kaspa_tx_hash,
-                        hub_tx = %hub_tx_id,
-                        "Successfully updated deposit with Hub transaction ID"
-                    );
-                }
-                Err(e) => {
-                    error!(
-                        error = ?e,
-                        kaspa_tx = %kaspa_tx_hash,
-                        hub_tx = %hub_tx_id,
-                        "Failed to store Hub transaction ID"
-                    );
-                }
-            }
-        } else {
-            error!("No database available for updating deposit");
-        }
-    }
 
     /// Process the retry queue for failed deposit operations
     async fn process_deposit_queue(&self) {
@@ -297,7 +221,7 @@ where
             match dym_kas_core::message::ParsedHL::parse_string(payload) {
                 Ok(parsed_hl) => {
                     // Store deposit hl message in database with corresponding deposit kaspa tx
-                    self.store_deposit(&parsed_hl.hl_message, &op.deposit.id.to_string());
+                    self.provider.store_deposit(&parsed_hl.hl_message, &op.deposit.id.to_string());
                     parsed_hl.token_message.amount().low_u64()
                 }
                 Err(e) => {
@@ -359,7 +283,7 @@ where
                         let mut h256_hub_tx_bytes = [0u8; 32];
                         h256_hub_tx_bytes.copy_from_slice(&outcome.transaction_id.as_bytes()[32..]);
                         let h256_hub_tx = H256::from(h256_hub_tx_bytes);
-                        self.add_hub_tx_id_deposit_stored(&op.deposit.id.to_string(), &h256_hub_tx);
+                        self.provider.add_hub_tx_id_deposit(&op.deposit.id.to_string(), &h256_hub_tx);
 
                         if !outcome.executed {
                             error!(

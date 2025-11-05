@@ -115,8 +115,35 @@ impl KaspaProvider {
         self.kaspa_db = Some(kaspa_db);
     }
 
+    pub fn store_withdrawals(&self, withdrawals: &Vec<HyperlaneMessage>) {
+        // Store withdrawal messages in kaspa_db before processing
+        if let Some(kaspa_db) = self.kaspa_db() {
+            for msg in withdrawals {
+                let message_id = format!("0x{:x}", msg.id());
+                match kaspa_db.store_withdrawal_message(msg.clone()) {
+                    Ok(()) => {
+                        info!(
+                            message_id = %message_id,
+                            "Stored withdrawal message in kaspa_db"
+                        );
+                    }
+                    Err(e) => {
+                        error!(
+                            message_id = %message_id,
+                            error = ?e,
+                            "Failed to store withdrawal message in kaspa_db"
+                        );
+                    }
+                }
+            }
+        } else {
+            error!("Kaspa mailbox, no kaspa_db set, skipping storing withdrawal messages");
+        }
+    }
+
+
     /// Store withdrawal messages and their kaspa transaction IDs in the database
-    pub fn update_withdrawals(&self, withdrawals: &[(HyperlaneMessage, String)]) {
+    pub fn add_kaspa_tx_id_withdrawals(&self, withdrawals: &[(HyperlaneMessage, String)]) {
         if let Some(kaspa_db) = &self.kaspa_db {
             for (msg, kaspa_tx) in withdrawals {
                 if !kaspa_tx.is_empty() {
@@ -141,29 +168,71 @@ impl KaspaProvider {
         }
     }
 
-    pub fn store_withdrawals(&self, withdrawals: &Vec<HyperlaneMessage>) {
-        // Store withdrawal messages in kaspa_db before processing
-        if let Some(kaspa_db) = self.kaspa_db() {
-            for msg in withdrawals {
-                let message_id = format!("0x{:x}", msg.id());
-                match kaspa_db.store_withdrawal_message(msg.clone()) {
-                    Ok(()) => {
-                        info!(
-                            message_id = %message_id,
-                            "Stored withdrawal message in kaspa_db"
-                        );
-                    }
-                    Err(e) => {
-                        error!(
-                            message_id = %message_id,
-                            error = ?e,
-                            "Failed to store withdrawal message in kaspa_db"
-                        );
-                    }
+    /// Store a deposit message in the database with the corresponding kaspa tx as deposit id
+    pub fn store_deposit(&self, message: &hyperlane_core::HyperlaneMessage, kaspa_tx_id: &str) {
+        if let Some(db) =  &self.kaspa_db {
+            let message_id = message.id();
+            info!(
+                kaspa_tx_id = %kaspa_tx_id,
+                message_id = ?message_id,
+                nonce = message.nonce,
+                "Storing deposit message in database"
+            );
+            match db.store_deposit_message(
+                message.clone(),
+                kaspa_tx_id.to_string(),
+            ) {
+                Ok(()) => {
+                    info!(
+                        message_id = ?message_id,
+                        kaspa_tx_id = %kaspa_tx_id,
+                        "Successfully stored deposit message"
+                    );
+                }
+                Err(e) => {
+                    error!(
+                        error = ?e,
+                        message_id = ?message_id,
+                        kaspa_tx_id = %kaspa_tx_id,
+                        "Failed to store deposit message in database"
+                    );
                 }
             }
         } else {
-            error!("Kaspa mailbox, no kaspa_db set, skipping storing withdrawal messages");
+            error!("No database available for storing deposit message");
+        }
+    }
+
+       /// Update a stored deposit with the Hub transaction ID after successful submission
+    /// Stores hub_tx indexed by kaspa_tx
+    pub fn add_hub_tx_id_deposit(&self, kaspa_tx_hash: &str, hub_tx_id: &H256) {
+        if let Some(db) =  &self.kaspa_db {
+            info!(
+                kaspa_tx = %kaspa_tx_hash,
+                hub_tx = %hub_tx_id,
+                "Updating deposit with Hub transaction ID"
+            );
+
+            // Store the hub transaction ID indexed by kaspa_tx
+            match db.store_deposit_hub_tx(kaspa_tx_hash, hub_tx_id) {
+                Ok(()) => {
+                    info!(
+                        kaspa_tx = %kaspa_tx_hash,
+                        hub_tx = %hub_tx_id,
+                        "Successfully updated deposit with Hub transaction ID"
+                    );
+                }
+                Err(e) => {
+                    error!(
+                        error = ?e,
+                        kaspa_tx = %kaspa_tx_hash,
+                        hub_tx = %hub_tx_id,
+                        "Failed to store Hub transaction ID"
+                    );
+                }
+            }
+        } else {
+            error!("No database available for updating deposit");
         }
     }
 
