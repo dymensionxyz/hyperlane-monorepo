@@ -30,7 +30,7 @@ use kaspa_wallet_core::prelude::DynRpcApi;
 use prometheus::Registry;
 use std::sync::Arc;
 use tonic::async_trait;
-use tracing::info;
+use tracing::{info,error};
 use url::Url;
 
 #[derive(Debug, Clone)]
@@ -49,6 +49,9 @@ pub struct KaspaProvider {
     pending_confirmation: Arc<PendingConfirmation>,
 
     metrics: KaspaBridgeMetrics,
+
+    /// Kaspa database for tracking deposits/withdrawals (optional, set by relayer)
+    kaspa_db: Option<Arc<dyn hyperlane_core::KaspaDb>>,
 }
 
 impl KaspaProvider {
@@ -94,6 +97,7 @@ impl KaspaProvider {
             kas_key_source,
             pending_confirmation: Arc::new(PendingConfirmation::new()),
             metrics: kaspa_metrics,
+            kaspa_db: None,
         };
 
         if let Err(e) = provider.update_balance_metrics().await {
@@ -101,6 +105,66 @@ impl KaspaProvider {
         }
 
         Ok(provider)
+    }
+
+    pub fn kaspa_db(&self) -> Option<&Arc<dyn hyperlane_core::KaspaDb>> {
+        self.kaspa_db.as_ref()
+    }
+
+    pub fn set_kaspa_db(&mut self, kaspa_db: Arc<dyn hyperlane_core::KaspaDb>) {
+        self.kaspa_db = Some(kaspa_db);
+    }
+
+    /// Store withdrawal messages and their kaspa transaction IDs in the database
+    pub fn update_withdrawals(&self, withdrawals: &[(HyperlaneMessage, String)]) {
+        if let Some(kaspa_db) = &self.kaspa_db {
+            for (msg, kaspa_tx) in withdrawals {
+                if !kaspa_tx.is_empty() {
+                    let message_id = msg.id();
+                    // Store kaspa_tx for the withdrawal
+                    if let Err(e) = kaspa_db.store_withdrawal_kaspa_tx(&message_id, kaspa_tx) {
+                        error!(
+                            message_id = ?message_id,
+                            kaspa_tx = %kaspa_tx,
+                            error = ?e,
+                            "Failed to store kaspa_tx for withdrawal"
+                        );
+                    } else {
+                        info!(
+                            message_id = ?message_id,
+                            kaspa_tx = %kaspa_tx,
+                            "Stored withdrawal in kaspa_db"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn store_withdrawals(&self, withdrawals: &Vec<HyperlaneMessage>) {
+        // Store withdrawal messages in kaspa_db before processing
+        if let Some(kaspa_db) = self.kaspa_db() {
+            for msg in withdrawals {
+                let message_id = format!("0x{:x}", msg.id());
+                match kaspa_db.store_withdrawal_message(msg.clone()) {
+                    Ok(()) => {
+                        info!(
+                            message_id = %message_id,
+                            "Stored withdrawal message in kaspa_db"
+                        );
+                    }
+                    Err(e) => {
+                        error!(
+                            message_id = %message_id,
+                            error = ?e,
+                            "Failed to store withdrawal message in kaspa_db"
+                        );
+                    }
+                }
+            }
+        } else {
+            error!("Kaspa mailbox, no kaspa_db set, skipping storing withdrawal messages");
+        }
     }
 
     pub fn consume_pending_confirmation(&self) -> Option<ConfirmationFXG> {

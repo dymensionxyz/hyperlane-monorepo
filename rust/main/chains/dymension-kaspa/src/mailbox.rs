@@ -16,27 +16,12 @@ use tonic::async_trait;
 use tracing::{error, info, warn};
 
 // pretends to be a mailbox
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct KaspaMailbox {
     provider: KaspaProvider,
     domain: HyperlaneDomain,
     address: H256,
     operation_timestamps: Arc<Mutex<HashMap<String, std::time::Instant>>>,
-    /// Optional Kaspa database for tracking deposits/withdrawals
-    kaspa_db: Option<Arc<dyn hyperlane_core::KaspaDb>>,
-}
-
-// Manual Debug implementation since dyn KaspaDb doesn't implement Debug
-impl std::fmt::Debug for KaspaMailbox {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("KaspaMailbox")
-            .field("provider", &self.provider)
-            .field("domain", &self.domain)
-            .field("address", &self.address)
-            .field("operation_timestamps", &self.operation_timestamps)
-            .field("kaspa_db", &self.kaspa_db.is_some())
-            .finish()
-    }
 }
 
 impl KaspaMailbox {
@@ -46,7 +31,6 @@ impl KaspaMailbox {
             address: locator.address,
             domain: locator.domain.clone(),
             operation_timestamps: Arc::new(Mutex::new(HashMap::new())),
-            kaspa_db: None,
         })
     }
 
@@ -56,39 +40,8 @@ impl KaspaMailbox {
             domain: self.domain.clone(),
             address: self.address,
             operation_timestamps: self.operation_timestamps.clone(),
-            kaspa_db: self.kaspa_db.clone(),
         }
     }
-
-    /// Set the Kaspa database instance
-    pub fn with_kaspa_db(mut self, kaspa_db: Arc<dyn hyperlane_core::KaspaDb>) -> Self {
-        self.kaspa_db = Some(kaspa_db);
-        self
-    }
-
-    /// Get a reference to the Kaspa database if set
-    pub fn kaspa_db(&self) -> Option<&Arc<dyn hyperlane_core::KaspaDb>> {
-        self.kaspa_db.as_ref()
-    }
-}
-
-/// Updates a trait object Mailbox with kaspa_db if it's a KaspaMailbox.
-/// Returns the updated mailbox as a trait object.
-pub fn update_mailbox_with_db(
-    mailbox: Arc<dyn Mailbox>,
-    kaspa_db: Arc<dyn hyperlane_core::KaspaDb>,
-) -> ChainResult<Arc<dyn Mailbox>> {
-    let kas_mailbox = mailbox.downcast_arc::<KaspaMailbox>().map_err(|_| {
-        hyperlane_core::ChainCommunicationError::CustomError(
-            "Failed to downcast mailbox to KaspaMailbox".to_string(),
-        )
-    })?;
-
-    let updated_mailbox = Arc::try_unwrap(kas_mailbox)
-        .unwrap_or_else(|arc| (*arc).clone())
-        .with_kaspa_db(kaspa_db);
-
-    Ok(Arc::new(updated_mailbox))
 }
 
 impl HyperlaneChain for KaspaMailbox {
@@ -179,29 +132,7 @@ impl Mailbox for KaspaMailbox {
             }
         }
 
-        // Store withdrawal messages in kaspa_db before processing
-        if let Some(kaspa_db) = self.kaspa_db() {
-            for msg in &msgs {
-                let message_id = format!("0x{:x}", msg.id());
-                match kaspa_db.store_withdrawal_message(msg.clone()) {
-                    Ok(()) => {
-                        info!(
-                            message_id = %message_id,
-                            "Stored withdrawal message in kaspa_db"
-                        );
-                    }
-                    Err(e) => {
-                        error!(
-                            message_id = %message_id,
-                            error = ?e,
-                            "Failed to store withdrawal message in kaspa_db"
-                        );
-                    }
-                }
-            }
-        } else {
-            error!("Kaspa mailbox, no kaspa_db set, skipping storing withdrawal messages");
-        }
+        self.provider.store_withdrawals(&msgs);
 
         // Cannot process withdrawals while a confirmation is pending on the Hub.
         // All operations marked failed and will be retried after confirmation completes.
@@ -219,39 +150,15 @@ impl Mailbox for KaspaMailbox {
             .await;
 
         let processed_messages = match res_processed {
-            Ok(msgs) => {
-                info!("Kaspa mailbox, processed withdrawals TXs");
+            Ok(results) => {
 
-                // Store kaspa_tx for each successfully processed message
-                if let Some(kaspa_db) = self.kaspa_db() {
-                    for (msg, kaspa_tx) in &msgs {
-                        if !kaspa_tx.is_empty() {
-                            let message_id = msg.id();
-                            match kaspa_db.store_withdrawal_kaspa_tx(&message_id, kaspa_tx) {
-                                Ok(()) => {
-                                    info!(
-                                        message_id = ?message_id,
-                                        kaspa_tx = %kaspa_tx,
-                                        "Stored kaspa_tx for withdrawal"
-                                    );
-                                }
-                                Err(e) => {
-                                    error!(
-                                        error = ?e,
-                                        message_id = ?message_id,
-                                        kaspa_tx = %kaspa_tx,
-                                        "Failed to store kaspa_tx for withdrawal"
-                                    );
-                                }
-                            }
-                        }
-                    }
-                }
+                // Store withdrawal messages using the provider's store_withdrawals method
+                self.provider.update_withdrawals(&results);
 
                 // Calculate and record withdrawal latency for successfully processed messages
                 let now = std::time::Instant::now();
                 let mut ts_map = self.operation_timestamps.lock().await;
-                for (msg, _) in &msgs {
+                for (msg, _) in &results {
                     let msg_id = format!("{:?}", msg.id());
                     if let Some(start_ts) = ts_map.remove(&msg_id) {
                         let latency = now.duration_since(start_ts);
@@ -262,7 +169,7 @@ impl Mailbox for KaspaMailbox {
                 drop(ts_map);
 
                 // Extract just the messages for further processing
-                msgs.into_iter().map(|(msg, _)| msg).collect()
+                results.into_iter().map(|(msg, _)| msg).collect()
             }
             Err(e) => {
                 error!("Kaspa mailbox, failed to process withdrawals TXs: {:?}", e);
