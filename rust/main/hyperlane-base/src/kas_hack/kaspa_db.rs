@@ -2,7 +2,7 @@ use eyre::Result;
 use tracing::debug;
 
 use hyperlane_core::{
-    Decode, Encode, HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError, H256, H512,
+    Decode, Encode, HyperlaneDomain, HyperlaneMessage, H256,
 };
 
 use crate::db::{DbError, TypedDB, DB};
@@ -157,7 +157,7 @@ impl hyperlane_core::KaspaDb for KaspaRocksDB {
         Ok(kaspa_tx_h256.map(|h| format!("{:x}", h)))
     }
 
-    fn update_store_deposit(
+    fn update_processed_deposit(
         &self,
         kaspa_tx_id: &str,
         new_message: HyperlaneMessage,

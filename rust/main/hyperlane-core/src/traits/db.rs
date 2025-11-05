@@ -108,7 +108,7 @@ pub trait KaspaDb: Send + Sync + Debug {
 
     /// Update a deposit by storing the HyperlaneMessage and hub_tx
     /// This is called after we successfully submit the deposit to the Hub
-    fn update_store_deposit(
+    fn update_processed_deposit(
         &self,
         kaspa_tx_id: &str,
         message: crate::HyperlaneMessage,

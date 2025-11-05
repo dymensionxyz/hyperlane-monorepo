@@ -205,7 +205,7 @@ impl KaspaProvider {
 
     /// Update a stored deposit with the new HyperlaneMessage and Hub transaction ID after successful submission
     /// Stores the new message and hub_tx
-    pub fn update_store_deposit(&self, kaspa_tx_id: &str, new_message: hyperlane_core::HyperlaneMessage, hub_tx: &H256) {
+    pub fn update_processed_deposit(&self, kaspa_tx_id: &str, new_message: hyperlane_core::HyperlaneMessage, hub_tx: &H256) {
         if let Some(db) =  &self.kaspa_db {
             let new_message_id = new_message.id();
             info!(
@@ -216,7 +216,7 @@ impl KaspaProvider {
                 "Updating deposit with new message and Hub transaction ID"
             );
 
-            match db.update_store_deposit(kaspa_tx_id, new_message, hub_tx) {
+            match db.update_processed_deposit(kaspa_tx_id, new_message, hub_tx) {
                 Ok(()) => {
                     info!(
                         kaspa_tx = %kaspa_tx_id,

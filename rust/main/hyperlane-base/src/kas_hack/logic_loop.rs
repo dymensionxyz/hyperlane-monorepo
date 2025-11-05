@@ -280,7 +280,7 @@ where
 
                         // Update the stored deposit with new HyperlaneMessage and Hub transaction ID
                         let h256_hub_tx = hyperlane_cosmos::native::h512_to_h256(outcome.transaction_id);
-                        self.provider.update_store_deposit(&op.deposit.id.to_string(), fxg.hl_message.clone(), &h256_hub_tx);
+                        self.provider.update_processed_deposit(&op.deposit.id.to_string(), fxg.hl_message.clone(), &h256_hub_tx);
 
                         if !outcome.executed {
                             error!(
