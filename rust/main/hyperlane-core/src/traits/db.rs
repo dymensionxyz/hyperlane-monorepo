@@ -105,4 +105,13 @@ pub trait KaspaDb: Send + Sync + Debug {
 
     /// Retrieve Kaspa transaction ID for a withdrawal by message_id
     fn retrieve_withdrawal_kaspa_tx(&self, message_id: &H256) -> Result<Option<String>>;
+
+    /// Update a deposit by storing the HyperlaneMessage and hub_tx
+    /// This is called after we successfully submit the deposit to the Hub
+    fn update_store_deposit(
+        &self,
+        kaspa_tx_id: &str,
+        message: crate::HyperlaneMessage,
+        hub_tx: &H256,
+    ) -> Result<()>;
 }

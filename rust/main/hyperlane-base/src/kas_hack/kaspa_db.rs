@@ -127,6 +127,36 @@ impl KaspaRocksDB {
         }
     }
 
+    /// Update a deposit by adding the new HyperlaneMessage and hub_tx
+    /// This is called after we successfully submit the deposit to the Hub
+    pub fn update_store_deposit(
+        &self,
+        kaspa_tx_id: &str,
+        new_message: HyperlaneMessage,
+        hub_tx: &H256,
+    ) -> DbResult<()> {
+        let new_message_id = new_message.id();
+
+        debug!(
+            new_message_id = ?new_message_id,
+            kaspa_tx_id = %kaspa_tx_id,
+            hub_tx = ?hub_tx,
+            nonce = new_message.nonce,
+            "Updating Kaspa deposit with new message and hub_tx"
+        );
+
+        // Store new deposit message by new message_id
+        self.store_value_by_key(KASPA_DEPOSIT_MESSAGE, &new_message_id, &new_message)?;
+
+        // Update mapping from kaspa_tx to new message_id (overwrites old mapping)
+        self.store_encodable(KASPA_DEPOSIT_MESSAGE_ID_BY_TX_HASH, kaspa_tx_id.as_bytes(), &new_message_id)?;
+
+        // Store hub transaction ID
+        self.store_deposit_hub_tx(kaspa_tx_id, hub_tx)?;
+
+        Ok(())
+    }
+
     /// Store a withdrawal message indexed by message_id
     pub fn store_withdrawal_message(
         &self,
@@ -245,5 +275,14 @@ impl hyperlane_core::KaspaDb for KaspaRocksDB {
 
     fn retrieve_withdrawal_kaspa_tx(&self, message_id: &H256) -> Result<Option<String>> {
         Ok(self.retrieve_withdrawal_kaspa_tx(message_id)?)
+    }
+
+    fn update_store_deposit(
+        &self,
+        kaspa_tx_id: &str,
+        message: HyperlaneMessage,
+        hub_tx: &H256,
+    ) -> Result<()> {
+        Ok(self.update_store_deposit(kaspa_tx_id, message, hub_tx)?)
     }
 }

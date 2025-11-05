@@ -1,5 +1,4 @@
 use crate::contract_sync::cursors::Indexable;
-use crate::kas_hack::KaspaRocksDB;
 use dym_kas_core::{
     confirmation::ConfirmationFXG, deposit::DepositFXG, finality::is_safe_against_reorg,
 };
@@ -279,11 +278,11 @@ where
                         let amount = fxg.amount.low_u64();
                         let deposit_id = format!("{:?}", op.deposit.id);
 
-                        // Update the stored deposit with Hub transaction ID
+                        // Update the stored deposit with new HyperlaneMessage and Hub transaction ID
                         let mut h256_hub_tx_bytes = [0u8; 32];
                         h256_hub_tx_bytes.copy_from_slice(&outcome.transaction_id.as_bytes()[32..]);
                         let h256_hub_tx = H256::from(h256_hub_tx_bytes);
-                        self.provider.add_hub_tx_id_deposit(&op.deposit.id.to_string(), &h256_hub_tx);
+                        self.provider.update_store_deposit(&op.deposit.id.to_string(), fxg.hl_message.clone(), &h256_hub_tx);
 
                         if !outcome.executed {
                             error!(

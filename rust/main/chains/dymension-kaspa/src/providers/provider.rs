@@ -203,31 +203,35 @@ impl KaspaProvider {
         }
     }
 
-       /// Update a stored deposit with the Hub transaction ID after successful submission
-    /// Stores hub_tx indexed by kaspa_tx
-    pub fn add_hub_tx_id_deposit(&self, kaspa_tx_hash: &str, hub_tx_id: &H256) {
+    /// Update a stored deposit with the new HyperlaneMessage and Hub transaction ID after successful submission
+    /// Stores the new message and hub_tx
+    pub fn update_store_deposit(&self, kaspa_tx_id: &str, new_message: hyperlane_core::HyperlaneMessage, hub_tx: &H256) {
         if let Some(db) =  &self.kaspa_db {
+            let new_message_id = new_message.id();
             info!(
-                kaspa_tx = %kaspa_tx_hash,
-                hub_tx = %hub_tx_id,
-                "Updating deposit with Hub transaction ID"
+                kaspa_tx = %kaspa_tx_id,
+                new_message_id = ?new_message_id,
+                hub_tx = ?hub_tx,
+                nonce = new_message.nonce,
+                "Updating deposit with new message and Hub transaction ID"
             );
 
-            // Store the hub transaction ID indexed by kaspa_tx
-            match db.store_deposit_hub_tx(kaspa_tx_hash, hub_tx_id) {
+            match db.update_store_deposit(kaspa_tx_id, new_message, hub_tx) {
                 Ok(()) => {
                     info!(
-                        kaspa_tx = %kaspa_tx_hash,
-                        hub_tx = %hub_tx_id,
-                        "Successfully updated deposit with Hub transaction ID"
+                        kaspa_tx = %kaspa_tx_id,
+                        new_message_id = ?new_message_id,
+                        hub_tx = ?hub_tx,
+                        "Successfully updated deposit with new message and Hub transaction ID"
                     );
                 }
                 Err(e) => {
                     error!(
                         error = ?e,
-                        kaspa_tx = %kaspa_tx_hash,
-                        hub_tx = %hub_tx_id,
-                        "Failed to store Hub transaction ID"
+                        kaspa_tx = %kaspa_tx_id,
+                        new_message_id = ?new_message_id,
+                        hub_tx = ?hub_tx,
+                        "Failed to update deposit"
                     );
                 }
             }
