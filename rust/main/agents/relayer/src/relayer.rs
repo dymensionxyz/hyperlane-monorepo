@@ -444,31 +444,15 @@ impl BaseAgent for Relayer {
         }
         debug!(elapsed = ?start_entity_init.elapsed(), event = "started processors", "Relayer startup duration measurement");
 
-        // Retrieve the kaspa_db that was already created in from_settings
-        let kaspa_db =
-            self.origins
-                .iter()
-                .find(|(domain, _)| is_kas(domain))
-                .map(|(domain, origin)| {
-                    use hyperlane_base::db::DB;
-                    use hyperlane_base::kas_hack::KaspaRocksDB;
-                    let db: &DB = origin.database.as_ref();
-                    Arc::new(KaspaRocksDB::new(domain, db.clone()))
-                });
-
         start_entity_init = Instant::now();
         for (origin_domain, origin) in self.origins.iter() {
             // assign kaspadb to kaspa deposit loop
             if is_kas(&origin.domain) && self.dymension_kaspa_args.is_some() {
-                let kaspa_db = kaspa_db
-                    .as_ref()
-                    .expect("kaspa_db should exist for kaspa origin");
                 self.launch_dymension_kaspa_tasks(
                     origin,
                     &mut tasks,
                     task_monitor.clone(),
                     send_channels.clone(),
-                    kaspa_db.clone(),
                 )
                 .await;
                 continue;
@@ -600,8 +584,6 @@ impl BaseAgent for Relayer {
             .map(|(key, origin)| (key.id(), origin.prover_sync.clone()))
             .collect();
 
-        // kaspa_db was already created earlier, before the origin loop
-
         let mut server_builder = relayer_server::Server::new(self.destinations.len())
             .with_op_retry(sender.clone())
             .with_message_queue(prep_queues)
@@ -610,8 +592,15 @@ impl BaseAgent for Relayer {
             .with_msg_ctxs(msg_ctxs)
             .with_prover_sync(prover_syncs);
 
-        if let Some(kaspa_db) = kaspa_db {
-            server_builder = server_builder.with_kaspa_db(kaspa_db);
+        // Set kaspa_db to server_builder from dymension_args provider if available
+        if let Some(dym_args) = &self.dymension_kaspa_args {
+            if let Some(kaspa_db) = dym_args.kas_provider.kaspa_db() {
+                server_builder = server_builder.with_kaspa_db(kaspa_db.clone());
+            } else {
+                error!("Kaspa DB missing in Kaspa provider when setting up relayer server");
+            }
+        } else {
+            error!("Dymension Kaspa args missing when setting up relayer server");
         }
 
         let relayer_router = server_builder.router();
@@ -1164,7 +1153,6 @@ impl Relayer {
         tasks: &mut Vec<JoinHandle<()>>,
         task_monitor: TaskMonitor,
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
-        kaspa_db: Arc<hyperlane_base::kas_hack::KaspaRocksDB>,
     ) {
         let args = self.dymension_kaspa_args.as_ref().unwrap();
 

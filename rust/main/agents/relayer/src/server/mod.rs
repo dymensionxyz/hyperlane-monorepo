@@ -8,7 +8,7 @@ use hyperlane_core::HyperlaneDomain;
 use tokio::sync::broadcast::Sender;
 
 use hyperlane_base::db::HyperlaneRocksDB;
-use hyperlane_base::kas_hack::KaspaRocksDB;
+use hyperlane_core::KaspaDb;
 use tokio::sync::RwLock;
 
 use crate::merkle_tree::builder::MerkleTreeBuilder;
@@ -44,7 +44,7 @@ pub struct Server {
     #[new(default)]
     prover_syncs: Option<HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>>,
     #[new(default)]
-    kaspa_db: Option<Arc<KaspaRocksDB>>,
+    kaspa_db: Option<Arc<dyn KaspaDb>>,
 }
 
 impl Server {
@@ -87,7 +87,7 @@ impl Server {
         self
     }
 
-    pub fn with_kaspa_db(mut self, kaspa_db: Arc<KaspaRocksDB>) -> Self {
+    pub fn with_kaspa_db(mut self, kaspa_db: Arc<dyn KaspaDb>) -> Self {
         self.kaspa_db = Some(kaspa_db);
         self
     }
