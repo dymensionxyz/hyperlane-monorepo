@@ -446,7 +446,6 @@ impl BaseAgent for Relayer {
 
         start_entity_init = Instant::now();
         for (origin_domain, origin) in self.origins.iter() {
-            // assign kaspadb to kaspa deposit loop
             if is_kas(&origin.domain) && self.dymension_kaspa_args.is_some() {
                 self.launch_dymension_kaspa_tasks(
                     origin,
