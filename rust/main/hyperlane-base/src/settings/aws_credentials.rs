@@ -30,7 +30,7 @@ impl AwsChainCredentialsProvider {
         // Wrap the `WebIdentityProvider` to a caching `AutoRefreshingProvider`.
         // By default, the `WebIdentityProvider` requests AWS Credentials on each call to `credentials()`
         // To save the CPU/network and AWS bills, the `AutoRefreshingProvider` allows to cache the credentials until the expire.
-        let web_identity_auto_refreshing =
+        let auto_refreshing_provider =
             AutoRefreshingProvider::new(WebIdentityProvider::from_k8s_env())
                 .expect("Always returns Ok(...)");
 
