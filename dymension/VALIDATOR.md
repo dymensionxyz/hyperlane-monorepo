@@ -31,7 +31,7 @@ This requires exactly TWO key pairs. The first is an Ethereum _type_ key, used t
 
 Both keys must be very secure because they control funds.
 
-See [./libs/kaspa/ops/validator/VALIDATOR.md] for full instructions on validating Kaspa <-> Dymension bridge
+See [../kaspa/../VALIDATOR.md](./libs/kaspa/ops/validator/VALIDATOR.md) for full instructions on validating Kaspa <-> Dymension bridge
 
 ## Ethereum/Solana/Base/Binance <-> Dymension
 
@@ -57,3 +57,7 @@ The first key must be very secure, it controls funds. The second key is not so i
 HL already has comprehensive docs on setting up this kind of validator
 
 - [HL doc run validators](https://docs.hyperlane.xyz/docs/operate/validators/run-validators)
+
+## Addendum: practical setup
+
+For Blumbus, each of our real life operators will run BOTH types of validator.
