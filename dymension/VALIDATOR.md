@@ -31,7 +31,7 @@ This requires exactly TWO key pairs. The first is an Ethereum _type_ key, used t
 
 Both keys must be very secure because they control funds.
 
-See [../kaspa/../VALIDATOR.md](./libs/kaspa/ops/validator/VALIDATOR.md) for full instructions on validating Kaspa <-> Dymension bridge
+See [../kaspa/../VALIDATOR.md](./libs/kaspa/ops/validator/VALIDATOR.md) for full instructions on validating Kaspa <-> Dymension bridge.
 
 ## Ethereum/Solana/Base/Binance <-> Dymension
 
@@ -43,20 +43,21 @@ Vanilla HL tech works by having 'validators' observe merkle roots on a SINGLE ch
 4. Base
 5. Binance
 
-The validator sets for Ethereum/Solana/Base/Binance are large. We will choose a secure subset to process inbound messages from these chains on Dymension.
+The validator sets for Ethereum/Solana/Base/Binance are large and already exist. We will choose a secure subset to process inbound messages from these chains on Dymension.
 
 For Blumbus, Dymension team and partners will run N validators for Dymension Blumbus chain; each validator is responsible for TWO things
 
 1. Observing Dymension chain HL mailbox entity merkle root, and signing a digest for it and posting the digest to a public S3 bucket
 2. Announcing the S3 bucket path on Dymension chain state in a bookkeeping entity
 
-This requires exactly TWO key pairs. The first is an Ethereum _type_ key, used to sign the merkle root digests. The second is a Cosmos-SDK key, used to sign a one-time transaction (or more if needing to update later) to announce the S3 bucket path.
+This requires exactly TWO key pairs. The first is an _Ethereum type_ key, used to sign the merkle root digests. The second is a Cosmos-SDK key, used to sign a one-time transaction (or more if needing to update later) to announce the S3 bucket path.
 
 The first key must be very secure, it controls funds. The second key is not so important: if it is leaked, funds are not at risk.
 
 HL already has comprehensive docs on setting up this kind of validator
 
 - [HL doc run validators](https://docs.hyperlane.xyz/docs/operate/validators/run-validators)
+
 
 ## Addendum: practical setup
 
