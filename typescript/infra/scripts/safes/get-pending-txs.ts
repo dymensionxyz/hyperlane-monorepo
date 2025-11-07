@@ -1,5 +1,6 @@
 import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
+import { ethers } from 'ethers';
 import yargs from 'yargs';
 
 import {
@@ -48,9 +49,19 @@ async function main() {
   const multiProvider = await envConfig.getMultiProvider(
     Contexts.Hyperlane,
     Role.Deployer,
-    true,
+    false, // Don't use secrets, use public RPCs
     chainsToCheck,
   );
+
+  // Add signer from PRIVATE_KEY if provided
+  if (process.env.PRIVATE_KEY) {
+    for (const chain of chainsToCheck) {
+      const provider = multiProvider.getProvider(chain);
+      const signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
+      multiProvider.setSigner(chain, signer);
+    }
+    rootLogger.info('Using private key from PRIVATE_KEY environment variable');
+  }
 
   const pendingTxs = await getPendingTxsForChains(
     chainsToCheck,

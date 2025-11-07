@@ -1,4 +1,5 @@
 import Safe from '@safe-global/protocol-kit';
+import { ethers } from 'ethers';
 import yargs from 'yargs';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
@@ -28,9 +29,19 @@ async function main() {
   const multiProvider = await envConfig.getMultiProvider(
     Contexts.Hyperlane,
     Role.Deployer,
-    true,
+    false, // Don't use secrets, use public RPCs
     Object.keys(safes),
   );
+
+  // Add signer from PRIVATE_KEY if provided
+  if (process.env.PRIVATE_KEY) {
+    for (const chain of Object.keys(safes)) {
+      const provider = multiProvider.getProvider(chain);
+      const signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
+      multiProvider.setSigner(chain, signer);
+    }
+    rootLogger.info('Using private key from PRIVATE_KEY environment variable');
+  }
 
   for (const [chain, safeAddress] of Object.entries(safes)) {
     let safeSdk: Safe.default;

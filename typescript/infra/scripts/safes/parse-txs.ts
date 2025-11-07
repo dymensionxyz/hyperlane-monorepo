@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { BigNumber } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 import yargs from 'yargs';
 
 import { AnnotatedEV5Transaction } from '@hyperlane-xyz/sdk';
@@ -32,7 +32,22 @@ async function main() {
 
   // Get the multiprovider for the environment
   const config = getEnvironmentConfig(environment);
-  const multiProvider = await config.getMultiProvider();
+  const multiProvider = await config.getMultiProvider(
+    undefined,
+    undefined,
+    false, // Don't use secrets, use public RPCs
+  );
+
+  // Add signer from PRIVATE_KEY if provided
+  if (process.env.PRIVATE_KEY) {
+    const safes = getGovernanceSafes(governanceType);
+    for (const chain of Object.keys(safes)) {
+      const provider = multiProvider.getProvider(chain);
+      const signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
+      multiProvider.setSigner(chain, signer);
+    }
+    rootLogger.info('Using private key from PRIVATE_KEY environment variable');
+  }
 
   // Get the relevant set of governance safes and icas
   const safes = getGovernanceSafes(governanceType);
