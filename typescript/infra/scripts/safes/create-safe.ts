@@ -33,7 +33,15 @@ async function main() {
     [chain],
   );
 
-  const signer = multiProvider.getSigner(chain);
+  // Use private key from env var if provided, otherwise get from multiProvider
+  let signer;
+  if (process.env.PRIVATE_KEY) {
+    const provider = multiProvider.getProvider(chain);
+    signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
+    rootLogger.info('Using private key from PRIVATE_KEY environment variable');
+  } else {
+    signer = multiProvider.getSigner(chain);
+  }
   const ethAdapter = new EthersAdapter({
     ethers,
     signerOrProvider: signer,
