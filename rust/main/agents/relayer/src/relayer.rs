@@ -583,21 +583,18 @@ impl BaseAgent for Relayer {
             .map(|(key, origin)| (key.id(), origin.prover_sync.clone()))
             .collect();
 
-        let mut server_builder = relayer_server::Server::new(self.destinations.len())
+        let relayer_router = relayer_server::Server::new(self.destinations.len())
             .with_op_retry(sender.clone())
             .with_message_queue(prep_queues)
             .with_dbs(dbs)
             .with_gas_enforcers(gas_enforcers)
             .with_msg_ctxs(msg_ctxs)
-            .with_prover_sync(prover_syncs);
+            .with_prover_sync(prover_syncs)
+            .with_kaspa_db(self.dymension_kaspa_args.as_ref().and_then(|dym_args| dym_args.kas_provider.kaspa_db().cloned()))  // Set kaspa_db to server_builder from dymension_args provider if available
+            .router();
 
-        // Set kaspa_db to server_builder from dymension_args provider if available
-        server_builder = server_builder.with_kaspa_db(
-            self.dymension_kaspa_args.as_ref()
-                .and_then(|dym_args| dym_args.kas_provider.kaspa_db().cloned())
-        );
 
-        let relayer_router = server_builder.router();
+        //let relayer_router = server_builder.router();
 
         let server = self
             .core
