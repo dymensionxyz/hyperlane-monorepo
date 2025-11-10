@@ -33,11 +33,11 @@ async function main() {
   const multiProvider = await envConfig.getMultiProvider(
     Contexts.Hyperlane,
     Role.Deployer,
-    false, // Don't use secrets, use public RPCs
+    false, // Dymension: changed to false
     Object.keys(safes),
   );
 
-  // DYMENSION: Add signer from PRIVATE_KEY if provided
+  // DYMENSION: USE KEY IN ENV
   setSignerFromPrivateKey(multiProvider, Object.keys(safes));
 
   for (const [chain, safeAddress] of Object.entries(safes)) {

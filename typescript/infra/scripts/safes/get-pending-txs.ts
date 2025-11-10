@@ -50,11 +50,11 @@ async function main() {
   const multiProvider = await envConfig.getMultiProvider(
     Contexts.Hyperlane,
     Role.Deployer,
-    false, // Don't use secrets, use public RPCs
+    false, // Dymension: changed to false
     chainsToCheck,
   );
 
-  // DYMENSION: Add signer from PRIVATE_KEY if provided
+  // DYMENSION: USE KEY IN ENV
   setSignerFromPrivateKey(multiProvider, chainsToCheck);
 
   const pendingTxs = await getPendingTxsForChains(

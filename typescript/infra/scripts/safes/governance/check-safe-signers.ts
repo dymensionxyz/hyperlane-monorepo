@@ -46,11 +46,11 @@ async function main() {
   const multiProvider = await getEnvironmentConfig('mainnet3').getMultiProvider(
     Contexts.Hyperlane,
     Role.Deployer,
-    false, // Don't use secrets, use public RPCs
+    false,  // Dymension: changed to false
     Object.keys(safes),
   );
 
-  // DYMENSION: Add signer from PRIVATE_KEY if provided
+  // DYMENSION: USE KEY IN ENV
   setSignerFromPrivateKey(multiProvider, Object.keys(safes));
 
   const chainViolations = await Promise.all(

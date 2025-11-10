@@ -39,13 +39,13 @@ async function main() {
   const multiProvider = await config.getMultiProvider(
     undefined,
     undefined,
-    false, // Don't use secrets, use public RPCs
+    false, // Dymension: changed to false
   );
 
   // Get the relevant set of governance safes and icas
   const safes = getGovernanceSafes(governanceType);
 
-  // DYMENSION: Add signer from PRIVATE_KEY if provided
+  // DDYMENSION: USE KEY IN ENV
   setSignerFromPrivateKey(multiProvider, Object.keys(safes));
 
   // Initialize the transaction reader for the given governance type

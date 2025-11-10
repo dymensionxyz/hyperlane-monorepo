@@ -66,7 +66,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
 > = {
   // Generally, we run all production validators in the Hyperlane context.
   [Role.Validator]: {
-    sepolia: false, // Testing only
+    sepolia: false, // Dymension 
     abstract: true,
     // acala: true,
     ancient8: true,
@@ -210,7 +210,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     zoramainnet: true,
   },
   [Role.Relayer]: {
-    sepolia: false, // Testing only
+    sepolia: false, // Dymension 
     abstract: true,
     // acala: true,
     ancient8: true,
@@ -354,7 +354,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     zoramainnet: true,
   },
   [Role.Scraper]: {
-    sepolia: false, // Testing only
+    sepolia: false, // Dymension 
     abstract: true,
     // acala: true,
     ancient8: true,

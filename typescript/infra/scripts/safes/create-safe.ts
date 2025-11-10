@@ -29,7 +29,7 @@ async function main() {
   const multiProvider = await envConfig.getMultiProvider(
     Contexts.Hyperlane,
     Role.Deployer,
-    false, // Don't use secrets, use public RPCs from registry
+    false, // Dymension: changed to false
     [chain],
   );
 
