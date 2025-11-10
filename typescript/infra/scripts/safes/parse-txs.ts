@@ -45,7 +45,7 @@ async function main() {
   // Get the relevant set of governance safes and icas
   const safes = getGovernanceSafes(governanceType);
 
-  // DDYMENSION: USE KEY IN ENV
+  // DYMENSION: USE KEY IN ENV
   setSignerFromPrivateKey(multiProvider, Object.keys(safes));
 
   // Initialize the transaction reader for the given governance type
