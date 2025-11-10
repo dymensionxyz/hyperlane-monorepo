@@ -32,6 +32,21 @@ import { AnnotatedCallData } from '../govern/HyperlaneAppGovernor.js';
 const TX_FETCH_RETRIES = 5;
 const TX_FETCH_RETRY_DELAY = 5000;
 
+// DYMENSION: Helper function to set signers from PRIVATE_KEY env var
+export function setSignerFromPrivateKey(
+  multiProvider: MultiProvider,
+  chains: string[],
+): void {
+  if (process.env.PRIVATE_KEY) {
+    for (const chain of chains) {
+      const provider = multiProvider.getProvider(chain);
+      const signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
+      multiProvider.setSigner(chain, signer);
+    }
+    rootLogger.info('Using private key from PRIVATE_KEY environment variable');
+  }
+}
+
 export async function getSafeAndService(
   chain: ChainNameOrId,
   multiProvider: MultiProvider,

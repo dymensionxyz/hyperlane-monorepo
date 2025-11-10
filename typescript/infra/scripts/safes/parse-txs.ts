@@ -18,7 +18,11 @@ import {
 } from '../../src/tx/govern-transaction-reader.js';
 import { processGovernorReaderResult } from '../../src/tx/utils.js';
 import { logTable } from '../../src/utils/log.js';
-import { getPendingTxsForChains, getSafeTx } from '../../src/utils/safe.js';
+import {
+  getPendingTxsForChains,
+  getSafeTx,
+  setSignerFromPrivateKey,
+} from '../../src/utils/safe.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
@@ -38,19 +42,11 @@ async function main() {
     false, // Don't use secrets, use public RPCs
   );
 
-  // Add signer from PRIVATE_KEY if provided
-  if (process.env.PRIVATE_KEY) {
-    const safes = getGovernanceSafes(governanceType);
-    for (const chain of Object.keys(safes)) {
-      const provider = multiProvider.getProvider(chain);
-      const signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
-      multiProvider.setSigner(chain, signer);
-    }
-    rootLogger.info('Using private key from PRIVATE_KEY environment variable');
-  }
-
   // Get the relevant set of governance safes and icas
   const safes = getGovernanceSafes(governanceType);
+
+  // DYMENSION: Add signer from PRIVATE_KEY if provided
+  setSignerFromPrivateKey(multiProvider, Object.keys(safes));
 
   // Initialize the transaction reader for the given governance type
   const reader = await GovernTransactionReader.create(

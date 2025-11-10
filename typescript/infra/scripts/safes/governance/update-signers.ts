@@ -14,7 +14,11 @@ import { AnnotatedCallData } from '../../../src/govern/HyperlaneAppGovernor.js';
 import { SafeMultiSend } from '../../../src/govern/multisend.js';
 import { GovernanceType, withGovernanceType } from '../../../src/governance.js';
 import { Role } from '../../../src/roles.js';
-import { getSafeAndService, updateSafeOwner } from '../../../src/utils/safe.js';
+import {
+  getSafeAndService,
+  setSignerFromPrivateKey,
+  updateSafeOwner,
+} from '../../../src/utils/safe.js';
 import { withPropose } from '../../agent-utils.js';
 import { getEnvironmentConfig } from '../../core-utils.js';
 
@@ -33,15 +37,8 @@ async function main() {
     Object.keys(safes),
   );
 
-  // Add signer from PRIVATE_KEY if provided
-  if (process.env.PRIVATE_KEY) {
-    for (const chain of Object.keys(safes)) {
-      const provider = multiProvider.getProvider(chain);
-      const signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
-      multiProvider.setSigner(chain, signer);
-    }
-    rootLogger.info('Using private key from PRIVATE_KEY environment variable');
-  }
+  // DYMENSION: Add signer from PRIVATE_KEY if provided
+  setSignerFromPrivateKey(multiProvider, Object.keys(safes));
 
   for (const [chain, safeAddress] of Object.entries(safes)) {
     let safeSdk: Safe.default;

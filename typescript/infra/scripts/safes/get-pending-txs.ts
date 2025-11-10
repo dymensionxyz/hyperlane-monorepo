@@ -19,6 +19,7 @@ import {
   SafeTxStatus,
   executeTx,
   getPendingTxsForChains,
+  setSignerFromPrivateKey,
 } from '../../src/utils/safe.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -53,15 +54,8 @@ async function main() {
     chainsToCheck,
   );
 
-  // Add signer from PRIVATE_KEY if provided
-  if (process.env.PRIVATE_KEY) {
-    for (const chain of chainsToCheck) {
-      const provider = multiProvider.getProvider(chain);
-      const signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
-      multiProvider.setSigner(chain, signer);
-    }
-    rootLogger.info('Using private key from PRIVATE_KEY environment variable');
-  }
+  // DYMENSION: Add signer from PRIVATE_KEY if provided
+  setSignerFromPrivateKey(multiProvider, chainsToCheck);
 
   const pendingTxs = await getPendingTxsForChains(
     chainsToCheck,

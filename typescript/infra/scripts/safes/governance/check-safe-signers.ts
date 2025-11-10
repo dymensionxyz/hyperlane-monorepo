@@ -11,7 +11,11 @@ import {
 } from '../../../config/environments/mainnet3/governance/utils.js';
 import { GovernanceType, withGovernanceType } from '../../../src/governance.js';
 import { Role } from '../../../src/roles.js';
-import { getOwnerChanges, getSafeAndService } from '../../../src/utils/safe.js';
+import {
+  getOwnerChanges,
+  getSafeAndService,
+  setSignerFromPrivateKey,
+} from '../../../src/utils/safe.js';
 import { getEnvironmentConfig } from '../../core-utils.js';
 
 enum SafeConfigViolationType {
@@ -46,15 +50,8 @@ async function main() {
     Object.keys(safes),
   );
 
-  // Add signer from PRIVATE_KEY if provided
-  if (process.env.PRIVATE_KEY) {
-    for (const chain of Object.keys(safes)) {
-      const provider = multiProvider.getProvider(chain);
-      const signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
-      multiProvider.setSigner(chain, signer);
-    }
-    rootLogger.info('Using private key from PRIVATE_KEY environment variable');
-  }
+  // DYMENSION: Add signer from PRIVATE_KEY if provided
+  setSignerFromPrivateKey(multiProvider, Object.keys(safes));
 
   const chainViolations = await Promise.all(
     Object.entries(safes).map(async ([chain, safeAddress]) => {
