@@ -592,15 +592,10 @@ impl BaseAgent for Relayer {
             .with_prover_sync(prover_syncs);
 
         // Set kaspa_db to server_builder from dymension_args provider if available
-        if let Some(dym_args) = &self.dymension_kaspa_args {
-            if let Some(kaspa_db) = dym_args.kas_provider.kaspa_db() {
-                server_builder = server_builder.with_kaspa_db(kaspa_db.clone());
-            } else {
-                error!("Kaspa DB missing in Kaspa provider when setting up relayer server");
-            }
-        } else {
-            error!("Dymension Kaspa args missing when setting up relayer server");
-        }
+        server_builder = server_builder.with_kaspa_db(
+            self.dymension_kaspa_args.as_ref()
+                .and_then(|dym_args| dym_args.kas_provider.kaspa_db().cloned())
+        );
 
         let relayer_router = server_builder.router();
 

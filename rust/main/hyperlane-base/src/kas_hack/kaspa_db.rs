@@ -7,7 +7,6 @@ use hyperlane_core::{
 
 use crate::db::{DbError, TypedDB, DB};
 
-const HIGHEST_SEEN_MESSAGE_NONCE: &str = "highest_seen_message_nonce_";
 const KASPA_WITHDRAWAL_MESSAGE: &str = "kaspa_withdrawal_message_";
 const KASPA_WITHDRAWAL_KASPA_TX: &str = "kaspa_withdrawal_kaspa_tx_";
 const KASPA_DEPOSIT_MESSAGE: &str = "kaspa_deposit_message_";

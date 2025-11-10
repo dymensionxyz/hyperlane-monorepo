@@ -87,8 +87,8 @@ impl Server {
         self
     }
 
-    pub fn with_kaspa_db(mut self, kaspa_db: Arc<dyn KaspaDb>) -> Self {
-        self.kaspa_db = Some(kaspa_db);
+    pub fn with_kaspa_db(mut self, kaspa_db: Option<Arc<dyn KaspaDb>>) -> Self {
+        self.kaspa_db = kaspa_db;
         self
     }
 
