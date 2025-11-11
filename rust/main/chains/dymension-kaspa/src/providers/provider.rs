@@ -30,7 +30,7 @@ use kaspa_wallet_core::prelude::DynRpcApi;
 use prometheus::Registry;
 use std::sync::Arc;
 use tonic::async_trait;
-use tracing::{info,error};
+use tracing::{error, info};
 use url::Url;
 
 #[derive(Debug, Clone)]
@@ -141,7 +141,6 @@ impl KaspaProvider {
         }
     }
 
-
     /// Store withdrawal messages and their kaspa transaction IDs in the database
     pub fn add_kaspa_tx_id_withdrawals(&self, withdrawals: &[(HyperlaneMessage, String)]) {
         if let Some(kaspa_db) = &self.kaspa_db {
@@ -170,7 +169,7 @@ impl KaspaProvider {
 
     /// Store a deposit message in the database with the corresponding kaspa tx as deposit id
     pub fn store_deposit(&self, message: &hyperlane_core::HyperlaneMessage, kaspa_tx_id: &str) {
-        if let Some(db) =  &self.kaspa_db {
+        if let Some(db) = &self.kaspa_db {
             let message_id = message.id();
             info!(
                 kaspa_tx_id = %kaspa_tx_id,
@@ -178,10 +177,7 @@ impl KaspaProvider {
                 nonce = message.nonce,
                 "Storing deposit message in database"
             );
-            match db.store_deposit_message(
-                message.clone(),
-                kaspa_tx_id.to_string(),
-            ) {
+            match db.store_deposit_message(message.clone(), kaspa_tx_id.to_string()) {
                 Ok(()) => {
                     info!(
                         message_id = ?message_id,
@@ -205,8 +201,13 @@ impl KaspaProvider {
 
     /// Update a stored deposit with the new HyperlaneMessage and Hub transaction ID after successful submission
     /// Stores the new message and hub_tx
-    pub fn update_processed_deposit(&self, kaspa_tx_id: &str, new_message: hyperlane_core::HyperlaneMessage, hub_tx: &H256) {
-        if let Some(db) =  &self.kaspa_db {
+    pub fn update_processed_deposit(
+        &self,
+        kaspa_tx_id: &str,
+        new_message: hyperlane_core::HyperlaneMessage,
+        hub_tx: &H256,
+    ) {
+        if let Some(db) = &self.kaspa_db {
             let new_message_id = new_message.id();
             info!(
                 kaspa_tx = %kaspa_tx_id,

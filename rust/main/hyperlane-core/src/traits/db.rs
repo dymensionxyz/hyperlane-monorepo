@@ -64,10 +64,7 @@ pub trait HyperlaneWatermarkedLogStore<T>: HyperlaneLogStore<T> {
 #[auto_impl(&, Box, Arc)]
 pub trait KaspaDb: Send + Sync + Debug {
     /// Store a withdrawal message indexed by message_id
-    fn store_withdrawal_message(
-        &self,
-        message: crate::HyperlaneMessage,
-    ) -> Result<()>;
+    fn store_withdrawal_message(&self, message: crate::HyperlaneMessage) -> Result<()>;
 
     /// Retrieve a withdrawal message by message_id
     fn retrieve_kaspa_withdrawal_by_message_id(

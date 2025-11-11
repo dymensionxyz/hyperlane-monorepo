@@ -151,7 +151,6 @@ impl Mailbox for KaspaMailbox {
 
         let processed_messages = match res_processed {
             Ok(results) => {
-
                 // Store withdrawal messages using the provider's store_withdrawals method
                 self.provider.add_kaspa_tx_id_withdrawals(&results);
 
