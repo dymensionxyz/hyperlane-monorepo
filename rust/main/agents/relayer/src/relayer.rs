@@ -1074,79 +1074,56 @@ impl Relayer {
         dsts: &mut HashMap<HyperlaneDomain, Destination>,
         origins: &HashMap<HyperlaneDomain, Origin>,
     ) -> Result<Option<DymensionKaspaArgs>> {
-        let kas_mailbox_trait = match dsts.iter().find(|(d, _)| is_kas(d)) {
-            Some((_, dst)) => dst.mailbox.clone(),
-            None => return Ok(None),
+        let Some((kas_domain, kas_dst)) = dsts.iter().find(|(d, _)| is_kas(d)) else {
+            return Ok(None);
         };
-        let kas_provider_trait = kas_mailbox_trait.provider();
-        let kas_provider = kas_provider_trait.downcast::<KaspaProvider>().unwrap();
-
-        let dym_mailbox_trait = {
-            dsts.iter()
-                .find(|(d, _)| is_dym(d))
-                .unwrap()
-                .1
-                .mailbox
-                .clone()
-        };
-
-        let dym_mailbox = dym_mailbox_trait
+        let kas_domain = kas_domain.clone();
+        let kas_provider = kas_dst
+            .mailbox
+            .provider()
+            .downcast::<KaspaProvider>()
+            .unwrap();
+        let dym_mailbox = dsts
+            .iter()
+            .find(|(d, _)| is_dym(d))
+            .unwrap()
+            .1
+            .mailbox
+            .clone()
             .downcast_arc::<CosmosNativeMailbox>()
             .unwrap();
 
-        let mut ret = Some(DymensionKaspaArgs {
+        let mut args = DymensionKaspaArgs {
             kas_provider,
             dym_mailbox,
-        });
+        };
 
-        // Create KaspaRocksDB early if we have a kaspa origin, BEFORE building destinations
-        let kaspa_db = origins
-            .iter()
-            .find(|(domain, _)| is_kas(domain))
-            .map(|(domain, origin)| {
-                use hyperlane_base::db::DB;
-                use hyperlane_base::kas_hack::KaspaRocksDB;
-                let db: &DB = origin.database.as_ref();
-                Arc::new(KaspaRocksDB::new(domain, db.clone()))
-            });
+        if let Some((domain, origin)) = origins.iter().find(|(d, _)| is_kas(d)) {
+            use hyperlane_base::db::DB;
+            use hyperlane_base::kas_hack::KaspaRocksDB;
+            let db: &DB = origin.database.as_ref();
+            let kaspa_db = Arc::new(KaspaRocksDB::new(domain, db.clone()));
 
-        // Set kaspa_db on the kaspa provider and update the mailbox
-        Self::setup_kaspa_db(kaspa_db.as_ref(), ret.as_mut(), dsts, &origins);
-        Ok(ret)
-    }
-
-    fn setup_kaspa_db(
-        kaspa_db: Option<&Arc<hyperlane_base::kas_hack::KaspaRocksDB>>,
-        dymension_args: Option<&mut DymensionKaspaArgs>,
-        destinations: &mut HashMap<HyperlaneDomain, Destination>,
-        origins: &HashMap<HyperlaneDomain, Origin>,
-    ) {
-        if let (Some(kaspa_db_ref), Some(dym_args)) = (kaspa_db, dymension_args) {
-            dym_args
-                .kas_provider
-                .set_kaspa_db(kaspa_db_ref.clone() as Arc<dyn hyperlane_core::KaspaDb>);
+            args.kas_provider
+                .set_kaspa_db(kaspa_db as Arc<dyn hyperlane_core::KaspaDb>);
             info!("Set kaspa_db on kaspa provider");
 
-            // Update the mailbox in destinations with the updated provider
-            if let Some(kas_domain) = origins
-                .iter()
-                .find(|(domain, _)| is_kas(domain))
-                .map(|(d, _)| d.clone())
-            {
-                if let Some(destination) = destinations.get_mut(&kas_domain) {
-                    let current_mailbox = destination.mailbox.clone();
-                    if let Ok(kas_mailbox) =
-                        current_mailbox.downcast_arc::<dymension_kaspa::KaspaMailbox>()
-                    {
-                        let updated_mailbox = Arc::try_unwrap(kas_mailbox)
-                            .unwrap_or_else(|arc| (*arc).clone())
-                            .with_provider((*dym_args.kas_provider).clone());
-                        destination.mailbox = Arc::new(updated_mailbox);
-                        info!("Updated kaspa mailbox with provider containing kaspa_db");
-                    }
+            if let Some(destination) = dsts.get_mut(&kas_domain) {
+                if let Ok(kas_mailbox) = destination
+                    .mailbox
+                    .clone()
+                    .downcast_arc::<dymension_kaspa::KaspaMailbox>()
+                {
+                    let updated_mailbox = Arc::try_unwrap(kas_mailbox)
+                        .unwrap_or_else(|arc| (*arc).clone())
+                        .with_provider((*args.kas_provider).clone());
+                    destination.mailbox = Arc::new(updated_mailbox);
+                    info!("Updated kaspa mailbox with provider containing kaspa_db");
                 }
             }
         }
+
+        Ok(Some(args))
     }
 
     async fn launch_dymension_kaspa_tasks(
