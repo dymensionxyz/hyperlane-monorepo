@@ -1,9 +1,7 @@
 use eyre::Result;
 use tracing::debug;
 
-use hyperlane_core::{
-    Decode, Encode, HyperlaneDomain, HyperlaneMessage, H256,
-};
+use hyperlane_core::{Decode, Encode, HyperlaneDomain, HyperlaneMessage, H256};
 
 use crate::db::{DbError, TypedDB, DB};
 
@@ -41,7 +39,6 @@ impl AsRef<DB> for KaspaRocksDB {
 }
 
 impl KaspaRocksDB {
-
     /// Instantiated new `KaspaRocksDB`
     pub fn new(domain: &HyperlaneDomain, db: DB) -> Self {
         Self(TypedDB::new(domain, db))
@@ -65,7 +62,6 @@ impl KaspaRocksDB {
     ) -> DbResult<Option<V>> {
         self.retrieve_decodable(prefix, key.to_vec())
     }
-
 }
 
 // Implement the KaspaDb trait from hyperlane-core to allow dymension-kaspa
@@ -100,7 +96,11 @@ impl hyperlane_core::KaspaDb for KaspaRocksDB {
         // Store deposit message by message_id
         self.store_value_by_key(KASPA_DEPOSIT_MESSAGE, &id, &message)?;
         // Store mapping from tx_hash to message_id for retrieval by tx_hash
-        self.store_encodable(KASPA_DEPOSIT_MESSAGE_ID_BY_TX_HASH, kaspa_tx_id.as_bytes(), &id)?;
+        self.store_encodable(
+            KASPA_DEPOSIT_MESSAGE_ID_BY_TX_HASH,
+            kaspa_tx_id.as_bytes(),
+            &id,
+        )?;
         Ok(())
     }
 
@@ -111,7 +111,10 @@ impl hyperlane_core::KaspaDb for KaspaRocksDB {
         Ok(self.retrieve_value_by_key(KASPA_DEPOSIT_MESSAGE, message_id)?)
     }
 
-    fn retrieve_kaspa_deposit_by_tx_hash(&self, hub_tx_id: &str) -> Result<Option<HyperlaneMessage>> {
+    fn retrieve_kaspa_deposit_by_tx_hash(
+        &self,
+        hub_tx_id: &str,
+    ) -> Result<Option<HyperlaneMessage>> {
         // First get the message_id from tx_hash (stored as bytes)
         let message_id: Option<H256> =
             self.retrieve_decodable(KASPA_DEPOSIT_MESSAGE_ID_BY_TX_HASH, hub_tx_id.as_bytes())?;
@@ -143,9 +146,9 @@ impl hyperlane_core::KaspaDb for KaspaRocksDB {
             "Storing withdrawal Kaspa transaction ID"
         );
         // Parse kaspa_tx as H256 and store
-        let kaspa_tx_h256: H256 = kaspa_tx_id.parse().map_err(|e| {
-            eyre::eyre!("Invalid kaspa_tx format: {}", e)
-        })?;
+        let kaspa_tx_h256: H256 = kaspa_tx_id
+            .parse()
+            .map_err(|e| eyre::eyre!("Invalid kaspa_tx format: {}", e))?;
         self.store_value_by_key(KASPA_WITHDRAWAL_KASPA_TX, message_id, &kaspa_tx_h256)?;
         Ok(())
     }
@@ -175,7 +178,11 @@ impl hyperlane_core::KaspaDb for KaspaRocksDB {
         self.store_value_by_key(KASPA_DEPOSIT_MESSAGE, &new_message_id, &new_message)?;
 
         // Update mapping from kaspa_tx to new message_id (overwrites old mapping)
-        self.store_encodable(KASPA_DEPOSIT_MESSAGE_ID_BY_TX_HASH, kaspa_tx_id.as_bytes(), &new_message_id)?;
+        self.store_encodable(
+            KASPA_DEPOSIT_MESSAGE_ID_BY_TX_HASH,
+            kaspa_tx_id.as_bytes(),
+            &new_message_id,
+        )?;
 
         // Store hub transaction ID
         self.store_encodable(KASPA_DEPOSIT_HUB_TX, kaspa_tx_id.as_bytes(), hub_tx)?;

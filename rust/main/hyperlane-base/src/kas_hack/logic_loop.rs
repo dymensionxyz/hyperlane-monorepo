@@ -1,9 +1,9 @@
 use crate::contract_sync::cursors::Indexable;
+use dym_kas_core::message::add_kaspa_metadata_hl_messsage;
 use dym_kas_core::{
     confirmation::ConfirmationFXG, deposit::DepositFXG, finality::is_safe_against_reorg,
 };
 use dym_kas_relayer::confirm::expensive_trace_transactions;
-use dym_kas_core::message::add_kaspa_metadata_hl_messsage;
 use dym_kas_relayer::deposit::{on_new_deposit as relayer_on_new_deposit, KaspaTxError};
 use dymension_kaspa::{Deposit, KaspaProvider};
 use ethers::utils::hex::ToHex;
@@ -40,7 +40,6 @@ impl<C: MetadataConstructor> Foo<C>
 where
     C: Send + Sync + 'static,
 {
-
     pub fn new(
         provider: Box<KaspaProvider>,
         hub_mailbox: Arc<CosmosNativeMailbox>,
@@ -200,7 +199,6 @@ where
         }
     }
 
-
     /// Process the retry queue for failed deposit operations
     async fn process_deposit_queue(&self) {
         let mut q = self.deposit_queue.lock().await;
@@ -234,15 +232,22 @@ where
             .iter()
             .position(|utxo| {
                 U256::from(utxo.amount) >= amt_hl
-                    && utxo.script_public_key_address.as_ref().map(|addr| addr == escrow_address).unwrap_or(false)
+                    && utxo
+                        .script_public_key_address
+                        .as_ref()
+                        .map(|addr| addr == escrow_address)
+                        .unwrap_or(false)
             })
-            .ok_or_else(|| eyre::eyre!(
-                "kaspa deposit {} had insufficient sompi amount or no matching escrow output",
-                deposit.id
-            ))?;
+            .ok_or_else(|| {
+                eyre::eyre!(
+                    "kaspa deposit {} had insufficient sompi amount or no matching escrow output",
+                    deposit.id
+                )
+            })?;
 
         // Add Kaspa metadata to the Hyperlane message
-        let hl_message_with_metadata = add_kaspa_metadata_hl_messsage(parsed_hl, deposit.id, utxo_index)?;
+        let hl_message_with_metadata =
+            add_kaspa_metadata_hl_messsage(parsed_hl, deposit.id, utxo_index)?;
         let amount = amt_hl.low_u64();
 
         Ok((hl_message_with_metadata, amount, utxo_index))
@@ -254,23 +259,27 @@ where
         let start_time = op.created_at;
 
         // Decode payload and add Kaspa metadata to get the proper HL message
-        let (hl_message, amount, utxo_index) = match self.decode_and_add_kaspa_metadata(&op.deposit, &op.escrow_address) {
-            Ok((msg, amt, idx)) => {
-                // Store deposit hl message with Kaspa metadata in database
-                self.provider.store_deposit(&msg, &op.deposit.id.to_string());
-                (msg, amt, idx)
-            }
-            Err(e) => {
-                tracing::error!(
-                    deposit_id = %op.deposit.id,
-                    error = ?e,
-                    "Failed to decode deposit payload and add Kaspa metadata"
-                );
-                let deposit_id = format!("{:?}", op.deposit.id);
-                self.provider.metrics().record_deposit_failed(&deposit_id, 0);
-                return;
-            }
-        };
+        let (hl_message, amount, utxo_index) =
+            match self.decode_and_add_kaspa_metadata(&op.deposit, &op.escrow_address) {
+                Ok((msg, amt, idx)) => {
+                    // Store deposit hl message with Kaspa metadata in database
+                    self.provider
+                        .store_deposit(&msg, &op.deposit.id.to_string());
+                    (msg, amt, idx)
+                }
+                Err(e) => {
+                    tracing::error!(
+                        deposit_id = %op.deposit.id,
+                        error = ?e,
+                        "Failed to decode deposit payload and add Kaspa metadata"
+                    );
+                    let deposit_id = format!("{:?}", op.deposit.id);
+                    self.provider
+                        .metrics()
+                        .record_deposit_failed(&deposit_id, 0);
+                    return;
+                }
+            };
 
         let result = relayer_on_new_deposit(
             hl_message.clone(),
@@ -317,8 +326,13 @@ where
                         let deposit_id = format!("{:?}", op.deposit.id);
 
                         // Update the stored deposit with new HyperlaneMessage and Hub transaction ID
-                        let h256_hub_tx = hyperlane_cosmos::native::h512_to_h256(outcome.transaction_id);
-                        self.provider.update_processed_deposit(&op.deposit.id.to_string(), fxg.hl_message.clone(), &h256_hub_tx);
+                        let h256_hub_tx =
+                            hyperlane_cosmos::native::h512_to_h256(outcome.transaction_id);
+                        self.provider.update_processed_deposit(
+                            &op.deposit.id.to_string(),
+                            fxg.hl_message.clone(),
+                            &h256_hub_tx,
+                        );
 
                         if !outcome.executed {
                             error!(
