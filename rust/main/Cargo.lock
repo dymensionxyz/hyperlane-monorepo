@@ -4102,7 +4102,6 @@ dependencies = [
  "tokio",
  "tonic 0.12.3",
  "tower 0.5.2",
- "tower-http 0.6.6",
  "tracing",
  "tracing-futures",
  "url",
