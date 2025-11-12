@@ -1137,6 +1137,8 @@ impl Relayer {
         task_monitor: TaskMonitor,
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
     ) {
+        info!("Dymension: launching dymension kaspa tasks");
+
         let args = self.dymension_kaspa_args.as_ref().unwrap();
 
         let kas_provider = args.kas_provider.clone();
