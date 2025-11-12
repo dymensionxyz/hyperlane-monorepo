@@ -1149,6 +1149,8 @@ impl Relayer {
         // sync relayer before starting other tasks
         b.sync_hub_if_needed().await.unwrap();
 
+        info!("Dymension: did sync_hub_if_needed, starting dymension kaspa task loops");
+
         tasks.push(b.run_loops(task_monitor.clone()));
         // it observes the local db and makes sure messages are eventually written to the destination chain
         let message_db_loader =
