@@ -1099,13 +1099,13 @@ impl MessageProcessorMetrics {
     }
 }
 async fn submit_kaspa_batch(
-    domain: &HyperlaneDomain,
+    kas_domain: &HyperlaneDomain,
     prepare_queue: &mut OpQueue,
     submit_queue: &mut OpQueue,
     confirm_queue: &mut OpQueue,
     max_batch_size: u32,
     metrics: &MessageProcessorMetrics,
-    batch: Vec<Box<dyn PendingOperation>>,
+    batch: Vec<Box<dyn PendingOperation>>, // from the submit queue
 ) {
     info!("Kaspa batch, submitting batch of size: {}", batch.len());
     // see https://github.com/dymensionxyz/hyperlane-monorepo/blob/8ca01f1ac17f28fb53df63ee2c9c17e59873af69/rust/main/agents/relayer/src/msg/op_batch.rs#L59-L70
@@ -1177,8 +1177,7 @@ async fn submit_kaspa_batch(
              */
         }
         Err(e) => {
-            // shouldn't happen
-            error!(error=?e, "Error when submitting kaspa batch");
+            panic!("Dymension: kaspa mailbox process_batch error, should be impossible: {}", e);
         }
     }
 }
