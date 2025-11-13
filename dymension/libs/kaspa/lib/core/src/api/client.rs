@@ -157,12 +157,13 @@ impl HttpClient {
             }
         }
 
-        // return txs filtered by txs that include utxos with destination escrow address and including a payload
+        // return txs filtered by txs that include utxos with destination escrow address and including a valid Hyperlane payload
         txs.into_iter()
             .filter(|tx| {
                 is_valid_escrow_transfer(tx, &address.to_string()).expect("unable to validate txs")
                     && tx.payload.is_some()
                     && tx.is_accepted.unwrap_or(false)
+                    && has_valid_hyperlane_payload(tx)
             })
             .map(Deposit::try_from)
             .collect::<Result<Vec<Deposit>>>()
@@ -252,6 +253,15 @@ fn is_valid_escrow_transfer(tx: &TxModel, address: &String) -> Result<bool> {
         }
     }
     Ok(false)
+}
+
+fn has_valid_hyperlane_payload(tx: &TxModel) -> bool {
+    use crate::message::ParsedHL;
+
+    match &tx.payload {
+        Some(payload) => ParsedHL::parse_string(payload).is_ok(),
+        None => false,
+    }
 }
 
 #[cfg(test)]

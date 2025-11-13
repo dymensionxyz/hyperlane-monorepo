@@ -136,23 +136,12 @@ where
 
     async fn handle_new_deposits(&self, deposits: Vec<Deposit>) {
         let mut new_deposits = Vec::new();
-        let escrow_address = self.provider.escrow_address().to_string();
 
         for dep in deposits.into_iter() {
             if !self.deposit_cache.has_seen(&dep).await {
                 self.deposit_cache.mark_as_seen(dep.clone()).await;
-                match self.is_deposit(&dep, &escrow_address).await {
-                    Ok(true) => {
-                        info!(deposit = ?dep, "Dymension, new deposit seen");
-                        new_deposits.push(dep);
-                    }
-                    Ok(false) => {
-                        info!(deposit_id = %dep.id, "Dymension, skipping deposit with invalid or missing Hyperlane payload");
-                    }
-                    Err(e) => {
-                        error!(deposit_id = %dep.id, error = ?e, "Dymension, failed to check if deposit is genuine, skipping");
-                    }
-                }
+                info!(deposit = ?dep, "Dymension, new deposit seen");
+                new_deposits.push(dep);
             }
         }
 
@@ -165,37 +154,6 @@ where
         for dep in &new_deposits {
             let op = DepositOperation::new(dep.clone(), self.provider.escrow_address().to_string());
             self.deposit_queue.lock().await.push(op);
-        }
-    }
-
-    async fn is_deposit(&self, deposit: &Deposit, _escrow_address: &str) -> Result<bool> {
-        use dym_kas_core::message::ParsedHL;
-
-        let payload = match &deposit.payload {
-            Some(payload) => payload,
-            None => {
-                info!(deposit_id = %deposit.id, "Deposit has no payload, skipping");
-                return Ok(false);
-            }
-        };
-
-        match ParsedHL::parse_string(payload) {
-            Ok(parsed_hl) => {
-                info!(
-                    deposit_id = %deposit.id,
-                    message_id = ?parsed_hl.hl_message.id(),
-                    "Valid Hyperlane message found in deposit payload"
-                );
-                Ok(true)
-            }
-            Err(e) => {
-                info!(
-                    deposit_id = %deposit.id,
-                    error = ?e,
-                    "Invalid Hyperlane payload, skipping deposit"
-                );
-                Ok(false)
-            }
         }
     }
 
