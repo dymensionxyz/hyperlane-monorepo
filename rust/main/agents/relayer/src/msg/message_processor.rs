@@ -1098,6 +1098,9 @@ impl MessageProcessorMetrics {
         }
     }
 }
+
+// NOTE: this code has a long history: see https://github.com/dymensionxyz/hyperlane-monorepo/blob/e53677d0aeca030a8fbe986dc15db952ab187ed5/rust/main/agents/relayer/src/msg/message_processor.rs#L1123-L1177
+// for old comments and explanations
 async fn submit_kaspa_batch(
     kas_domain: &HyperlaneDomain,
     prepare_queue: &mut OpQueue,
@@ -1121,16 +1124,6 @@ async fn submit_kaspa_batch(
         panic!("Kaspa must support batching")
     }
     let res = mailbox.process_batch(batch.iter().collect()).await;
-    /*
-    for processed items, we need to mimic
-        https://github.com/dymensionxyz/hyperlane-monorepo/blob/f55a096adf07a6d445a01d3a862e6da2a5720c69/rust/main/agents/relayer/src/msg/op_batch.rs#L132-L141
-    unprocessed items aren't explicitly handled by the existing batch processor, so we can't directly mimic it
-        https://github.com/dymensionxyz/hyperlane-monorepo/blob/f55a096adf07a6d445a01d3a862e6da2a5720c69/rust/main/agents/relayer/src/msg/op_batch.rs#L49
-    our best bet is to mimic the single submission
-        https://github.com/dymensionxyz/hyperlane-monorepo/blob/f55a096adf07a6d445a01d3a862e6da2a5720c69/rust/main/agents/relayer/src/msg/op_submitter.rs#L738-L762
-     */
-    // TODO: handle errors
-
     match res {
         Ok(batch_result) => {
             let (sent_ops, excluded_ops): (Vec<_>, Vec<_>) =
@@ -1146,35 +1139,6 @@ async fn submit_kaspa_batch(
             for op in excluded_ops {
                 send_back_on_failed_submission(op, prepare_queue.clone(), &metrics, None).await;
             }
-            if sent_ops.is_empty() {
-                info!("Kaspa batch, no operations were successfully submitted");
-                sleep(Duration::from_millis(1000)).await;
-            }
-            // TODO: handle batch result
-            /*if let Some(outcome) = batch_result.outcome {
-                for op in sent_ops {
-                    let cost = U256::from(0); // TODO: fix
-                                              // op.set_operation_outcome(outcome.clone(), cost);
-                                              // op.set_next_attempt_after(CONFIRM_DELAY);
-                                              // TODO: do we actually want to do this... maybe we dont want to use confirm queue?
-                                              // confirm_queue
-                                              //     .push(
-                                              //         op,
-                                              //         Some(PendingOperationStatus::Confirm(
-                                              //             ConfirmReason::SubmittedBySelf,
-                                              //         )),
-                                              //     )
-                                              //     .await;
-                }
-            }*/
-            /*
-            TODO: here, according to batch submission (https://github.com/dymensionxyz/hyperlane-monorepo/blob/a490602276d561829d0b4e1104b561e07550dba9/rust/main/agents/relayer/src/msg/op_batch.rs#L49)
-            need to handle like this (https://github.com/dymensionxyz/hyperlane-monorepo/blob/a490602276d561829d0b4e1104b561e07550dba9/rust/main/agents/relayer/src/msg/op_submitter.rs#L741-L763), however:
-            1. we never submitted singularly, so  we cant get a pendingOperationResult.
-            2. We will probably never care about reprepare, or notready
-            3. Drop we should probably deal with!
-            4. we should deal/figure out the confirmation branch(??)
-             */
         }
         Err(e) => {
             panic!("Dymension: kaspa mailbox process_batch error, should be impossible: {}", e);
