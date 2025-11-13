@@ -123,6 +123,12 @@ impl Mailbox for KaspaMailbox {
             .map(|op| op.try_batch().map(|item| item.data))
             .collect::<ChainResult<Vec<HyperlaneMessage>>>()?;
 
+
+        // TODO: there's not need for this, withdrawals are already tracked by the relaye using vanilla hyperlane tech
+        // this is just a double storage and moreover, its not at the earliest time that the relayer actually observes the mailbox
+        // on the hub..
+        self.provider.hack_store_withdrawals_for_query(&msgs);
+
         let current_ts = std::time::Instant::now();
         {
             let mut ts_map = self.operation_timestamps.lock().await;
@@ -132,14 +138,12 @@ impl Mailbox for KaspaMailbox {
             }
         }
 
-        self.provider.store_withdrawals(&msgs);
 
         // Cannot process withdrawals while a confirmation is pending on the Hub.
         // All operations marked failed and will be retried after confirmation completes.
         if self.provider.has_pending_confirmation() {
-            let failed_idxs: Vec<usize> = (0..ops.len()).collect();
             return Ok(BatchResult {
-                failed_indexes: failed_idxs,
+                failed_indexes: (0..ops.len()).collect(),
                 outcome: None,
             });
         }
@@ -188,14 +192,19 @@ impl Mailbox for KaspaMailbox {
                     failed.push(i);
                 }
             }
-            error!(
-                "Kaspa mailbox, processed batch, failed indexes: {:?}",
-                failed
-            );
+  
             failed
         };
 
+        if !failed_idxs.is_empty() {
+            error!(
+                "Kaspa mailbox, processed batch, failed indexes: {:?}",
+                failed_idxs
+            );
+        }
+
         Ok(BatchResult {
+            // outcome intentionally bogus
             outcome: Some(TxOutcome {
                 transaction_id: H512::zero(),
                 executed: false,

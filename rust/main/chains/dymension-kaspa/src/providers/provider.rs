@@ -50,7 +50,7 @@ pub struct KaspaProvider {
 
     metrics: KaspaBridgeMetrics,
 
-    /// Kaspa database for tracking deposits/withdrawals (optional, set by relayer)
+    /// Kaspa database for tracking deposits/withdrawals purely for informational purposes (optional, set by relayer)
     kaspa_db: Option<Arc<dyn hyperlane_core::KaspaDb>>,
 }
 
@@ -115,7 +115,7 @@ impl KaspaProvider {
         self.kaspa_db = Some(kaspa_db);
     }
 
-    pub fn store_withdrawals(&self, withdrawals: &Vec<HyperlaneMessage>) {
+    pub fn hack_store_withdrawals_for_query(&self, withdrawals: &Vec<HyperlaneMessage>) {
         // Store withdrawal messages in kaspa_db before processing
         if let Some(kaspa_db) = self.kaspa_db() {
             for msg in withdrawals {

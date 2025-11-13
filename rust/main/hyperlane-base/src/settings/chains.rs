@@ -395,8 +395,8 @@ impl ChainConf {
                     .map_err(Into::into)
             }
             ChainConnectionConf::Kaspa(conf) => {
-                let signer = self.kaspa_signer().await.context(ctx)?;
-                let provider = build_kaspa_provider(self, conf, metrics, &locator, signer).await?;
+                _ = self.kaspa_signer().await.context(ctx)?;
+                let provider = build_kaspa_provider(self, conf, metrics, &locator, None).await?; // intentionally pass None signer, not needed!
                 dym_kaspa::KaspaMailbox::new(provider, locator.clone())
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
                     .map_err(Into::into)
