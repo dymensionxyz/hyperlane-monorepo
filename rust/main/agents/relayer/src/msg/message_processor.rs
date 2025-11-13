@@ -190,6 +190,8 @@ impl MessageProcessor {
                 domain=?self.domain.name(),
                 "MessageProcessor task panicked for domain"
             );
+            // The vanilla relayer silently continues if we error here, so add this extra panic which ensures a full crash
+            panic!("Dymension: message processor panic, exiting")
         }
     }
 
