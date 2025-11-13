@@ -1243,7 +1243,8 @@ impl ChainConf {
     }
 
     async fn kaspa_signer(&self) -> Result<Option<hyperlane_cosmos::Signer>> {
-        self.signer().await
+        // We implemented our own ad hoc signing for Kaspa TXs, which are parsed and loaded from their own new config fields
+        Result::Ok(None) 
     }
 
     /// Try to build an agent metrics configuration from the chain config
@@ -1409,8 +1410,7 @@ fn build_cosmos_native_provider(
     )
 }
 
-// TODO: pubb??
-/// docsdkfjlskdf
+/// doc ...
 pub async fn build_kaspa_provider<'a>(
     chain_conf: &ChainConf,
     connection_conf: &dym_kaspa::ConnectionConf,
