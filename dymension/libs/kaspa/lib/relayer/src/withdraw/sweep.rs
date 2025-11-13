@@ -334,7 +334,7 @@ pub async fn create_sweeping_bundle(
     // Calculate how much more we need to sweep considering the anchor amount
     let withdrawal_amount_without_anchor = total_withdrawal_amount.saturating_sub(anchor_amount);
     info!(
-        "Kaspa sweeping: need to sweep {} sompi (total withdrawals {} sompi - anchor {} sompi)",
+        "Kaspa sweeping: need to sweep sompi (to sweep : {}, total withdrawals {} sompi - anchor {} sompi)",
         withdrawal_amount_without_anchor, total_withdrawal_amount, anchor_amount
     );
     // Process escrow inputs recursively until:
