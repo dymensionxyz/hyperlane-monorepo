@@ -1244,7 +1244,7 @@ impl ChainConf {
 
     async fn kaspa_signer(&self) -> Result<Option<hyperlane_cosmos::Signer>> {
         // We implemented our own ad hoc signing for Kaspa TXs, which are parsed and loaded from their own new config fields
-        Result::Ok(None) 
+        Result::Ok(None)
     }
 
     /// Try to build an agent metrics configuration from the chain config
