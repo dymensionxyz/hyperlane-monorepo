@@ -499,6 +499,18 @@ pub fn build_kaspa_connection_conf(
                 .parse_u64()
                 .end()
                 .unwrap_or(10),
+            retry_delay_exponent: chain
+                .chain(err)
+                .get_opt_key("kaspaTimeRetryDelayExponent")
+                .parse_f64()
+                .end()
+                .unwrap_or(2.0),
+            max_retry_delay_secs: chain
+                .chain(err)
+                .get_opt_key("kaspaTimeMaxRetryDelaySecs")
+                .parse_u64()
+                .end()
+                .unwrap_or(3600),
         })
     } else {
         None

@@ -61,6 +61,8 @@ pub struct RelayerStuff {
 pub struct KaspaTimeConfig {
     pub base_retry_delay_secs: u64,
     pub poll_interval_secs: u64,
+    pub retry_delay_exponent: f64,
+    pub max_retry_delay_secs: u64,
 }
 
 impl Default for KaspaTimeConfig {
@@ -68,6 +70,8 @@ impl Default for KaspaTimeConfig {
         Self {
             base_retry_delay_secs: 30,
             poll_interval_secs: 5,
+            retry_delay_exponent: 2.0,
+            max_retry_delay_secs: 3600,
         }
     }
 }

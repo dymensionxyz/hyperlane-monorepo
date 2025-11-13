@@ -1,4 +1,5 @@
 use dymension_kaspa::{conf::KaspaTimeConfig, Deposit};
+use std::cmp::Ordering;
 use std::time::{Duration, Instant};
 use tracing::{debug, error};
 
@@ -9,6 +10,31 @@ pub struct DepositOperation {
     pub retry_count: u32,
     pub next_attempt_after: Option<Instant>,
     pub created_at: Instant,
+}
+
+impl PartialEq for DepositOperation {
+    fn eq(&self, other: &Self) -> bool {
+        self.next_attempt_after == other.next_attempt_after
+    }
+}
+
+impl Eq for DepositOperation {}
+
+impl PartialOrd for DepositOperation {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for DepositOperation {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self.next_attempt_after, other.next_attempt_after) {
+            (None, None) => Ordering::Equal,
+            (None, Some(_)) => Ordering::Less,
+            (Some(_), None) => Ordering::Greater,
+            (Some(a), Some(b)) => b.cmp(&a),
+        }
+    }
 }
 
 impl DepositOperation {
@@ -31,13 +57,18 @@ impl DepositOperation {
 
     pub fn mark_failed(&mut self, cfg: &KaspaTimeConfig) {
         self.retry_count += 1;
-        // Exponential backoff capped at 2^5 to prevent excessive delays
-        let secs = cfg.base_retry_delay_secs * (1 << (self.retry_count - 1).min(5));
-        self.next_attempt_after = Some(Instant::now() + Duration::from_secs(secs));
+        let delay_secs = if self.retry_count == 1 {
+            cfg.base_retry_delay_secs
+        } else {
+            let exponential_delay = (cfg.base_retry_delay_secs as f64)
+                * cfg.retry_delay_exponent.powi((self.retry_count - 1) as i32);
+            exponential_delay.min(cfg.max_retry_delay_secs as f64) as u64
+        };
+        self.next_attempt_after = Some(Instant::now() + Duration::from_secs(delay_secs));
         error!(
             deposit_id = %self.deposit.id,
             retry_count = self.retry_count,
-            retry_after_secs = secs,
+            retry_after_secs = delay_secs,
             "Deposit operation failed, scheduling retry"
         );
     }
@@ -62,33 +93,34 @@ impl DepositOperation {
 
 #[derive(Debug)]
 pub struct DepositOpQueue {
-    operations: std::collections::VecDeque<DepositOperation>,
+    operations: std::collections::BinaryHeap<DepositOperation>,
 }
 
 impl DepositOpQueue {
     pub fn new() -> Self {
         Self {
-            operations: std::collections::VecDeque::new(),
+            operations: std::collections::BinaryHeap::new(),
         }
     }
 
     pub fn push(&mut self, op: DepositOperation) {
         let id = op.deposit.id;
-        self.operations.push_back(op);
+        self.operations.push(op);
         debug!("Added deposit operation to queue: {}", id);
     }
 
     pub fn pop_ready(&mut self) -> Option<DepositOperation> {
-        if let Some(pos) = self.operations.iter().position(|op| op.is_ready()) {
-            self.operations.remove(pos)
-        } else {
-            None
+        if let Some(op) = self.operations.peek() {
+            if op.is_ready() {
+                return self.operations.pop();
+            }
         }
+        None
     }
 
     pub fn requeue(&mut self, op: DepositOperation) {
         let id = op.deposit.id;
-        self.operations.push_back(op);
+        self.operations.push(op);
         debug!("Re-queued deposit operation: {}", id);
     }
 

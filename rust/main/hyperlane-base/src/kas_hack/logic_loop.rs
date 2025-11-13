@@ -164,7 +164,7 @@ where
 
         for dep in &new_deposits {
             let op = DepositOperation::new(dep.clone(), self.provider.escrow_address().to_string());
-            self.process_deposit_operation(op).await;
+            self.deposit_queue.lock().await.push(op);
         }
     }
 
@@ -201,12 +201,18 @@ where
 
     /// Process the retry queue for failed deposit operations
     async fn process_deposit_queue(&self) {
-        let mut q = self.deposit_queue.lock().await;
+        loop {
+            let op = {
+                let mut q = self.deposit_queue.lock().await;
+                q.pop_ready()
+            };
 
-        while let Some(op) = q.pop_ready() {
-            drop(q);
-            self.process_deposit_operation(op).await;
-            q = self.deposit_queue.lock().await;
+            match op {
+                Some(operation) => {
+                    self.process_deposit_operation(operation).await;
+                }
+                None => break,
+            }
         }
     }
 
