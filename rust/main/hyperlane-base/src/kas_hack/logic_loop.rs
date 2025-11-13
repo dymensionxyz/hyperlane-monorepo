@@ -128,13 +128,13 @@ where
                 deposit_count = deposits.len(),
                 "Dymension, queried kaspa deposits"
             );
-            self.handle_new_deposits(deposits).await;
+            self.queue_new_deposits(deposits).await;
 
             time::sleep(self.config.poll_interval()).await;
         }
     }
 
-    async fn handle_new_deposits(&self, deposits: Vec<Deposit>) {
+    async fn queue_new_deposits(&self, deposits: Vec<Deposit>) {
         let mut new_deposits = Vec::new();
 
         for dep in deposits.into_iter() {
@@ -271,7 +271,7 @@ where
                         self.provider
                             .metrics()
                             .record_deposit_failed(&deposit_id, amount);
-                        op.mark_failed(&self.config);
+                        op.mark_failed(&self.config, None);
                         self.deposit_queue.lock().await.requeue(op);
                         return;
                     }
@@ -287,15 +287,6 @@ where
                         let amount = fxg.amount.low_u64();
                         let deposit_id = format!("{:?}", op.deposit.id);
 
-                        // Update the stored deposit with new HyperlaneMessage and Hub transaction ID
-                        let h256_hub_tx =
-                            hyperlane_cosmos::native::h512_to_h256(outcome.transaction_id);
-                        self.provider.update_processed_deposit(
-                            &op.deposit.id.to_string(),
-                            fxg.hl_message.clone(),
-                            &h256_hub_tx,
-                        );
-
                         if !outcome.executed {
                             error!(
                                 message_id = ?fxg.hl_message.id(),
@@ -308,13 +299,21 @@ where
                                 .metrics()
                                 .record_deposit_failed(&deposit_id, amount);
 
-                            op.mark_failed(&self.config);
+                            op.mark_failed(&self.config, None);
                             self.deposit_queue.lock().await.requeue(op);
                         } else {
                             info!(
                                 fxg = ?fxg,
                                 tx_hash = %tx_hash,
                                 "Dymension, got sigs and sent new deposit to hub"
+                            );
+
+                            let h256_hub_tx =
+                                hyperlane_cosmos::native::h512_to_h256(outcome.transaction_id);
+                            self.provider.update_processed_deposit(
+                                &op.deposit.id.to_string(),
+                                fxg.hl_message.clone(),
+                                &h256_hub_tx,
                             );
 
                             self.provider
@@ -335,7 +334,7 @@ where
                             self.provider
                                 .metrics()
                                 .record_deposit_failed(&deposit_id, amount);
-                            op.mark_failed(&self.config);
+                            op.mark_failed(&self.config, None);
                             self.deposit_queue.lock().await.requeue(op);
                         } else {
                             error!(
@@ -360,7 +359,7 @@ where
                 self.provider
                     .metrics()
                     .record_deposit_failed(&deposit_id, amount);
-                op.mark_failed(&self.config);
+                op.mark_failed(&self.config, None);
                 self.deposit_queue.lock().await.requeue(op);
             }
             Err(e) => {
@@ -371,16 +370,18 @@ where
                     .metrics()
                     .record_deposit_failed(&deposit_id, amount);
 
-                if let Some(retry_delay_secs) = kaspa_err.retry_delay_hint() {
-                    let delay = Duration::from_secs_f64(retry_delay_secs);
-                    op.mark_failed_with_custom_delay(delay, &kaspa_err.to_string());
-                } else {
+                let custom_delay = kaspa_err
+                    .retry_delay_hint()
+                    .map(|secs| Duration::from_secs_f64(secs));
+
+                if custom_delay.is_none() {
                     error!(
                         error = ?kaspa_err,
                         "Dymension, F() new deposit processing error, will retry"
                     );
-                    op.mark_failed(&self.config);
                 }
+
+                op.mark_failed(&self.config, custom_delay);
                 self.deposit_queue.lock().await.requeue(op);
             }
         }
