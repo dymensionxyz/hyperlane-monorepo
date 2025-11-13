@@ -137,7 +137,7 @@ impl KaspaProvider {
                 }
             }
         } else {
-            error!("Kaspa mailbox, no kaspa_db set, skipping storing withdrawal messages");
+            error!("kaspa mailbox: no kaspa_db set, skipping storing withdrawal messages");
         }
     }
 
@@ -195,7 +195,7 @@ impl KaspaProvider {
                 }
             }
         } else {
-            error!("No database available for storing deposit message");
+            error!("no database available for storing deposit message");
         }
     }
 
@@ -237,7 +237,7 @@ impl KaspaProvider {
                 }
             }
         } else {
-            error!("No database available for updating deposit");
+            error!("no database available for updating deposit");
         }
     }
 
@@ -317,8 +317,8 @@ impl KaspaProvider {
 
         match res {
             Ok(Some(fxg)) => {
-                info!("Kaspa provider, constructed withdrawal TXs");
-                info!("Kaspa provider, got withdrawal FXG, now gathering sigs and signing relayer fee");
+                info!("kaspa provider: constructed withdrawal TXs");
+                info!("kaspa provider: got withdrawal FXG, now gathering sigs and signing relayer fee");
 
                 // Create withdrawal batch ID and calculate total amount
                 let all_msgs: Vec<_> = fxg.messages.iter().flatten().cloned().collect();
@@ -355,7 +355,7 @@ impl KaspaProvider {
 
                 match self.submit_txs(finalized.clone()).await {
                     Ok(tx_ids) => {
-                        info!("Kaspa provider, submitted TXs, now indicating progress on the Hub");
+                        info!("kaspa provider: submitted TXs, now indicating progress on the Hub");
 
                         let msg_count =
                             fxg.messages.iter().map(|msgs| msgs.len()).sum::<usize>() as u64;
@@ -376,7 +376,7 @@ impl KaspaProvider {
 
                         self.pending_confirmation
                             .push(ConfirmationFXG::from_msgs_outpoints(fxg.ids(), fxg.anchors));
-                        info!("Kaspa provider, added to progress indication work queue");
+                        info!("kaspa provider: added to progress indication work queue");
 
                         // Create result with messages and their corresponding kaspa_tx
                         let mut result = Vec::new();
@@ -397,7 +397,7 @@ impl KaspaProvider {
                 }
             }
             Ok(None) => {
-                info!("On new withdrawals decided not to handle withdrawal messages");
+                info!("on new withdrawals decided not to handle withdrawal messages");
                 // No tx was created, return messages with empty kaspa_tx
                 Ok(msgs.into_iter().map(|msg| (msg, String::new())).collect())
             }

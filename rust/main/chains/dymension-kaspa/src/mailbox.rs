@@ -64,7 +64,7 @@ impl Mailbox for KaspaMailbox {
     // Not a precise answer since actually depends on subsequent confirmation step on Kaspa,
     // so may often return false negative (says not delivered when it actually is)
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
-        info!("Kaspa mailbox, checking if message is delivered already (querying hub), id: {id:?}");
+        info!(message_id = ?id, "kaspa mailbox: checking if message is delivered already, querying hub");
         let wid = WithdrawalId {
             message_id: bytes_to_hex(id.as_ref()),
         };
@@ -109,8 +109,8 @@ impl Mailbox for KaspaMailbox {
     // Instead of single mailbox.process() call, we build multiple Kaspa TXs that must execute in sequence.
     async fn process_batch<'a>(&self, ops: Vec<&'a QueueOperation>) -> ChainResult<BatchResult> {
         info!(
-            "Kaspa mailbox, processing/submitting kaspa batch of size: {}",
-            ops.len()
+            batch_size = ops.len(),
+            "kaspa mailbox: processing/submitting kaspa batch"
         );
 
         let msgs: Vec<HyperlaneMessage> = ops
@@ -146,12 +146,12 @@ impl Mailbox for KaspaMailbox {
                 results.into_iter().map(|(msg, _)| msg).collect()
             }
             Err(e) => {
-                error!("Kaspa mailbox, failed to process withdrawals TXs: {:?}", e);
+                error!(error = ?e, "kaspa mailbox: failed to process withdrawals TXs");
                 Vec::new()
             }
         };
 
-        info!("Kaspa mailbox, processed withdrawals TXs");
+        info!("kaspa mailbox: processed withdrawals TXs");
 
         // Return value doesn't correspond 1:1 to what we did since we sent multiple Kaspa TXs.
         // However, since TXs must execute in sequence, we can use the last one knowing prior ones succeeded.
@@ -169,8 +169,8 @@ impl Mailbox for KaspaMailbox {
 
         if !failed_idxs.is_empty() {
             error!(
-                "Kaspa mailbox, processed batch, failed indexes: {:?}",
-                failed_idxs
+                failed_indexes = ?failed_idxs,
+                "kaspa mailbox: processed batch with failed indexes"
             );
         }
 
