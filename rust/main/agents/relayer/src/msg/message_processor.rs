@@ -1126,7 +1126,7 @@ async fn submit_kaspa_batch(
     let res = mailbox.process_batch(batch.iter().collect()).await;
     match res {
         Ok(batch_result) => {
-            let (sent_ops, excluded_ops): (Vec<_>, Vec<_>) =
+            let (_, excluded_ops): (Vec<_>, Vec<_>) =
                 batch.into_iter().enumerate().partition_map(|(i, op)| {
                     if !batch_result.failed_indexes.contains(&i) {
                         info!("Kaspa batch, successfully submitted op: {}", op.id());
@@ -1139,9 +1139,20 @@ async fn submit_kaspa_batch(
             for op in excluded_ops {
                 send_back_on_failed_submission(op, prepare_queue.clone(), &metrics, None).await;
             }
+            /*
+            We should do a second part here where we confirm the operations that were successful
+            For now we do nothing because the HL code is using 'mailbox.delivered' to check that
+            and in our case this is not reliable because kaspa mailbox delivered checks for the
+            completed confirmation phase agains the hub state, which takes a while/could take a while
+            and HL will think this means things have been reorged.
+            Needs some proper though to figure out what to do here!
+             */
         }
         Err(e) => {
-            panic!("Dymension: kaspa mailbox process_batch error, should be impossible: {}", e);
+            panic!(
+                "Dymension: kaspa mailbox process_batch error, should be impossible: {}",
+                e
+            );
         }
     }
 }
