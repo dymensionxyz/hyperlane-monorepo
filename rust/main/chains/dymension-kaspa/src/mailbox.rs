@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use super::consts::*;
 use crate::KaspaProvider;
 use dym_kas_core::message::{calculate_total_withdrawal_amount, create_withdrawal_batch_id};
@@ -12,7 +10,7 @@ use hyperlane_core::{
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use hyperlane_warp_route::TokenMessage;
 use tonic::async_trait;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 // pretends to be a mailbox
 #[derive(Clone, Debug)]
