@@ -4,7 +4,7 @@ use dym_kas_core::{
     confirmation::ConfirmationFXG, deposit::DepositFXG, finality::is_safe_against_reorg,
 };
 use dym_kas_relayer::confirm::expensive_trace_transactions;
-use dym_kas_relayer::deposit::{on_new_deposit as relayer_on_new_deposit, KaspaTxError};
+use dym_kas_relayer::deposit::{build_deposit_fxg, check_deposit_finality, KaspaTxError};
 use dymension_kaspa::{Deposit, KaspaProvider};
 use ethers::utils::hex::ToHex;
 use eyre::Result;
@@ -300,43 +300,8 @@ where
         // Step 2: Save to DB
         self.provider.store_deposit(&hl_message, &deposit_id);
 
-        // Step 3: Check finality and build FXG
-        let fxg = match relayer_on_new_deposit(
-            hl_message.clone(),
-            U256::from(amount),
-            utxo_index,
-            &op.deposit,
-            &self.provider.rest().client.client,
-        )
-        .await
-        {
-            Ok(Some(fxg)) => fxg,
-            Ok(None) => {
-                return DepositRelayResult::Retryable {
-                    deposit_id,
-                    amount,
-                    error: eyre::eyre!("F() new deposit returned none, will retry"),
-                    custom_delay: None,
-                }
-            }
-            Err(e) => {
-                let kaspa_err = KaspaDepositError::from(e);
-                let custom_delay = kaspa_err
-                    .retry_delay_hint()
-                    .map(|secs| Duration::from_secs_f64(secs));
-                return DepositRelayResult::Retryable {
-                    deposit_id,
-                    amount,
-                    error: eyre::eyre!("{}", kaspa_err),
-                    custom_delay,
-                };
-            }
-        };
-
-        info!(fxg = ?fxg, "Built new deposit FXG");
-
-        // Step 4: Check if already delivered
-        match self.hub_mailbox.delivered(fxg.hl_message.id()).await {
+        // Step 3: Check if already delivered (before expensive finality check)
+        match self.hub_mailbox.delivered(hl_message.id()).await {
             Ok(true) => {
                 return DepositRelayResult::AlreadyDelivered { deposit_id };
             }
@@ -351,7 +316,27 @@ where
             _ => {}
         }
 
-        // Step 5: Get signatures and relay
+        // Step 4: Check finality
+        if let Err(e) =
+            check_deposit_finality(&op.deposit, &self.provider.rest().client.client).await
+        {
+            let kaspa_err = KaspaDepositError::from(e);
+            let custom_delay = kaspa_err
+                .retry_delay_hint()
+                .map(|secs| Duration::from_secs_f64(secs));
+            return DepositRelayResult::Retryable {
+                deposit_id,
+                amount,
+                error: eyre::eyre!("{}", kaspa_err),
+                custom_delay,
+            };
+        }
+
+        // Step 5: Build FXG for validators
+        let fxg = build_deposit_fxg(hl_message, U256::from(amount), utxo_index, &op.deposit);
+        info!(fxg = ?fxg, "Built deposit FXG");
+
+        // Step 6: Get signatures and relay
         let outcome = match self.get_deposit_validator_sigs_and_send_to_hub(&fxg).await {
             Ok(outcome) => outcome,
             Err(e) => {
@@ -388,7 +373,7 @@ where
             };
         }
 
-        // Step 6: Save hub tx to DB
+        // Step 7: Save hub tx to DB
         let hub_tx_hash = hyperlane_cosmos::native::h512_to_h256(outcome.transaction_id);
         self.provider
             .update_processed_deposit(&deposit_id, fxg.hl_message, &hub_tx_hash);
