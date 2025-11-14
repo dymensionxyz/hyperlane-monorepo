@@ -242,9 +242,7 @@ where
                 amount,
                 hub_tx_hash,
             } => {
-                self.provider
-                    .metrics()
-                    .record_deposit_processed(&deposit_id, amount);
+                // Metrics are recorded inside try_relay_deposit_inner with timing info
                 info!(
                     deposit_id = %deposit_id,
                     hub_tx_hash = ?hub_tx_hash,
@@ -384,10 +382,15 @@ where
             };
         }
 
-        // Step 7: Save hub tx to DB
+        // Step 7: Save hub tx to DB and record metrics
         let hub_tx_hash = hyperlane_cosmos::native::h512_to_h256(outcome.transaction_id);
         self.provider
             .update_processed_deposit(&deposit_id, fxg.hl_message, &hub_tx_hash);
+
+        // Record deposit metrics with timing from operation creation
+        self.provider
+            .metrics()
+            .record_deposit_processed(&deposit_id, amount, op.created_at);
 
         DepositRelayResult::Success {
             deposit_id,

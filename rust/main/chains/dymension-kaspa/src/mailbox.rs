@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use super::consts::*;
 use crate::KaspaProvider;
+use dym_kas_core::message::{calculate_total_withdrawal_amount, create_withdrawal_batch_id};
 use dym_kas_relayer::withdraw::minimum::is_small_value;
 use hyperlane_core::{
     utils::bytes_to_hex, BatchResult, ChainResult, ContractLocator, Decode, FixedPointNumber,
@@ -117,6 +118,19 @@ impl Mailbox for KaspaMailbox {
             .iter()
             .map(|op| op.try_batch().map(|item| item.data))
             .collect::<ChainResult<Vec<HyperlaneMessage>>>()?;
+
+        // Record withdrawal batch initiation for metrics
+        if !msgs.is_empty() {
+            let withdrawal_batch_id = create_withdrawal_batch_id(&msgs);
+            let total_amt = calculate_total_withdrawal_amount(&msgs);
+            let msg_count = msgs.len() as u64;
+
+            self.provider.metrics().record_withdrawal_initiated(
+                &withdrawal_batch_id,
+                total_amt,
+                msg_count,
+            );
+        }
 
         // TODO: there's not need for this, withdrawals are already tracked by the relaye using vanilla hyperlane tech
         // this is just a double storage and moreover, its not at the earliest time that the relayer actually observes the mailbox
