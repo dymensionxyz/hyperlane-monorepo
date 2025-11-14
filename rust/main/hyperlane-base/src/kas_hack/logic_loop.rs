@@ -310,7 +310,7 @@ where
             DepositRelayOutcome::AlreadyDelivered => {
                 info!(
                     deposit_id = %op.deposit.id,
-                    "Deposit already delivered, skipping"
+                    "Deposit already delivered to hub, skipping"
                 );
             }
         }
@@ -328,17 +328,13 @@ where
                 self.provider
                     .metrics()
                     .record_deposit_failed(&deposit_id, amount);
-
-                if custom_delay.is_none() {
-                    error!(
-                        deposit_id = %deposit_id,
-                        error = ?error,
-                        "Deposit processing error, will retry"
-                    );
-                }
-
                 op.mark_failed(&self.config, custom_delay);
                 self.deposit_tracker.lock().await.requeue(op);
+                error!(
+                    deposit_id = %deposit_id,
+                    error = ?error,
+                    "Deposit processing error (retryable), requeued"
+                );
             }
             DepositRelayError::NonRetryable {
                 deposit_id,
@@ -361,19 +357,86 @@ where
     async fn try_relay_deposit(&self, op: DepositOperation) {
         info!(deposit_id = %op.deposit.id, "Processing deposit operation");
 
-        let result = self.try_relay_deposit_impl(&op).await;
+        let result = self.try_relay_deposit_inner(&op).await;
 
         match result {
             Ok(outcome) => {
-                self.handle_deposit_outcome(outcome, op);
+                {
+                    let this = &self;
+                    let op = op;
+                    match outcome {
+                        DepositRelayOutcome::Success {
+                            deposit_id,
+                            amount,
+                            hub_tx_hash,
+                        } => {
+                            this.provider
+                                .metrics()
+                                .record_deposit_processed(&deposit_id, amount);
+
+                            info!(
+                                deposit_id = %deposit_id,
+                                hub_tx_hash = ?hub_tx_hash,
+                                amount = %amount,
+                                "Deposit successfully processed and relayed to hub"
+                            );
+                        }
+                        DepositRelayOutcome::AlreadyDelivered => {
+                            info!(
+                                deposit_id = %op.deposit.id,
+                                "Deposit already delivered to hub, skipping"
+                            );
+                        }
+                    }
+                };
             }
             Err(error) => {
-                self.handle_deposit_error(error, op).await;
+                {
+                    let this = &self;
+                    let mut op = op;
+                    async move {
+                        match error {
+                            DepositRelayError::Retryable {
+                                deposit_id,
+                                amount,
+                                error,
+                                custom_delay,
+                            } => {
+                                this.provider
+                                    .metrics()
+                                    .record_deposit_failed(&deposit_id, amount);
+                                op.mark_failed(&this.config, custom_delay);
+                                this.deposit_tracker.lock().await.requeue(op);
+                                error!(
+                                    deposit_id = %deposit_id,
+                                    error = ?error,
+                                    "Deposit processing error (retryable), requeued"
+                                );
+                            }
+                            DepositRelayError::NonRetryable {
+                                deposit_id,
+                                amount,
+                                error,
+                            } => {
+                                this.provider
+                                    .metrics()
+                                    .record_deposit_failed(&deposit_id, amount);
+
+                                error!(
+                                    deposit_id = %deposit_id,
+                                    error = ?error,
+                                    "Deposit processing error (non-retryable), dropping"
+                                );
+                            }
+                        }
+                    }
+                }
+                .await;
             }
         }
     }
 
-    async fn try_relay_deposit_impl(
+    async fn try_relay_deposit_inner(
         &self,
         op: &DepositOperation,
     ) -> Result<DepositRelayOutcome, DepositRelayError> {
@@ -389,8 +452,7 @@ where
                 }
             })?;
 
-        // Step 2: Save to DB
-        self.save_message_to_db(&hl_message, &deposit_id);
+        self.provider.store_deposit(&hl_message, &deposit_id);
 
         // Step 3: Check finality and build FXG
         let fxg = self
