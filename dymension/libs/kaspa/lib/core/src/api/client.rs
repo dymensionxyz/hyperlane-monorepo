@@ -118,7 +118,7 @@ impl HttpClient {
         let c = self.get_config();
         info!(url = ?c.base_path, "dymension query kaspa deposits");
 
-        let mut txs: Vec<TxModel> = Vec::new();
+        let mut deposits: Vec<Deposit> = Vec::new();
 
         let mut lower_bound_t = initial_lower_bound_t;
         loop {
@@ -128,7 +128,7 @@ impl HttpClient {
                 lower_bound_t = 0;
             }
 
-            let mut res = transactions_page(
+            let res = transactions_page(
                 &c,
                 args {
                     kaspa_address: address.to_string(),
@@ -136,20 +136,42 @@ impl HttpClient {
                     before: Some(upper_bound_t),
                     after: Some(lower_bound_t),
                     fields: None,
-                    resolve_previous_outpoints: None,
+                    resolve_previous_outpoints: Some("no".to_string()),
                     acceptance: Some(AcceptanceMode::Accepted),
                 },
             )
             .await?;
 
             let txs_found = res.len();
-            // txs should be in descendent order, so we save last returned tx time and we continue from there
-            if let Some(last_val) = res.last() {
-                if let Some(t) = last_val.block_time {
+
+            // Filter and convert in one pass to avoid holding all raw txs in memory
+            for tx in res {
+                // Update pagination cursor from last tx regardless of filtering
+                if let Some(t) = tx.block_time {
                     upper_bound_t = t - 1;
                 }
+
+                // Early exits for cheap checks first
+                if tx.payload.is_none() {
+                    continue;
+                }
+
+                if !is_valid_escrow_transfer(&tx, &address.to_string())? {
+                    continue;
+                }
+
+                if !has_valid_hyperlane_payload(&tx) {
+                    continue;
+                }
+
+                match Deposit::try_from(tx) {
+                    Ok(deposit) => deposits.push(deposit),
+                    Err(e) => {
+                        tracing::warn!(error = ?e, "Skipping invalid deposit");
+                        continue;
+                    }
+                }
             }
-            txs.append(&mut res);
 
             // if txs found are less than n, or we already did paging till the initial lower bound
             if txs_found < n as usize || upper_bound_t < initial_lower_bound_t {
@@ -157,16 +179,7 @@ impl HttpClient {
             }
         }
 
-        // return txs filtered by txs that include utxos with destination escrow address and including a valid Hyperlane payload
-        txs.into_iter()
-            .filter(|tx| {
-                is_valid_escrow_transfer(tx, &address.to_string()).expect("unable to validate txs")
-                    && tx.payload.is_some()
-                    && tx.is_accepted.unwrap_or(false)
-                    && has_valid_hyperlane_payload(tx)
-            })
-            .map(Deposit::try_from)
-            .collect::<Result<Vec<Deposit>>>()
+        Ok(deposits)
     }
 
     pub fn get_config(&self) -> Configuration {
