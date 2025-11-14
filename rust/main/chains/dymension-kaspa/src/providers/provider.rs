@@ -321,16 +321,14 @@ impl KaspaProvider {
                 fxg,
                 tx_ids,
             } => {
-                // Collect all message IDs that were successfully processed
-                let message_ids: Vec<String> = fxg
-                    .messages
-                    .iter()
-                    .flatten()
-                    .map(|m| format!("{:?}", m.id()))
-                    .collect();
-
-                self.metrics
-                    .record_withdrawal_processed(&message_ids, total_amt, msg_count);
+                // Record success for each processed message individually
+                for msg in fxg.messages.iter().flatten() {
+                    let message_id = format!("{:?}", msg.id());
+                    if let Some(amount) = dym_kas_core::message::parse_withdrawal_amount(msg) {
+                        self.metrics
+                            .record_withdrawal_processed(&message_id, amount);
+                    }
+                }
 
                 if let Some(last_anchor) = fxg.anchors.last() {
                     let current_ts = kaspa_core::time::unix_now();
@@ -360,10 +358,13 @@ impl KaspaProvider {
                 Ok(msgs.into_iter().map(|msg| (msg, String::new())).collect())
             }
             WithdrawalProcessResult::Failed { total_amt, error } => {
-                let message_ids: Vec<String> =
-                    msgs.iter().map(|m| format!("{:?}", m.id())).collect();
-                self.metrics
-                    .record_withdrawal_failed(&message_ids, total_amt);
+                // Record failure for each message individually
+                for msg in &msgs {
+                    let message_id = format!("{:?}", msg.id());
+                    if let Some(amount) = dym_kas_core::message::parse_withdrawal_amount(msg) {
+                        self.metrics.record_withdrawal_failed(&message_id, amount);
+                    }
+                }
                 Err(error)
             }
         }

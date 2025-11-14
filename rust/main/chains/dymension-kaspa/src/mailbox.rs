@@ -119,13 +119,20 @@ impl Mailbox for KaspaMailbox {
 
         // Record withdrawal batch initiation for metrics
         if !msgs.is_empty() {
-            let total_amt = calculate_total_withdrawal_amount(&msgs);
             let msg_count = msgs.len() as u64;
-            let message_ids: Vec<String> = msgs.iter().map(|m| format!("{:?}", m.id())).collect();
-
             self.provider
                 .metrics()
-                .record_withdrawal_initiated(&message_ids, total_amt, msg_count);
+                .record_withdrawal_batch_size(msg_count);
+
+            // Record each message individually
+            for msg in &msgs {
+                if let Some(amount) = dym_kas_core::message::parse_withdrawal_amount(msg) {
+                    let message_id = format!("{:?}", msg.id());
+                    self.provider
+                        .metrics()
+                        .record_withdrawal_initiated(&message_id, amount);
+                }
+            }
         }
 
         // TODO: there's not need for this, withdrawals are already tracked by the relaye using vanilla hyperlane tech
