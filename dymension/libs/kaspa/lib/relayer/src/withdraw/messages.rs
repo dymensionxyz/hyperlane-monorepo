@@ -15,10 +15,41 @@ use hyperlane_core::U256;
 use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
 use kaspa_consensus_core::tx::{TransactionInput, TransactionOutpoint, UtxoEntry};
 use kaspa_wallet_pskt::bundle::Bundle;
-use tracing::info;
+use tracing::{info,error};
 
 // (input, entry, optional_redeem_script)
 pub(crate) type PopulatedInput = (TransactionInput, UtxoEntry, Option<Vec<u8>>);
+
+/// Fetch relayer UTXOs from both current receive and change addresses
+/// Returns combined list of UTXOs from both addresses
+async fn fetch_relayer_utxos(relayer: &EasyKaspaWallet) -> Result<Vec<PopulatedInput>> {
+    let relayer_receive_address = relayer.account().receive_address()?;
+    let relayer_change_address = relayer.account().change_address()?;
+
+    let mut change_inputs = fetch_input_utxos(
+        &relayer.api(),
+        &relayer_change_address,
+        None,
+        RELAYER_SIG_OP_COUNT,
+        relayer.net.network_id,
+    )
+    .await
+    .map_err(|e| eyre::eyre!("Fetch relayer change address UTXOs: {}", e))?;
+
+    let receive_inputs = fetch_input_utxos(
+        &relayer.api(),
+        &relayer_receive_address,
+        None,
+        RELAYER_SIG_OP_COUNT,
+        relayer.net.network_id,
+    )
+    .await
+    .map_err(|e| eyre::eyre!("Fetch relayer receive address UTXOs: {}", e))?;
+
+    // Combine UTXOs from both addresses
+    change_inputs.extend(receive_inputs);
+    Ok(change_inputs)
+}
 
 /// Adjusts outputs and messages to fit within transaction mass limits
 /// Returns (adjusted_outputs, adjusted_messages, final_mass)
@@ -127,16 +158,23 @@ pub async fn build_withdrawal_fxg(
     .await
     .map_err(|e| eyre::eyre!("Fetch escrow UTXOs: {}", e))?;
 
-    let relayer_address = relayer.account().change_address()?;
-    let relayer_inputs = fetch_input_utxos(
-        &relayer.api(),
-        &relayer_address,
-        None,
-        RELAYER_SIG_OP_COUNT,
-        relayer.net.network_id,
-    )
-    .await
-    .map_err(|e| eyre::eyre!("Fetch relayer UTXOs: {}", e))?;
+    // Fetch relayer UTXOs from both receive and change addresses
+    let relayer_inputs = fetch_relayer_utxos(&relayer)
+        .await
+        .map_err(|e| eyre::eyre!("Fetch relayer UTXOs: {}", e))?;
+
+    // Early validation of relayer funds available (otherwise it will panic later during PSKT building)
+    if relayer_inputs.is_empty() {
+        error!(
+            relayer_receive_address = %relayer.account().receive_address()?,
+            relayer_change_address = %relayer.account().change_address()?,
+            escrow_utxo_count = escrow_inputs.len(),
+            withdrawal_count = outputs.len(),
+            "Relayer has no UTXOs on either receive or change address. Cannot process withdrawals without relayer funds to pay transaction fees. \
+            Please fund either the relayer receive address or change address. All withdrawal operations will be marked as failed and retried later."
+        );
+        return Ok(None);
+    }
 
     let (sweeping_bundle, inputs) = if escrow_inputs.len() > SWEEPING_THRESHOLD {
         // Sweep

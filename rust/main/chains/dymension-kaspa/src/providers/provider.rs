@@ -104,6 +104,13 @@ impl KaspaProvider {
             tracing::error!("Failed to initialize balance metrics on startup: {:?}", e);
         }
 
+        // Set relayer receive address metric on startup
+        if let Ok(receive_addr) = provider.wallet().account().receive_address() {
+            provider.metrics().relayer_receive_address_info
+                .with_label_values(&[&receive_addr.to_string()])
+                .set(1.0);
+        }
+
         Ok(provider)
     }
 
@@ -398,8 +405,8 @@ impl KaspaProvider {
             }
             Ok(None) => {
                 info!("on new withdrawals decided not to handle withdrawal messages");
-                // No tx was created, return messages with empty kaspa_tx
-                Ok(msgs.into_iter().map(|msg| (msg, String::new())).collect())
+                // No tx was created, return empty vec so all messages are marked as failed and retried
+                Ok(Vec::new())
             }
             Err(e) => {
                 let withdrawal_batch_id = create_withdrawal_batch_id(&msgs);
