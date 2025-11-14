@@ -505,10 +505,10 @@ pub fn build_kaspa_connection_conf(
                 .parse_duration()
                 .end()
                 .unwrap_or(std::time::Duration::from_secs(3600)),
-            deposit_look_back_mins: chain
+            deposit_look_back: chain
                 .chain(err)
-                .get_opt_key("depositLookBackMins")
-                .parse_u64()
+                .get_opt_key("depositLookBack")
+                .parse_duration()
                 .end(),
         })
     } else {
