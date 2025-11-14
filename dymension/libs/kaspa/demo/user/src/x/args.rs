@@ -126,8 +126,8 @@ pub struct SimulateTrafficCli {
     #[arg(long, required = true)]
     pub ops_per_minute: u64,
 
-    /// Minimum deposit amount in sompi
-    #[arg(long, required = true)]
+    /// Minimum deposit amount in sompi (must be at least 4000000000 = 40 KAS for withdrawals to work)
+    #[arg(long, default_value = "4000000000")]
     pub min_deposit_sompi: u64,
 
     /// Kaspa HL domain

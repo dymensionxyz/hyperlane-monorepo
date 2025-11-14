@@ -37,6 +37,9 @@ use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use tracing::info;
 use url::Url;
 
+/// Minimum withdrawal amount for Kaspa (40 KAS in sompi)
+pub const MIN_KASPA_WITHDRAWAL_SOMPI: u64 = 4_000_000_000;
+
 async fn cosmos_provider(
     signer_key_hex: &str,
     rpc_url: &str,
@@ -90,21 +93,15 @@ pub struct Params {
 impl Params {
     /// Used to draw value of each op, in sompi
     pub fn distr_value(&self) -> Exp<f64> {
-        // TODO: need to use some clamping/minimum
         Exp::new(1.0 / self.op_budget()).unwrap()
     }
-    /// Sample deposit value
+    /// Sample deposit value - must be at least MIN_KASPA_WITHDRAWAL_SOMPI
     pub fn sample_value(&self) -> u64 {
         if self.simple_mode {
-            return self.min_value;
+            return self.min_value.max(MIN_KASPA_WITHDRAWAL_SOMPI);
         }
-        // TODO: use proper clamping, or this will blow the budget
         let v = self.distr_value().sample(&mut rand::rng()) as u64;
-        if v < self.min_value {
-            self.min_value
-        } else {
-            v
-        }
+        v.max(self.min_value).max(MIN_KASPA_WITHDRAWAL_SOMPI)
     }
     /// Used to draw time between ops, in milliseconds
     pub fn distr_time(&self) -> Exp<f64> {
@@ -222,6 +219,17 @@ impl TrafficSim {
     pub async fn run(&self) -> Result<()> {
         let mut rng = rand::rng();
 
+        // Validate budget is sufficient for minimum withdrawals
+        let min_budget_needed = (self.params.num_ops() * MIN_KASPA_WITHDRAWAL_SOMPI as f64) as u64;
+        if self.params.budget < min_budget_needed {
+            return Err(eyre::eyre!(
+                "Budget {} sompi is insufficient. Need at least {} sompi for {} ops with 40 KAS minimum per withdrawal",
+                self.params.budget,
+                min_budget_needed,
+                self.params.num_ops()
+            ));
+        }
+
         // Pre-create and fund worker wallets
         let estimated_ops = (self.params.num_ops() * 1.1) as usize; // 10% buffer
         info!("Creating and funding {} worker wallets", estimated_ops);
@@ -234,7 +242,8 @@ impl TrafficSim {
 
             // Fund worker from whale
             let worker_address = worker.receive_address()?;
-            let fund_amount = self.params.op_budget() as u64 * 2; // Fund each worker with 2x avg op budget
+            // Fund each worker with 2x the budget, but ensure at least minimum withdrawal amount
+            let fund_amount = (self.params.op_budget() as u64 * 2).max(MIN_KASPA_WITHDRAWAL_SOMPI);
 
             use kaspa_wallet_core::tx::{Fees, PaymentDestination, PaymentOutput};
 
