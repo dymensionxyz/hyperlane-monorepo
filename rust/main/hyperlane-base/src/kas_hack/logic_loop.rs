@@ -114,16 +114,25 @@ where
     // https://github.com/dymensionxyz/hyperlane-monorepo/blob/20b9e669afcfb7728e66b5932e85c0f7fcbd50c1/dymension/libs/kaspa/lib/relayer/note.md#L102-L119
     async fn deposit_loop(&self) {
         info!("Dymension, starting deposit loop with queue");
-        let lower_bound_unix_time = self.config.lower_bound_unix_time();
+
+        // First iteration: use full lookback to catch up on missed deposits
+        // Subsequent iterations: only look back 2x poll interval to handle clock skew
+        let mut lookback_ms = self.config.deposit_look_back.map(|d| d.as_millis() as i64);
+
         loop {
             self.process_deposit_queue().await;
+
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time before Unix epoch")
+                .as_millis() as i64;
+
+            let lower_bound = lookback_ms.map(|lb| now - lb);
+
             match self
                 .provider
                 .rest()
-                .get_deposits(
-                    &self.provider.escrow_address().to_string(),
-                    lower_bound_unix_time,
-                )
+                .get_deposits(&self.provider.escrow_address().to_string(), lower_bound)
                 .await
             {
                 Ok(deposits) => {
@@ -133,6 +142,8 @@ where
                     error!(error = ?e, "Dymension, query new Kaspa deposits failed");
                 }
             }
+
+            lookback_ms = Some(self.config.poll_interval.as_millis() as i64 * 4); // look back 4x poll interval to account for any slowness
             time::sleep(self.config.poll_interval).await;
         }
     }
