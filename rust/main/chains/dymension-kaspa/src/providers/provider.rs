@@ -291,13 +291,6 @@ impl KaspaProvider {
         self.conf.relayer_stuff.as_ref().unwrap()
     }
 
-    pub fn kaspa_time_cfg(&self) -> Option<crate::conf::RelayerDepositTimings> {
-        self.conf
-            .relayer_stuff
-            .as_ref()
-            .map(|r| r.kaspa_time_config.clone())
-    }
-
     // Process withdrawals from Hub to Kaspa by building and submitting Kaspa transactions.
     // Returns the subset of messages that were successfully processed.
     pub async fn process_withdrawal_messages(

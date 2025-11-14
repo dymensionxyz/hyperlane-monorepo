@@ -25,14 +25,14 @@ use super::{
     deposit_operation::{DepositOperation, DepositTracker},
     error::KaspaDepositError,
 };
-use dymension_kaspa::conf::KaspaTimeConfig;
+use dymension_kaspa::conf::RelayerDepositTimings;
 
 pub struct Foo<C: MetadataConstructor> {
     provider: Box<KaspaProvider>,
     hub_mailbox: Arc<CosmosNativeMailbox>,
     metadata_constructor: C,
     deposit_tracker: Mutex<DepositTracker>,
-    config: KaspaTimeConfig,
+    config: RelayerDepositTimings,
 }
 
 impl<C: MetadataConstructor> Foo<C>
@@ -45,9 +45,7 @@ where
         metadata_constructor: C,
     ) -> Self {
         // Get config from provider, or use defaults if not available
-        let config = provider
-            .kaspa_time_cfg()
-            .unwrap_or_else(KaspaTimeConfig::default);
+        let config = provider.must_relayer_stuff().deposit_timings.clone();
         Self {
             provider,
             hub_mailbox,

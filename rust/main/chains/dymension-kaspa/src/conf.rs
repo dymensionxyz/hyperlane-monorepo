@@ -53,7 +53,7 @@ pub use dym_kas_kms::AwsKeyConfig;
 pub struct RelayerStuff {
     pub validator_hosts: Vec<String>,
     pub deposit_look_back_mins: Option<u64>,
-    pub kaspa_time_config: RelayerDepositTimings,
+    pub deposit_timings: RelayerDepositTimings,
     pub tx_fee_multiplier: f64,
 }
 
@@ -148,7 +148,7 @@ impl ConnectionConf {
             _ => Some(RelayerStuff {
                 deposit_look_back_mins,
                 validator_hosts,
-                kaspa_time_config: kaspa_time_config.unwrap_or_default(),
+                deposit_timings: kaspa_time_config.unwrap_or_default(),
                 tx_fee_multiplier: kas_tx_fee_multiplier,
             }),
         };

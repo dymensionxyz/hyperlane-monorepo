@@ -1,4 +1,4 @@
-use dymension_kaspa::{conf::KaspaTimeConfig, Deposit};
+use dymension_kaspa::{conf::RelayerDepositTimings, Deposit};
 use std::cmp::Ordering;
 use std::time::{Duration, Instant};
 use tracing::error;
@@ -50,7 +50,7 @@ impl DepositOperation {
         Instant::now() >= self.next_attempt_after
     }
 
-    pub fn mark_failed(&mut self, cfg: &KaspaTimeConfig, custom_delay: Option<Duration>) {
+    pub fn mark_failed(&mut self, cfg: &RelayerDepositTimings, custom_delay: Option<Duration>) {
         self.retry_count += 1;
 
         let delay = match custom_delay {

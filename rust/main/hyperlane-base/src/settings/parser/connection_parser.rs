@@ -486,28 +486,28 @@ pub fn build_kaspa_connection_conf(
 
     // Parse KaspaTimeConfig if provided
     let kaspa_time_config = if validator_hosts.len() > 0 {
-        Some(dymension_kaspa::KaspaTimeConfig {
+        Some(dymension_kaspa::RelayerDepositTimings {
             poll_interval: chain
                 .chain(err)
-                .get_opt_key("kaspaTimePollInterval")
+                .get_opt_key("depositPollInterval")
                 .parse_duration()
                 .end()
                 .unwrap_or(std::time::Duration::from_secs(5)),
             retry_delay_base: chain
                 .chain(err)
-                .get_opt_key("kaspaTimeRetryDelayBase")
+                .get_opt_key("depositRetryDelayBase")
                 .parse_duration()
                 .end()
                 .unwrap_or(std::time::Duration::from_secs(30)),
             retry_delay_exponent: chain
                 .chain(err)
-                .get_opt_key("kaspaTimeRetryDelayExponent")
+                .get_opt_key("depositRetryDelayExponent")
                 .parse_f64()
                 .end()
                 .unwrap_or(2.0),
             retry_delay_max: chain
                 .chain(err)
-                .get_opt_key("kaspaTimeRetryDelayMax")
+                .get_opt_key("depositRetryDelayMax")
                 .parse_duration()
                 .end()
                 .unwrap_or(std::time::Duration::from_secs(3600)),
