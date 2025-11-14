@@ -117,19 +117,16 @@ impl Mailbox for KaspaMailbox {
             .map(|op| op.try_batch().map(|item| item.data))
             .collect::<ChainResult<Vec<HyperlaneMessage>>>()?;
 
-        // Record withdrawal batch initiation for metrics and get start time
-        let withdrawal_start_time = if !msgs.is_empty() {
+        // Record withdrawal batch initiation for metrics
+        if !msgs.is_empty() {
             let total_amt = calculate_total_withdrawal_amount(&msgs);
             let msg_count = msgs.len() as u64;
+            let message_ids: Vec<String> = msgs.iter().map(|m| format!("{:?}", m.id())).collect();
 
-            Some(
-                self.provider
-                    .metrics()
-                    .record_withdrawal_initiated(total_amt, msg_count),
-            )
-        } else {
-            None
-        };
+            self.provider
+                .metrics()
+                .record_withdrawal_initiated(&message_ids, total_amt, msg_count);
+        }
 
         // TODO: there's not need for this, withdrawals are already tracked by the relaye using vanilla hyperlane tech
         // this is just a double storage and moreover, its not at the earliest time that the relayer actually observes the mailbox
@@ -147,13 +144,14 @@ impl Mailbox for KaspaMailbox {
 
         let res_processed = self
             .provider
-            .process_withdrawal_messages(msgs.clone(), withdrawal_start_time)
+            .process_withdrawal_messages(msgs.clone())
             .await;
 
         let processed_messages = match res_processed {
             Ok(results) => {
                 // Store withdrawal messages using the provider's store_withdrawals method
-                self.provider.add_kaspa_tx_id_withdrawals(&results);
+                self.provider
+                    .hack_store_withdrawals_kaspa_tx_for_query(&results);
 
                 // Extract just the messages for further processing
                 results.into_iter().map(|(msg, _)| msg).collect()

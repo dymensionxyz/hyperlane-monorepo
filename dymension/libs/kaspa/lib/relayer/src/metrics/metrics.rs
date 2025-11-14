@@ -82,6 +82,15 @@ pub struct KaspaBridgeMetrics {
 
     /// Track amounts of failed deposits
     failed_deposit_amounts: Arc<RwLock<HashMap<String, u64>>>,
+
+    /// Track unique failed withdrawals to avoid double counting
+    failed_withdrawal_ids: Arc<RwLock<HashSet<String>>>,
+
+    /// Track amounts of failed withdrawals
+    failed_withdrawal_amounts: Arc<RwLock<HashMap<String, u64>>>,
+
+    /// Track withdrawal start times for latency calculation (keyed by message ID)
+    withdrawal_start_times: Arc<RwLock<HashMap<String, Instant>>>,
 }
 
 impl KaspaBridgeMetrics {
@@ -286,6 +295,9 @@ impl KaspaBridgeMetrics {
             // Internal tracking
             failed_deposit_ids: Arc::new(RwLock::new(HashSet::new())),
             failed_deposit_amounts: Arc::new(RwLock::new(HashMap::new())),
+            failed_withdrawal_ids: Arc::new(RwLock::new(HashSet::new())),
+            failed_withdrawal_amounts: Arc::new(RwLock::new(HashMap::new())),
+            withdrawal_start_times: Arc::new(RwLock::new(HashMap::new())),
         };
 
         // Store the instance in our singleton map
@@ -334,30 +346,61 @@ impl KaspaBridgeMetrics {
         }
     }
 
-    /// Record withdrawal batch initiation - observes amount and batch size, returns start time for later latency calculation
-    pub fn record_withdrawal_initiated(&self, amount_sompi: u64, message_count: u64) -> Instant {
+    /// Record withdrawal batch initiation - stores start time for each message and observes metrics
+    pub fn record_withdrawal_initiated(
+        &self,
+        message_ids: &[String],
+        amount_sompi: u64,
+        message_count: u64,
+    ) {
+        // Store start time for each message
+        let start_time = Instant::now();
+        let mut start_times = self.withdrawal_start_times.write().unwrap();
+        for msg_id in message_ids {
+            start_times.insert(msg_id.clone(), start_time);
+        }
+
         // Observe amount and batch size immediately
         self.withdrawal_amount_sompi.observe(amount_sompi as f64);
         self.withdrawal_batch_messages.observe(message_count as f64);
-
-        // Return start time for caller to track
-        Instant::now()
     }
 
     /// Record successful withdrawal processing - calculates duration and updates counters
     pub fn record_withdrawal_processed(
         &self,
+        message_ids: &[String],
         amount_sompi: u64,
         message_count: u64,
-        start_time: Instant,
     ) {
-        // Calculate and observe duration
-        let duration_secs = start_time.elapsed().as_secs_f64();
-        self.withdrawal_duration_seconds.observe(duration_secs);
+        // Calculate and observe duration for each message that has a start time
+        let mut start_times = self.withdrawal_start_times.write().unwrap();
+        for msg_id in message_ids {
+            if let Some(start_time) = start_times.remove(msg_id) {
+                let duration_secs = start_time.elapsed().as_secs_f64();
+                self.withdrawal_duration_seconds.observe(duration_secs);
+            } else {
+                tracing::warn!(
+                    message_id = %msg_id,
+                    "Withdrawal message completed but no start time found - latency metric will not be recorded"
+                );
+            }
+        }
 
         // Update counters
         self.total_funds_withdrawn.inc_by(amount_sompi);
         self.withdrawals_processed_total.inc_by(message_count);
+
+        // Remove from failed set if any were previously failed
+        let mut failed_ids = self.failed_withdrawal_ids.write().unwrap();
+        let mut failed_amounts = self.failed_withdrawal_amounts.write().unwrap();
+        for msg_id in message_ids {
+            if failed_ids.remove(msg_id) {
+                self.pending_failed_withdrawals.dec();
+                if let Some(failed_amount) = failed_amounts.remove(msg_id) {
+                    self.failed_withdrawal_funds_sompi.sub(failed_amount as i64);
+                }
+            }
+        }
     }
 
     /// Record failed deposit attempt with deduplication
@@ -379,10 +422,28 @@ impl KaspaBridgeMetrics {
         }
     }
 
-    /// Record failed withdrawal attempt - increments failure counters
-    pub fn record_withdrawal_failed(&self, amount_sompi: u64) {
-        self.pending_failed_withdrawals.inc();
-        self.failed_withdrawal_funds_sompi.add(amount_sompi as i64);
+    /// Record failed withdrawal attempt with deduplication
+    /// Returns true if this is a new failure, false if it's a retry of an already-failed withdrawal
+    pub fn record_withdrawal_failed(&self, message_ids: &[String], amount_sompi: u64) -> bool {
+        let mut failed_ids = self.failed_withdrawal_ids.write().unwrap();
+        let mut failed_amounts = self.failed_withdrawal_amounts.write().unwrap();
+
+        let mut is_new_failure = false;
+        for msg_id in message_ids {
+            // Check if this message has already failed before
+            if failed_ids.insert(msg_id.clone()) {
+                // This is a new failure for this message
+                is_new_failure = true;
+                self.pending_failed_withdrawals.inc();
+                // Store amount per message (divide total by message count)
+                let amount_per_msg = amount_sompi / message_ids.len() as u64;
+                failed_amounts.insert(msg_id.clone(), amount_per_msg);
+                self.failed_withdrawal_funds_sompi
+                    .add(amount_per_msg as i64);
+            }
+        }
+
+        is_new_failure
     }
 
     /// Record confirmation failure
@@ -485,12 +546,13 @@ mod tests {
         assert_eq!(metrics.deposit_duration_seconds.get_sample_count(), 1);
 
         // Test withdrawal processing with timing
-        let withdrawal_start = metrics.record_withdrawal_initiated(50000, 1);
+        let msg_ids = vec!["msg_1".to_string()];
+        metrics.record_withdrawal_initiated(&msg_ids, 50000, 1);
         std::thread::sleep(std::time::Duration::from_millis(10)); // Small delay
 
         let initial_total = metrics.total_funds_withdrawn.get();
         let initial_count = metrics.withdrawals_processed_total.get();
-        metrics.record_withdrawal_processed(50000, 1, withdrawal_start);
+        metrics.record_withdrawal_processed(&msg_ids, 50000, 1);
 
         assert_eq!(
             metrics.total_funds_withdrawn.get() as u64,
@@ -513,7 +575,9 @@ mod tests {
         assert_eq!(metrics.pending_failed_deposits.get(), 1);
         assert_eq!(metrics.failed_deposit_funds_sompi.get(), 20000);
 
-        metrics.record_withdrawal_failed(30000);
+        let failed_msg_ids = vec!["msg_2".to_string()];
+        let is_new_failure = metrics.record_withdrawal_failed(&failed_msg_ids, 30000);
+        assert!(is_new_failure);
         assert_eq!(metrics.pending_failed_withdrawals.get(), 1);
         assert_eq!(metrics.failed_withdrawal_funds_sompi.get(), 30000);
 
@@ -523,8 +587,9 @@ mod tests {
         assert_eq!(metrics.pending_failed_deposits.get(), 0);
         assert_eq!(metrics.failed_deposit_funds_sompi.get(), 0);
 
-        let withdrawal2_start = metrics.record_withdrawal_initiated(5000, 1);
-        metrics.record_withdrawal_processed(5000, 1, withdrawal2_start);
+        let withdrawal2_ids = vec!["msg_3".to_string()];
+        metrics.record_withdrawal_initiated(&withdrawal2_ids, 5000, 1);
+        metrics.record_withdrawal_processed(&withdrawal2_ids, 5000, 1);
 
         // Test confirmation metrics
         metrics.record_confirmation_failed();
@@ -538,9 +603,13 @@ mod tests {
         assert_eq!(metrics.escrow_utxo_count.get(), 10);
 
         // Test histogram observations for withdrawal batches
-        metrics.record_withdrawal_initiated(1000000, 5);
-        metrics.record_withdrawal_initiated(2000000, 10);
-        metrics.record_withdrawal_initiated(500000, 2);
+        metrics.record_withdrawal_initiated(&vec!["batch_1".to_string()], 1000000, 5);
+        metrics.record_withdrawal_initiated(
+            &vec!["batch_2_1".to_string(), "batch_2_2".to_string()],
+            2000000,
+            10,
+        );
+        metrics.record_withdrawal_initiated(&vec!["batch_3".to_string()], 500000, 2);
 
         // Verify we have 3 more batch observations (plus the 2 from earlier tests)
         assert_eq!(metrics.withdrawal_batch_messages.get_sample_count(), 5);

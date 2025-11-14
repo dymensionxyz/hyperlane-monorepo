@@ -156,7 +156,10 @@ impl KaspaProvider {
     }
 
     /// Store withdrawal messages and their kaspa transaction IDs in the database
-    pub fn add_kaspa_tx_id_withdrawals(&self, withdrawals: &[(HyperlaneMessage, String)]) {
+    pub fn hack_store_withdrawals_kaspa_tx_for_query(
+        &self,
+        withdrawals: &[(HyperlaneMessage, String)],
+    ) {
         if let Some(kaspa_db) = &self.kaspa_db {
             for (msg, kaspa_tx) in withdrawals {
                 if !kaspa_tx.is_empty() {
@@ -310,7 +313,6 @@ impl KaspaProvider {
     pub async fn process_withdrawal_messages(
         &self,
         msgs: Vec<HyperlaneMessage>,
-        start_time: Option<std::time::Instant>,
     ) -> Result<Vec<(HyperlaneMessage, String)>> {
         match self.process_withdrawal_messages_inner(msgs.clone()).await {
             WithdrawalProcessResult::Success {
@@ -319,10 +321,16 @@ impl KaspaProvider {
                 fxg,
                 tx_ids,
             } => {
-                if let Some(start) = start_time {
-                    self.metrics
-                        .record_withdrawal_processed(total_amt, msg_count, start);
-                }
+                // Collect all message IDs that were successfully processed
+                let message_ids: Vec<String> = fxg
+                    .messages
+                    .iter()
+                    .flatten()
+                    .map(|m| format!("{:?}", m.id()))
+                    .collect();
+
+                self.metrics
+                    .record_withdrawal_processed(&message_ids, total_amt, msg_count);
 
                 if let Some(last_anchor) = fxg.anchors.last() {
                     let current_ts = kaspa_core::time::unix_now();
@@ -352,7 +360,10 @@ impl KaspaProvider {
                 Ok(msgs.into_iter().map(|msg| (msg, String::new())).collect())
             }
             WithdrawalProcessResult::Failed { total_amt, error } => {
-                self.metrics.record_withdrawal_failed(total_amt);
+                let message_ids: Vec<String> =
+                    msgs.iter().map(|m| format!("{:?}", m.id())).collect();
+                self.metrics
+                    .record_withdrawal_failed(&message_ids, total_amt);
                 Err(error)
             }
         }
