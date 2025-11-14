@@ -150,7 +150,7 @@ where
 
             match op {
                 Some(operation) => {
-                    self.process_deposit_operation(operation).await;
+                    self.try_relay_deposit(operation).await;
                 }
                 None => break,
             }
@@ -200,7 +200,7 @@ where
         Ok((hl_message_with_metadata, amount, utxo_index))
     }
 
-    async fn process_deposit_operation(&self, mut op: DepositOperation) {
+    async fn try_relay_deposit(&self, mut op: DepositOperation) {
         info!(deposit_id = %op.deposit.id, "Processing deposit operation");
 
         // Decode payload and add Kaspa metadata to get the proper HL message
