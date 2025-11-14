@@ -15,7 +15,6 @@ use hyperlane_core::{
 };
 use hyperlane_cosmos::native::{h512_to_cosmos_hash, CosmosNativeMailbox};
 use kaspa_consensus_core::tx::TransactionOutpoint;
-use kaspa_core::time::unix_now;
 use std::{collections::HashSet, fmt::Debug, hash::Hash, sync::Arc, time::Duration};
 use tokio::{sync::Mutex, task::JoinHandle, time};
 use tokio_metrics::TaskMonitor;
@@ -93,17 +92,8 @@ where
     // https://github.com/dymensionxyz/hyperlane-monorepo/blob/20b9e669afcfb7728e66b5932e85c0f7fcbd50c1/dymension/libs/kaspa/lib/relayer/note.md#L102-L119
     async fn deposit_loop(&self) {
         info!("Dymension, starting deposit loop with queue");
-        let lower_bound_unix_time: Option<i64> =
-            match self.provider.must_relayer_stuff().deposit_look_back_mins {
-                Some(offset) => {
-                    let secs = offset * 60;
-                    let dur = Duration::new(secs, 0);
-                    Some(unix_now() as i64 - dur.as_millis() as i64)
-                }
-                None => None,
-            };
+        let lower_bound_unix_time = self.config.lower_bound_unix_time();
         loop {
-            self.process_deposit_queue().await;
             let result = self
                 .provider
                 .rest()
@@ -125,7 +115,7 @@ where
                 "Dymension, queried kaspa deposits"
             );
             self.queue_new_deposits(deposits).await;
-
+            self.process_deposit_queue().await;
             time::sleep(self.config.poll_interval).await;
         }
     }
@@ -347,11 +337,11 @@ where
             Ok(None) => {
                 let deposit_id = format!("{:?}", op.deposit.id);
                 self.provider
-                .metrics()
-                .record_deposit_failed(&deposit_id, amount);
-            op.mark_failed(&self.config, None);
-            self.deposit_tracker.lock().await.requeue(op);
-            info!("Dymension, F() new deposit returned none, scheduled retry");
+                    .metrics()
+                    .record_deposit_failed(&deposit_id, amount);
+                op.mark_failed(&self.config, None);
+                self.deposit_tracker.lock().await.requeue(op);
+                info!("Dymension, F() new deposit returned none, scheduled retry");
             }
             Err(e) => {
                 let kaspa_err = KaspaDepositError::from(e);

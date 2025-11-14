@@ -76,7 +76,6 @@ impl DepositOperation {
             "Deposit operation failed"
         );
     }
-
 }
 
 #[derive(Debug)]

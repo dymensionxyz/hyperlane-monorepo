@@ -511,6 +511,7 @@ pub fn build_kaspa_connection_conf(
                 .parse_duration()
                 .end()
                 .unwrap_or(std::time::Duration::from_secs(3600)),
+            deposit_look_back_mins: offset_relay_time_hours,
         })
     } else {
         None
