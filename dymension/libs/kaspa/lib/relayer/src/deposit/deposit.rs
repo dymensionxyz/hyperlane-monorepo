@@ -77,7 +77,7 @@ pub async fn check_deposit_finality(
             confirmations = finality_status.confirmations,
             required_confirmations = finality_status.required_confirmations,
             retry_after_secs = retry_after_secs,
-            "Deposit not yet safe against reorg"
+            "kaspa relayer: deposit not yet safe against reorg"
         );
 
         return Err(KaspaTxError::NotFinalError {
@@ -90,7 +90,7 @@ pub async fn check_deposit_finality(
     info!(
         deposit_id = %deposit.id,
         confirmations = finality_status.confirmations,
-        "Deposit is safe against reorg"
+        "kaspa relayer: deposit safe against reorg"
     );
 
     if deposit.block_hashes.is_empty() {

@@ -69,13 +69,13 @@ pub async fn on_new_withdrawals(
     min_withdrawal_sompi: U256,
     tx_fee_multiplier: f64,
 ) -> Result<Option<WithdrawFXG>> {
-    info!("kaspa relayer: getting pending withdrawals");
+    info!("kaspa relayer: filtering pending withdrawals");
 
     let (current_anchor, pending_msgs) = filter_pending_withdrawals(messages, cosmos.query())
         .await
         .map_err(|e| eyre::eyre!("Get pending withdrawals: {}", e))?;
 
-    info!("kaspa relayer: got pending withdrawals");
+    info!("kaspa relayer: filtered pending withdrawals");
 
     build_withdrawal_fxg(
         pending_msgs,
@@ -108,12 +108,12 @@ pub async fn build_withdrawal_fxg(
         .map_err(|e| eyre::eyre!("Get normal bucket feerate: {e}"))?;
 
     if outputs.is_empty() {
-        info!("kaspa relayer: no valid pending withdrawals, all in batch are already processed and confirmed on hub");
+        info!("kaspa relayer: no valid pending withdrawals found, all in batch already processed and confirmed on hub");
         return Ok(None); // nothing to process
     }
     info!(
-        withdrawal_num = outputs.len(),
-        "kaspa relayer: got pending withdrawals, building PSKT"
+        withdrawal_count = outputs.len(),
+        "kaspa relayer: building withdrawal PSKT"
     );
 
     // Get all the UTXOs for the escrow and the relayer
@@ -175,7 +175,7 @@ pub async fn build_withdrawal_fxg(
         info!(
             pskt_count = sweeping_bundle.0.len(),
             escrow_inputs_swept = to_sweep_num,
-            "constructed sweeping bundle"
+            "kaspa relayer: constructed sweeping bundle"
         );
 
         let mut inputs = Vec::with_capacity(swept_outputs.len() + 1);
@@ -184,7 +184,7 @@ pub async fn build_withdrawal_fxg(
 
         (Some(sweeping_bundle), inputs)
     } else {
-        info!("no sweep needed, continue to withdrawal");
+        info!("kaspa relayer: no sweep needed, continuing to withdrawal");
 
         let mut inputs = Vec::with_capacity(escrow_inputs.len() + relayer_inputs.len());
         inputs.extend(escrow_inputs);

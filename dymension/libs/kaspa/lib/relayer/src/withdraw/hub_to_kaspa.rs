@@ -223,13 +223,13 @@ pub fn build_withdrawal_pskt(
     let payload_len = payload.len();
 
     info!(
-        inputs_num = inputs_num,
-        outputs_num = outputs_num,
+        inputs_count = inputs_num,
+        outputs_count = outputs_num,
         payload_len = payload_len,
         tx_mass = tx_mass,
         feerate = feerate,
         tx_fee = tx_fee,
-        "kaspa relayer: withdrawal TX"
+        "kaspa relayer: prepared withdrawal transaction"
     );
 
     create_withdrawal_pskt(inputs, outputs, payload)
@@ -299,7 +299,7 @@ pub fn get_outputs_from_msgs(
             Err(e) => {
                 info!(
                     error = %e,
-                    "kaspa relayer: can't get TokenMessage from HyperlaneMessage body, skipping"
+                    "kaspa relayer: skipped message, failed to parse TokenMessage from HyperlaneMessage body"
                 );
                 continue;
             }
@@ -313,7 +313,7 @@ pub fn get_outputs_from_msgs(
             info!(
                 amount = o.value,
                 message_id = ?m.id(),
-                "kaspa relayer: withdrawal amount is less than dust amount, skipping"
+                "kaspa relayer: skipped withdrawal, amount below dust threshold"
             );
             continue;
         }
@@ -412,12 +412,12 @@ pub async fn combine_bundles_with_fee(
     escrow: &EscrowPublic,
     easy_wallet: &EasyKaspaWallet,
 ) -> Result<Vec<RpcTransaction>> {
-    info!("kaspa provider: got withdrawal FXG, now gathering sigs and signing relayer fee");
+    info!("kaspa relayer: received withdrawal FXG, gathering validator signatures");
 
     let mut bundles_validators = bundles_validators;
 
     let all_bundles = {
-        info!("kaspa provider: got validator bundles, now signing relayer fee");
+        info!("kaspa relayer: received validator bundles, signing relayer fee");
         if bundles_validators.len() < multisig_threshold {
             return Err(eyre!(
                 "Not enough validator bundles, required: {}, got: {}",
@@ -427,7 +427,7 @@ pub async fn combine_bundles_with_fee(
         }
 
         let bundle_relayer = sign_relayer_fee(easy_wallet, fxg).await?; // TODO: can add own sig in parallel to validator network request
-        info!("kaspa provider: got relayer fee bundle, now combining all bundles");
+        info!("kaspa relayer: signed relayer fee bundle, combining all bundles");
         bundles_validators.push(bundle_relayer);
         bundles_validators
     };
@@ -491,7 +491,7 @@ fn combine_all_bundles(bundles: Vec<Bundle>) -> Result<Vec<PSKT<Combiner>>> {
         info!(
             pskt_idx = pskt_idx,
             tx_id = %pskt.calculate_id(),
-            "combining PSKT"
+            "kaspa relayer: combining PSKT signatures"
         );
 
         let mut combiner = pskt.combiner();
@@ -500,7 +500,7 @@ fn combine_all_bundles(bundles: Vec<Bundle>) -> Result<Vec<PSKT<Combiner>>> {
             info!(
                 pskt_idx = pskt_idx,
                 sig_idx = sig_idx,
-                "combining PSKT signature"
+                "kaspa relayer: combined PSKT signature"
             );
             combiner = (combiner + tx_sig.clone())?;
         }

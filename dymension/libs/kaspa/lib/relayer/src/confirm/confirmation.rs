@@ -30,7 +30,7 @@ pub async fn expensive_trace_transactions(
     info!(
         new_anchor = ?out_new_candidate,
         old_anchor = ?out_old,
-        "starting transaction trace"
+        "kaspa relayer: tracing transaction lineage"
     );
 
     let mut processed_withdrawals: Vec<MessageID> = Vec::new();
@@ -49,10 +49,10 @@ pub async fn expensive_trace_transactions(
     info!(
         utxos_count = outpoint_sequence.len(),
         processed_withdrawals_count = processed_withdrawals.len(),
-        "trace completed"
+        "kaspa relayer: completed transaction trace"
     );
     for o in outpoint_sequence.clone() {
-        info!(outpoint = ?o, "lineage outpoint");
+        info!(outpoint = ?o, "kaspa relayer: traced lineage outpoint");
     }
     Ok(ConfirmationFXG::from_msgs_outpoints(
         processed_withdrawals,
@@ -74,14 +74,14 @@ pub async fn recursive_trace_transactions(
         return Ok(());
     }
 
-    info!(utxo = ?out_curr, "tracing lineage backwards from UTXO");
+    info!(utxo = ?out_curr, "kaspa relayer: tracing lineage backwards from UTXO");
 
     // tx that created the candidate
     let tx = client_rest
         .get_tx_by_id(&out_curr.transaction_id.to_string())
         .await?;
 
-    info!(tx = ?tx, "queried kaspa tx");
+    info!(tx = ?tx, "kaspa relayer: queried transaction for lineage trace");
 
     let inputs = tx
         .inputs
@@ -91,7 +91,7 @@ pub async fn recursive_trace_transactions(
     // we skip inputs that are not from the escrow address
     // we do recursive call for inputs that are from the escrow address
     for input in inputs {
-        info!(input_index = ?input.index, "checking input");
+        info!(input_index = ?input.index, "kaspa relayer: checking transaction input");
 
         let spent_escrow_funds = {
             let input_address = input
@@ -102,7 +102,7 @@ pub async fn recursive_trace_transactions(
             input_address == escrow_addr
         };
         if !spent_escrow_funds {
-            info!("skipping input from non-escrow address");
+            info!("kaspa relayer: skipped input from non-escrow address");
             continue;
         }
 

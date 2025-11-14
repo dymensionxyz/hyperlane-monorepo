@@ -1,7 +1,6 @@
 use eyre::Result;
 use kaspa_addresses::{Prefix, Version};
 use kaspa_consensus_core::network::{NetworkId, NetworkType};
-use kaspa_core::info;
 use kaspa_wallet_core::account::pskb::PSKBSigner;
 use kaspa_wallet_core::api::WalletApi;
 use kaspa_wallet_core::derivation::build_derivate_paths;
@@ -15,6 +14,7 @@ use kaspa_wallet_pskt::prelude::KeySource;
 use kaspa_wrpc_client::Resolver;
 use std::fmt;
 use std::sync::Arc;
+use tracing::info;
 
 pub async fn get_wallet(
     s: &Secret,
@@ -45,9 +45,9 @@ pub async fn get_wallet(
         .map_err(|e| Error::from(format!("Failed to connect wallet: {e}")))?;
 
     let is_c = w.is_connected();
-    info!("connected: {:?}", is_c);
+    info!(connected = is_c, "kaspa: wallet connection status");
 
-    info!("secret: {:?}", s.as_str());
+    info!("kaspa: wallet secret loaded");
 
     w.clone()
         .wallet_open(s.clone(), None, true, false)
@@ -64,8 +64,10 @@ pub async fn get_wallet(
 
     let account_id = account_descriptor.account_id;
     info!(
-        "Account ID: {:?}, recv addr: {:?}, change addr: {:?}",
-        account_id, account_descriptor.receive_address, account_descriptor.change_address
+        account_id = ?account_id,
+        receive_address = ?account_descriptor.receive_address,
+        change_address = ?account_descriptor.change_address,
+        "kaspa: wallet account loaded"
     );
 
     w.clone()

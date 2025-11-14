@@ -102,7 +102,7 @@ pub struct HttpClient {
 impl HttpClient {
     pub fn new(url: String, config: RateLimitConfig) -> Self {
         let c = get_client(config);
-        info!(url = %url, "created Kaspa REST API Client");
+        info!(url = %url, "kaspa: created REST API client");
         Self { url, client: c }
     }
 
@@ -116,7 +116,7 @@ impl HttpClient {
         let mut upper_bound_t = 0i64;
 
         let c = self.get_config();
-        info!(url = ?c.base_path, "dymension query kaspa deposits");
+        info!(url = ?c.base_path, "kaspa: querying deposits");
 
         let mut deposits: Vec<Deposit> = Vec::new();
 
@@ -173,7 +173,7 @@ impl HttpClient {
                             tx_id = ?tx_id,
                             block_time = ?tx_time,
                             error = ?e,
-                            "Skipping invalid deposit"
+                            "kaspa: skipped invalid deposit"
                         );
                         continue;
                     }
@@ -197,7 +197,7 @@ impl HttpClient {
 
     // TODO: we should pass block hash hint in validator (he can get it from relayer)
     pub async fn get_tx_by_id(&self, tx_id: &str) -> Result<TxModel> {
-        info!(tx_id = ?tx_id, "querying kaspa tx by id");
+        info!(tx_id = ?tx_id, "kaspa: querying transaction by id");
         let c = self.get_config();
 
         let tx = get_tx_by_id(
@@ -219,7 +219,7 @@ impl HttpClient {
         tx_id: &str,
         block_hash_hint: Option<String>,
     ) -> Result<TxModel> {
-        info!(tx_id = ?tx_id, "querying kaspa tx by id slim");
+        info!(tx_id = ?tx_id, "kaspa: querying transaction by id (slim)");
         let c = self.get_config();
 
         let tx = get_tx_by_id(
