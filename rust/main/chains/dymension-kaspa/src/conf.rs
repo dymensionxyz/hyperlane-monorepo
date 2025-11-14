@@ -53,19 +53,19 @@ pub use dym_kas_kms::AwsKeyConfig;
 pub struct RelayerStuff {
     pub validator_hosts: Vec<String>,
     pub deposit_look_back_mins: Option<u64>,
-    pub kaspa_time_config: KaspaTimeConfig,
+    pub kaspa_time_config: RelayerDepositTimings,
     pub tx_fee_multiplier: f64,
 }
 
 #[derive(Debug, Clone)]
-pub struct KaspaTimeConfig {
+pub struct RelayerDepositTimings {
     pub poll_interval: std::time::Duration,
     pub retry_delay_base: std::time::Duration,
     pub retry_delay_exponent: f64,
     pub retry_delay_max: std::time::Duration,
 }
 
-impl Default for KaspaTimeConfig {
+impl Default for RelayerDepositTimings {
     fn default() -> Self {
         Self {
             poll_interval: std::time::Duration::from_secs(5),
@@ -111,7 +111,7 @@ impl ConnectionConf {
         op_submission_config: OpSubmissionConfig,
         validation_conf: ValidationConf,
         min_deposit_sompi: U256,
-        kaspa_time_config: Option<KaspaTimeConfig>,
+        kaspa_time_config: Option<RelayerDepositTimings>,
 
         hub_domain: u32,
         hub_token_id: H256,

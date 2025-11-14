@@ -291,7 +291,7 @@ impl KaspaProvider {
         self.conf.relayer_stuff.as_ref().unwrap()
     }
 
-    pub fn kaspa_time_cfg(&self) -> Option<crate::conf::KaspaTimeConfig> {
+    pub fn kaspa_time_cfg(&self) -> Option<crate::conf::RelayerDepositTimings> {
         self.conf
             .relayer_stuff
             .as_ref()
