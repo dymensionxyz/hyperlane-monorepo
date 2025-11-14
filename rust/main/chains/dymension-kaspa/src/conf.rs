@@ -117,7 +117,6 @@ impl ConnectionConf {
         multisig_threshold_hub_ism: usize,
         multisig_threshold_kaspa_schnorr: usize,
         hub_grpc_urls: Vec<Url>,
-        deposit_look_back_mins: Option<u64>,
         hub_mailbox_id: String,
         op_submission_config: OpSubmissionConfig,
         validation_conf: ValidationConf,
@@ -156,15 +155,11 @@ impl ConnectionConf {
 
         let r = match validator_hosts.len() {
             0 => None,
-            _ => {
-                let mut timings = kaspa_time_config.unwrap_or_default();
-                timings.deposit_look_back_mins = deposit_look_back_mins;
-                Some(RelayerStuff {
-                    validator_hosts,
-                    deposit_timings: timings,
-                    tx_fee_multiplier: kas_tx_fee_multiplier,
-                })
-            }
+            _ => Some(RelayerStuff {
+                validator_hosts,
+                deposit_timings: kaspa_time_config.unwrap_or_default(),
+                tx_fee_multiplier: kas_tx_fee_multiplier,
+            }),
         };
 
         Self {
