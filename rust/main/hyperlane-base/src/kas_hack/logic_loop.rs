@@ -297,10 +297,7 @@ where
                 }
             };
 
-        // Step 2: Save to DB
-        self.provider.store_deposit(&hl_message, &deposit_id);
-
-        // Step 3: Check if already delivered (before expensive finality check)
+        // Step 2: Check if already delivered (before expensive finality check)
         match self.hub_mailbox.delivered(hl_message.id()).await {
             Ok(true) => {
                 return DepositRelayResult::AlreadyDelivered { deposit_id };
@@ -315,6 +312,9 @@ where
             }
             _ => {}
         }
+
+        // Step 3: Save to DB
+        self.provider.store_deposit(&hl_message, &deposit_id);
 
         // Step 4: Check finality
         if let Err(e) =
@@ -684,7 +684,7 @@ where
         Ok(())
     }
 
-    // TODO: can probably just use the ad hoc method
+    // for deposits
     fn format_checkpoint_signatures(
         &self,
         sigs: &mut Vec<SignedCheckpointWithMessageId>,
@@ -709,6 +709,7 @@ where
         Ok(meta.to_vec())
     }
 
+    // for withdrawal confirmations
     fn format_ad_hoc_signatures(
         &self,
         sigs: &mut Vec<Signature>,
