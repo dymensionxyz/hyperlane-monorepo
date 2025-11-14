@@ -370,13 +370,12 @@ impl KaspaProvider {
         &self,
         msgs: Vec<HyperlaneMessage>,
     ) -> WithdrawalProcessResult {
-        let min_withdrawal_amt = self.conf.min_deposit_sompi;
         let fxg = match on_new_withdrawals(
             msgs.clone(),
             self.easy_wallet.clone(),
             self.cosmos_rpc.clone(),
             self.escrow(),
-            min_withdrawal_amt,
+            self.get_min_deposit_sompi(),
             self.must_relayer_stuff().tx_fee_multiplier,
         )
         .await

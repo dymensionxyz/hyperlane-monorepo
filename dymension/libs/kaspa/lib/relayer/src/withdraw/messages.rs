@@ -101,10 +101,6 @@ pub async fn build_withdrawal_fxg(
         min_withdrawal_sompi,
     );
 
-    let feerate = get_normal_bucket_feerate(&relayer.api())
-        .await
-        .map_err(|e| eyre::eyre!("Get normal bucket feerate: {e}"))?;
-
     if outputs.is_empty() {
         info!("kaspa relayer: no valid pending withdrawals found, all in batch already processed and confirmed on hub");
         return Ok(None); // nothing to process
@@ -197,6 +193,10 @@ pub async fn build_withdrawal_fxg(
     )?;
 
     let payload = MessageIDs::from(&final_msgs).to_bytes();
+
+    let feerate = get_normal_bucket_feerate(&relayer.api())
+        .await
+        .map_err(|e| eyre::eyre!("Get normal bucket feerate: {e}"))?;
 
     let pskt = build_withdrawal_pskt(
         inputs,
