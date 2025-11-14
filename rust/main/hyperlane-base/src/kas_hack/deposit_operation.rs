@@ -83,39 +83,43 @@ impl DepositOperation {
 }
 
 #[derive(Debug)]
-pub struct DepositOpQueue {
-    operations: std::collections::BinaryHeap<DepositOperation>,
+pub struct DepositTracker {
+    seen: std::collections::HashSet<kaspa_consensus_core::tx::TransactionId>,
+    pending: std::collections::BinaryHeap<DepositOperation>,
 }
 
-impl DepositOpQueue {
+impl DepositTracker {
     pub fn new() -> Self {
         Self {
-            operations: std::collections::BinaryHeap::new(),
+            seen: std::collections::HashSet::new(),
+            pending: std::collections::BinaryHeap::new(),
         }
     }
 
-    pub fn push(&mut self, op: DepositOperation) {
-        self.operations.push(op);
+    pub fn has_seen(&self, deposit: &Deposit) -> bool {
+        self.seen.contains(&deposit.id)
+    }
+
+    pub fn track(&mut self, deposit: Deposit, escrow_address: String) -> bool {
+        if self.seen.insert(deposit.id) {
+            let op = DepositOperation::new(deposit, escrow_address);
+            self.pending.push(op);
+            true
+        } else {
+            false
+        }
     }
 
     pub fn pop_ready(&mut self) -> Option<DepositOperation> {
-        if let Some(op) = self.operations.peek() {
+        if let Some(op) = self.pending.peek() {
             if op.is_ready() {
-                return self.operations.pop();
+                return self.pending.pop();
             }
         }
         None
     }
 
     pub fn requeue(&mut self, op: DepositOperation) {
-        self.operations.push(op);
-    }
-
-    pub fn len(&self) -> usize {
-        self.operations.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.operations.is_empty()
+        self.pending.push(op);
     }
 }

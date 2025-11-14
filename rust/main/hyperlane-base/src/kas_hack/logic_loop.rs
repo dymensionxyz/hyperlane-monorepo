@@ -22,7 +22,7 @@ use tokio_metrics::TaskMonitor;
 use tracing::{debug, error, info, info_span, Instrument};
 
 use super::{
-    deposit_operation::{DepositOpQueue, DepositOperation},
+    deposit_operation::{DepositOperation, DepositTracker},
     error::KaspaDepositError,
 };
 use dymension_kaspa::conf::KaspaTimeConfig;
@@ -31,8 +31,7 @@ pub struct Foo<C: MetadataConstructor> {
     provider: Box<KaspaProvider>,
     hub_mailbox: Arc<CosmosNativeMailbox>,
     metadata_constructor: C,
-    deposit_cache: DepositCache,
-    deposit_queue: Mutex<DepositOpQueue>,
+    deposit_tracker: Mutex<DepositTracker>,
     config: KaspaTimeConfig,
 }
 
@@ -53,8 +52,7 @@ where
             provider,
             hub_mailbox,
             metadata_constructor,
-            deposit_cache: DepositCache::new(),
-            deposit_queue: Mutex::new(DepositOpQueue::new()),
+            deposit_tracker: Mutex::new(DepositTracker::new()),
             config,
         }
     }
@@ -135,25 +133,23 @@ where
     }
 
     async fn queue_new_deposits(&self, deposits: Vec<Deposit>) {
-        let mut new_deposits = Vec::new();
+        let escrow_address = self.provider.escrow_address().to_string();
+        let mut tracker = self.deposit_tracker.lock().await;
+        let mut new_count = 0;
 
-        for dep in deposits.into_iter() {
-            if !self.deposit_cache.has_seen(&dep).await {
-                self.deposit_cache.mark_as_seen(dep.clone()).await;
+        for dep in deposits {
+            if tracker.track(dep.clone(), escrow_address.clone()) {
                 info!(deposit = ?dep, "Dymension, new deposit seen");
-                new_deposits.push(dep);
+                new_count += 1;
             }
         }
 
-        if !new_deposits.is_empty() {
+        drop(tracker);
+
+        if new_count > 0 {
             if let Err(e) = self.provider.update_balance_metrics().await {
                 error!("Failed to update balance metrics: {:?}", e);
             }
-        }
-
-        for dep in &new_deposits {
-            let op = DepositOperation::new(dep.clone(), self.provider.escrow_address().to_string());
-            self.deposit_queue.lock().await.push(op);
         }
     }
 
@@ -161,8 +157,8 @@ where
     async fn process_deposit_queue(&self) {
         loop {
             let op = {
-                let mut q = self.deposit_queue.lock().await;
-                q.pop_ready()
+                let mut tracker = self.deposit_tracker.lock().await;
+                tracker.pop_ready()
             };
 
             match op {
@@ -272,7 +268,7 @@ where
                             .metrics()
                             .record_deposit_failed(&deposit_id, amount);
                         op.mark_failed(&self.config, None);
-                        self.deposit_queue.lock().await.requeue(op);
+                        self.deposit_tracker.lock().await.requeue(op);
                         return;
                     }
                     _ => {}
@@ -300,7 +296,7 @@ where
                                 .record_deposit_failed(&deposit_id, amount);
 
                             op.mark_failed(&self.config, None);
-                            self.deposit_queue.lock().await.requeue(op);
+                            self.deposit_tracker.lock().await.requeue(op);
                         } else {
                             info!(
                                 fxg = ?fxg,
@@ -335,7 +331,7 @@ where
                                 .metrics()
                                 .record_deposit_failed(&deposit_id, amount);
                             op.mark_failed(&self.config, None);
-                            self.deposit_queue.lock().await.requeue(op);
+                            self.deposit_tracker.lock().await.requeue(op);
                         } else {
                             error!(
                                 error = ?e,
@@ -360,7 +356,7 @@ where
                     .metrics()
                     .record_deposit_failed(&deposit_id, amount);
                 op.mark_failed(&self.config, None);
-                self.deposit_queue.lock().await.requeue(op);
+                self.deposit_tracker.lock().await.requeue(op);
             }
             Err(e) => {
                 let kaspa_err = KaspaDepositError::from(e);
@@ -382,7 +378,7 @@ where
                 }
 
                 op.mark_failed(&self.config, custom_delay);
-                self.deposit_queue.lock().await.requeue(op);
+                self.deposit_tracker.lock().await.requeue(op);
             }
         }
     }
@@ -743,28 +739,6 @@ where
 
         let meta = self.metadata_constructor.metadata(&ckpt)?;
         Ok(meta.to_vec())
-    }
-}
-
-pub struct DepositCache {
-    seen: Mutex<HashSet<Deposit>>,
-}
-
-impl DepositCache {
-    pub fn new() -> Self {
-        Self {
-            seen: Mutex::new(HashSet::new()),
-        }
-    }
-
-    async fn has_seen(&self, dep: &Deposit) -> bool {
-        let guard = self.seen.lock().await;
-        guard.contains(dep)
-    }
-
-    async fn mark_as_seen(&self, dep: Deposit) {
-        let mut guard = self.seen.lock().await;
-        guard.insert(dep);
     }
 }
 
