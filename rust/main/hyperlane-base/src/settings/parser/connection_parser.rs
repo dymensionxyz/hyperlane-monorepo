@@ -487,30 +487,30 @@ pub fn build_kaspa_connection_conf(
     // Parse KaspaTimeConfig if provided
     let kaspa_time_config = if validator_hosts.len() > 0 {
         Some(dymension_kaspa::KaspaTimeConfig {
-            base_retry_delay_secs: chain
+            poll_interval: chain
                 .chain(err)
-                .get_opt_key("kaspaTimeBaseRetryDelaySecs")
-                .parse_u64()
+                .get_opt_key("kaspaTimePollInterval")
+                .parse_duration()
                 .end()
-                .unwrap_or(30),
-            poll_interval_secs: chain
+                .unwrap_or(std::time::Duration::from_secs(5)),
+            retry_delay_base: chain
                 .chain(err)
-                .get_opt_key("kaspaTimePollIntervalSecs")
-                .parse_u64()
+                .get_opt_key("kaspaTimeRetryDelayBase")
+                .parse_duration()
                 .end()
-                .unwrap_or(10),
+                .unwrap_or(std::time::Duration::from_secs(30)),
             retry_delay_exponent: chain
                 .chain(err)
                 .get_opt_key("kaspaTimeRetryDelayExponent")
                 .parse_f64()
                 .end()
                 .unwrap_or(2.0),
-            max_retry_delay_secs: chain
+            retry_delay_max: chain
                 .chain(err)
-                .get_opt_key("kaspaTimeMaxRetryDelaySecs")
-                .parse_u64()
+                .get_opt_key("kaspaTimeRetryDelayMax")
+                .parse_duration()
                 .end()
-                .unwrap_or(3600),
+                .unwrap_or(std::time::Duration::from_secs(3600)),
         })
     } else {
         None

@@ -6727,6 +6727,7 @@ dependencies = [
  "futures",
  "futures-util",
  "hardcode",
+ "humantime",
  "hyperlane-core",
  "hyperlane-cosmos",
  "hyperlane-ethereum",

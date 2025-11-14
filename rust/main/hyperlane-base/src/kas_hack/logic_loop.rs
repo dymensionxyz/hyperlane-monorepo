@@ -118,7 +118,7 @@ where
                 Ok(deposits) => deposits,
                 Err(e) => {
                     error!(error = ?e, "Dymension, query new Kaspa deposits failed");
-                    time::sleep(self.config.poll_interval()).await;
+                    time::sleep(self.config.poll_interval).await;
                     continue;
                 }
             };
@@ -128,7 +128,7 @@ where
             );
             self.queue_new_deposits(deposits).await;
 
-            time::sleep(self.config.poll_interval()).await;
+            time::sleep(self.config.poll_interval).await;
         }
     }
 
@@ -429,7 +429,7 @@ where
                 }
             }
 
-            time::sleep(self.config.poll_interval()).await;
+            time::sleep(self.config.poll_interval).await;
         }
     }
 

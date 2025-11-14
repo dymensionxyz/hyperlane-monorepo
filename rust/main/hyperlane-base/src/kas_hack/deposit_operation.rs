@@ -56,14 +56,15 @@ impl DepositOperation {
         let delay = match custom_delay {
             Some(d) => d,
             None => {
-                let delay_secs = if self.retry_count == 1 {
-                    cfg.base_retry_delay_secs
+                if self.retry_count == 1 {
+                    cfg.retry_delay_base
                 } else {
-                    let exponential_delay = (cfg.base_retry_delay_secs as f64)
-                        * cfg.retry_delay_exponent.powi((self.retry_count - 1) as i32);
-                    exponential_delay.min(cfg.max_retry_delay_secs as f64) as u64
-                };
-                Duration::from_secs(delay_secs)
+                    let base_secs = cfg.retry_delay_base.as_secs_f64();
+                    let exponential_delay =
+                        base_secs * cfg.retry_delay_exponent.powi((self.retry_count - 1) as i32);
+                    let max_secs = cfg.retry_delay_max.as_secs_f64();
+                    Duration::from_secs_f64(exponential_delay.min(max_secs))
+                }
             }
         };
 

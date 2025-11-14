@@ -59,30 +59,20 @@ pub struct RelayerStuff {
 
 #[derive(Debug, Clone)]
 pub struct KaspaTimeConfig {
-    pub base_retry_delay_secs: u64,
-    pub poll_interval_secs: u64,
+    pub poll_interval: std::time::Duration,
+    pub retry_delay_base: std::time::Duration,
     pub retry_delay_exponent: f64,
-    pub max_retry_delay_secs: u64,
+    pub retry_delay_max: std::time::Duration,
 }
 
 impl Default for KaspaTimeConfig {
     fn default() -> Self {
         Self {
-            base_retry_delay_secs: 30,
-            poll_interval_secs: 5,
+            poll_interval: std::time::Duration::from_secs(5),
+            retry_delay_base: std::time::Duration::from_secs(30),
             retry_delay_exponent: 2.0,
-            max_retry_delay_secs: 3600,
+            retry_delay_max: std::time::Duration::from_secs(3600),
         }
-    }
-}
-
-impl KaspaTimeConfig {
-    pub fn poll_interval(&self) -> std::time::Duration {
-        std::time::Duration::from_secs(self.poll_interval_secs)
-    }
-
-    pub fn base_retry_delay(&self) -> std::time::Duration {
-        std::time::Duration::from_secs(self.base_retry_delay_secs)
     }
 }
 
