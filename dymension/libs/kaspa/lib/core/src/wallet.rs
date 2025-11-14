@@ -1,7 +1,6 @@
 use eyre::Result;
 use kaspa_addresses::{Prefix, Version};
 use kaspa_consensus_core::network::{NetworkId, NetworkType};
-use kaspa_wallet_core::account::pskb::PSKBSigner;
 use kaspa_wallet_core::api::WalletApi;
 use kaspa_wallet_core::derivation::build_derivate_paths;
 use kaspa_wallet_core::error::Error;
@@ -220,8 +219,6 @@ impl NetworkInfo {
 mod tests {
     use super::*;
     use std::str::FromStr;
-    use std::sync::Arc;
-    use url::Url;
 
     #[test]
     fn test_network_id() {
@@ -238,7 +235,7 @@ mod tests {
     async fn test_create_new_easy_wallet() {
         let rpc_url = "65.109.145.174".to_string(); // A public rpc url
         let network = Network::KaspaTest10;
-        let net_info = NetworkInfo::new(network.clone(), rpc_url.clone());
+        let _net_info = NetworkInfo::new(network.clone(), rpc_url.clone());
 
         let secret = "lkjsdf";
         let easy_wallet = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {

@@ -627,11 +627,11 @@ pub async fn sign_pay_fee(pskt: PSKT<Signer>, r: &SigningResources) -> Result<PS
 mod tests {
     use super::*;
     use bytes::Bytes;
-    use corelib::escrow::Escrow;
+
     use corelib::util::is_valid_sighash_type;
     use corelib::withdraw::WithdrawFXG;
     use hyperlane_core::H256;
-    use kaspa_consensus_core::network::NetworkType::{Devnet, Testnet};
+    use kaspa_consensus_core::network::NetworkType::Devnet;
     use kaspa_consensus_core::tx::ScriptPublicKey;
     use std::str::FromStr;
 

@@ -252,8 +252,7 @@ mod tests {
     use base64::{engine::general_purpose::STANDARD, Engine as _};
     use hyperlane_core::Decode;
     use hyperlane_warp_route::TokenMessage;
-    use kaspa_hashes::Hash;
-    use kaspa_wallet_core::tx::{Generator, GeneratorSettings};
+
     use std::io::Cursor;
 
     #[test]

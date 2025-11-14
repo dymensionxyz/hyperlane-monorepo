@@ -118,7 +118,9 @@ pub fn build_deposit_fxg(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use corelib::message::ParsedHL;
+
     #[test]
     fn test_parsed_hl_parse() {
         let inputs = [

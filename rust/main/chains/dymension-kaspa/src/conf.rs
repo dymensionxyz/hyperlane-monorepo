@@ -116,7 +116,7 @@ impl ConnectionConf {
         hub_grpc_urls: Vec<Url>,
         hub_mailbox_id: String,
         op_submission_config: OpSubmissionConfig,
-        validation_conf: ValidationConf,
+        _validation_conf: ValidationConf,
         min_deposit_sompi: U256,
         kaspa_time_config: Option<RelayerDepositTimings>,
 
