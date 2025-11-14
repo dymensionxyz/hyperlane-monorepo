@@ -1,5 +1,4 @@
 use kaspa_addresses::{Address, Prefix, Version};
-use rand_08::Rng;
 use secp256k1::{Keypair, Secp256k1};
 
 pub struct EasyKaspaKey {

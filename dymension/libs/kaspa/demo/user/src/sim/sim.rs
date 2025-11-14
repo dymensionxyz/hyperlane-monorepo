@@ -4,16 +4,17 @@ use super::round_trip::TaskArgs;
 use super::round_trip::TaskResources;
 use super::stats::render_stats;
 use super::stats::write_stats;
-use super::util::som_to_kas;
+use super::worker::WorkerWallet;
 use chrono::{DateTime, Utc};
 use corelib::api::base::RateLimitConfig;
 use corelib::api::client::HttpClient;
 use corelib::wallet::EasyKaspaWallet;
 use corelib::wallet::{EasyKaspaWalletArgs, Network};
 use eyre::Result;
-use hardcode;
 use hyperlane_cosmos::ConnectionConf as CosmosConnectionConf;
 use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
+use kaspa_consensus_core::network::NetworkId;
+use kaspa_wallet_core::prelude::Secret;
 use rand_distr::{Distribution, Exp};
 use std::time::SystemTime;
 use std::time::{Duration, Instant};
@@ -162,20 +163,30 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
 pub struct TrafficSim {
     params: Params,
     resources: TaskResources,
+    whale_wallet: EasyKaspaWallet,
+    whale_secret: Secret,
+    wrpc_url: String,
+    network_id: NetworkId,
     output_dir: String,
 }
 
 impl TrafficSim {
     pub async fn new(args: SimulateTrafficArgs) -> Result<Self> {
+        let wrpc_url = DEFAULT_WRPC_URL.to_string();
+        let net = Network::KaspaTest10;
+        let whale_secret = Secret::from(args.wallet.wallet_secret.clone());
+
         let w = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
             wallet_secret: args.wallet.wallet_secret,
-            wrpc_url: DEFAULT_WRPC_URL.to_string(),
-            net: Network::KaspaTest10,
+            wrpc_url: wrpc_url.clone(),
+            net: net.clone(),
             storage_folder: None,
         })
         .await?;
+
+        let network_id = w.net.network_id;
+
         let resources = TaskResources {
-            w: w.clone(),
             args: args.task_args,
             hub: cosmos_provider(&args.hub_whale_priv_key).await?,
             kas_rest: HttpClient::new(DEFAULT_REST_URL.to_string(), RateLimitConfig::default()),
@@ -183,15 +194,61 @@ impl TrafficSim {
         Ok(TrafficSim {
             params: args.params,
             resources,
+            whale_wallet: w,
+            whale_secret,
+            wrpc_url,
+            network_id,
             output_dir: args.output_dir,
         })
     }
 
     pub async fn run(&self) -> Result<()> {
         let mut rng = rand::rng();
-        let start_time = Instant::now();
-        let mut total_ops = 0;
-        let mut total_spend = 0;
+
+        // Pre-create and fund worker wallets
+        let estimated_ops = (self.params.num_ops() * 1.1) as usize; // 10% buffer
+        info!("Creating and funding {} worker wallets", estimated_ops);
+
+        let mut workers = Vec::new();
+        for i in 0..estimated_ops {
+            // Create worker
+            let worker =
+                WorkerWallet::create_new(i, self.wrpc_url.clone(), Network::KaspaTest10).await?;
+
+            // Fund worker from whale
+            let worker_address = worker.receive_address()?;
+            let fund_amount = self.params.op_budget() as u64 * 2; // Fund each worker with 2x avg op budget
+
+            use kaspa_wallet_core::tx::{Fees, PaymentDestination, PaymentOutput};
+
+            let dst = PaymentDestination::from(PaymentOutput::new(worker_address, fund_amount));
+            let fees = Fees::from(0i64);
+
+            self.whale_wallet
+                .wallet
+                .account()?
+                .send(
+                    dst,
+                    None,
+                    fees,
+                    None,
+                    self.whale_secret.clone(),
+                    None,
+                    &workflow_core::abortable::Abortable::new(),
+                    None,
+                )
+                .await?;
+
+            workers.push(worker);
+
+            // Delay between funding to allow UTXO settlement
+            if i > 0 && i % 10 == 0 {
+                info!("Funded {}/{} workers", i + 1, estimated_ops);
+            }
+            tokio::time::sleep(Duration::from_millis(1500)).await;
+        }
+
+        info!("All workers funded, starting simulation");
 
         let (stats_tx, mut stats_rx) = mpsc::channel(100);
 
@@ -203,9 +260,22 @@ impl TrafficSim {
             collected_stats
         });
 
-        info!("Starting tasks");
+        let start_time = Instant::now();
+        let mut total_ops = 0;
+        let mut total_spend = 0;
         let cancel = CancellationToken::new();
+
+        let mut worker_iter = workers.into_iter();
+
         while start_time.elapsed() < self.params.time_limit {
+            let worker = match worker_iter.next() {
+                Some(w) => w,
+                None => {
+                    info!("Ran out of pre-funded workers at {} ops", total_ops);
+                    break;
+                }
+            };
+
             let nominal_value = self.params.sample_value();
             let tx_clone = stats_tx.clone();
             let r = self.resources.clone();
@@ -213,9 +283,11 @@ impl TrafficSim {
             let hub_key = EasyHubKey::new();
             fund_hub_addr(&hub_key, &r.hub, self.params.hub_fund_amount).await?;
             let cancel_token_clone = cancel.clone();
+
             tokio::spawn(async move {
                 do_round_trip(
                     r,
+                    worker,
                     nominal_value,
                     &tx_clone,
                     task_id,
@@ -223,26 +295,31 @@ impl TrafficSim {
                     cancel_token_clone,
                 )
                 .await;
-                drop(tx_clone); // TODO: needed?
+                drop(tx_clone);
             });
+
             total_spend += nominal_value;
             total_ops += 1;
+
             let sleep_millis = self.params.distr_time().sample(&mut rng) as u64;
             tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
-            info!(
-                "elasped millis {}, interval {}, value {}",
-                start_time.elapsed().as_millis(),
-                sleep_millis,
-                som_to_kas(nominal_value)
-            );
+
+            if total_ops % 10 == 0 {
+                info!(
+                    "Started {} ops, elapsed: {}s",
+                    total_ops,
+                    start_time.elapsed().as_secs()
+                );
+            }
+
             if self.params.simple_mode {
                 break;
             }
         }
-        info!("Waiting for tasks to finish");
 
+        info!("Waiting for tasks to finish");
         drop(stats_tx);
-        tokio::time::sleep(self.params.max_wait_for_cancel).await; // TODO: should only wait if need to
+        tokio::time::sleep(self.params.max_wait_for_cancel).await;
         cancel.cancel();
 
         let final_stats = collector_handle.await?;
