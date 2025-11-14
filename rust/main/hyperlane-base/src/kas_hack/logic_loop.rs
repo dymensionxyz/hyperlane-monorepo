@@ -94,28 +94,23 @@ where
         info!("Dymension, starting deposit loop with queue");
         let lower_bound_unix_time = self.config.lower_bound_unix_time();
         loop {
-            let result = self
+            self.process_deposit_queue().await;
+            match self
                 .provider
                 .rest()
                 .get_deposits(
                     &self.provider.escrow_address().to_string(),
                     lower_bound_unix_time,
                 )
-                .await;
-            let deposits = match result {
-                Ok(deposits) => deposits,
+                .await
+            {
+                Ok(deposits) => {
+                    self.queue_new_deposits(deposits).await;
+                }
                 Err(e) => {
                     error!(error = ?e, "Dymension, query new Kaspa deposits failed");
-                    time::sleep(self.config.poll_interval).await;
-                    continue;
                 }
-            };
-            info!(
-                deposit_count = deposits.len(),
-                "Dymension, queried kaspa deposits"
-            );
-            self.queue_new_deposits(deposits).await;
-            self.process_deposit_queue().await;
+            }
             time::sleep(self.config.poll_interval).await;
         }
     }
@@ -135,6 +130,10 @@ where
         drop(tracker);
 
         if new_count > 0 {
+            info!(
+                deposit_count = new_count,
+                "Dymension, queried new kaspa deposits"
+            );
             if let Err(e) = self.provider.update_balance_metrics().await {
                 error!("Failed to update balance metrics: {:?}", e);
             }
