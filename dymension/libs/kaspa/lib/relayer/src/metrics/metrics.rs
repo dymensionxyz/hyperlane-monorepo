@@ -185,7 +185,7 @@ impl KaspaBridgeMetrics {
         )?;
         let _ = registry.register(Box::new(withdrawals_processed_total.clone()));
 
-        // Histogram for deposit amounts: 0.1 KAS, 1 KAS, 10 KAS, 100 KAS, 1000 KAS
+        // Histogram for deposit amounts: 0.1 KAS, 1 KAS, 10 KAS, 100 KAS, 1000 KAS, 10k KAS, 100k KAS, 1M KAS
         let deposit_amount_sompi = Histogram::with_opts(
             HistogramOpts::new(
                 "kaspa_deposit_amount_sompi",
@@ -197,21 +197,27 @@ impl KaspaBridgeMetrics {
                 1_000_000_000.0,
                 10_000_000_000.0,
                 100_000_000_000.0,
+                1_000_000_000_000.0,
+                10_000_000_000_000.0,
+                100_000_000_000_000.0,
             ]),
         )?;
         let _ = registry.register(Box::new(deposit_amount_sompi.clone()));
 
-        // Histogram for deposit durations: 10s, 30s, 1m, 2m, 5m, 10m, 30m
+        // Histogram for deposit durations: 10s, 30s, 1m, 2m, 5m, 10m, 30m, 1h, 2h, 6h, 12h, 24h
         let deposit_duration_seconds = Histogram::with_opts(
             HistogramOpts::new(
                 "kaspa_deposit_duration_seconds",
                 "Distribution of deposit processing latency in seconds",
             )
-            .buckets(vec![10.0, 30.0, 60.0, 120.0, 300.0, 600.0, 1800.0]),
+            .buckets(vec![
+                10.0, 30.0, 60.0, 120.0, 300.0, 600.0, 1800.0, 3600.0, 7200.0, 21600.0, 43200.0,
+                86400.0,
+            ]),
         )?;
         let _ = registry.register(Box::new(deposit_duration_seconds.clone()));
 
-        // Histogram for withdrawal amounts: 0.1 KAS, 1 KAS, 10 KAS, 100 KAS, 1000 KAS
+        // Histogram for withdrawal amounts: 0.1 KAS, 1 KAS, 10 KAS, 100 KAS, 1000 KAS, 10k KAS, 100k KAS, 1M KAS
         let withdrawal_amount_sompi = Histogram::with_opts(
             HistogramOpts::new(
                 "kaspa_withdrawal_amount_sompi",
@@ -223,17 +229,23 @@ impl KaspaBridgeMetrics {
                 1_000_000_000.0,
                 10_000_000_000.0,
                 100_000_000_000.0,
+                1_000_000_000_000.0,
+                10_000_000_000_000.0,
+                100_000_000_000_000.0,
             ]),
         )?;
         let _ = registry.register(Box::new(withdrawal_amount_sompi.clone()));
 
-        // Histogram for withdrawal durations: 10s, 30s, 1m, 2m, 5m, 10m, 30m
+        // Histogram for withdrawal durations: 10s, 30s, 1m, 2m, 5m, 10m, 30m, 1h, 2h, 6h, 12h, 24h
         let withdrawal_duration_seconds = Histogram::with_opts(
             HistogramOpts::new(
                 "kaspa_withdrawal_duration_seconds",
                 "Distribution of withdrawal processing latency in seconds",
             )
-            .buckets(vec![10.0, 30.0, 60.0, 120.0, 300.0, 600.0, 1800.0]),
+            .buckets(vec![
+                10.0, 30.0, 60.0, 120.0, 300.0, 600.0, 1800.0, 3600.0, 7200.0, 21600.0, 43200.0,
+                86400.0,
+            ]),
         )?;
         let _ = registry.register(Box::new(withdrawal_duration_seconds.clone()));
 

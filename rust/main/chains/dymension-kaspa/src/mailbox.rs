@@ -1,6 +1,5 @@
 use super::consts::*;
 use crate::KaspaProvider;
-use dym_kas_core::message::calculate_total_withdrawal_amount;
 use dym_kas_relayer::withdraw::minimum::is_small_value;
 use hyperlane_core::{
     utils::bytes_to_hex, BatchResult, ChainResult, ContractLocator, Decode, FixedPointNumber,
