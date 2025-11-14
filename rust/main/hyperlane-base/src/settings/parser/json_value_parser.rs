@@ -194,25 +194,18 @@ impl<'v> ValueParser<'v> {
 
     /// Parse a duration value from a string like "5s", "30s", "15m", "1h"
     pub fn parse_duration(&self) -> ConfigResult<Duration> {
-        let result = match self.val {
-            Value::String(s) => humantime::parse_duration(s).with_context(|| {
-                format!("Expected a duration string like '5s', '30s', '15m', got `{s}`")
-            }),
-            Value::Number(num) => {
-                // Support legacy numeric seconds format
-                match num.as_u64() {
-                    Some(secs) => Ok(Duration::from_secs(secs)),
-                    None => Err(eyre!(
-                        "Expected a duration or number of seconds, got `{num}`"
-                    )),
-                }
-            }
-            _ => Err(eyre!(
-                "Expected a duration string or number, got `{:?}`",
+        match self.val.as_str() {
+            Some(s) => humantime::parse_duration(s)
+                .with_context(|| {
+                    format!("Expected a duration string like '5s', '30s', '15m', got `{s}`")
+                })
+                .into_config_result(|| self.cwp.clone()),
+            None => Err(eyre!(
+                "Expected a duration string like '5s', '30s', '15m', got `{:?}`",
                 self.val
-            )),
-        };
-        result.into_config_result(|| self.cwp.clone())
+            ))
+            .into_config_result(|| self.cwp.clone()),
+        }
     }
 
     /// Parse a u256 value allowing for it to be represented as string or number.
