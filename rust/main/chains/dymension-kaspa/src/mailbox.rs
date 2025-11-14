@@ -1,10 +1,13 @@
 use super::consts::*;
+use crate::withdrawal_utils::{
+    calculate_failed_indexes, record_withdrawal_batch_metrics, WithdrawalStage,
+};
 use crate::KaspaProvider;
 use dym_kas_relayer::withdraw::minimum::is_small_value;
 use hyperlane_core::{
     utils::bytes_to_hex, BatchResult, ChainResult, ContractLocator, Decode, FixedPointNumber,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    Mailbox, QueueOperation, ReorgPeriod, TxCostEstimate, TxOutcome, H256, H512, U256,
+    Mailbox, QueueOperation, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
 };
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::{WithdrawalId, WithdrawalStatus};
 use hyperlane_warp_route::TokenMessage;
@@ -116,13 +119,7 @@ impl Mailbox for KaspaMailbox {
             .map(|op| op.try_batch().map(|item| item.data))
             .collect::<ChainResult<Vec<HyperlaneMessage>>>()?;
 
-        let metadata = crate::withdrawal_utils::WithdrawalMetadata::from_messages(&msgs);
-
-        crate::withdrawal_utils::record_withdrawal_batch_metrics(
-            self.provider.metrics(),
-            &metadata,
-            crate::withdrawal_utils::WithdrawalStage::Initiated,
-        );
+        record_withdrawal_batch_metrics(self.provider.metrics(), &msgs, WithdrawalStage::Initiated);
 
         // TODO: there's not need for this, withdrawals are already tracked by the relaye using vanilla hyperlane tech
         // this is just a double storage and moreover, its not at the earliest time that the relayer actually observes the mailbox
@@ -140,20 +137,24 @@ impl Mailbox for KaspaMailbox {
 
         let processed_messages = match self
             .provider
-            .process_withdrawal_messages(msgs.clone(), &metadata)
+            .process_withdrawal_messages(msgs.clone())
             .await
         {
             Ok(results) => results.into_iter().map(|(msg, _)| msg).collect(),
             Err(e) => {
                 error!(error = ?e, "kaspa mailbox: failed to process withdrawals TXs");
+                record_withdrawal_batch_metrics(
+                    self.provider.metrics(),
+                    &msgs,
+                    WithdrawalStage::Failed,
+                );
                 Vec::new()
             }
         };
 
         info!("kaspa mailbox: processed withdrawals TXs");
 
-        let failed_idxs =
-            crate::withdrawal_utils::calculate_failed_indexes(&msgs, &processed_messages);
+        let failed_idxs = calculate_failed_indexes(&msgs, &processed_messages);
 
         if !failed_idxs.is_empty() {
             error!(
@@ -163,13 +164,7 @@ impl Mailbox for KaspaMailbox {
         }
 
         Ok(BatchResult {
-            // outcome intentionally bogus
-            outcome: Some(TxOutcome {
-                transaction_id: H512::zero(),
-                executed: false,
-                gas_used: U256::zero(),
-                gas_price: FixedPointNumber::from(0),
-            }),
+            outcome: None, // outcome intentionally bogus, its not read anyway
             failed_indexes: failed_idxs,
         })
     }

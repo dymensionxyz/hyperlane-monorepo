@@ -2,6 +2,7 @@ use super::confirmation_queue::PendingConfirmation;
 use super::validators::ValidatorsClient;
 use super::RestProvider;
 use crate::util::domain_to_kas_network;
+use crate::withdrawal_utils::{record_withdrawal_batch_metrics, WithdrawalStage};
 use crate::ConnectionConf;
 use crate::RelayerStuff;
 use crate::ValidatorStuff;
@@ -303,20 +304,16 @@ impl KaspaProvider {
     pub async fn process_withdrawal_messages(
         &self,
         msgs: Vec<HyperlaneMessage>,
-        metadata: &[crate::withdrawal_utils::WithdrawalMetadata],
     ) -> Result<Vec<(HyperlaneMessage, String)>> {
         match self.process_withdrawal_messages_inner(msgs.clone()).await {
             Ok(Some(processed)) => {
                 let all_processed_msgs: Vec<_> =
                     processed.fxg.messages.iter().flatten().cloned().collect();
 
-                let processed_metadata =
-                    crate::withdrawal_utils::WithdrawalMetadata::from_messages(&all_processed_msgs);
-
-                crate::withdrawal_utils::record_withdrawal_batch_metrics(
+                record_withdrawal_batch_metrics(
                     &self.metrics,
-                    &processed_metadata,
-                    crate::withdrawal_utils::WithdrawalStage::Processed,
+                    &all_processed_msgs,
+                    WithdrawalStage::Processed,
                 );
 
                 if let Some(last_anchor) = processed.fxg.anchors.last() {
@@ -352,11 +349,7 @@ impl KaspaProvider {
                 Ok(msgs.into_iter().map(|msg| (msg, String::new())).collect())
             }
             Err(error) => {
-                crate::withdrawal_utils::record_withdrawal_batch_metrics(
-                    &self.metrics,
-                    metadata,
-                    crate::withdrawal_utils::WithdrawalStage::Failed,
-                );
+                record_withdrawal_batch_metrics(&self.metrics, &msgs, WithdrawalStage::Failed);
                 Err(error)
             }
         }
