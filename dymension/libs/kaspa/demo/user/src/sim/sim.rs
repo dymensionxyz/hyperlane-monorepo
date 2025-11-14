@@ -38,31 +38,30 @@ use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use tracing::info;
 use url::Url;
 
-const DEFAULT_RPC_URL: &str = "https://rpc-dymension-playground35.mzonder.com:443";
-const DEFAULT_GRPC_URL: &str = "https://grpc-dymension-playground35.mzonder.com:443";
-const DEFAULT_CHAIN_ID: &str = "dymension_3405-1";
-const DEFAULT_PREFIX: &str = "dym";
-const DEFAULT_DENOM: &str = "adym";
-const DEFAULT_DECIMALS: u32 = 18;
-const DEFAULT_WRPC_URL: &str = "localhost:17210";
-const DEFAULT_REST_URL: &str = "https://api-tn10.kaspa.org/";
-
-async fn cosmos_provider(signer_key_hex: &str) -> Result<CosmosProvider<ModuleQueryClient>> {
+async fn cosmos_provider(
+    signer_key_hex: &str,
+    rpc_url: &str,
+    grpc_url: &str,
+    chain_id: &str,
+    prefix: &str,
+    denom: &str,
+    decimals: u32,
+) -> Result<CosmosProvider<ModuleQueryClient>> {
     let conf = CosmosConnectionConf::new(
-        vec![Url::parse(DEFAULT_GRPC_URL).unwrap()],
-        vec![Url::parse(DEFAULT_RPC_URL).unwrap()],
-        DEFAULT_CHAIN_ID.to_string(),
-        DEFAULT_PREFIX.to_string(),
-        DEFAULT_DENOM.to_string(),
+        vec![Url::parse(grpc_url).map_err(|e| eyre::eyre!("Invalid gRPC URL: {}", e))?],
+        vec![Url::parse(rpc_url).map_err(|e| eyre::eyre!("Invalid RPC URL: {}", e))?],
+        chain_id.to_string(),
+        prefix.to_string(),
+        denom.to_string(),
         RawCosmosAmount {
             amount: "100000000000.0".to_string(),
-            denom: DEFAULT_DENOM.to_string(),
+            denom: denom.to_string(),
         },
         32,
         OpSubmissionConfig::default(),
         NativeToken {
-            decimals: DEFAULT_DECIMALS,
-            denom: DEFAULT_DENOM.to_string(),
+            decimals,
+            denom: denom.to_string(),
         },
         1.0,
         None,
@@ -127,8 +126,15 @@ pub struct SimulateTrafficArgs {
     pub params: Params,
     pub task_args: TaskArgs,
     pub wallet: WalletCli,
-    pub hub_whale_priv_key: String, // in hex
+    pub hub_whale_priv_key: String,
     pub output_dir: String,
+    pub hub_rpc_url: String,
+    pub hub_grpc_url: String,
+    pub hub_chain_id: String,
+    pub hub_prefix: String,
+    pub hub_denom: String,
+    pub hub_decimals: u32,
+    pub kaspa_rest_url: String,
 }
 
 impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
@@ -156,6 +162,13 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
             wallet: cli.wallet,
             hub_whale_priv_key: cli.hub_whale_priv_key,
             output_dir: cli.output_dir,
+            hub_rpc_url: cli.hub_rpc_url,
+            hub_grpc_url: cli.hub_grpc_url,
+            hub_chain_id: cli.hub_chain_id,
+            hub_prefix: cli.hub_prefix,
+            hub_denom: cli.hub_denom,
+            hub_decimals: cli.hub_decimals,
+            kaspa_rest_url: cli.kaspa_rest_url,
         })
     }
 }
@@ -166,13 +179,12 @@ pub struct TrafficSim {
     whale_wallet: EasyKaspaWallet,
     whale_secret: Secret,
     wrpc_url: String,
-    network_id: NetworkId,
     output_dir: String,
 }
 
 impl TrafficSim {
     pub async fn new(args: SimulateTrafficArgs) -> Result<Self> {
-        let wrpc_url = DEFAULT_WRPC_URL.to_string();
+        let wrpc_url = args.wallet.rpc_url.clone();
         let net = Network::KaspaTest10;
         let whale_secret = Secret::from(args.wallet.wallet_secret.clone());
 
@@ -180,16 +192,23 @@ impl TrafficSim {
             wallet_secret: args.wallet.wallet_secret,
             wrpc_url: wrpc_url.clone(),
             net: net.clone(),
-            storage_folder: None,
+            storage_folder: args.wallet.wallet_dir.clone(),
         })
         .await?;
 
-        let network_id = w.net.network_id;
-
         let resources = TaskResources {
             args: args.task_args,
-            hub: cosmos_provider(&args.hub_whale_priv_key).await?,
-            kas_rest: HttpClient::new(DEFAULT_REST_URL.to_string(), RateLimitConfig::default()),
+            hub: cosmos_provider(
+                &args.hub_whale_priv_key,
+                &args.hub_rpc_url,
+                &args.hub_grpc_url,
+                &args.hub_chain_id,
+                &args.hub_prefix,
+                &args.hub_denom,
+                args.hub_decimals,
+            )
+            .await?,
+            kas_rest: HttpClient::new(args.kaspa_rest_url.clone(), RateLimitConfig::default()),
         };
         Ok(TrafficSim {
             params: args.params,
@@ -197,7 +216,6 @@ impl TrafficSim {
             whale_wallet: w,
             whale_secret,
             wrpc_url,
-            network_id,
             output_dir: args.output_dir,
         })
     }
@@ -409,7 +427,17 @@ mod tests {
         let recipient = EasyHubKey::new();
         println!("recipient: {:?}", recipient.signer().address_string);
         let k = "7c3ea937a1578534cbe33bc22486d837436d99d0fb66cf1e5f9c9aa120e05964";
-        let hub = cosmos_provider(&k).await.unwrap();
+        let hub = cosmos_provider(
+            &k,
+            "https://rpc-dymension-playground35.mzonder.com:443",
+            "https://grpc-dymension-playground35.mzonder.com:443",
+            "dymension_3405-1",
+            "dym",
+            "adym",
+            18,
+        )
+        .await
+        .unwrap();
         fund_hub_addr(&recipient, &hub, 100).await.unwrap();
     }
 }
