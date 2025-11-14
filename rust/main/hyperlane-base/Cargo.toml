@@ -33,6 +33,7 @@ maplit.workspace = true
 mockall.workspace = true
 paste.workspace = true
 prometheus.workspace = true
+rand.workspace = true
 rocksdb.workspace = true
 serde.workspace = true
 serde_json.workspace = true

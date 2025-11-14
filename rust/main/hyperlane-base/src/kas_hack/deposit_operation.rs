@@ -1,4 +1,5 @@
 use dymension_kaspa::{conf::RelayerDepositTimings, Deposit};
+use rand::Rng;
 use std::cmp::Ordering;
 use std::time::{Duration, Instant};
 use tracing::error;
@@ -61,7 +62,7 @@ impl DepositOperation {
         let delay = match custom_delay {
             Some(d) => d,
             None => {
-                if self.retry_count == 1 {
+                let base_delay = if self.retry_count == 1 {
                     cfg.retry_delay_base
                 } else {
                     let base_secs = cfg.retry_delay_base.as_secs_f64();
@@ -69,7 +70,13 @@ impl DepositOperation {
                         base_secs * cfg.retry_delay_exponent.powi((self.retry_count - 1) as i32);
                     let max_secs = cfg.retry_delay_max.as_secs_f64();
                     Duration::from_secs_f64(exponential_delay.min(max_secs))
-                }
+                };
+
+                // Add jitter: random multiplier between 0.75 and 1.25
+                let mut rng = rand::thread_rng();
+                let jitter = rng.gen_range(0.75..=1.25);
+                let delay_secs = base_delay.as_secs_f64() * jitter;
+                Duration::from_secs_f64(delay_secs)
             }
         };
 
