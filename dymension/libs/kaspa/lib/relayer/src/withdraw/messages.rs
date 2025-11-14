@@ -163,15 +163,14 @@ pub async fn build_withdrawal_fxg(
         .await
         .map_err(|e| eyre::eyre!("Fetch relayer UTXOs: {}", e))?;
 
+    // Get relayer change address for the withdrawal PSKT change output
+    let relayer_address = relayer.account().change_address()?;
+
     // Early validation of relayer funds available (otherwise it will panic later during PSKT building)
     if relayer_inputs.is_empty() {
         error!(
-            relayer_receive_address = %relayer.account().receive_address()?,
-            relayer_change_address = %relayer.account().change_address()?,
-            escrow_utxo_count = escrow_inputs.len(),
-            withdrawal_count = outputs.len(),
-            "Relayer has no UTXOs on either receive or change address. Cannot process withdrawals without relayer funds to pay transaction fees. \
-            Please fund either the relayer receive address or change address. All withdrawal operations will be marked as failed and retried later."
+            "Relayer has no UTXOs available. Cannot process withdrawals without relayer funds to pay transaction fees. \
+            Please fund relayer address. All withdrawal operations will be marked as failed and retried later."
         );
         return Ok(None);
     }
