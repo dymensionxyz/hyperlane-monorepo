@@ -28,7 +28,11 @@ impl PartialOrd for DepositOperation {
 
 impl Ord for DepositOperation {
     fn cmp(&self, other: &Self) -> Ordering {
-        match self.next_attempt_after.cmp(&other.next_attempt_after).reverse() {
+        match self
+            .next_attempt_after
+            .cmp(&other.next_attempt_after)
+            .reverse()
+        {
             Ordering::Equal => self.deposit.id.cmp(&other.deposit.id),
             other => other,
         }
