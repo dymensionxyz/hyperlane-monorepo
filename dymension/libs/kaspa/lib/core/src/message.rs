@@ -72,14 +72,6 @@ pub fn parse_withdrawal_amount(msg: &HyperlaneMessage) -> Option<u64> {
     }
 }
 
-/// Create withdrawal batch ID from messages
-pub fn create_withdrawal_batch_id(msgs: &[HyperlaneMessage]) -> String {
-    msgs.iter()
-        .next()
-        .map(|msg| format!("{:?}", msg.id()))
-        .unwrap_or_else(|| "unknown".to_string())
-}
-
 /// Calculate total withdrawal amount from messages
 pub fn calculate_total_withdrawal_amount(msgs: &[HyperlaneMessage]) -> u64 {
     msgs.iter().filter_map(parse_withdrawal_amount).sum()

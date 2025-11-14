@@ -7,7 +7,7 @@ use crate::RelayerStuff;
 use crate::ValidatorStuff;
 use dym_kas_core::confirmation::ConfirmationFXG;
 use dym_kas_core::escrow::EscrowPublic;
-use dym_kas_core::message::{calculate_total_withdrawal_amount, create_withdrawal_batch_id};
+use dym_kas_core::message::calculate_total_withdrawal_amount;
 use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs};
 use dym_kas_relayer::withdraw::hub_to_kaspa::combine_bundles_with_fee;
 use dym_kas_relayer::withdraw::messages::on_new_withdrawals;
@@ -35,7 +35,6 @@ use url::Url;
 
 enum WithdrawalProcessResult {
     Success {
-        withdrawal_batch_id: String,
         total_amt: u64,
         msg_count: u64,
         fxg: dym_kas_core::withdraw::WithdrawFXG,
@@ -43,7 +42,6 @@ enum WithdrawalProcessResult {
     },
     Skipped,
     Failed {
-        withdrawal_batch_id: String,
         total_amt: u64,
         error: eyre::Error,
     },
@@ -312,20 +310,19 @@ impl KaspaProvider {
     pub async fn process_withdrawal_messages(
         &self,
         msgs: Vec<HyperlaneMessage>,
+        start_time: Option<std::time::Instant>,
     ) -> Result<Vec<(HyperlaneMessage, String)>> {
         match self.process_withdrawal_messages_inner(msgs.clone()).await {
             WithdrawalProcessResult::Success {
-                withdrawal_batch_id,
                 total_amt,
                 msg_count,
                 fxg,
                 tx_ids,
             } => {
-                self.metrics.record_withdrawal_processed(
-                    &withdrawal_batch_id,
-                    total_amt,
-                    msg_count,
-                );
+                if let Some(start) = start_time {
+                    self.metrics
+                        .record_withdrawal_processed(total_amt, msg_count, start);
+                }
 
                 if let Some(last_anchor) = fxg.anchors.last() {
                     let current_ts = kaspa_core::time::unix_now();
@@ -354,13 +351,8 @@ impl KaspaProvider {
                 info!("on new withdrawals decided not to handle withdrawal messages");
                 Ok(msgs.into_iter().map(|msg| (msg, String::new())).collect())
             }
-            WithdrawalProcessResult::Failed {
-                withdrawal_batch_id,
-                total_amt,
-                error,
-            } => {
-                self.metrics
-                    .record_withdrawal_failed(&withdrawal_batch_id, total_amt);
+            WithdrawalProcessResult::Failed { total_amt, error } => {
+                self.metrics.record_withdrawal_failed(total_amt);
                 Err(error)
             }
         }
@@ -383,13 +375,8 @@ impl KaspaProvider {
             Ok(Some(fxg)) => fxg,
             Ok(None) => return WithdrawalProcessResult::Skipped,
             Err(error) => {
-                let withdrawal_batch_id = create_withdrawal_batch_id(&msgs);
                 let total_amt = calculate_total_withdrawal_amount(&msgs);
-                return WithdrawalProcessResult::Failed {
-                    withdrawal_batch_id,
-                    total_amt,
-                    error,
-                };
+                return WithdrawalProcessResult::Failed { total_amt, error };
             }
         };
 
@@ -397,14 +384,12 @@ impl KaspaProvider {
         info!("kaspa provider: got withdrawal FXG, now gathering sigs and signing relayer fee");
 
         let all_msgs: Vec<_> = fxg.messages.iter().flatten().cloned().collect();
-        let withdrawal_batch_id = create_withdrawal_batch_id(&all_msgs);
         let total_amt = calculate_total_withdrawal_amount(&all_msgs);
 
         let bundles_validators = match self.validators().get_withdraw_sigs(&fxg).await {
             Ok(bundles) => bundles,
             Err(error) => {
                 return WithdrawalProcessResult::Failed {
-                    withdrawal_batch_id,
                     total_amt,
                     error: error.into(),
                 }
@@ -421,24 +406,12 @@ impl KaspaProvider {
         .await
         {
             Ok(fin) => fin,
-            Err(error) => {
-                return WithdrawalProcessResult::Failed {
-                    withdrawal_batch_id,
-                    total_amt,
-                    error,
-                }
-            }
+            Err(error) => return WithdrawalProcessResult::Failed { total_amt, error },
         };
 
         let tx_ids = match self.submit_txs(finalized.clone()).await {
             Ok(tx_ids) => tx_ids,
-            Err(error) => {
-                return WithdrawalProcessResult::Failed {
-                    withdrawal_batch_id,
-                    total_amt,
-                    error,
-                }
-            }
+            Err(error) => return WithdrawalProcessResult::Failed { total_amt, error },
         };
 
         info!("kaspa provider: submitted TXs, now indicating progress on the Hub");
@@ -446,7 +419,6 @@ impl KaspaProvider {
         let msg_count = fxg.messages.iter().map(|msgs| msgs.len()).sum::<usize>() as u64;
 
         WithdrawalProcessResult::Success {
-            withdrawal_batch_id,
             total_amt,
             msg_count,
             fxg,
