@@ -69,8 +69,6 @@ pub async fn on_new_withdrawals(
     min_withdrawal_sompi: U256,
     tx_fee_multiplier: f64,
 ) -> Result<Option<WithdrawFXG>> {
-    info!("kaspa relayer: filtering pending withdrawals");
-
     let (current_anchor, pending_msgs) = filter_pending_withdrawals(messages, cosmos.query())
         .await
         .map_err(|e| eyre::eyre!("Get pending withdrawals: {}", e))?;
@@ -111,10 +109,6 @@ pub async fn build_withdrawal_fxg(
         info!("kaspa relayer: no valid pending withdrawals found, all in batch already processed and confirmed on hub");
         return Ok(None); // nothing to process
     }
-    info!(
-        withdrawal_count = outputs.len(),
-        "kaspa relayer: building withdrawal PSKT"
-    );
 
     // Get all the UTXOs for the escrow and the relayer
     let escrow_inputs = fetch_input_utxos(
@@ -206,7 +200,7 @@ pub async fn build_withdrawal_fxg(
 
     let pskt = build_withdrawal_pskt(
         inputs,
-        final_outputs,
+        final_outputs.clone(),
         payload,
         &escrow_public,
         &relayer_address,
@@ -215,6 +209,11 @@ pub async fn build_withdrawal_fxg(
         tx_mass,
     )
     .map_err(|e| eyre::eyre!("Build withdrawal PSKT: {}", e))?;
+
+    info!(
+        withdrawal_count = final_outputs.len(),
+        "kaspa relayer: built withdrawal PSKT"
+    );
 
     // Contract: the last output of the withdrawal PSKT is the new anchor
     let new_anchor = TransactionOutpoint::new(pskt.calculate_id(), (pskt.outputs.len() - 1) as u32);

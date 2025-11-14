@@ -27,12 +27,6 @@ pub async fn expensive_trace_transactions(
     out_new_candidate: TransactionOutpoint,
     out_old: TransactionOutpoint,
 ) -> Result<ConfirmationFXG> {
-    info!(
-        new_anchor = ?out_new_candidate,
-        old_anchor = ?out_old,
-        "kaspa relayer: tracing transaction lineage"
-    );
-
     let mut processed_withdrawals: Vec<MessageID> = Vec::new();
     let mut outpoint_sequence = Vec::new();
 
@@ -47,9 +41,11 @@ pub async fn expensive_trace_transactions(
     .await?;
 
     info!(
+        new_anchor = ?out_new_candidate,
+        old_anchor = ?out_old,
         utxos_count = outpoint_sequence.len(),
         processed_withdrawals_count = processed_withdrawals.len(),
-        "kaspa relayer: completed transaction trace"
+        "kaspa relayer: traced transaction lineage"
     );
     for o in outpoint_sequence.clone() {
         info!(outpoint = ?o, "kaspa relayer: traced lineage outpoint");
@@ -91,8 +87,6 @@ pub async fn recursive_trace_transactions(
     // we skip inputs that are not from the escrow address
     // we do recursive call for inputs that are from the escrow address
     for input in inputs {
-        info!(input_index = ?input.index, "kaspa relayer: checking transaction input");
-
         let spent_escrow_funds = {
             let input_address = input
                 .previous_outpoint_address
@@ -102,7 +96,7 @@ pub async fn recursive_trace_transactions(
             input_address == escrow_addr
         };
         if !spent_escrow_funds {
-            info!("kaspa relayer: skipped input from non-escrow address");
+            info!(input_index = ?input.index, "kaspa relayer: skipped input from non-escrow address");
             continue;
         }
 

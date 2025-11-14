@@ -222,6 +222,8 @@ pub fn build_withdrawal_pskt(
     let outputs_num = outputs.len();
     let payload_len = payload.len();
 
+    let pskt = create_withdrawal_pskt(inputs, outputs, payload)?;
+
     info!(
         inputs_count = inputs_num,
         outputs_count = outputs_num,
@@ -232,7 +234,7 @@ pub fn build_withdrawal_pskt(
         "kaspa relayer: prepared withdrawal transaction"
     );
 
-    create_withdrawal_pskt(inputs, outputs, payload)
+    Ok(pskt)
 }
 
 /// CONTRACT:
@@ -417,7 +419,6 @@ pub async fn combine_bundles_with_fee(
     let mut bundles_validators = bundles_validators;
 
     let all_bundles = {
-        info!("kaspa relayer: received validator bundles, signing relayer fee");
         if bundles_validators.len() < multisig_threshold {
             return Err(eyre!(
                 "Not enough validator bundles, required: {}, got: {}",
@@ -427,7 +428,7 @@ pub async fn combine_bundles_with_fee(
         }
 
         let bundle_relayer = sign_relayer_fee(easy_wallet, fxg).await?; // TODO: can add own sig in parallel to validator network request
-        info!("kaspa relayer: signed relayer fee bundle, combining all bundles");
+        info!("kaspa relayer: signed relayer fee bundle");
         bundles_validators.push(bundle_relayer);
         bundles_validators
     };
@@ -487,23 +488,19 @@ fn combine_all_bundles(bundles: Vec<Bundle>) -> Result<Vec<PSKT<Combiner>>> {
     let mut ret = Vec::new();
     for (pskt_idx, all_actor_sigs_for_tx) in tx_sigs.iter().enumerate() {
         let pskt = all_actor_sigs_for_tx.first().unwrap().clone();
+        let tx_id = pskt.calculate_id();
+        let mut combiner = pskt.combiner();
+
+        for (_sig_idx, tx_sig) in all_actor_sigs_for_tx.iter().skip(1).enumerate() {
+            combiner = (combiner + tx_sig.clone())?;
+        }
 
         info!(
             pskt_idx = pskt_idx,
-            tx_id = %pskt.calculate_id(),
-            "kaspa relayer: combining PSKT signatures"
+            tx_id = %tx_id,
+            signatures_combined = all_actor_sigs_for_tx.len(),
+            "kaspa relayer: combined PSKT signatures"
         );
-
-        let mut combiner = pskt.combiner();
-
-        for (sig_idx, tx_sig) in all_actor_sigs_for_tx.iter().skip(1).enumerate() {
-            info!(
-                pskt_idx = pskt_idx,
-                sig_idx = sig_idx,
-                "kaspa relayer: combined PSKT signature"
-            );
-            combiner = (combiner + tx_sig.clone())?;
-        }
 
         ret.push(combiner);
     }

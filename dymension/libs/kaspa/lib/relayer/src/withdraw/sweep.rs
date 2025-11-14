@@ -386,8 +386,9 @@ pub async fn create_sweeping_bundle(
             .iter()
             .map(|(_, e, _)| e.amount)
             .sum::<u64>();
+        let batch_escrow_inputs_count = batch_escrow_inputs.len();
         total_swept_amount += batch_escrow_balance;
-        total_inputs_swept += batch_escrow_inputs.len();
+        total_inputs_swept += batch_escrow_inputs_count;
 
         // Calculate relayer fee and output amount
         let (estimated_fee, relayer_output_amount) = calculate_relayer_fee(
@@ -399,13 +400,6 @@ pub async fn create_sweeping_bundle(
             relayer_wallet.net.network_id,
             feerate,
         )?;
-
-        info!(
-            batch_escrow_inputs_count = batch_escrow_inputs.len(),
-            estimated_fee = estimated_fee,
-            relayer_output_amount = relayer_output_amount,
-            "kaspa relayer sweeping: prepared batch with escrow inputs"
-        );
 
         // Create PSKT
         let mut pskt = PSKT::<Creator>::default().constructor();
@@ -463,7 +457,13 @@ pub async fn create_sweeping_bundle(
         }
 
         bundle.add_pskt(pskt_signer);
-        info!(pskt_id = %pskt_id, "kaspa relayer sweeping: created PSKT");
+        info!(
+            pskt_id = %pskt_id,
+            batch_escrow_inputs_count = batch_escrow_inputs_count,
+            estimated_fee = estimated_fee,
+            relayer_output_amount = relayer_output_amount,
+            "kaspa relayer sweeping: created PSKT"
+        );
     }
     info!(
         pskts_count = bundle.0.len(),
