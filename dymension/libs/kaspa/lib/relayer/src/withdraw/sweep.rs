@@ -27,8 +27,14 @@ fn create_test_outputs(
     relayer_balance: u64,
     escrow: &EscrowPublic,
     relayer_address: &kaspa_addresses::Address,
-) -> Vec<TransactionOutput> {
-    vec![
+) -> Result<Vec<TransactionOutput>> {
+    if escrow_balance == 0 {
+        return Err(eyre!("escrow_balance cannot be zero"));
+    }
+    if relayer_balance == 0 {
+        return Err(eyre!("relayer_balance cannot be zero"));
+    }
+    Ok(vec![
         TransactionOutput {
             value: escrow_balance,
             script_public_key: escrow.p2sh.clone(),
@@ -37,7 +43,7 @@ fn create_test_outputs(
             value: relayer_balance,
             script_public_key: pay_to_address_script(relayer_address),
         },
-    ]
+    ])
 }
 
 /// Calculate the maximum number of escrow inputs when sweeping that fit within mass limit using binary search
@@ -58,7 +64,7 @@ fn calculate_sweep_size(
         total_relayer_balance,
         escrow,
         relayer_address,
-    );
+    )?;
 
     let all_inputs: Vec<_> = escrow_inputs
         .iter()
@@ -113,7 +119,7 @@ fn calculate_sweep_size(
             total_relayer_balance,
             escrow,
             relayer_address,
-        );
+        )?;
 
         let test_inputs: Vec<_> = test_escrow_batch
             .into_iter()
@@ -183,7 +189,7 @@ fn calculate_relayer_fee(
         total_relayer_balance,
         escrow,
         relayer_address,
-    );
+    )?;
 
     let all_inputs: Vec<_> = batch_escrow_inputs
         .iter()
@@ -210,7 +216,7 @@ fn calculate_relayer_fee(
         estimated_relayer_output,
         escrow,
         relayer_address,
-    );
+    )?;
 
     let mass = estimate_mass(
         all_inputs,
