@@ -154,11 +154,17 @@ pub struct SimulateTrafficCli {
     pub wallet: WalletCli,
 
     /// Hub RPC URL (default: https://rpc-dymension-playground35.mzonder.com:443)
-    #[arg(long, default_value = "https://rpc-dymension-playground35.mzonder.com:443")]
+    #[arg(
+        long,
+        default_value = "https://rpc-dymension-playground35.mzonder.com:443"
+    )]
     pub hub_rpc_url: String,
 
     /// Hub gRPC URL (default: https://grpc-dymension-playground35.mzonder.com:443)
-    #[arg(long, default_value = "https://grpc-dymension-playground35.mzonder.com:443")]
+    #[arg(
+        long,
+        default_value = "https://grpc-dymension-playground35.mzonder.com:443"
+    )]
     pub hub_grpc_url: String,
 
     /// Hub chain ID (default: dymension_3405-1)

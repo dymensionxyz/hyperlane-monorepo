@@ -2,8 +2,8 @@ use super::key_cosmos::EasyHubKey;
 use super::round_trip::do_round_trip;
 use super::round_trip::TaskArgs;
 use super::round_trip::TaskResources;
-use super::stats::render_stats;
-use super::stats::write_stats;
+use super::stats::write_metadata;
+use super::stats::StatsWriter;
 use super::worker::WorkerWallet;
 use chrono::{DateTime, Utc};
 use corelib::api::base::RateLimitConfig;
@@ -13,7 +13,6 @@ use corelib::wallet::{EasyKaspaWalletArgs, Network};
 use eyre::Result;
 use hyperlane_cosmos::ConnectionConf as CosmosConnectionConf;
 use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
-use kaspa_consensus_core::network::NetworkId;
 use kaspa_wallet_core::prelude::Secret;
 use rand_distr::{Distribution, Exp};
 use std::time::SystemTime;
@@ -268,14 +267,41 @@ impl TrafficSim {
 
         info!("All workers funded, starting simulation");
 
+        let random_filename = H256::random();
+        let now = SystemTime::now();
+        let datetime: DateTime<Utc> = now.into();
+        let stats_file_path = format!(
+            "{}/stats_{}_{}.jsonl",
+            self.output_dir,
+            random_filename,
+            datetime.format("%Y-%m-%d_%H-%M-%S")
+        );
+        let metadata_file_path = format!(
+            "{}/metadata_{}_{}.json",
+            self.output_dir,
+            random_filename,
+            datetime.format("%Y-%m-%d_%H-%M-%S")
+        );
+
+        let stats_writer = StatsWriter::new(stats_file_path.clone())?;
+        info!("Writing stats to {}", stats_file_path);
+
         let (stats_tx, mut stats_rx) = mpsc::channel(100);
 
         let collector_handle = tokio::spawn(async move {
-            let mut collected_stats = Vec::new();
+            let mut count = 0u64;
             while let Some(stats) = stats_rx.recv().await {
-                collected_stats.push(stats);
+                stats_writer.log_stat(&stats);
+                if let Err(e) = stats_writer.write_stat(&stats) {
+                    tracing::error!("Failed to write stat: {:?}", e);
+                }
+                count += 1;
+                if count % 10 == 0 {
+                    info!("Wrote {} stats to file", count);
+                }
             }
-            collected_stats
+            info!("Total stats written: {}", count);
+            count
         });
 
         let start_time = Instant::now();
@@ -340,20 +366,15 @@ impl TrafficSim {
         tokio::time::sleep(self.params.max_wait_for_cancel).await;
         cancel.cancel();
 
-        let final_stats = collector_handle.await?;
-        render_stats(final_stats.clone(), total_spend, total_ops);
+        let stats_count = collector_handle.await?;
+        info!("Total stats collected: {}", stats_count);
 
-        let random_filename = H256::random();
-        let now = SystemTime::now();
-        let datetime: DateTime<Utc> = now.into();
-        let file_path = format!(
-            "{}/stats_{}_{}.json",
-            self.output_dir,
-            random_filename,
-            datetime.format("%Y-%m-%d_%H-%M-%S")
-        );
-        info!("Writing stats to {}", file_path);
-        write_stats(&file_path, final_stats, total_spend, total_ops);
+        info!("Writing metadata to {}", metadata_file_path);
+        write_metadata(&metadata_file_path, total_spend, total_ops)?;
+
+        info!("Simulation complete");
+        info!("Stats file: {}", stats_file_path);
+        info!("Metadata file: {}", metadata_file_path);
 
         Ok(())
     }
