@@ -281,27 +281,7 @@ where
                         let amount = fxg.amount.low_u64();
                         let deposit_id = format!("{:?}", op.deposit.id);
 
-                        if !outcome.executed {
-                            error!(
-                                message_id = ?fxg.hl_message.id(),
-                                tx_hash = %tx_hash,
-                                gas_used = %outcome.gas_used,
-                                "Dymension, deposit process() failed - TX was not executed on-chain"
-                            );
-
-                            self.provider
-                                .metrics()
-                                .record_deposit_failed(&deposit_id, amount);
-
-                            op.mark_failed(&self.config, None);
-                            self.deposit_tracker.lock().await.requeue(op);
-                        } else {
-                            info!(
-                                fxg = ?fxg,
-                                tx_hash = %tx_hash,
-                                "Dymension, got sigs and sent new deposit to hub"
-                            );
-
+                        if outcome.executed {
                             let h256_hub_tx =
                                 hyperlane_cosmos::native::h512_to_h256(outcome.transaction_id);
                             self.provider.update_processed_deposit(
@@ -314,7 +294,24 @@ where
                                 .metrics()
                                 .record_deposit_processed(&deposit_id, amount);
 
-                            op.reset_attempts();
+                            info!(
+                                fxg = ?fxg,
+                                tx_hash = %tx_hash,
+                                "Dymension, got sigs and sent new deposit to hub"
+                            );
+                        } else {
+                            self.provider
+                                .metrics()
+                                .record_deposit_failed(&deposit_id, amount);
+
+                            op.mark_failed(&self.config, None);
+                            self.deposit_tracker.lock().await.requeue(op);
+                            error!(
+                                message_id = ?fxg.hl_message.id(),
+                                tx_hash = %tx_hash,
+                                gas_used = %outcome.gas_used,
+                                "Dymension, deposit process() failed - TX was not executed on-chain, requeued"
+                            );
                         }
                     }
                     Err(e) => {
@@ -348,13 +345,13 @@ where
                 }
             }
             Ok(None) => {
-                info!("Dymension, F() new deposit returned none, will retry");
                 let deposit_id = format!("{:?}", op.deposit.id);
                 self.provider
-                    .metrics()
-                    .record_deposit_failed(&deposit_id, amount);
-                op.mark_failed(&self.config, None);
-                self.deposit_tracker.lock().await.requeue(op);
+                .metrics()
+                .record_deposit_failed(&deposit_id, amount);
+            op.mark_failed(&self.config, None);
+            self.deposit_tracker.lock().await.requeue(op);
+            info!("Dymension, F() new deposit returned none, scheduled retry");
             }
             Err(e) => {
                 let kaspa_err = KaspaDepositError::from(e);

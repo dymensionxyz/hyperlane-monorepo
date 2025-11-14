@@ -77,10 +77,6 @@ impl DepositOperation {
         );
     }
 
-    pub fn reset_attempts(&mut self) {
-        self.retry_count = 0;
-        self.next_attempt_after = Instant::now();
-    }
 }
 
 #[derive(Debug)]
