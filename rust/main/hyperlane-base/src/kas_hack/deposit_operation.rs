@@ -14,7 +14,7 @@ pub struct DepositOperation {
 
 impl PartialEq for DepositOperation {
     fn eq(&self, other: &Self) -> bool {
-        self.next_attempt_after == other.next_attempt_after
+        self.deposit.id == other.deposit.id
     }
 }
 
@@ -28,9 +28,10 @@ impl PartialOrd for DepositOperation {
 
 impl Ord for DepositOperation {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.next_attempt_after
-            .cmp(&other.next_attempt_after)
-            .reverse()
+        match self.next_attempt_after.cmp(&other.next_attempt_after).reverse() {
+            Ordering::Equal => self.deposit.id.cmp(&other.deposit.id),
+            other => other,
+        }
     }
 }
 
