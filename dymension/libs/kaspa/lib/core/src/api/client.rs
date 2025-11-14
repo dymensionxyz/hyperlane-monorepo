@@ -164,10 +164,17 @@ impl HttpClient {
                     continue;
                 }
 
+                let tx_id = tx.transaction_id.clone();
+                let tx_time = tx.block_time;
                 match Deposit::try_from(tx) {
                     Ok(deposit) => deposits.push(deposit),
                     Err(e) => {
-                        tracing::warn!(error = ?e, "Skipping invalid deposit");
+                        tracing::info!(
+                            tx_id = ?tx_id,
+                            block_time = ?tx_time,
+                            error = ?e,
+                            "Skipping invalid deposit"
+                        );
                         continue;
                     }
                 }
