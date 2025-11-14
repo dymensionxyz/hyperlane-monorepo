@@ -116,23 +116,13 @@ impl Mailbox for KaspaMailbox {
             .map(|op| op.try_batch().map(|item| item.data))
             .collect::<ChainResult<Vec<HyperlaneMessage>>>()?;
 
-        // Record withdrawal batch initiation for metrics
-        if !msgs.is_empty() {
-            let msg_count = msgs.len() as u64;
-            self.provider
-                .metrics()
-                .record_withdrawal_batch_size(msg_count);
+        let metadata = crate::withdrawal_utils::WithdrawalMetadata::from_messages(&msgs);
 
-            // Record each message individually
-            for msg in &msgs {
-                if let Some(amount) = dym_kas_core::message::parse_withdrawal_amount(msg) {
-                    let message_id = format!("{:?}", msg.id());
-                    self.provider
-                        .metrics()
-                        .record_withdrawal_initiated(&message_id, amount);
-                }
-            }
-        }
+        crate::withdrawal_utils::record_withdrawal_batch_metrics(
+            self.provider.metrics(),
+            &metadata,
+            crate::withdrawal_utils::WithdrawalStage::Initiated,
+        );
 
         // TODO: there's not need for this, withdrawals are already tracked by the relaye using vanilla hyperlane tech
         // this is just a double storage and moreover, its not at the earliest time that the relayer actually observes the mailbox
@@ -148,20 +138,12 @@ impl Mailbox for KaspaMailbox {
             });
         }
 
-        let res_processed = self
+        let processed_messages = match self
             .provider
-            .process_withdrawal_messages(msgs.clone())
-            .await;
-
-        let processed_messages = match res_processed {
-            Ok(results) => {
-                // Store withdrawal messages using the provider's store_withdrawals method
-                self.provider
-                    .hack_store_withdrawals_kaspa_tx_for_query(&results);
-
-                // Extract just the messages for further processing
-                results.into_iter().map(|(msg, _)| msg).collect()
-            }
+            .process_withdrawal_messages(msgs.clone(), &metadata)
+            .await
+        {
+            Ok(results) => results.into_iter().map(|(msg, _)| msg).collect(),
             Err(e) => {
                 error!(error = ?e, "kaspa mailbox: failed to process withdrawals TXs");
                 Vec::new()
@@ -170,19 +152,8 @@ impl Mailbox for KaspaMailbox {
 
         info!("kaspa mailbox: processed withdrawals TXs");
 
-        // Return value doesn't correspond 1:1 to what we did since we sent multiple Kaspa TXs.
-        // However, since TXs must execute in sequence, we can use the last one knowing prior ones succeeded.
-        // failed_indexes indicates which hyperlane messages were NOT accepted.
-        let failed_idxs = {
-            let mut failed = vec![];
-            for (i, msg) in msgs.iter().enumerate() {
-                if !processed_messages.contains(msg) {
-                    failed.push(i);
-                }
-            }
-
-            failed
-        };
+        let failed_idxs =
+            crate::withdrawal_utils::calculate_failed_indexes(&msgs, &processed_messages);
 
         if !failed_idxs.is_empty() {
             error!(
