@@ -71,7 +71,8 @@ pub fn write_metadata(file_path: &str, total_spend: u64, total_ops: u64) -> Resu
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct RoundTripStats {
     pub op_id: u64,
-    pub value: u64,
+    pub kaspa_whale_id: Option<usize>,
+    pub hub_whale_id: Option<usize>,
     pub kaspa_deposit_tx_id: Option<TransactionId>,
     pub kaspa_deposit_tx_time_millis: Option<u128>,
     pub deposit_credit_time_millis: Option<u128>,
@@ -85,10 +86,9 @@ pub struct RoundTripStats {
 }
 
 impl RoundTripStats {
-    pub fn new(op_id: u64, value: u64) -> Self {
+    pub fn new(op_id: u64) -> Self {
         let mut d = RoundTripStats::default();
         d.op_id = op_id;
-        d.value = value;
         d
     }
 
