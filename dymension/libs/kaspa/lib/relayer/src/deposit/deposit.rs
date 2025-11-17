@@ -27,7 +27,7 @@ impl std::fmt::Display for KaspaTxError {
             } => {
                 write!(
                     f,
-                    "Deposit not final enough: {}/{} confirmations. Retry in {:.1}s",
+                    "Kaspa tx not final enough: {}/{} confirmations. Retry in {:.1}s",
                     confirmations, required_confirmations, retry_after_secs
                 )
             }

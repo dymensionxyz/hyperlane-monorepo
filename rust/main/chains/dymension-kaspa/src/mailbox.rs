@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use super::consts::*;
 use crate::KaspaProvider;
+use dym_kas_core::message::parse_withdrawal_amount;
 use dym_kas_relayer::withdraw::minimum::is_small_value;
 use hyperlane_core::{
     utils::bytes_to_hex, BatchResult, ChainResult, ContractLocator, Decode, FixedPointNumber,
@@ -123,35 +124,66 @@ impl Mailbox for KaspaMailbox {
         // on the hub..
         self.provider.hack_store_withdrawals_for_query(&msgs);
 
-        // Cannot process withdrawals while a confirmation is pending on the Hub.
-        // All operations marked failed and will be retried after confirmation completes.
-        if self.provider.has_pending_confirmation() {
-            return Ok(BatchResult {
-                failed_indexes: (0..ops.len()).collect(),
-                outcome: None,
-            });
-        }
+        // Process withdrawals or skip if confirmation is pending
+        let processed_messages = if self.provider.has_pending_confirmation() {
+            // Cannot process withdrawals while a confirmation is pending on the Hub.
+            // All operations will be marked failed and retried after confirmation completes.
+            info!("kaspa mailbox: skipping withdrawal processing due to pending confirmation");
+            Vec::new()
+        } else {
+            let res_processed = self
+                .provider
+                .process_withdrawal_messages(msgs.clone())
+                .await;
 
-        let res_processed = self
-            .provider
-            .process_withdrawal_messages(msgs.clone())
-            .await;
+            match res_processed {
+                Ok(results) => {
+                    // Store withdrawal messages using the provider's store_withdrawals method
+                    self.provider.add_kaspa_tx_id_withdrawals(&results);
 
-        let processed_messages = match res_processed {
-            Ok(results) => {
-                // Store withdrawal messages using the provider's store_withdrawals method
-                self.provider.add_kaspa_tx_id_withdrawals(&results);
-
-                // Extract just the messages for further processing
-                results.into_iter().map(|(msg, _)| msg).collect()
-            }
-            Err(e) => {
-                error!(error = ?e, "kaspa mailbox: failed to process withdrawals TXs");
-                Vec::new()
+                    // Extract just the messages for further processing
+                    results.into_iter().map(|(msg, _)| msg).collect()
+                }
+                Err(e) => {
+                    error!(error = ?e, "kaspa mailbox: failed to process withdrawals TXs");
+                    Vec::new()
+                }
             }
         };
 
         info!("kaspa mailbox: processed withdrawals TXs");
+
+        // Update withdrawal metrics based on batch result
+        // Track each message individually to get accurate count of pending failed withdrawals
+        if !msgs.is_empty() {
+            if processed_messages.is_empty() {
+                // Complete failure - all messages failed (including pending confirmation case)
+                for msg in &msgs {
+                    let msg_id = format!("{:?}", msg.id());
+                    let amount = parse_withdrawal_amount(msg).unwrap_or(0);
+                    self.provider.metrics().record_withdrawal_failed(&msg_id, amount);
+                }
+            } else if processed_messages.len() == msgs.len() {
+                // Complete success - all messages processed
+                for msg in &msgs {
+                    let msg_id = format!("{:?}", msg.id());
+                    let amount = parse_withdrawal_amount(msg).unwrap_or(0);
+                    self.provider.metrics().record_withdrawal_processed(&msg_id, amount, 1);
+                }
+            } else {
+                // Partial success - track individually
+                for msg in &msgs {
+                    let msg_id = format!("{:?}", msg.id());
+                    let amount = parse_withdrawal_amount(msg).unwrap_or(0);
+
+                    if processed_messages.contains(msg) {
+                        self.provider.metrics().record_withdrawal_processed(&msg_id, amount, 1);
+                    } else {
+                        self.provider.metrics().record_withdrawal_failed(&msg_id, amount);
+                    }
+                }
+            }
+        }
 
         // Return value doesn't correspond 1:1 to what we did since we sent multiple Kaspa TXs.
         // However, since TXs must execute in sequence, we can use the last one knowing prior ones succeeded.
