@@ -35,7 +35,7 @@ use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use tracing::info;
 use url::Url;
 
-pub const MIN_KASPA_WITHDRAWAL_SOMPI: u64 = 4_000_000_000;
+pub const FIXED_TRANSFER_AMOUNT_SOMPI: u64 = 5_000_000_000;
 
 async fn cosmos_provider(
     signer_key_hex: &str,
@@ -79,54 +79,19 @@ async fn cosmos_provider(
 
 pub struct Params {
     pub time_limit: Duration,
-    pub budget: u64,
     pub ops_per_minute: u64,
-    pub min_value: u64,
     pub hub_fund_amount: u64,
     pub max_wait_for_cancel: Duration,
     pub simple_mode: bool,
 }
 
 impl Params {
-    pub fn validate(&self) -> Result<()> {
-        let min_budget_needed = (self.num_ops() * MIN_KASPA_WITHDRAWAL_SOMPI as f64) as u64;
-        if self.budget < min_budget_needed {
-            return Err(eyre::eyre!(
-                "Budget {} sompi is insufficient. Need at least {} sompi for {} ops with 40 KAS minimum per withdrawal",
-                self.budget,
-                min_budget_needed,
-                self.num_ops()
-            ));
-        }
-        Ok(())
-    }
-
-    pub fn distr_value(&self) -> Exp<f64> {
-        Exp::new(1.0 / self.op_budget()).unwrap()
-    }
-
-    pub fn sample_value(&self) -> u64 {
-        if self.simple_mode {
-            return self.min_value.max(MIN_KASPA_WITHDRAWAL_SOMPI);
-        }
-        let v = self.distr_value().sample(&mut rand::rng()) as u64;
-        v.max(self.min_value).max(MIN_KASPA_WITHDRAWAL_SOMPI)
+    pub fn ops_per_second(&self) -> f64 {
+        self.ops_per_minute as f64 / 60.0
     }
 
     pub fn distr_time(&self) -> Exp<f64> {
         Exp::new(self.ops_per_second() / 1000.0).unwrap()
-    }
-
-    pub fn num_ops(&self) -> f64 {
-        self.time_limit.as_secs_f64() * self.ops_per_second()
-    }
-
-    pub fn op_budget(&self) -> f64 {
-        self.budget as f64 / self.num_ops()
-    }
-
-    pub fn ops_per_second(&self) -> f64 {
-        self.ops_per_minute as f64 / 60.0
     }
 }
 
@@ -153,14 +118,11 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
         let addr = kaspa_addresses::Address::try_from(cli.escrow_address.clone())?;
         let params = Params {
             time_limit: std::time::Duration::from_secs(cli.time_limit),
-            budget: cli.budget,
             ops_per_minute: cli.ops_per_minute,
             simple_mode: cli.simple,
-            min_value: cli.min_deposit_sompi,
             hub_fund_amount: cli.hub_fund_amount,
             max_wait_for_cancel: std::time::Duration::from_secs(cli.cancel_wait),
         };
-        params.validate()?;
 
         Ok(SimulateTrafficArgs {
             params,
@@ -334,7 +296,6 @@ impl TrafficSim {
                 }
             };
 
-            let nominal_value = self.params.sample_value();
             let tx_clone = stats_tx.clone();
             let r = self.resources.clone();
             let task_id = total_ops;
@@ -346,7 +307,7 @@ impl TrafficSim {
                 do_round_trip(
                     r,
                     worker,
-                    nominal_value,
+                    FIXED_TRANSFER_AMOUNT_SOMPI,
                     &tx_clone,
                     task_id,
                     hub_key,
@@ -356,7 +317,7 @@ impl TrafficSim {
                 drop(tx_clone);
             });
 
-            total_spend += nominal_value;
+            total_spend += FIXED_TRANSFER_AMOUNT_SOMPI;
             total_ops += 1;
 
             let sleep_millis = self.params.distr_time().sample(&mut rng) as u64;
