@@ -239,10 +239,10 @@ impl TrafficSim {
                 }
                 count += 1;
                 if count % 10 == 0 {
-                    info!("stats written: count={}", count);
+                    info!("stats written: count={} stage={}", count, stats.stage());
                 }
             }
-            info!("stats collection complete: total={}", count);
+            info!("stats collection complete: total_writes={}", count);
             count
         });
 

@@ -65,12 +65,11 @@ pub async fn do_round_trip(
     task_id: u64,
     cancel_token: CancellationToken,
 ) {
-    let mut rt = RoundTrip::new(res, worker, value, task_id, cancel_token);
+    let mut rt = RoundTrip::new(res, worker, value, task_id, cancel_token, tx);
     do_round_trip_inner(&mut rt).await;
-    tx.send(rt.stats).await.unwrap();
 }
 
-async fn do_round_trip_inner(rt: &mut RoundTrip) {
+async fn do_round_trip_inner(rt: &mut RoundTrip<'_>) {
     let hub_addr = rt.worker.hub_key.signer().address_string.clone();
     rt.stats.deposit_addr_hub = Some(hub_addr.clone());
 
@@ -92,12 +91,14 @@ async fn do_round_trip_inner(rt: &mut RoundTrip) {
                 rt.worker.change_address().unwrap(),
                 tx_id
             );
+            rt.send_stats().await;
         }
         Err(e) => {
             error!(
                 "deposit error: task_id={} worker_id={} error={:?}",
                 rt.task_id, rt.worker.worker_id, e
             );
+            rt.send_stats().await;
             return;
         }
     };
@@ -110,6 +111,7 @@ async fn do_round_trip_inner(rt: &mut RoundTrip) {
                 rt.worker.worker_id,
                 rt.worker.hub_key.signer().address_string
             );
+            rt.send_stats().await;
         }
         Err(e) => {
             rt.stats.deposit_credit_error = Some(e.to_string());
@@ -117,6 +119,7 @@ async fn do_round_trip_inner(rt: &mut RoundTrip) {
                 "hub credit error: task_id={} worker_id={} error={}",
                 rt.task_id, rt.worker.worker_id, e
             );
+            rt.send_stats().await;
             return;
         }
     };
@@ -128,12 +131,14 @@ async fn do_round_trip_inner(rt: &mut RoundTrip) {
             "withdrawal error: task_id={} worker_id={} error={:?}",
             rt.task_id, rt.worker.worker_id, e
         );
+        rt.send_stats().await;
         return;
     }
     let (kaspa_addr, tx_id, withdrawal_time) = withdraw_res.unwrap();
     rt.stats.hub_withdraw_tx_id = Some(tx_id);
     rt.stats.hub_withdraw_tx_time = Some(withdrawal_time);
     rt.stats.withdraw_addr_kaspa = Some(kaspa_addr.clone());
+    rt.send_stats().await;
 
     match rt.await_kaspa_credit(kaspa_addr.clone()).await {
         Ok(()) => {
@@ -145,6 +150,7 @@ async fn do_round_trip_inner(rt: &mut RoundTrip) {
                 rt.worker.hub_key.signer().address_string,
                 kaspa_addr
             );
+            rt.send_stats().await;
         }
         Err(e) => {
             rt.stats.withdraw_credit_error = Some(e.to_string());
@@ -152,27 +158,30 @@ async fn do_round_trip_inner(rt: &mut RoundTrip) {
                 "kaspa credit error: task_id={} worker_id={} error={}",
                 rt.task_id, rt.worker.worker_id, e
             );
+            rt.send_stats().await;
             return;
         }
     };
 }
 
-struct RoundTrip {
+struct RoundTrip<'a> {
     res: TaskResources,
     worker: Worker,
     value: u64,
     task_id: u64,
     stats: RoundTripStats,
     cancel: CancellationToken,
+    tx: &'a mpsc::Sender<RoundTripStats>,
 }
 
-impl RoundTrip {
+impl<'a> RoundTrip<'a> {
     pub fn new(
         res: TaskResources,
         worker: Worker,
         value: u64,
         task_id: u64,
         cancel_token: CancellationToken,
+        tx: &'a mpsc::Sender<RoundTripStats>,
     ) -> Self {
         let mut res = res.clone();
         res.hub.rpc = res.hub.rpc().with_signer(worker.hub_key.signer());
@@ -183,6 +192,16 @@ impl RoundTrip {
             stats: RoundTripStats::new(task_id, value),
             task_id,
             cancel: cancel_token,
+            tx,
+        }
+    }
+
+    async fn send_stats(&self) {
+        if let Err(e) = self.tx.send(self.stats.clone()).await {
+            error!(
+                "stat send error: task_id={} worker_id={} error={:?}",
+                self.task_id, self.worker.worker_id, e
+            );
         }
     }
 
