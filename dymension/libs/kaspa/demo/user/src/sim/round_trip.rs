@@ -24,12 +24,57 @@ use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use tracing::error;
 use tracing::info;
+use tracing::warn;
+
+const MAX_RETRIES: usize = 3;
+const RETRY_DELAY_MS: u64 = 2000;
 
 fn now_millis() -> u128 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_millis()
+}
+
+fn is_retryable(_error: &eyre::Error) -> bool {
+    false
+}
+
+async fn retry_with_backoff<F, Fut, T>(operation_name: &str, task_id: u64, mut f: F) -> Result<T>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<T>>,
+{
+    let mut last_error = None;
+
+    for attempt in 1..=MAX_RETRIES {
+        match f().await {
+            Ok(result) => {
+                if attempt > 1 {
+                    info!(
+                        "{}: succeeded after {} attempts: task_id={}",
+                        operation_name, attempt, task_id
+                    );
+                }
+                return Ok(result);
+            }
+            Err(e) => {
+                if is_retryable(&e) && attempt < MAX_RETRIES {
+                    warn!(
+                        "{} failed (attempt {}/{}): task_id={} error={:?}",
+                        operation_name, attempt, MAX_RETRIES, task_id, e
+                    );
+                    tokio::time::sleep(Duration::from_millis(RETRY_DELAY_MS)).await;
+                    last_error = Some(e);
+                } else {
+                    return Err(e);
+                }
+            }
+        }
+    }
+
+    Err(last_error
+        .unwrap_or_else(|| eyre::eyre!("{} failed after {} retries", operation_name, MAX_RETRIES)))
 }
 
 #[derive(Debug, Clone)]
@@ -226,6 +271,7 @@ impl<'a> RoundTrip<'a> {
             "deposit starting: task_id={} kaspa_whale_id={} escrow_addr={} amount={}",
             self.task_id, self.kaspa_whale.id, a, amt
         );
+
         let payload = make_deposit_payload_easy(
             self.res.args.domain_kas,
             self.res.args.token_kas_placeholder,
@@ -234,10 +280,17 @@ impl<'a> RoundTrip<'a> {
             amt,
             &self.hub_whale.key.signer(),
         );
-        let tx_id = self
-            .kaspa_whale
-            .deposit_with_payload(a, amt, payload)
-            .await?;
+
+        let kaspa_whale = self.kaspa_whale.clone();
+        let task_id = self.task_id;
+        let tx_id = retry_with_backoff("kaspa_deposit", task_id, || {
+            let kaspa_whale = kaspa_whale.clone();
+            let a = a.clone();
+            let payload = payload.clone();
+            async move { kaspa_whale.deposit_with_payload(a, amt, payload).await }
+        })
+        .await?;
+
         Ok((tx_id, now_millis()))
     }
 
@@ -300,46 +353,58 @@ impl<'a> RoundTrip<'a> {
             "withdraw starting: task_id={} hub_whale_id={} kaspa_recipient_addr={} amount={}",
             self.task_id, self.hub_whale.id, kaspa_recipient.address, FIXED_TRANSFER_SOMPI
         );
-        let rpc = self.res.hub.rpc();
 
-        let amount = FIXED_TRANSFER_SOMPI.to_string();
-        let recipient = x::addr::hl_recipient(&kaspa_recipient.address.to_string());
-        let token_id = self.res.args.token_hub_str();
+        let res_hub = self.res.hub.clone();
+        let domain_kas = self.res.args.domain_kas;
+        let token_hub_str = self.res.args.token_hub_str();
+        let kaspa_addr = kaspa_recipient.address.clone();
+        let task_id = self.task_id;
 
-        let req = MsgRemoteTransfer {
-            sender: rpc.get_signer()?.address_string.clone(),
-            token_id,
-            destination_domain: self.res.args.domain_kas,
-            recipient,
-            amount,
-            custom_hook_id: "".to_string(),
-            gas_limit: "0".to_string(),
-            max_fee: Some(Coin {
-                denom: "adym".to_string(),
-                amount: "1000".to_string(),
-            }),
-            custom_hook_metadata: "".to_string(),
-        };
-        let a = Any {
-            type_url: MsgRemoteTransfer::type_url(),
-            value: req.encode_to_vec(),
-        };
-        let gas_limit = None;
-        let response = rpc.send(vec![a], gas_limit).await;
-        match response {
-            Ok(response) => {
-                if response.tx_result.code.is_ok() & response.check_tx.code.is_ok() {
-                    Ok((
-                        kaspa_recipient.address,
-                        hub_tx_query_id(&response),
-                        now_millis(),
-                    ))
-                } else {
-                    Err(RoundTripError::WithdrawalTxFailed { response }.into())
+        let (response, timestamp) = retry_with_backoff("hub_withdrawal", task_id, || {
+            let res_hub = res_hub.clone();
+            let token_hub_str = token_hub_str.clone();
+            let kaspa_addr = kaspa_addr.clone();
+            async move {
+                let rpc = res_hub.rpc();
+                let amount = FIXED_TRANSFER_SOMPI.to_string();
+                let recipient = x::addr::hl_recipient(&kaspa_addr.to_string());
+
+                let req = MsgRemoteTransfer {
+                    sender: rpc.get_signer()?.address_string.clone(),
+                    token_id: token_hub_str,
+                    destination_domain: domain_kas,
+                    recipient,
+                    amount,
+                    custom_hook_id: "".to_string(),
+                    gas_limit: "0".to_string(),
+                    max_fee: Some(Coin {
+                        denom: "adym".to_string(),
+                        amount: "1000".to_string(),
+                    }),
+                    custom_hook_metadata: "".to_string(),
+                };
+                let a = Any {
+                    type_url: MsgRemoteTransfer::type_url(),
+                    value: req.encode_to_vec(),
+                };
+                let gas_limit = None;
+                let response = rpc.send(vec![a], gas_limit).await;
+
+                match response {
+                    Ok(response) => {
+                        if response.tx_result.code.is_ok() & response.check_tx.code.is_ok() {
+                            Ok((response, now_millis()))
+                        } else {
+                            Err(RoundTripError::WithdrawalTxFailed { response }.into())
+                        }
+                    }
+                    Err(e) => Err(eyre::eyre!("hub send error: {:?}", e)),
                 }
             }
-            Err(e) => Err(eyre::eyre!("Failed to withdraw: {:?}", e)),
-        }
+        })
+        .await?;
+
+        Ok((kaspa_addr, hub_tx_query_id(&response), timestamp))
     }
 
     async fn await_kaspa_credit(&self, kaspa_addr: Address) -> Result<()> {
