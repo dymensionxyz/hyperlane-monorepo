@@ -33,12 +33,22 @@ pub enum Commands {
     Deposit(DepositCli),
     /// Create a relayer
     Relayer,
-    /// Simulate traffic
+    /// Traffic simulation commands
     #[clap(name = "sim")]
-    SimulateTraffic(SimulateTrafficCli),
+    Sim {
+        #[command(subcommand)]
+        action: SimAction,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum SimAction {
     /// Create and fund worker wallets
     #[clap(name = "create-workers")]
     CreateWorkers(CreateWorkersCli),
+    /// Run traffic simulation
+    #[clap(name = "run")]
+    Run(SimulateTrafficCli),
 }
 
 #[derive(Subcommand, Debug)]

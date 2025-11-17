@@ -1,5 +1,5 @@
 use clap::Parser;
-use x::args::{Cli, Commands, ValidatorAction, ValidatorBackend};
+use x::args::{Cli, Commands, SimAction, ValidatorAction, ValidatorBackend};
 
 mod sim;
 use sim::{create_and_fund_workers, CreateWorkersArgs, SimulateTrafficArgs, TrafficSim};
@@ -51,15 +51,17 @@ async fn run(cli: Cli) {
             println!("Relayer address: {}", signer.address);
             println!("Relayer private key: {}", signer.private_key);
         }
-        Commands::SimulateTraffic(args) => {
-            let sim = SimulateTrafficArgs::try_from(args).unwrap();
-            let sim = TrafficSim::new(sim).await.unwrap();
-            sim.run().await.unwrap();
-        }
-        Commands::CreateWorkers(args) => {
-            let create_args = CreateWorkersArgs::try_from(args).unwrap();
-            create_and_fund_workers(create_args).await.unwrap();
-        }
+        Commands::Sim { action } => match action {
+            SimAction::CreateWorkers(args) => {
+                let create_args = CreateWorkersArgs::try_from(args).unwrap();
+                create_and_fund_workers(create_args).await.unwrap();
+            }
+            SimAction::Run(args) => {
+                let sim = SimulateTrafficArgs::try_from(args).unwrap();
+                let sim = TrafficSim::new(sim).await.unwrap();
+                sim.run().await.unwrap();
+            }
+        },
     }
 }
 
