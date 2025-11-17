@@ -130,7 +130,8 @@ pub struct CreateWorkersCli {
 
 #[derive(Args, Debug)]
 /// Simulate/benchmark traffic on Kaspa and the Hub
-/// Launches some tasks with amounts and times sampled from realistic (poisson and exponential) distribution.
+/// Launches tasks with times sampled from exponential distribution (Poisson process).
+/// All transfers use a fixed amount of 50 KAS (5000000000 sompi).
 /// Each task does a kaspa deposit to a new hub address, and then transfers back to a kaspa address.
 /// In this way errors and latencies can be tracked
 pub struct SimulateTrafficCli {
@@ -153,17 +154,9 @@ pub struct SimulateTrafficCli {
     #[arg(long, required = true)]
     pub time_limit: u64,
 
-    /// Approx kaspa budget to fund deposits, from the kaspa whale account (in sompi)
-    #[arg(long, required = true)]
-    pub budget: u64,
-
     /// Approx number of ops per minute to run. E.g. osmosis does 90 IBC transfers per minute
     #[arg(long, required = true)]
     pub ops_per_minute: u64,
-
-    /// Minimum deposit amount in sompi (must be at least 4000000000 = 40 KAS for withdrawals to work)
-    #[arg(long, default_value = "4000000000")]
-    pub min_deposit_sompi: u64,
 
     /// Kaspa HL domain
     #[arg(long, required = true)]
@@ -223,7 +216,7 @@ pub struct SimulateTrafficCli {
     #[arg(long, default_value = "https://api-tn10.kaspa.org/")]
     pub kaspa_rest_url: String,
 
-    /// If true, just simply does one round trip and then exists, ignoring time and budget etc
+    /// If true, just simply does one round trip and then exists, ignoring time etc
     #[arg(long, default_value = "false")]
     pub simple: bool,
 
