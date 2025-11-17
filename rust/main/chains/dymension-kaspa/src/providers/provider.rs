@@ -104,10 +104,10 @@ impl KaspaProvider {
             tracing::error!("Failed to initialize balance metrics on startup: {:?}", e);
         }
 
-        // Set relayer receive address metric on startup
-        if let Ok(receive_addr) = provider.wallet().account().receive_address() {
+        // Set relayer change address metric on startup
+        if let Ok(change_addr) = provider.wallet().account().change_address() {
             provider.metrics().relayer_receive_address_info
-                .with_label_values(&[&receive_addr.to_string()])
+                .with_label_values(&[&change_addr.to_string()])
                 .set(1.0);
         }
 
@@ -451,20 +451,16 @@ impl KaspaProvider {
             .update_funds_escrowed(total_escrow_bal as i64);
         self.metrics().update_escrow_utxo_count(utxos.len() as i64);
 
-        let acct = self.wallet().account();
-        // Wallet balance may not be immediately available, retry a few times
-        let mut bal_opt = None;
-        for _ in 0..5 {
-            if let Some(b) = acct.balance() {
-                bal_opt = Some(b);
-                break;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-        }
+        // Get change address balance
+        let change_addr = self.wallet().account().change_address()?;
+        let change_utxos = self
+            .rpc()
+            .get_utxos_by_addresses(vec![change_addr])
+            .await
+            .map_err(|e| eyre::eyre!("Failed to get UTXOs for change address: {}", e))?;
 
-        if let Some(bal) = bal_opt {
-            self.metrics().update_relayer_funds(bal.mature as i64);
-        }
+        let total_change_bal: u64 = change_utxos.iter().map(|utxo| utxo.utxo_entry.amount).sum();
+        self.metrics().update_relayer_funds(total_change_bal as i64);
 
         Ok(())
     }
