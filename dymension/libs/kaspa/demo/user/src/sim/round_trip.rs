@@ -24,6 +24,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use tracing::error;
 use tracing::info;
+// use ethers::utils::hex::ToHex;
+use hex::ToHex;
 
 #[derive(Debug, Clone)]
 pub struct TaskResources {
@@ -137,7 +139,7 @@ async fn do_round_trip_inner(rt: &mut RoundTrip<'_>) {
         return;
     }
     let (kaspa_addr, tx_id, withdrawal_time) = withdraw_res.unwrap();
-    rt.stats.hub_withdraw_tx_id = Some(tx_id);
+    rt.stats.hub_withdraw_tx_id = Some(tx_id.clone());
     rt.stats.hub_withdraw_tx_time = Some(withdrawal_time);
     rt.stats.withdraw_addr_kaspa = Some(kaspa_addr.clone());
     rt.send_stats().await;
@@ -275,7 +277,7 @@ impl<'a> RoundTrip<'a> {
         Ok(())
     }
 
-    async fn withdraw(&self) -> Result<(Address, HubResponse, SystemTime)> {
+    async fn withdraw(&self) -> Result<(Address, String, SystemTime)> {
         let kaspa_recipient = get_kaspa_keypair();
         debug!(
             "withdraw starting: task_id={} worker_id={} kaspa_recipient_addr={} amount={}",
@@ -310,9 +312,9 @@ impl<'a> RoundTrip<'a> {
         match response {
             Ok(response) => {
                 if response.tx_result.code.is_ok() & response.check_tx.code.is_ok() {
-                    Ok((kaspa_recipient.address, response, SystemTime::now()))
+                    Ok((kaspa_recipient.address, hub_tx_query_id(&response), SystemTime::now()))
                 } else {
-                    Err(RoundTripError::WithdrawalTxFailed.into())
+                    Err(RoundTripError::WithdrawalTxFailed { response }.into())
                 }
             }
             Err(e) => Err(eyre::eyre!("Failed to withdraw: {:?}", e)),
@@ -363,8 +365,8 @@ pub enum RoundTripError {
     HubBalanceMismatch { balance: i64, expected: i64 },
     #[error("kaspa balance mismatch: {balance} != {expected}")]
     KaspaBalanceMismatch { balance: i64, expected: i64 },
-    #[error("withdrawal tx fail")]
-    WithdrawalTxFailed,
+    #[error("withdrawal tx failed: {response:?}")]
+    WithdrawalTxFailed { response: HubResponse },
     #[error("cancelled")]
     Cancelled,
 }

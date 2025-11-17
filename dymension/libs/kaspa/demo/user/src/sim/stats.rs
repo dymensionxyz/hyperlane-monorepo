@@ -79,7 +79,7 @@ pub struct RoundTripStats {
     pub kaspa_deposit_tx_time: Option<SystemTime>,
     pub deposit_credit_time: Option<SystemTime>,
     pub deposit_credit_error: Option<String>,
-    pub hub_withdraw_tx_id: Option<TendermintHash>,
+    pub hub_withdraw_tx_id: Option<String>,
     pub hub_withdraw_tx_time: Option<SystemTime>,
     pub withdraw_credit_time: Option<SystemTime>,
     pub withdraw_credit_error: Option<String>,
