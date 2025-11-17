@@ -192,9 +192,9 @@ impl HttpClient {
     pub fn get_config(&self) -> Configuration {
         let u = self.url.clone();
         let url: String;
-        if u.ends_with("/"){
+        if u.ends_with("/") {
             url = u.strip_suffix("/").unwrap().to_string();
-        }else{
+        } else {
             url = u;
         }
         get_config(&url, self.client.clone())

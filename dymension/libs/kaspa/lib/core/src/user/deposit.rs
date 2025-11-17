@@ -45,13 +45,13 @@ use workflow_core::abortable::Abortable;
 pub async fn deposit_with_payload(
     w: &Arc<Wallet>,
     secret: &Secret,
-    address: Address,
+    dst: Address,
     amt: u64,
     payload: Vec<u8>,
 ) -> Result<TransactionId, KaspaError> {
     let a = w.account()?;
 
-    let dst = PaymentDestination::from(PaymentOutput::new(address, amt));
+    let dst = PaymentDestination::from(PaymentOutput::new(dst, amt));
     let fees = Fees::from(0i64);
     let payment_secret = None;
     let abortable = Abortable::new();

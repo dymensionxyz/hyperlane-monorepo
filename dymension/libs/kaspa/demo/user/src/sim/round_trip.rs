@@ -73,7 +73,12 @@ pub async fn do_round_trip(
 }
 
 async fn do_round_trip_inner(hub_key: EasyHubKey, rt: &mut RoundTrip) {
-    info!("Starting round trip: task_id: {}, worker_id: {}, hub_addr: {}", rt.task_id, rt.worker.worker_id, hub_key.signer().address_string);
+    info!(
+        "Starting round trip: task_id: {}, worker_id: {}, hub_addr: {}",
+        rt.task_id,
+        rt.worker.worker_id,
+        hub_key.signer().address_string
+    );
     rt.stats.deposit_addr_hub = Some(hub_key.signer().address_string.clone());
     match rt.deposit().await {
         Ok((tx_id, deposit_time)) => {
@@ -85,7 +90,12 @@ async fn do_round_trip_inner(hub_key: EasyHubKey, rt: &mut RoundTrip) {
             return;
         }
     };
-    info!("Did deposit: task_id: {}, worker_id: {}, hub_addr: {}", rt.task_id, rt.worker.worker_id, hub_key.signer().address_string);
+    info!(
+        "Did deposit: task_id: {}, worker_id: {}, hub_addr: {}",
+        rt.task_id,
+        rt.worker.worker_id,
+        hub_key.signer().address_string
+    );
     match rt.await_hub_credit().await {
         Ok(()) => {
             rt.stats.deposit_credit_time = Some(SystemTime::now());
@@ -95,7 +105,12 @@ async fn do_round_trip_inner(hub_key: EasyHubKey, rt: &mut RoundTrip) {
             return;
         }
     };
-    info!("Got hub credit: task_id: {}, worker_id: {}, hub_addr: {}", rt.task_id, rt.worker.worker_id, hub_key.signer().address_string);
+    info!(
+        "Got hub credit: task_id: {}, worker_id: {}, hub_addr: {}",
+        rt.task_id,
+        rt.worker.worker_id,
+        hub_key.signer().address_string
+    );
     let withdraw_res = rt.withdraw().await;
     if !withdraw_res.is_ok() {
         let e = withdraw_res.err().unwrap();
@@ -115,7 +130,12 @@ async fn do_round_trip_inner(hub_key: EasyHubKey, rt: &mut RoundTrip) {
             return;
         }
     };
-    info!("Got kaspa credit: task_id: {}, worker_id: {}, hub_addr: {}", rt.task_id, rt.worker.worker_id, hub_key.signer().address_string);
+    info!(
+        "Got kaspa credit: task_id: {}, worker_id: {}, hub_addr: {}",
+        rt.task_id,
+        rt.worker.worker_id,
+        hub_key.signer().address_string
+    );
 }
 
 struct RoundTrip {
@@ -151,11 +171,13 @@ impl RoundTrip {
     }
 
     async fn deposit(&self) -> Result<(TransactionId, SystemTime)> {
+        let kaspa_addr = self.worker.receive_address()?;
         debug!(
-            "start deposit, task_id: {}, worker_id: {}, hub_addr: {}",
+            "start deposit, task_id: {}, worker_id: {}, hub_addr: {}, kaspa_addr: {}",
             self.task_id,
             self.worker.worker_id,
-            self.hub_key.signer().address_string
+            self.hub_key.signer().address_string,
+            kaspa_addr
         );
         let a = self.res.args.escrow_address.clone();
         let amt = self.value;
