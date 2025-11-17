@@ -37,7 +37,6 @@ use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use tracing::info;
 use url::Url;
 
-/// Minimum withdrawal amount for Kaspa (40 KAS in sompi)
 pub const MIN_KASPA_WITHDRAWAL_SOMPI: u64 = 4_000_000_000;
 
 async fn cosmos_provider(
@@ -81,21 +80,33 @@ async fn cosmos_provider(
 }
 
 pub struct Params {
-    pub time_limit: Duration,          // total target simulation time
-    pub budget: u64,                   // in sompi
-    pub ops_per_minute: u64,           // osmosis does 90 per minute
-    pub min_value: u64,                // in sompi
-    pub hub_fund_amount: u64,          // in adym
-    pub max_wait_for_cancel: Duration, // max time to wait for cancel
+    pub time_limit: Duration,
+    pub budget: u64,
+    pub ops_per_minute: u64,
+    pub min_value: u64,
+    pub hub_fund_amount: u64,
+    pub max_wait_for_cancel: Duration,
     pub simple_mode: bool,
 }
 
 impl Params {
-    /// Used to draw value of each op, in sompi
+    pub fn validate(&self) -> Result<()> {
+        let min_budget_needed = (self.num_ops() * MIN_KASPA_WITHDRAWAL_SOMPI as f64) as u64;
+        if self.budget < min_budget_needed {
+            return Err(eyre::eyre!(
+                "Budget {} sompi is insufficient. Need at least {} sompi for {} ops with 40 KAS minimum per withdrawal",
+                self.budget,
+                min_budget_needed,
+                self.num_ops()
+            ));
+        }
+        Ok(())
+    }
+
     pub fn distr_value(&self) -> Exp<f64> {
         Exp::new(1.0 / self.op_budget()).unwrap()
     }
-    /// Sample deposit value - must be at least MIN_KASPA_WITHDRAWAL_SOMPI
+
     pub fn sample_value(&self) -> u64 {
         if self.simple_mode {
             return self.min_value.max(MIN_KASPA_WITHDRAWAL_SOMPI);
@@ -103,16 +114,19 @@ impl Params {
         let v = self.distr_value().sample(&mut rand::rng()) as u64;
         v.max(self.min_value).max(MIN_KASPA_WITHDRAWAL_SOMPI)
     }
-    /// Used to draw time between ops, in milliseconds
+
     pub fn distr_time(&self) -> Exp<f64> {
         Exp::new(self.ops_per_second() / 1000.0).unwrap()
     }
+
     pub fn num_ops(&self) -> f64 {
         self.time_limit.as_secs_f64() * self.ops_per_second()
     }
+
     pub fn op_budget(&self) -> f64 {
         self.budget as f64 / self.num_ops()
     }
+
     pub fn ops_per_second(&self) -> f64 {
         self.ops_per_minute as f64 / 60.0
     }
@@ -138,16 +152,19 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
 
     fn try_from(cli: SimulateTrafficCli) -> Result<Self, Self::Error> {
         let addr = kaspa_addresses::Address::try_from(cli.escrow_address.clone())?;
+        let params = Params {
+            time_limit: std::time::Duration::from_secs(cli.time_limit),
+            budget: cli.budget,
+            ops_per_minute: cli.ops_per_minute,
+            simple_mode: cli.simple,
+            min_value: cli.min_deposit_sompi,
+            hub_fund_amount: cli.hub_fund_amount,
+            max_wait_for_cancel: std::time::Duration::from_secs(cli.cancel_wait),
+        };
+        params.validate()?;
+
         Ok(SimulateTrafficArgs {
-            params: Params {
-                time_limit: std::time::Duration::from_secs(cli.time_limit),
-                budget: cli.budget,
-                ops_per_minute: cli.ops_per_minute,
-                simple_mode: cli.simple,
-                min_value: cli.min_deposit_sompi,
-                hub_fund_amount: cli.hub_fund_amount,
-                max_wait_for_cancel: std::time::Duration::from_secs(cli.cancel_wait),
-            },
+            params,
             task_args: TaskArgs {
                 domain_kas: cli.domain_kas,
                 token_kas_placeholder: cli.token_kas_placeholder,
@@ -216,22 +233,8 @@ impl TrafficSim {
         })
     }
 
-    pub async fn run(&self) -> Result<()> {
-        let mut rng = rand::rng();
-
-        // Validate budget is sufficient for minimum withdrawals
-        let min_budget_needed = (self.params.num_ops() * MIN_KASPA_WITHDRAWAL_SOMPI as f64) as u64;
-        if self.params.budget < min_budget_needed {
-            return Err(eyre::eyre!(
-                "Budget {} sompi is insufficient. Need at least {} sompi for {} ops with 40 KAS minimum per withdrawal",
-                self.params.budget,
-                min_budget_needed,
-                self.params.num_ops()
-            ));
-        }
-
-        // Pre-create and fund worker wallets
-        let estimated_ops = (self.params.num_ops() * 1.1) as usize; // 10% buffer
+    async fn create_and_fund_workers(&self) -> Result<Vec<WorkerWallet>> {
+        let estimated_ops = (self.params.num_ops() * 1.1) as usize;
         info!("Creating and funding {} worker wallets", estimated_ops);
 
         let mut workers = Vec::new();
@@ -239,9 +242,7 @@ impl TrafficSim {
             let worker =
                 WorkerWallet::create_new(i, self.wrpc_url.clone(), Network::KaspaTest10).await?;
 
-            // Fund worker from whale
             let worker_address = worker.receive_address()?;
-            // Fund each worker with 2x the budget, but ensure at least minimum withdrawal amount
             let fund_amount = (self.params.op_budget() as u64 * 2).max(MIN_KASPA_WITHDRAWAL_SOMPI);
 
             use kaspa_wallet_core::tx::{Fees, PaymentDestination, PaymentOutput};
@@ -266,7 +267,6 @@ impl TrafficSim {
 
             workers.push(worker);
 
-            // Delay between funding to allow UTXO settlement
             if i > 0 && i % 10 == 0 {
                 info!("Funded {}/{} workers", i + 1, estimated_ops);
             }
@@ -274,7 +274,10 @@ impl TrafficSim {
         }
 
         info!("All workers funded, starting simulation");
+        Ok(workers)
+    }
 
+    fn setup_output_files(&self) -> Result<(String, String, StatsWriter)> {
         let random_filename = H256::random();
         let now = SystemTime::now();
         let datetime: DateTime<Utc> = now.into();
@@ -294,6 +297,15 @@ impl TrafficSim {
         let stats_writer = StatsWriter::new(stats_file_path.clone())?;
         info!("Writing stats to {}", stats_file_path);
 
+        Ok((stats_file_path, metadata_file_path, stats_writer))
+    }
+
+    fn spawn_stats_collector(
+        stats_writer: StatsWriter,
+    ) -> (
+        mpsc::Sender<crate::sim::stats::RoundTripStats>,
+        tokio::task::JoinHandle<u64>,
+    ) {
         let (stats_tx, mut stats_rx) = mpsc::channel(100);
 
         let collector_handle = tokio::spawn(async move {
@@ -312,10 +324,19 @@ impl TrafficSim {
             count
         });
 
+        (stats_tx, collector_handle)
+    }
+
+    async fn execute_simulation_loop(
+        &self,
+        workers: Vec<WorkerWallet>,
+        stats_tx: mpsc::Sender<crate::sim::stats::RoundTripStats>,
+        cancel: CancellationToken,
+    ) -> Result<(u64, u64)> {
+        let mut rng = rand::rng();
         let start_time = Instant::now();
         let mut total_ops = 0;
         let mut total_spend = 0;
-        let cancel = CancellationToken::new();
 
         let mut worker_iter = workers.into_iter();
 
@@ -369,6 +390,19 @@ impl TrafficSim {
             }
         }
 
+        Ok((total_spend, total_ops))
+    }
+
+    pub async fn run(&self) -> Result<()> {
+        let workers = self.create_and_fund_workers().await?;
+        let (stats_file_path, metadata_file_path, stats_writer) = self.setup_output_files()?;
+        let (stats_tx, collector_handle) = Self::spawn_stats_collector(stats_writer);
+
+        let cancel = CancellationToken::new();
+        let (total_spend, total_ops) = self
+            .execute_simulation_loop(workers, stats_tx.clone(), cancel.clone())
+            .await?;
+
         info!("Waiting for tasks to finish");
         drop(stats_tx);
         tokio::time::sleep(self.params.max_wait_for_cancel).await;
@@ -412,7 +446,6 @@ async fn fund_hub_addr(
     let response = rpc.send(vec![a], gas_limit).await;
     match response {
         Ok(response) => {
-            // Check check_tx for errors first (mempool validation)
             if response.check_tx.code.is_err() {
                 return Err(eyre::eyre!(
                     "Transaction failed during CheckTx with code {:?}: {}",
@@ -420,7 +453,6 @@ async fn fund_hub_addr(
                     response.check_tx.log
                 ));
             }
-            // Then check tx_result for execution errors
             if response.tx_result.code.is_err() {
                 return Err(eyre::eyre!(
                     "Transaction failed during DeliverTx with code {:?}: {}",
