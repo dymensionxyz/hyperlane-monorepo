@@ -48,7 +48,9 @@ pub async fn get_wallet(
 
     info!("kaspa: wallet secret loaded");
 
-    let wallet_exists = w.exists(None).await
+    let wallet_exists = w
+        .exists(None)
+        .await
         .map_err(|e| Error::from(format!("Failed to check if wallet exists: {e}")))?;
 
     if !wallet_exists {
