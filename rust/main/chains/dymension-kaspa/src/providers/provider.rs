@@ -508,6 +508,7 @@ async fn get_easy_wallet(
         wrpc_url: rpc_url,
         net: domain_to_kas_network(&domain),
         storage_folder: storage_dir,
+        new: false,
     };
     EasyKaspaWallet::try_new(args).await
 }

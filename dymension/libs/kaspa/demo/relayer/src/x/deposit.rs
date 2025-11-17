@@ -168,6 +168,7 @@ pub async fn demo(args: DemoArgs) -> Result<(), Box<dyn Error>> {
         wrpc_url: args.wprc_url,
         net: Network::KaspaTest10,
         storage_folder: None,
+        new: false,
     })
     .await?;
 
