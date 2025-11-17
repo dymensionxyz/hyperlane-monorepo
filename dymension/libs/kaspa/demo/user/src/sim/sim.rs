@@ -175,15 +175,34 @@ impl TrafficSim {
 
         let entries: Vec<_> = std::fs::read_dir(workers_path)?
             .filter_map(|e| e.ok())
-            .filter(|e| e.path().is_dir())
+            .filter(|e| {
+                let path = e.path();
+                if !path.is_dir() {
+                    return false;
+                }
+                let wallet_file = path.join("kaspa.wallet");
+                let hub_key_file = path.join("hub_key.hex");
+                wallet_file.exists() && hub_key_file.exists()
+            })
             .collect();
 
-        let num_workers = entries.len();
+        let worker_ids: Vec<usize> = entries
+            .iter()
+            .filter_map(|e| {
+                let name = e.file_name();
+                let name_str = name.to_string_lossy();
+                if let Some(id_str) = name_str.strip_prefix("worker-") {
+                    id_str.parse::<usize>().ok()
+                } else {
+                    None
+                }
+            })
+            .collect();
 
         let mut workers = Vec::new();
-        for i in 0..num_workers {
+        for worker_id in worker_ids {
             let worker = Worker::load_existing(
-                i,
+                worker_id,
                 self.wrpc_url.clone(),
                 Network::KaspaTest10,
                 &self.workers_dir,
@@ -195,7 +214,8 @@ impl TrafficSim {
 
         info!(
             "workers loaded: num={} dir={}",
-            num_workers, self.workers_dir
+            workers.len(),
+            self.workers_dir
         );
         Ok(workers)
     }
