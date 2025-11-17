@@ -236,7 +236,6 @@ impl TrafficSim {
 
         let mut workers = Vec::new();
         for i in 0..estimated_ops {
-            // Create worker
             let worker =
                 WorkerWallet::create_new(i, self.wrpc_url.clone(), Network::KaspaTest10).await?;
 

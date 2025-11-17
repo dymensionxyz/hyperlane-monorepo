@@ -14,7 +14,6 @@ pub struct WorkerWallet {
 impl WorkerWallet {
     /// Create a new worker wallet with its own storage
     pub async fn create_new(worker_id: usize, wrpc_url: String, net: Network) -> Result<Self> {
-        // Create temporary storage folder for this worker
         let temp_dir = std::env::temp_dir();
         let worker_storage = temp_dir.join(format!(
             "kaspa-worker-{}-{}",
@@ -25,7 +24,7 @@ impl WorkerWallet {
         std::fs::create_dir_all(&worker_storage)?;
 
         let wallet = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
-            wallet_secret: format!("worker-{}", worker_id),
+            wallet_secret: format!("worker-{}-secret", worker_id),
             wrpc_url,
             net,
             storage_folder: Some(worker_storage.to_string_lossy().to_string()),
