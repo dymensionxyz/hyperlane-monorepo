@@ -43,14 +43,6 @@ impl WorkerWallet {
     ) -> Result<Self> {
         let worker_storage = PathBuf::from(workers_dir).join(format!("worker-{}", worker_id));
 
-        if !worker_storage.exists() {
-            return Err(eyre::eyre!(
-                "Worker {} storage not found at {}",
-                worker_id,
-                worker_storage.display()
-            ));
-        }
-
         let wallet = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
             wallet_secret: format!("worker-{}-secret", worker_id),
             wrpc_url,

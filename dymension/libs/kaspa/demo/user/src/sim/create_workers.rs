@@ -22,14 +22,6 @@ impl TryFrom<CreateWorkersCli> for CreateWorkersArgs {
     type Error = eyre::Error;
 
     fn try_from(cli: CreateWorkersCli) -> Result<Self, Self::Error> {
-        if cli.fund_amount < MIN_KASPA_WITHDRAWAL_SOMPI {
-            return Err(eyre::eyre!(
-                "Fund amount {} sompi is too small. Must be at least {} sompi (40 KAS)",
-                cli.fund_amount,
-                MIN_KASPA_WITHDRAWAL_SOMPI
-            ));
-        }
-
         Ok(CreateWorkersArgs {
             num_workers: cli.num_workers,
             workers_dir: cli.workers_dir,

@@ -185,12 +185,6 @@ impl TrafficSim {
         use std::path::Path;
 
         let workers_path = Path::new(&self.workers_dir);
-        if !workers_path.exists() {
-            return Err(eyre::eyre!(
-                "Workers directory does not exist: {}",
-                self.workers_dir
-            ));
-        }
 
         let entries: Vec<_> = std::fs::read_dir(workers_path)?
             .filter_map(|e| e.ok())
@@ -198,10 +192,6 @@ impl TrafficSim {
             .collect();
 
         let num_workers = entries.len();
-        info!(
-            "Loading {} worker wallets from {}",
-            num_workers, self.workers_dir
-        );
 
         let mut workers = Vec::new();
         for i in 0..num_workers {
@@ -214,11 +204,12 @@ impl TrafficSim {
             .await?;
 
             workers.push(worker);
-
-            if i > 0 && i % 10 == 0 {
-                info!("Loaded {}/{} workers", i + 1, num_workers);
-            }
         }
+
+        info!(
+            "Loaded wallets : N: {}, dir: {}",
+            num_workers, self.workers_dir
+        );
 
         info!("All workers loaded, starting simulation");
         Ok(workers)
