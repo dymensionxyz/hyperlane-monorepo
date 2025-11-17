@@ -3,12 +3,13 @@ use super::key_kaspa::get_kaspa_keypair;
 use super::stats::RoundTripStats;
 use super::worker::WorkerWallet;
 use crate::x;
-use cometbft::Hash as TendermintHash;
+use cometbft_rpc::endpoint::broadcast::tx_commit::Response as HubResponse;
 use corelib::api::client::HttpClient;
 use corelib::user::payload::make_deposit_payload_easy;
 use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
 use cosmrs::Any;
 use eyre::Result;
+use hex::ToHex;
 use hyperlane_core::H256;
 use hyperlane_core::U256;
 use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
@@ -17,11 +18,18 @@ use hyperlane_cosmos_rs::prost::{Message, Name};
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionId;
 use std::time::Duration;
-use std::time::SystemTime;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use tracing::error;
+use tracing::info;
+
+fn now_millis() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis()
+}
 
 #[derive(Debug, Clone)]
 pub struct TaskResources {
@@ -66,54 +74,114 @@ pub async fn do_round_trip(
     hub_key: EasyHubKey,
     cancel_token: CancellationToken,
 ) {
-    let mut rt = RoundTrip::new(res, worker, value, task_id, hub_key.clone(), cancel_token);
+    let mut rt = RoundTrip::new(
+        res,
+        worker,
+        value,
+        task_id,
+        hub_key.clone(),
+        cancel_token,
+        tx,
+    );
     do_round_trip_inner(hub_key.clone(), &mut rt).await;
-    tx.send(rt.stats).await.unwrap();
 }
 
-async fn do_round_trip_inner(hub_key: EasyHubKey, rt: &mut RoundTrip) {
-    rt.stats.deposit_addr_hub = Some(hub_key.signer().address_string.clone());
+async fn do_round_trip_inner(hub_key: EasyHubKey, rt: &mut RoundTrip<'_>) {
+    let hub_addr = hub_key.signer().address_string.clone();
+    rt.stats.deposit_addr_hub = Some(hub_addr.clone());
+
+    debug!(
+        "round trip started: task_id={} worker_id={} hub_addr={} value={}",
+        rt.task_id, rt.worker.worker_id, hub_addr, rt.value
+    );
+
     match rt.deposit().await {
-        Ok((tx_id, deposit_time)) => {
+        Ok((tx_id, deposit_time_millis)) => {
             rt.stats.kaspa_deposit_tx_id = Some(tx_id);
-            rt.stats.kaspa_deposit_tx_time = Some(deposit_time);
+            rt.stats.kaspa_deposit_tx_time_millis = Some(deposit_time_millis);
+            info!(
+                "deposit completed: task_id={} worker_id={} hub_addr={} kas_receive_addr={} kas_change_addr={} tx_id={:?}",
+                rt.task_id,
+                rt.worker.worker_id,
+                hub_addr,
+                rt.worker.receive_address().unwrap(),
+                rt.worker.change_address().unwrap(),
+                tx_id
+            );
+            rt.send_stats().await;
         }
         Err(e) => {
-            error!("deposit failed: {:?}", e);
+            error!(
+                "deposit error: task_id={} worker_id={} error={:?}",
+                rt.task_id, rt.worker.worker_id, e
+            );
+            rt.send_stats().await;
             return;
         }
     };
     match rt.await_hub_credit().await {
         Ok(()) => {
-            rt.stats.deposit_credit_time = Some(SystemTime::now());
+            rt.stats.deposit_credit_time_millis = Some(now_millis());
+            info!(
+                "hub credit received: task_id={} worker_id={} hub_addr={}",
+                rt.task_id,
+                rt.worker.worker_id,
+                hub_key.signer().address_string
+            );
+            rt.send_stats().await;
         }
         Err(e) => {
             rt.stats.deposit_credit_error = Some(e.to_string());
+            error!(
+                "hub credit error: task_id={} worker_id={} error={}",
+                rt.task_id, rt.worker.worker_id, e
+            );
+            rt.send_stats().await;
             return;
         }
     };
+
     let withdraw_res = rt.withdraw().await;
     if !withdraw_res.is_ok() {
         let e = withdraw_res.err().unwrap();
-        error!("withdrawal failed: {:?}", e);
+        error!(
+            "withdrawal error: task_id={} worker_id={} error={:?}",
+            rt.task_id, rt.worker.worker_id, e
+        );
+        rt.send_stats().await;
         return;
     }
-    let (kaspa_addr, tx_id, withdrawal_time) = withdraw_res.unwrap();
-    rt.stats.hub_withdraw_tx_id = Some(tx_id);
-    rt.stats.hub_withdraw_tx_time = Some(withdrawal_time);
+    let (kaspa_addr, tx_id, withdrawal_time_millis) = withdraw_res.unwrap();
+    rt.stats.hub_withdraw_tx_id = Some(tx_id.clone());
+    rt.stats.hub_withdraw_tx_time_millis = Some(withdrawal_time_millis);
     rt.stats.withdraw_addr_kaspa = Some(kaspa_addr.clone());
+    rt.send_stats().await;
+
     match rt.await_kaspa_credit(kaspa_addr.clone()).await {
         Ok(()) => {
-            rt.stats.withdraw_credit_time = Some(SystemTime::now());
+            rt.stats.withdraw_credit_time_millis = Some(now_millis());
+            info!(
+                "kaspa credit received: task_id={} worker_id={} hub_addr={} kaspa_addr={}",
+                rt.task_id,
+                rt.worker.worker_id,
+                hub_key.signer().address_string,
+                kaspa_addr
+            );
+            rt.send_stats().await;
         }
         Err(e) => {
             rt.stats.withdraw_credit_error = Some(e.to_string());
+            error!(
+                "kaspa credit error: task_id={} worker_id={} error={}",
+                rt.task_id, rt.worker.worker_id, e
+            );
+            rt.send_stats().await;
             return;
         }
     };
 }
 
-struct RoundTrip {
+struct RoundTrip<'a> {
     res: TaskResources,
     worker: WorkerWallet,
     value: u64,
@@ -121,9 +189,10 @@ struct RoundTrip {
     stats: RoundTripStats,
     hub_key: EasyHubKey,
     cancel: CancellationToken,
+    tx: &'a mpsc::Sender<RoundTripStats>,
 }
 
-impl RoundTrip {
+impl<'a> RoundTrip<'a> {
     pub fn new(
         res: TaskResources,
         worker: WorkerWallet,
@@ -131,6 +200,7 @@ impl RoundTrip {
         task_id: u64,
         hub_k: EasyHubKey,
         cancel_token: CancellationToken,
+        tx: &'a mpsc::Sender<RoundTripStats>,
     ) -> Self {
         let mut res = res.clone();
         res.hub.rpc = res.hub.rpc().with_signer(hub_k.signer());
@@ -142,18 +212,26 @@ impl RoundTrip {
             hub_key: hub_k,
             task_id,
             cancel: cancel_token,
+            tx,
         }
     }
 
-    async fn deposit(&self) -> Result<(TransactionId, SystemTime)> {
-        debug!(
-            "start deposit, task_id: {}, worker_id: {}, hub_addr: {}",
-            self.task_id,
-            self.worker.worker_id,
-            self.hub_key.signer().address_string
-        );
+    async fn send_stats(&self) {
+        if let Err(e) = self.tx.send(self.stats.clone()).await {
+            error!(
+                "stat send error: task_id={} worker_id={} error={:?}",
+                self.task_id, self.worker.worker_id, e
+            );
+        }
+    }
+
+    async fn deposit(&self) -> Result<(TransactionId, u128)> {
         let a = self.res.args.escrow_address.clone();
         let amt = self.value;
+        debug!(
+            "deposit starting: task_id={} worker_id={} escrow_addr={} amount={}",
+            self.task_id, self.worker.worker_id, a, amt
+        );
         let payload = make_deposit_payload_easy(
             self.res.args.domain_kas,
             self.res.args.token_kas_placeholder,
@@ -163,14 +241,14 @@ impl RoundTrip {
             &self.hub_key.signer(),
         );
         let tx_id = self.worker.deposit_with_payload(a, amt, payload).await?;
-        Ok((tx_id, SystemTime::now()))
+        Ok((tx_id, now_millis()))
     }
 
     async fn await_hub_credit(&self) -> Result<()> {
         let a = self.hub_key.signer().address_string;
         debug!(
-            "start await_hub_credit, task_id: {}, addr: {}",
-            self.task_id, a
+            "await hub credit starting: task_id={} worker_id={} hub_addr={} expected_value={}",
+            self.task_id, self.worker.worker_id, a, self.value
         );
         loop {
             let balance = self
@@ -215,19 +293,17 @@ impl RoundTrip {
         Ok(())
     }
 
-    async fn withdraw(&self) -> Result<(Address, TendermintHash, SystemTime)> {
+    async fn withdraw(&self) -> Result<(Address, String, u128)> {
         let kaspa_recipient = get_kaspa_keypair();
         debug!(
-            "start withdraw, task_id: {}, kaspa_addr: {}",
-            self.task_id, kaspa_recipient.address
+            "withdraw starting: task_id={} worker_id={} kaspa_recipient_addr={} amount={}",
+            self.task_id, self.worker.worker_id, kaspa_recipient.address, self.value
         );
-
         let rpc = self.res.hub.rpc();
 
         let amount = self.value.to_string();
         let recipient = x::addr::hl_recipient(&kaspa_recipient.address.to_string());
         let token_id = self.res.args.token_hub_str();
-        debug!("withdraw token_id: {}, recipient: {}", token_id, recipient);
 
         let req = MsgRemoteTransfer {
             sender: rpc.get_signer()?.address_string.clone(),
@@ -251,11 +327,14 @@ impl RoundTrip {
         let response = rpc.send(vec![a], gas_limit).await;
         match response {
             Ok(response) => {
-                if response.tx_result.code.is_ok() {
-                    let tx_id = response.hash.clone();
-                    Ok((kaspa_recipient.address, tx_id, SystemTime::now()))
+                if response.tx_result.code.is_ok() & response.check_tx.code.is_ok() {
+                    Ok((
+                        kaspa_recipient.address,
+                        hub_tx_query_id(&response),
+                        now_millis(),
+                    ))
                 } else {
-                    Err(RoundTripError::WithdrawalTxFailed.into())
+                    Err(RoundTripError::WithdrawalTxFailed { response }.into())
                 }
             }
             Err(e) => Err(eyre::eyre!("Failed to withdraw: {:?}", e)),
@@ -263,7 +342,10 @@ impl RoundTrip {
     }
 
     async fn await_kaspa_credit(&self, kaspa_addr: Address) -> Result<()> {
-        debug!("start await_kaspa_credit, task_id: {}", self.task_id);
+        debug!(
+            "await kaspa credit starting: task_id={} worker_id={} kaspa_addr={} expected_value={}",
+            self.task_id, self.worker.worker_id, kaspa_addr, self.value
+        );
         loop {
             let balance = self
                 .res
@@ -291,14 +373,20 @@ impl RoundTrip {
     }
 }
 
+fn hub_tx_query_id(response: &HubResponse) -> String {
+    let as_h256 = H256::from_slice(response.hash.as_bytes()).into();
+    let tx_hash = hyperlane_cosmos::native::h512_to_h256(as_h256).encode_hex_upper::<String>();
+    tx_hash
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum RoundTripError {
     #[error("hub balance mismatch: {balance} != {expected}")]
     HubBalanceMismatch { balance: i64, expected: i64 },
     #[error("kaspa balance mismatch: {balance} != {expected}")]
     KaspaBalanceMismatch { balance: i64, expected: i64 },
-    #[error("withdrawal tx fail")]
-    WithdrawalTxFailed,
+    #[error("withdrawal tx failed: {response:?}")]
+    WithdrawalTxFailed { response: HubResponse },
     #[error("cancelled")]
     Cancelled,
 }

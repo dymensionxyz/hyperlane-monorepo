@@ -39,6 +39,10 @@ impl WorkerWallet {
         Ok(self.wallet.account().receive_address()?)
     }
 
+    pub fn change_address(&self) -> Result<Address> {
+        Ok(self.wallet.account().change_address()?)
+    }
+
     pub async fn deposit_with_payload(
         &self,
         address: Address,
