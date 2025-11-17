@@ -105,6 +105,10 @@ async fn fund_hub_address(
     amount: u64,
     denom: &str,
 ) -> Result<()> {
+    debug!(
+        "funding hub address starting: to_address={} amount={} denom={}",
+        to_address, amount, denom
+    );
     let rpc = hub.rpc();
     let msg = MsgSend {
         from_address: rpc.get_signer()?.address_string.clone(),
@@ -143,6 +147,10 @@ async fn fund_hub_address(
 }
 
 pub async fn create_and_fund_workers(args: CreateWorkersArgs) -> Result<()> {
+    debug!(
+        "create and fund workers starting: num_workers={} workers_dir={} kaspa_fund_amount={} hub_fund_amount={}",
+        args.num_workers, args.workers_dir, args.kaspa_fund_amount, args.hub_fund_amount
+    );
     let net = Network::KaspaTest10;
     let whale_secret = Secret::from(args.wallet_secret.clone());
 
@@ -169,11 +177,16 @@ pub async fn create_and_fund_workers(args: CreateWorkersArgs) -> Result<()> {
     std::fs::create_dir_all(&args.workers_dir)?;
 
     for i in 0..args.num_workers {
+        debug!("creating worker: index={} total={}", i, args.num_workers);
         let worker =
             Worker::create_new(i, args.wrpc_url.clone(), net.clone(), &args.workers_dir).await?;
 
         let kaspa_address = worker.change_address()?;
         let hub_address = worker.hub_key.signer().address_string.clone();
+        debug!(
+            "funding worker: index={} kaspa_addr={} hub_addr={} kaspa_amount={} hub_amount={}",
+            i, kaspa_address, hub_address, args.kaspa_fund_amount, args.hub_fund_amount
+        );
 
         use kaspa_wallet_core::tx::{Fees, PaymentDestination, PaymentOutput};
 

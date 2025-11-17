@@ -74,6 +74,11 @@ async fn do_round_trip_inner(rt: &mut RoundTrip) {
     let hub_addr = rt.worker.hub_key.signer().address_string.clone();
     rt.stats.deposit_addr_hub = Some(hub_addr.clone());
 
+    debug!(
+        "round trip started: task_id={} worker_id={} hub_addr={} value={}",
+        rt.task_id, rt.worker.worker_id, hub_addr, rt.value
+    );
+
     match rt.deposit().await {
         Ok((tx_id, deposit_time)) => {
             rt.stats.kaspa_deposit_tx_id = Some(tx_id);
@@ -184,6 +189,10 @@ impl RoundTrip {
     async fn deposit(&self) -> Result<(TransactionId, SystemTime)> {
         let a = self.res.args.escrow_address.clone();
         let amt = self.value;
+        debug!(
+            "deposit starting: task_id={} worker_id={} escrow_addr={} amount={}",
+            self.task_id, self.worker.worker_id, a, amt
+        );
         let payload = make_deposit_payload_easy(
             self.res.args.domain_kas,
             self.res.args.token_kas_placeholder,
@@ -198,6 +207,10 @@ impl RoundTrip {
 
     async fn await_hub_credit(&self) -> Result<()> {
         let a = self.worker.hub_key.signer().address_string;
+        debug!(
+            "await hub credit starting: task_id={} worker_id={} hub_addr={} expected_value={}",
+            self.task_id, self.worker.worker_id, a, self.value
+        );
         loop {
             let balance = self
                 .res
@@ -243,6 +256,10 @@ impl RoundTrip {
 
     async fn withdraw(&self) -> Result<(Address, TendermintHash, SystemTime)> {
         let kaspa_recipient = get_kaspa_keypair();
+        debug!(
+            "withdraw starting: task_id={} worker_id={} kaspa_recipient_addr={} amount={}",
+            self.task_id, self.worker.worker_id, kaspa_recipient.address, self.value
+        );
         let rpc = self.res.hub.rpc();
 
         let amount = self.value.to_string();
@@ -283,6 +300,10 @@ impl RoundTrip {
     }
 
     async fn await_kaspa_credit(&self, kaspa_addr: Address) -> Result<()> {
+        debug!(
+            "await kaspa credit starting: task_id={} worker_id={} kaspa_addr={} expected_value={}",
+            self.task_id, self.worker.worker_id, kaspa_addr, self.value
+        );
         loop {
             let balance = self
                 .res

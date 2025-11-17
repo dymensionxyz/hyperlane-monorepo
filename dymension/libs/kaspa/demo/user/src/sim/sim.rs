@@ -26,7 +26,7 @@ use hyperlane_core::NativeToken;
 use hyperlane_core::H256;
 use hyperlane_cosmos::RawCosmosAmount;
 use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
-use tracing::info;
+use tracing::{debug, info};
 use url::Url;
 
 pub const FIXED_TRANSFER_AMOUNT_SOMPI: u64 = 4100000000;
@@ -171,6 +171,7 @@ impl TrafficSim {
         use std::path::Path;
 
         let workers_path = Path::new(&self.workers_dir);
+        debug!("loading workers: dir={}", self.workers_dir);
 
         let entries: Vec<_> = std::fs::read_dir(workers_path)?
             .filter_map(|e| e.ok())
@@ -275,6 +276,10 @@ impl TrafficSim {
             let task_id = total_ops;
             let cancel_token_clone = cancel.clone();
 
+            debug!(
+                "spawning round trip task: task_id={} worker_id={}",
+                task_id, worker.worker_id
+            );
             tokio::spawn(async move {
                 do_round_trip(
                     r,
@@ -311,6 +316,10 @@ impl TrafficSim {
     }
 
     pub async fn run(&self) -> Result<()> {
+        debug!(
+            "simulation starting: workers_dir={} output_dir={} time_limit_secs={} ops_per_minute={}",
+            self.workers_dir, self.output_dir, self.params.time_limit.as_secs(), self.params.ops_per_minute
+        );
         let workers = self.load_workers().await?;
         let (stats_file_path, metadata_file_path, stats_writer) = self.setup_output_files()?;
         let (stats_tx, collector_handle) = Self::spawn_stats_collector(stats_writer);
