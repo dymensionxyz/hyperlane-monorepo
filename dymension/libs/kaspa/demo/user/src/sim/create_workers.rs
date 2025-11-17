@@ -56,7 +56,7 @@ pub async fn create_and_fund_workers(args: CreateWorkersArgs) -> Result<()> {
             WorkerWallet::create_new(i, args.wrpc_url.clone(), net.clone(), &args.workers_dir)
                 .await?;
 
-        let worker_address = worker.receive_address()?;
+        let worker_address = worker.change_address()?;
 
         use kaspa_wallet_core::tx::{Fees, PaymentDestination, PaymentOutput};
 

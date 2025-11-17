@@ -35,7 +35,7 @@ use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 use tracing::info;
 use url::Url;
 
-pub const FIXED_TRANSFER_AMOUNT_SOMPI: u64 = 5_000_000_000;
+pub const FIXED_TRANSFER_AMOUNT_SOMPI: u64 = 4100000000;
 
 async fn cosmos_provider(
     signer_key_hex: &str,
