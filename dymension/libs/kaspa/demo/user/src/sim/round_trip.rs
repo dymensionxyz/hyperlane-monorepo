@@ -22,6 +22,7 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use tracing::error;
+use tracing::info;
 
 #[derive(Debug, Clone)]
 pub struct TaskResources {
@@ -72,6 +73,7 @@ pub async fn do_round_trip(
 }
 
 async fn do_round_trip_inner(hub_key: EasyHubKey, rt: &mut RoundTrip) {
+    info!("Starting round trip: task_id: {}, worker_id: {}, hub_addr: {}", rt.task_id, rt.worker.worker_id, hub_key.signer().address_string);
     rt.stats.deposit_addr_hub = Some(hub_key.signer().address_string.clone());
     match rt.deposit().await {
         Ok((tx_id, deposit_time)) => {
@@ -83,6 +85,7 @@ async fn do_round_trip_inner(hub_key: EasyHubKey, rt: &mut RoundTrip) {
             return;
         }
     };
+    info!("Did deposit: task_id: {}, worker_id: {}, hub_addr: {}", rt.task_id, rt.worker.worker_id, hub_key.signer().address_string);
     match rt.await_hub_credit().await {
         Ok(()) => {
             rt.stats.deposit_credit_time = Some(SystemTime::now());
@@ -92,6 +95,7 @@ async fn do_round_trip_inner(hub_key: EasyHubKey, rt: &mut RoundTrip) {
             return;
         }
     };
+    info!("Got hub credit: task_id: {}, worker_id: {}, hub_addr: {}", rt.task_id, rt.worker.worker_id, hub_key.signer().address_string);
     let withdraw_res = rt.withdraw().await;
     if !withdraw_res.is_ok() {
         let e = withdraw_res.err().unwrap();
@@ -111,6 +115,7 @@ async fn do_round_trip_inner(hub_key: EasyHubKey, rt: &mut RoundTrip) {
             return;
         }
     };
+    info!("Got kaspa credit: task_id: {}, worker_id: {}, hub_addr: {}", rt.task_id, rt.worker.worker_id, hub_key.signer().address_string);
 }
 
 struct RoundTrip {

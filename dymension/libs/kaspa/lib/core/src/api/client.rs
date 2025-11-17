@@ -191,8 +191,13 @@ impl HttpClient {
 
     pub fn get_config(&self) -> Configuration {
         let u = self.url.clone();
-        let url = u.strip_suffix("/").unwrap();
-        get_config(url, self.client.clone())
+        let url: String;
+        if u.ends_with("/"){
+            url = u.strip_suffix("/").unwrap().to_string();
+        }else{
+            url = u;
+        }
+        get_config(&url, self.client.clone())
     }
 
     // TODO: we should pass block hash hint in validator (he can get it from relayer)
