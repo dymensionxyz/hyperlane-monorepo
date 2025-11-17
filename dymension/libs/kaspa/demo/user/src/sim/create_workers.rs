@@ -227,7 +227,7 @@ pub async fn create_and_fund_workers(args: CreateWorkersArgs) -> Result<()> {
             hub_address
         );
 
-        tokio::time::sleep(Duration::from_millis(2000)).await;
+        tokio::time::sleep(Duration::from_millis(750)).await;
     }
 
     info!(
