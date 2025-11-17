@@ -1,10 +1,9 @@
-use super::key_cosmos::EasyHubKey;
 use super::round_trip::do_round_trip;
 use super::round_trip::TaskArgs;
 use super::round_trip::TaskResources;
 use super::stats::write_metadata;
 use super::stats::StatsWriter;
-use super::worker::WorkerWallet;
+use super::worker::Worker;
 use chrono::{DateTime, Utc};
 use corelib::api::base::RateLimitConfig;
 use corelib::api::client::HttpClient;
@@ -17,13 +16,8 @@ use std::time::SystemTime;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
-use tracing::debug;
 
 use crate::x::args::SimulateTrafficCli;
-use cosmos_sdk_proto::cosmos::bank::v1beta1::MsgSend;
-use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
-use cosmos_sdk_proto::traits::Message;
-use cosmrs::Any;
 use hyperlane_core::config::OpSubmissionConfig;
 use hyperlane_core::ContractLocator;
 use hyperlane_core::HyperlaneDomain;
@@ -38,7 +32,6 @@ use url::Url;
 pub const FIXED_TRANSFER_AMOUNT_SOMPI: u64 = 4100000000;
 
 async fn cosmos_provider(
-    signer_key_hex: &str,
     rpc_url: &str,
     grpc_url: &str,
     chain_id: &str,
@@ -68,9 +61,7 @@ async fn cosmos_provider(
     .map_err(|e| eyre::eyre!(e))?;
     let d = HyperlaneDomain::Known(KnownHyperlaneDomain::Osmosis);
     let locator = ContractLocator::new(&d, H256::zero());
-    let hub_key = EasyHubKey::from_hex(signer_key_hex);
-    let signer = Some(hub_key.signer());
-    debug!("signer: {:?}", signer);
+    let signer = None;
     let metrics = PrometheusClientMetrics::default();
     let chain = None;
     CosmosProvider::<ModuleQueryClient>::new(&conf, &locator, signer, metrics, chain)
@@ -80,7 +71,6 @@ async fn cosmos_provider(
 pub struct Params {
     pub time_limit: Duration,
     pub ops_per_minute: u64,
-    pub hub_fund_amount: u64,
     pub max_wait_for_cancel: Duration,
     pub simple_mode: bool,
 }
@@ -100,7 +90,6 @@ pub struct SimulateTrafficArgs {
     pub task_args: TaskArgs,
     pub workers_dir: String,
     pub kaspa_wrpc_url: String,
-    pub hub_whale_priv_key: String,
     pub output_dir: String,
     pub hub_rpc_url: String,
     pub hub_grpc_url: String,
@@ -120,7 +109,6 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
             time_limit: std::time::Duration::from_secs(cli.time_limit),
             ops_per_minute: cli.ops_per_minute,
             simple_mode: cli.simple,
-            hub_fund_amount: cli.hub_fund_amount,
             max_wait_for_cancel: std::time::Duration::from_secs(cli.cancel_wait),
         };
 
@@ -135,7 +123,6 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
             },
             workers_dir: cli.workers_dir,
             kaspa_wrpc_url: cli.kaspa_wrpc_url,
-            hub_whale_priv_key: cli.hub_whale_priv_key,
             output_dir: cli.output_dir,
             hub_rpc_url: cli.hub_rpc_url,
             hub_grpc_url: cli.hub_grpc_url,
@@ -161,7 +148,6 @@ impl TrafficSim {
         let resources = TaskResources {
             args: args.task_args,
             hub: cosmos_provider(
-                &args.hub_whale_priv_key,
                 &args.hub_rpc_url,
                 &args.hub_grpc_url,
                 &args.hub_chain_id,
@@ -181,7 +167,7 @@ impl TrafficSim {
         })
     }
 
-    async fn load_workers(&self) -> Result<Vec<WorkerWallet>> {
+    async fn load_workers(&self) -> Result<Vec<Worker>> {
         use std::path::Path;
 
         let workers_path = Path::new(&self.workers_dir);
@@ -195,7 +181,7 @@ impl TrafficSim {
 
         let mut workers = Vec::new();
         for i in 0..num_workers {
-            let worker = WorkerWallet::load_existing(
+            let worker = Worker::load_existing(
                 i,
                 self.wrpc_url.clone(),
                 Network::KaspaTest10,
@@ -207,7 +193,7 @@ impl TrafficSim {
         }
 
         info!(
-            "Loaded wallets : N: {}, dir: {}",
+            "Loaded workers: N: {}, dir: {}",
             num_workers, self.workers_dir
         );
 
@@ -267,7 +253,7 @@ impl TrafficSim {
 
     async fn execute_simulation_loop(
         &self,
-        workers: Vec<WorkerWallet>,
+        workers: Vec<Worker>,
         stats_tx: mpsc::Sender<crate::sim::stats::RoundTripStats>,
         cancel: CancellationToken,
     ) -> Result<(u64, u64)> {
@@ -290,8 +276,6 @@ impl TrafficSim {
             let tx_clone = stats_tx.clone();
             let r = self.resources.clone();
             let task_id = total_ops;
-            let hub_key = EasyHubKey::new();
-            fund_hub_addr(&hub_key, &r.hub, self.params.hub_fund_amount).await?;
             let cancel_token_clone = cancel.clone();
 
             tokio::spawn(async move {
@@ -301,7 +285,6 @@ impl TrafficSim {
                     FIXED_TRANSFER_AMOUNT_SOMPI,
                     &tx_clone,
                     task_id,
-                    hub_key,
                     cancel_token_clone,
                 )
                 .await;
@@ -354,86 +337,5 @@ impl TrafficSim {
         info!("Metadata file: {}", metadata_file_path);
 
         Ok(())
-    }
-}
-
-async fn fund_hub_addr(
-    hub_key: &EasyHubKey,
-    hub: &CosmosProvider<ModuleQueryClient>,
-    amount: u64,
-) -> Result<()> {
-    let hub_addr = hub_key.signer().address_string.clone();
-    debug!("funding hub address: {}", hub_addr);
-    let rpc = hub.rpc();
-    let msg = MsgSend {
-        from_address: rpc.get_signer()?.address_string.clone(),
-        to_address: hub_addr.clone(),
-        amount: vec![Coin {
-            amount: amount.to_string(),
-            denom: "adym".to_string(),
-        }],
-    };
-    let a = Any {
-        type_url: "/cosmos.bank.v1beta1.MsgSend".to_string(),
-        value: msg.encode_to_vec(),
-    };
-    let gas_limit = None;
-    let response = rpc.send(vec![a], gas_limit).await;
-    match response {
-        Ok(response) => {
-            if response.check_tx.code.is_err() {
-                return Err(eyre::eyre!(
-                    "Transaction failed during CheckTx with code {:?}: {}",
-                    response.check_tx.code,
-                    response.check_tx.log
-                ));
-            }
-            if response.tx_result.code.is_err() {
-                return Err(eyre::eyre!(
-                    "Transaction failed during DeliverTx with code {:?}: {}",
-                    response.tx_result.code,
-                    response.tx_result.log
-                ));
-            }
-            info!("Funded hub address: {}", hub_addr);
-            Ok(())
-        }
-        Err(e) => Err(eyre::eyre!("Failed to fund hub address: {:?}", e)),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use hyperlane_core::H256;
-
-    #[test]
-    fn test_h256_random_stringify() {
-        let h = H256::random();
-        let s = format!("{:?}", h);
-        println!("s: {}", s);
-    }
-
-    #[tokio::test]
-    #[ignore = "requires playground to be up and populated"]
-    async fn test_fund_hub_addr() {
-        tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::DEBUG)
-            .init();
-        let recipient = EasyHubKey::new();
-        println!("recipient: {:?}", recipient.signer().address_string);
-        let k = "7c3ea937a1578534cbe33bc22486d837436d99d0fb66cf1e5f9c9aa120e05964";
-        let hub = cosmos_provider(
-            &k,
-            "https://rpc-dymension-playground35.mzonder.com:443",
-            "https://grpc-dymension-playground35.mzonder.com:443",
-            "dymension_3405-1",
-            "dym",
-            "adym",
-            18,
-        )
-        .await
-        .unwrap();
-        fund_hub_addr(&recipient, &hub, 100).await.unwrap();
     }
 }

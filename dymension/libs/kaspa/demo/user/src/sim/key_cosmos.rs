@@ -22,6 +22,9 @@ impl EasyHubKey {
         let hub_k = K256SigningKey::from_slice(&priv_k).unwrap();
         Self { private: hub_k }
     }
+    pub fn private_key_bytes(&self) -> Vec<u8> {
+        self.private.to_bytes().to_vec()
+    }
 }
 
 #[cfg(test)]

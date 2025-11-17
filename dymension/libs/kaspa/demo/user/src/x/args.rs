@@ -120,9 +120,47 @@ pub struct CreateWorkersCli {
     #[arg(long, required = true)]
     pub workers_dir: String,
 
-    /// Amount to fund each worker wallet in sompi
+    /// Amount to fund each worker kaspa wallet in sompi
     #[arg(long, required = true)]
-    pub fund_amount: u64,
+    pub kaspa_fund_amount: u64,
+
+    /// Amount to fund each worker hub account in adym
+    #[arg(long, required = true)]
+    pub hub_fund_amount: u64,
+
+    /// Hex private key of hub whale account for funding worker hub accounts
+    #[arg(long, required = true)]
+    pub hub_whale_priv_key: String,
+
+    /// Hub RPC URL
+    #[arg(
+        long,
+        default_value = "https://rpc-dymension-playground35.mzonder.com:443"
+    )]
+    pub hub_rpc_url: String,
+
+    /// Hub gRPC URL
+    #[arg(
+        long,
+        default_value = "https://grpc-dymension-playground35.mzonder.com:443"
+    )]
+    pub hub_grpc_url: String,
+
+    /// Hub chain ID
+    #[arg(long, default_value = "dymension_3405-1")]
+    pub hub_chain_id: String,
+
+    /// Hub address prefix
+    #[arg(long, default_value = "dym")]
+    pub hub_prefix: String,
+
+    /// Hub native denom
+    #[arg(long, default_value = "adym")]
+    pub hub_denom: String,
+
+    /// Hub native token decimals
+    #[arg(long, default_value = "18")]
+    pub hub_decimals: u32,
 
     #[command(flatten)]
     pub wallet: WalletCli,
@@ -138,17 +176,10 @@ pub struct SimulateTrafficCli {
     /// Directory containing pre-funded worker wallets
     #[arg(long, required = true)]
     pub workers_dir: String,
-    /// The amount to fund each hub address with adym to pay fees on the withdrawal
-    #[arg(long, required = true)]
-    pub hub_fund_amount: u64,
 
     /// Filesystem dir to write logs/stats/debuf info from the run
     #[arg(long, required = true)]
     pub output_dir: String,
-
-    /// Hex private key of hub account which has dym funds which can be used to pay fees on the withdrawals
-    #[arg(long, required = true)]
-    pub hub_whale_priv_key: String,
 
     /// Approx total time limit to run the simulation in seconds
     #[arg(long, required = true)]

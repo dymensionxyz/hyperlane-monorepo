@@ -1,21 +1,23 @@
+use super::key_cosmos::EasyHubKey;
 use corelib::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
 use eyre::Result;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionId;
 use std::path::PathBuf;
 
-/// Worker wallet for parallel deposits
-/// Each worker uses an independent wallet
+/// Worker containing both Kaspa wallet and Hub key for parallel deposits
 #[derive(Clone)]
-pub struct WorkerWallet {
+pub struct Worker {
     pub wallet: EasyKaspaWallet,
+    pub hub_key: EasyHubKey,
     pub worker_id: usize,
 }
 
 const SECRET: &str = "lkjsdf";
+const HUB_KEY_FILENAME: &str = "hub_key.hex";
 
-impl WorkerWallet {
-    /// Create a new worker wallet with its own storage in a permanent directory
+impl Worker {
+    /// Create a new worker with both Kaspa wallet and Hub key
     pub async fn create_new(
         worker_id: usize,
         wrpc_url: String,
@@ -34,10 +36,20 @@ impl WorkerWallet {
         })
         .await?;
 
-        Ok(Self { wallet, worker_id })
+        let hub_key = EasyHubKey::new();
+
+        let hub_key_path = worker_storage.join(HUB_KEY_FILENAME);
+        let hub_key_hex = hex::encode(hub_key.private_key_bytes());
+        std::fs::write(hub_key_path, hub_key_hex)?;
+
+        Ok(Self {
+            wallet,
+            hub_key,
+            worker_id,
+        })
     }
 
-    /// Load an existing worker wallet from a permanent directory
+    /// Load an existing worker from a permanent directory
     pub async fn load_existing(
         worker_id: usize,
         wrpc_url: String,
@@ -55,7 +67,15 @@ impl WorkerWallet {
         })
         .await?;
 
-        Ok(Self { wallet, worker_id })
+        let hub_key_path = worker_storage.join(HUB_KEY_FILENAME);
+        let hub_key_hex = std::fs::read_to_string(hub_key_path)?;
+        let hub_key = EasyHubKey::from_hex(&hub_key_hex);
+
+        Ok(Self {
+            wallet,
+            hub_key,
+            worker_id,
+        })
     }
 
     pub fn receive_address(&self) -> Result<Address> {

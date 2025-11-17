@@ -1,7 +1,6 @@
-use super::key_cosmos::EasyHubKey;
 use super::key_kaspa::get_kaspa_keypair;
 use super::stats::RoundTripStats;
-use super::worker::WorkerWallet;
+use super::worker::Worker;
 use crate::x;
 use cometbft::Hash as TendermintHash;
 use corelib::api::client::HttpClient;
@@ -51,7 +50,7 @@ impl TaskArgs {
 
 /*
 Stages
-    1. Deposit using whale, to new hub user
+    1. Deposit using worker kaspa wallet to worker hub account
     2. Poll for hub user balance to be credited
     3. Withdraw from hub user to a kaspa user
     4. Poll for kaspa user balance to be credited
@@ -60,28 +59,28 @@ Stages
  */
 pub async fn do_round_trip(
     res: TaskResources,
-    worker: WorkerWallet,
+    worker: Worker,
     value: u64,
     tx: &mpsc::Sender<RoundTripStats>,
     task_id: u64,
-    hub_key: EasyHubKey,
     cancel_token: CancellationToken,
 ) {
-    let mut rt = RoundTrip::new(res, worker, value, task_id, hub_key.clone(), cancel_token);
-    do_round_trip_inner(hub_key.clone(), &mut rt).await;
+    let mut rt = RoundTrip::new(res, worker, value, task_id, cancel_token);
+    do_round_trip_inner(&mut rt).await;
     tx.send(rt.stats).await.unwrap();
 }
 
-async fn do_round_trip_inner(hub_key: EasyHubKey, rt: &mut RoundTrip) {
+async fn do_round_trip_inner(rt: &mut RoundTrip) {
+    let hub_addr = rt.worker.hub_key.signer().address_string.clone();
     info!(
         "Starting round trip: task_id: {}, worker_id: {}, hub_addr: {}, kas receive_addr: {}, kas change_addr: {}",
         rt.task_id,
         rt.worker.worker_id,
-        hub_key.signer().address_string,
+        hub_addr,
         rt.worker.receive_address().unwrap(),
         rt.worker.change_address().unwrap(),
     );
-    rt.stats.deposit_addr_hub = Some(hub_key.signer().address_string.clone());
+    rt.stats.deposit_addr_hub = Some(hub_addr);
     match rt.deposit().await {
         Ok((tx_id, deposit_time)) => {
             rt.stats.kaspa_deposit_tx_id = Some(tx_id);
@@ -96,7 +95,7 @@ async fn do_round_trip_inner(hub_key: EasyHubKey, rt: &mut RoundTrip) {
         "Did deposit: task_id: {}, worker_id: {}, hub_addr: {}",
         rt.task_id,
         rt.worker.worker_id,
-        hub_key.signer().address_string
+        rt.worker.hub_key.signer().address_string
     );
     match rt.await_hub_credit().await {
         Ok(()) => {
@@ -111,7 +110,7 @@ async fn do_round_trip_inner(hub_key: EasyHubKey, rt: &mut RoundTrip) {
         "Got hub credit: task_id: {}, worker_id: {}, hub_addr: {}",
         rt.task_id,
         rt.worker.worker_id,
-        hub_key.signer().address_string
+        rt.worker.hub_key.signer().address_string
     );
     let withdraw_res = rt.withdraw().await;
     if !withdraw_res.is_ok() {
@@ -136,37 +135,34 @@ async fn do_round_trip_inner(hub_key: EasyHubKey, rt: &mut RoundTrip) {
         "Got kaspa credit: task_id: {}, worker_id: {}, hub_addr: {}",
         rt.task_id,
         rt.worker.worker_id,
-        hub_key.signer().address_string
+        rt.worker.hub_key.signer().address_string
     );
 }
 
 struct RoundTrip {
     res: TaskResources,
-    worker: WorkerWallet,
+    worker: Worker,
     value: u64,
     task_id: u64,
     stats: RoundTripStats,
-    hub_key: EasyHubKey,
     cancel: CancellationToken,
 }
 
 impl RoundTrip {
     pub fn new(
         res: TaskResources,
-        worker: WorkerWallet,
+        worker: Worker,
         value: u64,
         task_id: u64,
-        hub_k: EasyHubKey,
         cancel_token: CancellationToken,
     ) -> Self {
         let mut res = res.clone();
-        res.hub.rpc = res.hub.rpc().with_signer(hub_k.signer());
+        res.hub.rpc = res.hub.rpc().with_signer(worker.hub_key.signer());
         Self {
             res,
             worker,
             value,
             stats: RoundTripStats::new(task_id, value),
-            hub_key: hub_k,
             task_id,
             cancel: cancel_token,
         }
@@ -181,14 +177,14 @@ impl RoundTrip {
             self.res.args.domain_hub,
             self.res.args.token_hub,
             amt,
-            &self.hub_key.signer(),
+            &self.worker.hub_key.signer(),
         );
         let tx_id = self.worker.deposit_with_payload(a, amt, payload).await?;
         Ok((tx_id, SystemTime::now()))
     }
 
     async fn await_hub_credit(&self) -> Result<()> {
-        let a = self.hub_key.signer().address_string;
+        let a = self.worker.hub_key.signer().address_string;
         debug!(
             "start await_hub_credit, task_id: {}, addr: {}",
             self.task_id, a
