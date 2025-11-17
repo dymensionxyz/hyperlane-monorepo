@@ -114,10 +114,6 @@ pub struct SimulateTrafficCli {
     #[arg(long)]
     pub kaspa_whale_wallet_dir_prefix: Option<String>,
 
-    /// The amount to ensure each hub whale has (in adym) to pay fees on withdrawals
-    #[arg(long, required = true)]
-    pub hub_fund_amount: u64,
-
     /// Filesystem dir to write logs/stats/debug info from the run
     #[arg(long, required = true)]
     pub output_dir: String,
