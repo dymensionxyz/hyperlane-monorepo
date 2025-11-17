@@ -21,12 +21,10 @@ pub async fn get_wallet(
     network_id: NetworkId,
     url: String,
     storage_folder: Option<String>,
+    new: bool,
 ) -> Result<Arc<Wallet>, Error> {
     if let Some(ref folder) = storage_folder {
-        info!("kaspa: setting wallet storage folder to: {}", folder);
         unsafe { unsafe_set_default_storage_folder_kaspa(folder.clone()) }?;
-    } else {
-        info!("kaspa: using default wallet storage folder");
     }
 
     let local_store = Wallet::local_store()
@@ -50,20 +48,10 @@ pub async fn get_wallet(
     info!(connected = is_c, "kaspa: wallet connection status");
 
     info!("kaspa: wallet secret loaded");
+    let wallet_name = Some("kaspa".to_string());
 
-    // Try to open the wallet first
-    // The kaspa library uses "kaspa-wallet" as the default wallet name, which creates "kaspa-wallet.wallet" file
-    info!("kaspa: attempting to open existing wallet");
-    let wallet_name = Some("kaspa-wallet".to_string());
-    let open_result = w.clone().wallet_open(s.clone(), wallet_name.clone(), true, false).await;
-
-    match open_result {
-        Ok(_) => {
-            info!("kaspa: successfully opened existing wallet");
-        }
-        Err(e) => {
-            info!("kaspa: failed to open wallet ({}), attempting to create new wallet", e);
-
+    match new {
+        true => {
             let wallet_args = WalletCreateArgs::new(
                 wallet_name,
                 None,
@@ -82,9 +70,16 @@ pub async fn get_wallet(
                     None,
                 )
                 .await
-                .map_err(|e2| Error::from(format!("Failed to create wallet after open failed: {}", e2)))?;
-
-            info!("kaspa: wallet created successfully");
+                .map_err(|e2| {
+                    Error::from(format!("Failed to create wallet after open failed: {}", e2))
+                })?;
+        }
+        false => {
+            let open_result = w
+                .clone()
+                .wallet_open(s.clone(), wallet_name.clone(), true, false)
+                .await;
+            open_result.map_err(|e| Error::from(format!("Failed to open wallet: {e}")))?;
         }
     }
 
@@ -135,7 +130,8 @@ pub struct EasyKaspaWalletArgs {
     pub wallet_secret: String, // this the short password that protects the keychain, not the private key of the crypto account
     pub wrpc_url: String,      // .e.g localhost:16210
     pub net: Network,
-    pub storage_folder: Option<String>,
+    pub storage_folder: Option<String>, // defaults to ~/.kaspa/
+    pub new: bool,
 }
 
 impl EasyKaspaWallet {
@@ -147,6 +143,7 @@ impl EasyKaspaWallet {
             info.clone().network_id,
             info.clone().rpc_url,
             args.storage_folder,
+            args.new,
         )
         .await?;
         let node_info = w.rpc_api().get_server_info().await?;

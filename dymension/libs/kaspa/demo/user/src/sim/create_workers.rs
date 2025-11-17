@@ -7,8 +7,6 @@ use tracing::info;
 
 use crate::x::args::CreateWorkersCli;
 
-const MIN_KASPA_WITHDRAWAL_SOMPI: u64 = 4_000_000_000;
-
 pub struct CreateWorkersArgs {
     pub num_workers: usize,
     pub workers_dir: String,
@@ -42,6 +40,7 @@ pub async fn create_and_fund_workers(args: CreateWorkersArgs) -> Result<()> {
         wrpc_url: args.wrpc_url.clone(),
         net: net.clone(),
         storage_folder: args.wallet_dir,
+        new: false,
     })
     .await?;
 
@@ -87,7 +86,7 @@ pub async fn create_and_fund_workers(args: CreateWorkersArgs) -> Result<()> {
             worker_address
         );
 
-        tokio::time::sleep(Duration::from_millis(1500)).await;
+        tokio::time::sleep(Duration::from_millis(2000)).await;
     }
 
     info!(

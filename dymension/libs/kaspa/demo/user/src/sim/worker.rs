@@ -12,6 +12,8 @@ pub struct WorkerWallet {
     pub worker_id: usize,
 }
 
+const SECRET: &str = "lkjsdf";
+
 impl WorkerWallet {
     /// Create a new worker wallet with its own storage in a permanent directory
     pub async fn create_new(
@@ -24,10 +26,11 @@ impl WorkerWallet {
         std::fs::create_dir_all(&worker_storage)?;
 
         let wallet = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
-            wallet_secret: format!("worker-{}-secret", worker_id),
+            wallet_secret: SECRET.to_string(),
             wrpc_url,
             net,
             storage_folder: Some(worker_storage.to_string_lossy().to_string()),
+            new: true,
         })
         .await?;
 
@@ -44,10 +47,11 @@ impl WorkerWallet {
         let worker_storage = PathBuf::from(workers_dir).join(format!("worker-{}", worker_id));
 
         let wallet = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
-            wallet_secret: format!("worker-{}-secret", worker_id),
+            wallet_secret: SECRET.to_string(),
             wrpc_url,
             net,
             storage_folder: Some(worker_storage.to_string_lossy().to_string()),
+            new: false,
         })
         .await?;
 
