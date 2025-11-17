@@ -2,7 +2,9 @@ use super::key_kaspa::get_kaspa_keypair;
 use super::stats::RoundTripStats;
 use super::worker::Worker;
 use crate::x;
-use cometbft::Hash as TendermintHash;
+use std::{collections::HashMap, hash::Hash};
+use cometbft::Hash as HubHash;
+use cometbft_rpc::endpoint::broadcast::tx_commit::Response as HubResponse;
 use corelib::api::client::HttpClient;
 use corelib::user::payload::make_deposit_payload_easy;
 use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
@@ -273,7 +275,7 @@ impl<'a> RoundTrip<'a> {
         Ok(())
     }
 
-    async fn withdraw(&self) -> Result<(Address, TendermintHash, SystemTime)> {
+    async fn withdraw(&self) -> Result<(Address, HubResponse, SystemTime)> {
         let kaspa_recipient = get_kaspa_keypair();
         debug!(
             "withdraw starting: task_id={} worker_id={} kaspa_recipient_addr={} amount={}",
@@ -307,9 +309,8 @@ impl<'a> RoundTrip<'a> {
         let response = rpc.send(vec![a], gas_limit).await;
         match response {
             Ok(response) => {
-                if response.tx_result.code.is_ok() {
-                    let tx_id = response.hash.clone();
-                    Ok((kaspa_recipient.address, tx_id, SystemTime::now()))
+                if response.tx_result.code.is_ok() & response.check_tx.code.is_ok() {
+                    Ok((kaspa_recipient.address, response, SystemTime::now()))
                 } else {
                     Err(RoundTripError::WithdrawalTxFailed.into())
                 }
@@ -348,6 +349,12 @@ impl<'a> RoundTrip<'a> {
 
         Ok(())
     }
+}
+
+fn hub_tx_query_id(response: &HubResponse) -> String {
+    let asH256 = H256::from_slice(response.hash.as_bytes()).into();
+    let tx_hash = hyperlane_cosmos::native::h512_to_cosmos_hash(asH256).encode_hex_upper::<String>();
+    tx_hash
 }
 
 #[derive(Debug, thiserror::Error)]
