@@ -316,7 +316,7 @@ impl TrafficSim {
     pub async fn run(&self) -> Result<()> {
         let workers = self.load_workers().await?;
         let (stats_file_path, metadata_file_path, stats_writer) = self.setup_output_files()?;
-        let (stats_tx, _) = Self::spawn_stats_collector(stats_writer);
+        let (stats_tx, collector_handle) = Self::spawn_stats_collector(stats_writer);
 
         info!("Loaded workers: N: {}", workers.len());
 
@@ -329,6 +329,10 @@ impl TrafficSim {
         drop(stats_tx);
         tokio::time::sleep(self.params.max_wait_for_cancel).await;
         cancel.cancel();
+
+        info!("Waiting for stats collector to finish writing all stats");
+        let total_stats = collector_handle.await?;
+        info!("Stats collector finished, wrote {} stats total", total_stats);
 
         write_metadata(&metadata_file_path, total_spend, total_ops)?;
 
