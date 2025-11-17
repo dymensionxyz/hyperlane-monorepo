@@ -259,18 +259,14 @@ impl KaspaBridgeMetrics {
         }
     }
 
-    /// Record successful withdrawal processing with amount, ID, and message count
+    /// Record successful withdrawal processing with amount and ID
     pub fn record_withdrawal_processed(
         &self,
         withdrawal_id: &str,
         amount_sompi: u64,
-        message_count: u64,
     ) {
         self.total_funds_withdrawn.inc_by(amount_sompi);
-        self.withdrawals_processed_total.inc_by(message_count);
-
-        // Update batch statistics
-        self.update_withdrawal_batch_stats(message_count as i64);
+        self.withdrawals_processed_total.inc();
 
         // Remove from failed set if it was previously failed and decrement pending count and amount
         let mut failed_ids = self.failed_withdrawal_ids.write().unwrap();
@@ -428,7 +424,7 @@ mod tests {
         // Test withdrawal processing
         let initial_total = metrics.total_funds_withdrawn.get();
         let initial_count = metrics.withdrawals_processed_total.get();
-        metrics.record_withdrawal_processed("withdrawal_1", 50000, 1);
+        metrics.record_withdrawal_processed("withdrawal_1", 50000);
         assert_eq!(
             metrics.total_funds_withdrawn.get() as u64,
             initial_total as u64 + 50000
@@ -463,7 +459,7 @@ mod tests {
         assert_eq!(metrics.pending_failed_deposits.get(), 0); // Should be decremented
         assert_eq!(metrics.failed_deposit_funds_sompi.get(), 0); // Amount should be removed
 
-        metrics.record_withdrawal_processed("withdrawal_2", 5000, 1);
+        metrics.record_withdrawal_processed("withdrawal_2", 5000);
         assert_eq!(metrics.pending_failed_withdrawals.get(), 0); // Should be decremented
         assert_eq!(metrics.failed_withdrawal_funds_sompi.get(), 0); // Amount should be removed
 

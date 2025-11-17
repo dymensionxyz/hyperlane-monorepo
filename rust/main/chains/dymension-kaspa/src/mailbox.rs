@@ -153,36 +153,21 @@ impl Mailbox for KaspaMailbox {
 
         info!("kaspa mailbox: processed withdrawals TXs");
 
-        // Update withdrawal metrics based on batch result
-        // Track each message individually to get accurate count of pending failed withdrawals
-        if !msgs.is_empty() {
-            if processed_messages.is_empty() {
-                // Complete failure - all messages failed (including pending confirmation case)
-                for msg in &msgs {
-                    let msg_id = format!("{:?}", msg.id());
-                    let amount = parse_withdrawal_amount(msg).unwrap_or(0);
-                    self.provider.metrics().record_withdrawal_failed(&msg_id, amount);
-                }
-            } else if processed_messages.len() == msgs.len() {
-                // Complete success - all messages processed
-                for msg in &msgs {
-                    let msg_id = format!("{:?}", msg.id());
-                    let amount = parse_withdrawal_amount(msg).unwrap_or(0);
-                    self.provider.metrics().record_withdrawal_processed(&msg_id, amount, 1);
-                }
-            } else {
-                // Partial success - track individually
-                for msg in &msgs {
-                    let msg_id = format!("{:?}", msg.id());
-                    let amount = parse_withdrawal_amount(msg).unwrap_or(0);
+        // Update withdrawal metrics - track each message individually
+        for msg in &msgs {
+            let msg_id = format!("{:?}", msg.id());
+            let amount = parse_withdrawal_amount(msg).unwrap_or(0);
 
-                    if processed_messages.contains(msg) {
-                        self.provider.metrics().record_withdrawal_processed(&msg_id, amount, 1);
-                    } else {
-                        self.provider.metrics().record_withdrawal_failed(&msg_id, amount);
-                    }
-                }
+            if processed_messages.contains(msg) {
+                self.provider.metrics().record_withdrawal_processed(&msg_id, amount);
+            } else {
+                self.provider.metrics().record_withdrawal_failed(&msg_id, amount);
             }
+        }
+
+        // Update batch statistics if any messages were processed
+        if !processed_messages.is_empty() {
+            self.provider.metrics().update_withdrawal_batch_stats(processed_messages.len() as i64);
         }
 
         // Return value doesn't correspond 1:1 to what we did since we sent multiple Kaspa TXs.
