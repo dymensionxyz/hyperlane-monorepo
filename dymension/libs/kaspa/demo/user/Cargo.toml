@@ -53,3 +53,4 @@ aws-config = { version = "1.5", features = ["behavior-version-latest"] }
 aws-sdk-secretsmanager = "1.55"
 aws-sdk-kms = "1.48"
 aws-smithy-types = "1.2"
+rustls = {workspace = true}
