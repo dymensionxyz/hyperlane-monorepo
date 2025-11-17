@@ -353,7 +353,7 @@ impl<'a> RoundTrip<'a> {
 
 fn hub_tx_query_id(response: &HubResponse) -> String {
     let asH256 = H256::from_slice(response.hash.as_bytes()).into();
-    let tx_hash = hyperlane_cosmos::native::h512_to_cosmos_hash(asH256).encode_hex_upper::<String>();
+    let tx_hash = hyperlane_cosmos::native::h512_to_h256(asH256).encode_hex_upper::<String>();
     tx_hash
 }
 
