@@ -2,7 +2,6 @@ use super::key_kaspa::get_kaspa_keypair;
 use super::stats::RoundTripStats;
 use super::worker::Worker;
 use crate::x;
-use std::{collections::HashMap, hash::Hash};
 use cometbft::Hash as HubHash;
 use cometbft_rpc::endpoint::broadcast::tx_commit::Response as HubResponse;
 use corelib::api::client::HttpClient;
@@ -18,7 +17,7 @@ use hyperlane_cosmos_rs::prost::{Message, Name};
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionId;
 use std::time::Duration;
-use std::time::SystemTime;
+use std::{collections::HashMap, hash::Hash};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
@@ -26,6 +25,13 @@ use tracing::error;
 use tracing::info;
 // use ethers::utils::hex::ToHex;
 use hex::ToHex;
+
+fn now_millis() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis()
+}
 
 #[derive(Debug, Clone)]
 pub struct TaskResources {
@@ -83,9 +89,9 @@ async fn do_round_trip_inner(rt: &mut RoundTrip<'_>) {
     );
 
     match rt.deposit().await {
-        Ok((tx_id, deposit_time)) => {
+        Ok((tx_id, deposit_time_millis)) => {
             rt.stats.kaspa_deposit_tx_id = Some(tx_id);
-            rt.stats.kaspa_deposit_tx_time = Some(deposit_time);
+            rt.stats.kaspa_deposit_tx_time_millis = Some(deposit_time_millis);
             info!(
                 "deposit completed: task_id={} worker_id={} hub_addr={} kas_receive_addr={} kas_change_addr={} tx_id={:?}",
                 rt.task_id,
@@ -108,7 +114,7 @@ async fn do_round_trip_inner(rt: &mut RoundTrip<'_>) {
     };
     match rt.await_hub_credit().await {
         Ok(()) => {
-            rt.stats.deposit_credit_time = Some(SystemTime::now());
+            rt.stats.deposit_credit_time_millis = Some(now_millis());
             info!(
                 "hub credit received: task_id={} worker_id={} hub_addr={}",
                 rt.task_id,
@@ -138,15 +144,15 @@ async fn do_round_trip_inner(rt: &mut RoundTrip<'_>) {
         rt.send_stats().await;
         return;
     }
-    let (kaspa_addr, tx_id, withdrawal_time) = withdraw_res.unwrap();
+    let (kaspa_addr, tx_id, withdrawal_time_millis) = withdraw_res.unwrap();
     rt.stats.hub_withdraw_tx_id = Some(tx_id.clone());
-    rt.stats.hub_withdraw_tx_time = Some(withdrawal_time);
+    rt.stats.hub_withdraw_tx_time_millis = Some(withdrawal_time_millis);
     rt.stats.withdraw_addr_kaspa = Some(kaspa_addr.clone());
     rt.send_stats().await;
 
     match rt.await_kaspa_credit(kaspa_addr.clone()).await {
         Ok(()) => {
-            rt.stats.withdraw_credit_time = Some(SystemTime::now());
+            rt.stats.withdraw_credit_time_millis = Some(now_millis());
             info!(
                 "kaspa credit received: task_id={} worker_id={} hub_addr={} kaspa_addr={}",
                 rt.task_id,
@@ -209,7 +215,7 @@ impl<'a> RoundTrip<'a> {
         }
     }
 
-    async fn deposit(&self) -> Result<(TransactionId, SystemTime)> {
+    async fn deposit(&self) -> Result<(TransactionId, u128)> {
         let a = self.res.args.escrow_address.clone();
         let amt = self.value;
         debug!(
@@ -225,7 +231,7 @@ impl<'a> RoundTrip<'a> {
             &self.worker.hub_key.signer(),
         );
         let tx_id = self.worker.deposit_with_payload(a, amt, payload).await?;
-        Ok((tx_id, SystemTime::now()))
+        Ok((tx_id, now_millis()))
     }
 
     async fn await_hub_credit(&self) -> Result<()> {
@@ -277,7 +283,7 @@ impl<'a> RoundTrip<'a> {
         Ok(())
     }
 
-    async fn withdraw(&self) -> Result<(Address, String, SystemTime)> {
+    async fn withdraw(&self) -> Result<(Address, String, u128)> {
         let kaspa_recipient = get_kaspa_keypair();
         debug!(
             "withdraw starting: task_id={} worker_id={} kaspa_recipient_addr={} amount={}",
@@ -312,7 +318,11 @@ impl<'a> RoundTrip<'a> {
         match response {
             Ok(response) => {
                 if response.tx_result.code.is_ok() & response.check_tx.code.is_ok() {
-                    Ok((kaspa_recipient.address, hub_tx_query_id(&response), SystemTime::now()))
+                    Ok((
+                        kaspa_recipient.address,
+                        hub_tx_query_id(&response),
+                        now_millis(),
+                    ))
                 } else {
                     Err(RoundTripError::WithdrawalTxFailed { response }.into())
                 }

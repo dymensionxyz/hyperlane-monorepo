@@ -8,8 +8,6 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::time::Duration;
-use std::time::SystemTime;
 use tracing::info;
 
 /// Continuous stats writer that appends to JSONL file immediately
@@ -40,11 +38,11 @@ impl StatsWriter {
     pub fn log_stat(&self, stat: &RoundTripStats) {
         info!("{:#?}", stat);
         info!("stage: {:?}", stat.stage());
-        if stat.deposit_credit_time.is_some() {
-            info!("deposit credit time: {:?}", stat.deposit_time());
+        if let Some(deposit_time_ms) = stat.deposit_time_ms() {
+            info!("deposit credit time: ms={}", deposit_time_ms);
         }
-        if stat.withdraw_credit_time.is_some() {
-            info!("withdraw credit time: {:?}", stat.withdraw_time());
+        if let Some(withdraw_time_ms) = stat.withdraw_time_ms() {
+            info!("withdraw credit time: ms={}", withdraw_time_ms);
         }
     }
 }
@@ -76,12 +74,12 @@ pub struct RoundTripStats {
     pub op_id: u64,
     pub value: u64,
     pub kaspa_deposit_tx_id: Option<TransactionId>,
-    pub kaspa_deposit_tx_time: Option<SystemTime>,
-    pub deposit_credit_time: Option<SystemTime>,
+    pub kaspa_deposit_tx_time_millis: Option<u128>,
+    pub deposit_credit_time_millis: Option<u128>,
     pub deposit_credit_error: Option<String>,
     pub hub_withdraw_tx_id: Option<String>,
-    pub hub_withdraw_tx_time: Option<SystemTime>,
-    pub withdraw_credit_time: Option<SystemTime>,
+    pub hub_withdraw_tx_time_millis: Option<u128>,
+    pub withdraw_credit_time_millis: Option<u128>,
     pub withdraw_credit_error: Option<String>,
     pub deposit_addr_hub: Option<String>,
     pub withdraw_addr_kaspa: Option<Address>,
@@ -94,26 +92,35 @@ impl RoundTripStats {
         d.value = value;
         d
     }
-    pub fn deposit_time(&self) -> Duration {
-        self.kaspa_deposit_tx_time
-            .unwrap()
-            .duration_since(self.kaspa_deposit_tx_time.unwrap())
-            .unwrap()
+
+    pub fn deposit_time_ms(&self) -> Option<u128> {
+        match (
+            self.kaspa_deposit_tx_time_millis,
+            self.deposit_credit_time_millis,
+        ) {
+            (Some(start), Some(end)) => Some(end.saturating_sub(start)),
+            _ => None,
+        }
     }
-    pub fn withdraw_time(&self) -> Duration {
-        self.hub_withdraw_tx_time
-            .unwrap()
-            .duration_since(self.hub_withdraw_tx_time.unwrap())
-            .unwrap()
+
+    pub fn withdraw_time_ms(&self) -> Option<u128> {
+        match (
+            self.hub_withdraw_tx_time_millis,
+            self.withdraw_credit_time_millis,
+        ) {
+            (Some(start), Some(end)) => Some(end.saturating_sub(start)),
+            _ => None,
+        }
     }
+
     pub fn stage(&self) -> &'static str {
-        if !self.kaspa_deposit_tx_time.is_some() {
+        if self.kaspa_deposit_tx_time_millis.is_none() {
             return "PreDeposit";
         }
         if self.deposit_credit_error.is_some() {
             return "PostDepositNotCredited";
         }
-        if !self.hub_withdraw_tx_time.is_some() {
+        if self.hub_withdraw_tx_time_millis.is_none() {
             return "PreWithdrawal";
         }
         if self.withdraw_credit_error.is_some() {
