@@ -193,11 +193,9 @@ impl TrafficSim {
         }
 
         info!(
-            "Loaded workers: N: {}, dir: {}",
+            "workers loaded: num={} dir={}",
             num_workers, self.workers_dir
         );
-
-        info!("All workers loaded, starting simulation");
         Ok(workers)
     }
 
@@ -219,7 +217,6 @@ impl TrafficSim {
         );
 
         let stats_writer = StatsWriter::new(stats_file_path.clone())?;
-        info!("Writing stats to {}", stats_file_path);
 
         Ok((stats_file_path, metadata_file_path, stats_writer))
     }
@@ -237,14 +234,14 @@ impl TrafficSim {
             while let Some(stats) = stats_rx.recv().await {
                 stats_writer.log_stat(&stats);
                 if let Err(e) = stats_writer.write_stat(&stats) {
-                    tracing::error!("Failed to write stat: {:?}", e);
+                    tracing::error!("stat write error: count={} error={:?}", count, e);
                 }
                 count += 1;
                 if count % 10 == 0 {
-                    info!("Wrote {} stats to file", count);
+                    info!("stats written: count={}", count);
                 }
             }
-            info!("Total stats written: {}", count);
+            info!("stats collection complete: total={}", count);
             count
         });
 
@@ -268,7 +265,7 @@ impl TrafficSim {
             let worker = match worker_iter.next() {
                 Some(w) => w,
                 None => {
-                    info!("Ran out of pre-funded workers at {} ops", total_ops);
+                    info!("workers exhausted: total_ops={}", total_ops);
                     break;
                 }
             };
@@ -299,7 +296,7 @@ impl TrafficSim {
 
             if total_ops % 10 == 0 {
                 info!(
-                    "Started {} ops, elapsed: {}s",
+                    "operations progress: total_ops={} elapsed_secs={}",
                     total_ops,
                     start_time.elapsed().as_secs()
                 );
@@ -318,27 +315,29 @@ impl TrafficSim {
         let (stats_file_path, metadata_file_path, stats_writer) = self.setup_output_files()?;
         let (stats_tx, collector_handle) = Self::spawn_stats_collector(stats_writer);
 
-        info!("Loaded workers: N: {}", workers.len());
-
         let cancel = CancellationToken::new();
         let (total_spend, total_ops) = self
             .execute_simulation_loop(workers, stats_tx.clone(), cancel.clone())
             .await?;
 
-        info!("Waiting for tasks to finish");
         drop(stats_tx);
         tokio::time::sleep(self.params.max_wait_for_cancel).await;
         cancel.cancel();
+        info!(
+            "task cancellation initiated: max_wait_secs={}",
+            self.params.max_wait_for_cancel.as_secs()
+        );
 
-        info!("Waiting for stats collector to finish writing all stats");
         let total_stats = collector_handle.await?;
-        info!("Stats collector finished, wrote {} stats total", total_stats);
+        info!("stats collection finished: total_stats={}", total_stats);
 
         write_metadata(&metadata_file_path, total_spend, total_ops)?;
+        info!("metadata written: path={}", metadata_file_path);
 
-        info!("Simulation complete");
-        info!("Stats file: {}", stats_file_path);
-        info!("Metadata file: {}", metadata_file_path);
+        info!(
+            "simulation complete: total_spend={} total_ops={} stats_file={} metadata_file={}",
+            total_spend, total_ops, stats_file_path, metadata_file_path
+        );
 
         Ok(())
     }

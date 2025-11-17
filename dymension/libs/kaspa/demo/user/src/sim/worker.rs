@@ -5,7 +5,6 @@ use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionId;
 use std::path::PathBuf;
 
-/// Worker containing both Kaspa wallet and Hub key for parallel deposits
 #[derive(Clone)]
 pub struct Worker {
     pub wallet: EasyKaspaWallet,
@@ -17,7 +16,6 @@ const SECRET: &str = "lkjsdf";
 const HUB_KEY_FILENAME: &str = "hub_key.hex";
 
 impl Worker {
-    /// Create a new worker with both Kaspa wallet and Hub key
     pub async fn create_new(
         worker_id: usize,
         wrpc_url: String,
@@ -49,7 +47,6 @@ impl Worker {
         })
     }
 
-    /// Load an existing worker from a permanent directory
     pub async fn load_existing(
         worker_id: usize,
         wrpc_url: String,

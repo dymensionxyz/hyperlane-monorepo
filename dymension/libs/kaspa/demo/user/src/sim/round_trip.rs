@@ -72,71 +72,84 @@ pub async fn do_round_trip(
 
 async fn do_round_trip_inner(rt: &mut RoundTrip) {
     let hub_addr = rt.worker.hub_key.signer().address_string.clone();
-    info!(
-        "Starting round trip: task_id: {}, worker_id: {}, hub_addr: {}, kas receive_addr: {}, kas change_addr: {}",
-        rt.task_id,
-        rt.worker.worker_id,
-        hub_addr,
-        rt.worker.receive_address().unwrap(),
-        rt.worker.change_address().unwrap(),
-    );
-    rt.stats.deposit_addr_hub = Some(hub_addr);
+    rt.stats.deposit_addr_hub = Some(hub_addr.clone());
+
     match rt.deposit().await {
         Ok((tx_id, deposit_time)) => {
             rt.stats.kaspa_deposit_tx_id = Some(tx_id);
             rt.stats.kaspa_deposit_tx_time = Some(deposit_time);
+            info!(
+                "deposit completed: task_id={} worker_id={} hub_addr={} kas_receive_addr={} kas_change_addr={} tx_id={:?}",
+                rt.task_id,
+                rt.worker.worker_id,
+                hub_addr,
+                rt.worker.receive_address().unwrap(),
+                rt.worker.change_address().unwrap(),
+                tx_id
+            );
         }
         Err(e) => {
-            error!("deposit failed: {:?}", e);
+            error!(
+                "deposit error: task_id={} worker_id={} error={:?}",
+                rt.task_id, rt.worker.worker_id, e
+            );
             return;
         }
     };
-    info!(
-        "Did deposit: task_id: {}, worker_id: {}, hub_addr: {}",
-        rt.task_id,
-        rt.worker.worker_id,
-        rt.worker.hub_key.signer().address_string
-    );
     match rt.await_hub_credit().await {
         Ok(()) => {
             rt.stats.deposit_credit_time = Some(SystemTime::now());
+            info!(
+                "hub credit received: task_id={} worker_id={} hub_addr={}",
+                rt.task_id,
+                rt.worker.worker_id,
+                rt.worker.hub_key.signer().address_string
+            );
         }
         Err(e) => {
             rt.stats.deposit_credit_error = Some(e.to_string());
+            error!(
+                "hub credit error: task_id={} worker_id={} error={}",
+                rt.task_id, rt.worker.worker_id, e
+            );
             return;
         }
     };
-    info!(
-        "Got hub credit: task_id: {}, worker_id: {}, hub_addr: {}",
-        rt.task_id,
-        rt.worker.worker_id,
-        rt.worker.hub_key.signer().address_string
-    );
+
     let withdraw_res = rt.withdraw().await;
     if !withdraw_res.is_ok() {
         let e = withdraw_res.err().unwrap();
-        error!("withdrawal failed: {:?}", e);
+        error!(
+            "withdrawal error: task_id={} worker_id={} error={:?}",
+            rt.task_id, rt.worker.worker_id, e
+        );
         return;
     }
     let (kaspa_addr, tx_id, withdrawal_time) = withdraw_res.unwrap();
     rt.stats.hub_withdraw_tx_id = Some(tx_id);
     rt.stats.hub_withdraw_tx_time = Some(withdrawal_time);
     rt.stats.withdraw_addr_kaspa = Some(kaspa_addr.clone());
+
     match rt.await_kaspa_credit(kaspa_addr.clone()).await {
         Ok(()) => {
             rt.stats.withdraw_credit_time = Some(SystemTime::now());
+            info!(
+                "kaspa credit received: task_id={} worker_id={} hub_addr={} kaspa_addr={}",
+                rt.task_id,
+                rt.worker.worker_id,
+                rt.worker.hub_key.signer().address_string,
+                kaspa_addr
+            );
         }
         Err(e) => {
             rt.stats.withdraw_credit_error = Some(e.to_string());
+            error!(
+                "kaspa credit error: task_id={} worker_id={} error={}",
+                rt.task_id, rt.worker.worker_id, e
+            );
             return;
         }
     };
-    info!(
-        "Got kaspa credit: task_id: {}, worker_id: {}, hub_addr: {}",
-        rt.task_id,
-        rt.worker.worker_id,
-        rt.worker.hub_key.signer().address_string
-    );
 }
 
 struct RoundTrip {
@@ -185,10 +198,6 @@ impl RoundTrip {
 
     async fn await_hub_credit(&self) -> Result<()> {
         let a = self.worker.hub_key.signer().address_string;
-        debug!(
-            "start await_hub_credit, task_id: {}, addr: {}",
-            self.task_id, a
-        );
         loop {
             let balance = self
                 .res
@@ -234,17 +243,11 @@ impl RoundTrip {
 
     async fn withdraw(&self) -> Result<(Address, TendermintHash, SystemTime)> {
         let kaspa_recipient = get_kaspa_keypair();
-        debug!(
-            "start withdraw, task_id: {}, kaspa_addr: {}",
-            self.task_id, kaspa_recipient.address
-        );
-
         let rpc = self.res.hub.rpc();
 
         let amount = self.value.to_string();
         let recipient = x::addr::hl_recipient(&kaspa_recipient.address.to_string());
         let token_id = self.res.args.token_hub_str();
-        debug!("withdraw token_id: {}, recipient: {}", token_id, recipient);
 
         let req = MsgRemoteTransfer {
             sender: rpc.get_signer()?.address_string.clone(),
@@ -280,7 +283,6 @@ impl RoundTrip {
     }
 
     async fn await_kaspa_credit(&self, kaspa_addr: Address) -> Result<()> {
-        debug!("start await_kaspa_credit, task_id: {}", self.task_id);
         loop {
             let balance = self
                 .res

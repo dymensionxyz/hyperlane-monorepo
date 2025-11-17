@@ -93,7 +93,6 @@ async fn create_hub_provider(
     let locator = ContractLocator::new(&d, H256::zero());
     let hub_key = super::key_cosmos::EasyHubKey::from_hex(signer_key_hex);
     let signer = Some(hub_key.signer());
-    debug!("hub whale signer: {:?}", signer);
     let metrics = hyperlane_metric::prometheus_metric::PrometheusClientMetrics::default();
     let chain = None;
     CosmosProvider::<ModuleQueryClient>::new(&conf, &locator, signer, metrics, chain)
@@ -106,7 +105,6 @@ async fn fund_hub_address(
     amount: u64,
     denom: &str,
 ) -> Result<()> {
-    debug!("funding hub address: {}", to_address);
     let rpc = hub.rpc();
     let msg = MsgSend {
         from_address: rpc.get_signer()?.address_string.clone(),
@@ -138,7 +136,6 @@ async fn fund_hub_address(
                     response.tx_result.log
                 ));
             }
-            debug!("Funded hub address: {}", to_address);
             Ok(())
         }
         Err(e) => Err(eyre::eyre!("Failed to fund hub address: {:?}", e)),
@@ -170,11 +167,6 @@ pub async fn create_and_fund_workers(args: CreateWorkersArgs) -> Result<()> {
     .await?;
 
     std::fs::create_dir_all(&args.workers_dir)?;
-
-    info!(
-        "Creating and funding {} workers (Kaspa + Hub) in {}",
-        args.num_workers, args.workers_dir
-    );
 
     for i in 0..args.num_workers {
         let worker =
@@ -215,7 +207,7 @@ pub async fn create_and_fund_workers(args: CreateWorkersArgs) -> Result<()> {
         .await?;
 
         info!(
-            "Created and funded worker {}/{}: kaspa={}, hub={}",
+            "worker created and funded: index={} total={} kaspa_addr={} hub_addr={}",
             i + 1,
             args.num_workers,
             kaspa_address,
@@ -226,7 +218,7 @@ pub async fn create_and_fund_workers(args: CreateWorkersArgs) -> Result<()> {
     }
 
     info!(
-        "Successfully created and funded {} workers in {}",
+        "worker creation complete: num={} dir={}",
         args.num_workers, args.workers_dir
     );
 
