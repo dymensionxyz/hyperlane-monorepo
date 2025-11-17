@@ -2,9 +2,10 @@ use corelib::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
 use eyre::Result;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionId;
+use std::path::PathBuf;
 
 /// Worker wallet for parallel deposits
-/// Each worker uses an independent temporary wallet
+/// Each worker uses an independent wallet
 #[derive(Clone)]
 pub struct WorkerWallet {
     pub wallet: EasyKaspaWallet,
@@ -12,16 +13,43 @@ pub struct WorkerWallet {
 }
 
 impl WorkerWallet {
-    /// Create a new worker wallet with its own storage
-    pub async fn create_new(worker_id: usize, wrpc_url: String, net: Network) -> Result<Self> {
-        let temp_dir = std::env::temp_dir();
-        let worker_storage = temp_dir.join(format!(
-            "kaspa-worker-{}-{}",
-            worker_id,
-            uuid::Uuid::new_v4()
-        ));
-
+    /// Create a new worker wallet with its own storage in a permanent directory
+    pub async fn create_new(
+        worker_id: usize,
+        wrpc_url: String,
+        net: Network,
+        workers_dir: &str,
+    ) -> Result<Self> {
+        let worker_storage = PathBuf::from(workers_dir).join(format!("worker-{}", worker_id));
         std::fs::create_dir_all(&worker_storage)?;
+
+        let wallet = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
+            wallet_secret: format!("worker-{}-secret", worker_id),
+            wrpc_url,
+            net,
+            storage_folder: Some(worker_storage.to_string_lossy().to_string()),
+        })
+        .await?;
+
+        Ok(Self { wallet, worker_id })
+    }
+
+    /// Load an existing worker wallet from a permanent directory
+    pub async fn load_existing(
+        worker_id: usize,
+        wrpc_url: String,
+        net: Network,
+        workers_dir: &str,
+    ) -> Result<Self> {
+        let worker_storage = PathBuf::from(workers_dir).join(format!("worker-{}", worker_id));
+
+        if !worker_storage.exists() {
+            return Err(eyre::eyre!(
+                "Worker {} storage not found at {}",
+                worker_id,
+                worker_storage.display()
+            ));
+        }
 
         let wallet = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
             wallet_secret: format!("worker-{}-secret", worker_id),

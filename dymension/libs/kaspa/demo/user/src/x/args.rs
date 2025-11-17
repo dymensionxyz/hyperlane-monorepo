@@ -36,6 +36,9 @@ pub enum Commands {
     /// Simulate traffic
     #[clap(name = "sim")]
     SimulateTraffic(SimulateTrafficCli),
+    /// Create and fund worker wallets
+    #[clap(name = "create-workers")]
+    CreateWorkers(CreateWorkersCli),
 }
 
 #[derive(Subcommand, Debug)]
@@ -97,11 +100,33 @@ pub struct RecipientCli {
 }
 
 #[derive(Args, Debug)]
+/// Create and fund worker wallets for traffic simulation
+pub struct CreateWorkersCli {
+    /// Number of worker wallets to create
+    #[arg(long, required = true)]
+    pub num_workers: usize,
+
+    /// Directory to save worker wallets (must be permanent, not temp)
+    #[arg(long, required = true)]
+    pub workers_dir: String,
+
+    /// Amount to fund each worker wallet in sompi
+    #[arg(long, required = true)]
+    pub fund_amount: u64,
+
+    #[command(flatten)]
+    pub wallet: WalletCli,
+}
+
+#[derive(Args, Debug)]
 /// Simulate/benchmark traffic on Kaspa and the Hub
 /// Launches some tasks with amounts and times sampled from realistic (poisson and exponential) distribution.
 /// Each task does a kaspa deposit to a new hub address, and then transfers back to a kaspa address.
 /// In this way errors and latencies can be tracked
 pub struct SimulateTrafficCli {
+    /// Directory containing pre-funded worker wallets
+    #[arg(long, required = true)]
+    pub workers_dir: String,
     /// The amount to fund each hub address with adym to pay fees on the withdrawal
     #[arg(long, required = true)]
     pub hub_fund_amount: u64,
@@ -150,8 +175,9 @@ pub struct SimulateTrafficCli {
     #[arg(long, required = true)]
     pub escrow_address: String,
 
-    #[command(flatten)]
-    pub wallet: WalletCli,
+    /// Kaspa wRPC URL
+    #[arg(long, required = true)]
+    pub kaspa_wrpc_url: String,
 
     /// Hub RPC URL (default: https://rpc-dymension-playground35.mzonder.com:443)
     #[arg(

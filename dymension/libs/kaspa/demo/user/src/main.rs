@@ -2,7 +2,7 @@ use clap::Parser;
 use x::args::{Cli, Commands, ValidatorAction, ValidatorBackend};
 
 mod sim;
-use sim::{SimulateTrafficArgs, TrafficSim};
+use sim::{create_and_fund_workers, CreateWorkersArgs, SimulateTrafficArgs, TrafficSim};
 mod x;
 
 async fn run(cli: Cli) {
@@ -55,6 +55,10 @@ async fn run(cli: Cli) {
             let sim = SimulateTrafficArgs::try_from(args).unwrap();
             let sim = TrafficSim::new(sim).await.unwrap();
             sim.run().await.unwrap();
+        }
+        Commands::CreateWorkers(args) => {
+            let create_args = CreateWorkersArgs::try_from(args).unwrap();
+            create_and_fund_workers(create_args).await.unwrap();
         }
     }
 }

@@ -8,12 +8,10 @@ use super::worker::WorkerWallet;
 use chrono::{DateTime, Utc};
 use corelib::api::base::RateLimitConfig;
 use corelib::api::client::HttpClient;
-use corelib::wallet::EasyKaspaWallet;
-use corelib::wallet::{EasyKaspaWalletArgs, Network};
+use corelib::wallet::Network;
 use eyre::Result;
 use hyperlane_cosmos::ConnectionConf as CosmosConnectionConf;
 use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
-use kaspa_wallet_core::prelude::Secret;
 use rand_distr::{Distribution, Exp};
 use std::time::SystemTime;
 use std::time::{Duration, Instant};
@@ -21,7 +19,7 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 
-use crate::x::args::{SimulateTrafficCli, WalletCli};
+use crate::x::args::SimulateTrafficCli;
 use cosmos_sdk_proto::cosmos::bank::v1beta1::MsgSend;
 use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
 use cosmos_sdk_proto::traits::Message;
@@ -135,7 +133,8 @@ impl Params {
 pub struct SimulateTrafficArgs {
     pub params: Params,
     pub task_args: TaskArgs,
-    pub wallet: WalletCli,
+    pub workers_dir: String,
+    pub kaspa_wrpc_url: String,
     pub hub_whale_priv_key: String,
     pub output_dir: String,
     pub hub_rpc_url: String,
@@ -172,7 +171,8 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
                 token_hub: cli.token_hub,
                 escrow_address: addr,
             },
-            wallet: cli.wallet,
+            workers_dir: cli.workers_dir,
+            kaspa_wrpc_url: cli.kaspa_wrpc_url,
             hub_whale_priv_key: cli.hub_whale_priv_key,
             output_dir: cli.output_dir,
             hub_rpc_url: cli.hub_rpc_url,
@@ -189,26 +189,13 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
 pub struct TrafficSim {
     params: Params,
     resources: TaskResources,
-    whale_wallet: EasyKaspaWallet,
-    whale_secret: Secret,
+    workers_dir: String,
     wrpc_url: String,
     output_dir: String,
 }
 
 impl TrafficSim {
     pub async fn new(args: SimulateTrafficArgs) -> Result<Self> {
-        let wrpc_url = args.wallet.rpc_url.clone();
-        let net = Network::KaspaTest10;
-        let whale_secret = Secret::from(args.wallet.wallet_secret.clone());
-
-        let w = EasyKaspaWallet::try_new(EasyKaspaWalletArgs {
-            wallet_secret: args.wallet.wallet_secret,
-            wrpc_url: wrpc_url.clone(),
-            net: net.clone(),
-            storage_folder: args.wallet.wallet_dir.clone(),
-        })
-        .await?;
-
         let resources = TaskResources {
             args: args.task_args,
             hub: cosmos_provider(
@@ -226,54 +213,52 @@ impl TrafficSim {
         Ok(TrafficSim {
             params: args.params,
             resources,
-            whale_wallet: w,
-            whale_secret,
-            wrpc_url,
+            workers_dir: args.workers_dir,
+            wrpc_url: args.kaspa_wrpc_url,
             output_dir: args.output_dir,
         })
     }
 
-    async fn create_and_fund_workers(&self) -> Result<Vec<WorkerWallet>> {
-        let estimated_ops = (self.params.num_ops() * 1.1) as usize;
-        info!("Creating and funding {} worker wallets", estimated_ops);
+    async fn load_workers(&self) -> Result<Vec<WorkerWallet>> {
+        use std::path::Path;
+
+        let workers_path = Path::new(&self.workers_dir);
+        if !workers_path.exists() {
+            return Err(eyre::eyre!(
+                "Workers directory does not exist: {}",
+                self.workers_dir
+            ));
+        }
+
+        let entries: Vec<_> = std::fs::read_dir(workers_path)?
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().is_dir())
+            .collect();
+
+        let num_workers = entries.len();
+        info!(
+            "Loading {} worker wallets from {}",
+            num_workers, self.workers_dir
+        );
 
         let mut workers = Vec::new();
-        for i in 0..estimated_ops {
-            let worker =
-                WorkerWallet::create_new(i, self.wrpc_url.clone(), Network::KaspaTest10).await?;
-
-            let worker_address = worker.receive_address()?;
-            let fund_amount = (self.params.op_budget() as u64 * 2).max(MIN_KASPA_WITHDRAWAL_SOMPI);
-
-            use kaspa_wallet_core::tx::{Fees, PaymentDestination, PaymentOutput};
-
-            let dst = PaymentDestination::from(PaymentOutput::new(worker_address, fund_amount));
-            let fees = Fees::from(0i64);
-
-            self.whale_wallet
-                .wallet
-                .account()?
-                .send(
-                    dst,
-                    None,
-                    fees,
-                    None,
-                    self.whale_secret.clone(),
-                    None,
-                    &workflow_core::abortable::Abortable::new(),
-                    None,
-                )
-                .await?;
+        for i in 0..num_workers {
+            let worker = WorkerWallet::load_existing(
+                i,
+                self.wrpc_url.clone(),
+                Network::KaspaTest10,
+                &self.workers_dir,
+            )
+            .await?;
 
             workers.push(worker);
 
             if i > 0 && i % 10 == 0 {
-                info!("Funded {}/{} workers", i + 1, estimated_ops);
+                info!("Loaded {}/{} workers", i + 1, num_workers);
             }
-            tokio::time::sleep(Duration::from_millis(1500)).await;
         }
 
-        info!("All workers funded, starting simulation");
+        info!("All workers loaded, starting simulation");
         Ok(workers)
     }
 
@@ -394,7 +379,7 @@ impl TrafficSim {
     }
 
     pub async fn run(&self) -> Result<()> {
-        let workers = self.create_and_fund_workers().await?;
+        let workers = self.load_workers().await?;
         let (stats_file_path, metadata_file_path, stats_writer) = self.setup_output_files()?;
         let (stats_tx, collector_handle) = Self::spawn_stats_collector(stats_writer);
 
