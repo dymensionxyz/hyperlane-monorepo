@@ -22,8 +22,11 @@ pub async fn get_wallet(
     url: String,
     storage_folder: Option<String>,
 ) -> Result<Arc<Wallet>, Error> {
-    if let Some(storage_folder) = storage_folder {
-        unsafe { unsafe_set_default_storage_folder_kaspa(storage_folder) }?;
+    if let Some(ref folder) = storage_folder {
+        info!("kaspa: setting wallet storage folder to: {}", folder);
+        unsafe { unsafe_set_default_storage_folder_kaspa(folder.clone()) }?;
+    } else {
+        info!("kaspa: using default wallet storage folder");
     }
 
     let local_store = Wallet::local_store()
@@ -48,42 +51,41 @@ pub async fn get_wallet(
 
     info!("kaspa: wallet secret loaded");
 
-    let wallet_exists = w
-        .exists(None)
-        .await
-        .map_err(|e| Error::from(format!("Failed to check if wallet exists: {e}")))?;
+    // Try to open the wallet first
+    // The kaspa library uses "kaspa-wallet" as the default wallet name, which creates "kaspa-wallet.wallet" file
+    info!("kaspa: attempting to open existing wallet");
+    let wallet_name = Some("kaspa-wallet".to_string());
+    let open_result = w.clone().wallet_open(s.clone(), wallet_name.clone(), true, false).await;
 
-    if !wallet_exists {
-        info!("kaspa: wallet does not exist, creating new wallet");
+    match open_result {
+        Ok(_) => {
+            info!("kaspa: successfully opened existing wallet");
+        }
+        Err(e) => {
+            info!("kaspa: failed to open wallet ({}), attempting to create new wallet", e);
 
-        let wallet_args = WalletCreateArgs::new(
-            Some("Kaspa Wallet".to_string()),
-            None,
-            EncryptionKind::XChaCha20Poly1305,
-            None,
-            false,
-        );
-
-        let (_wallet_descriptor, _storage_descriptor, _mnemonic, _account) = w
-            .create_wallet_with_accounts(
-                s,
-                wallet_args,
-                Some("Default Account".to_string()),
-                Some(BIP32_ACCOUNT_KIND.into()),
-                WordCount::Words24,
+            let wallet_args = WalletCreateArgs::new(
+                wallet_name,
                 None,
-            )
-            .await
-            .map_err(|e| Error::from(format!("Failed to create wallet: {e}")))?;
+                EncryptionKind::XChaCha20Poly1305,
+                None,
+                false,
+            );
 
-        info!("kaspa: wallet created successfully");
-    } else {
-        info!("kaspa: opening existing wallet");
+            let (_wallet_descriptor, _storage_descriptor, _mnemonic, _account) = w
+                .create_wallet_with_accounts(
+                    s,
+                    wallet_args,
+                    Some("Default Account".to_string()),
+                    Some(BIP32_ACCOUNT_KIND.into()),
+                    WordCount::Words24,
+                    None,
+                )
+                .await
+                .map_err(|e2| Error::from(format!("Failed to create wallet after open failed: {}", e2)))?;
 
-        w.clone()
-            .wallet_open(s.clone(), None, true, false)
-            .await
-            .map_err(|e| Error::from(format!("Failed to open wallet: {e}")))?;
+            info!("kaspa: wallet created successfully");
+        }
     }
 
     let accounts = w
