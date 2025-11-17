@@ -106,7 +106,9 @@ impl KaspaProvider {
 
         // Set relayer change address metric on startup
         if let Ok(change_addr) = provider.wallet().account().change_address() {
-            provider.metrics().relayer_receive_address_info
+            provider
+                .metrics()
+                .relayer_receive_address_info
                 .with_label_values(&[&change_addr.to_string()])
                 .set(1.0);
         }
