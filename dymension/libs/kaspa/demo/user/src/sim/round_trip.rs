@@ -1,11 +1,13 @@
 use super::hub_whale_pool::HubWhale;
 use super::kaspa_whale_pool::KaspaWhale;
+use super::key_cosmos::EasyHubKey;
 use super::key_kaspa::get_kaspa_keypair;
 use super::stats::RoundTripStats;
 use crate::x;
 use cometbft_rpc::endpoint::broadcast::tx_commit::Response as HubResponse;
 use corelib::api::client::HttpClient;
 use corelib::user::payload::make_deposit_payload_easy;
+use cosmos_sdk_proto::cosmos::bank::v1beta1::MsgSend;
 use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
 use cosmrs::Any;
 use eyre::Result;
@@ -28,6 +30,7 @@ use tracing::warn;
 
 const MAX_RETRIES: usize = 3;
 const RETRY_DELAY_MS: u64 = 2000;
+const HUB_FUND_AMOUNT: u64 = 1_000_000_000_000_000_000;
 
 fn now_millis() -> u128 {
     std::time::SystemTime::now()
@@ -36,8 +39,9 @@ fn now_millis() -> u128 {
         .as_millis()
 }
 
-fn is_retryable(_error: &eyre::Error) -> bool {
-    false
+fn is_retryable(error: &eyre::Error) -> bool {
+    let err_str = error.to_string().to_lowercase();
+    err_str.contains("account sequence mismatch")
 }
 
 async fn retry_with_backoff<F, Fut, T>(operation_name: &str, task_id: u64, mut f: F) -> Result<T>
@@ -75,6 +79,39 @@ where
 
     Err(last_error
         .unwrap_or_else(|| eyre::eyre!("{} failed after {} retries", operation_name, MAX_RETRIES)))
+}
+
+async fn fund_hub_addr(
+    hub_key: &EasyHubKey,
+    hub: &CosmosProvider<ModuleQueryClient>,
+    amount: u64,
+) -> Result<()> {
+    let hub_addr = hub_key.signer().address_string.clone();
+    debug!("funding hub address: addr={} amount={}", hub_addr, amount);
+    let rpc = hub.rpc();
+    let msg = MsgSend {
+        from_address: rpc.get_signer()?.address_string.clone(),
+        to_address: hub_addr.clone(),
+        amount: vec![Coin {
+            amount: amount.to_string(),
+            denom: "adym".to_string(),
+        }],
+    };
+    let a = Any {
+        type_url: "/cosmos.bank.v1beta1.MsgSend".to_string(),
+        value: msg.encode_to_vec(),
+    };
+    let gas_limit = None;
+    let response = rpc.send(vec![a], gas_limit).await?;
+    if !response.tx_result.code.is_ok() || !response.check_tx.code.is_ok() {
+        return Err(eyre::eyre!(
+            "funding failed: tx_result_code={:?} check_tx_code={:?}",
+            response.tx_result.code,
+            response.check_tx.code
+        ));
+    }
+    info!("hub address funded: addr={} amount={}", hub_addr, amount);
+    Ok(())
 }
 
 #[derive(Debug, Clone)]
@@ -131,26 +168,47 @@ pub async fn do_round_trip(
 }
 
 async fn do_round_trip_inner(rt: &mut RoundTrip<'_>) {
-    let hub_addr = rt.hub_whale.key.signer().address_string.clone();
-    rt.stats.deposit_addr_hub = Some(hub_addr.clone());
+    let hub_user_key = EasyHubKey::new();
+    let hub_user_addr = hub_user_key.signer().address_string.clone();
+
+    rt.stats.deposit_addr_hub = Some(hub_user_addr.clone());
     rt.stats.kaspa_whale_id = Some(rt.kaspa_whale.id);
     rt.stats.hub_whale_id = Some(rt.hub_whale.id);
 
     debug!(
-        "round trip started: task_id={} kaspa_whale_id={} hub_whale_id={} hub_addr={}",
-        rt.task_id, rt.kaspa_whale.id, rt.hub_whale.id, hub_addr
+        "round trip started: task_id={} kaspa_whale_id={} hub_whale_id={} hub_user_addr={}",
+        rt.task_id, rt.kaspa_whale.id, rt.hub_whale.id, hub_user_addr
     );
 
-    match rt.deposit().await {
+    match fund_hub_addr(&hub_user_key, &rt.hub_whale.provider, HUB_FUND_AMOUNT).await {
+        Ok(()) => {
+            info!(
+                "hub user funded: task_id={} hub_whale_id={} hub_user_addr={}",
+                rt.task_id, rt.hub_whale.id, hub_user_addr
+            );
+        }
+        Err(e) => {
+            error!(
+                "hub funding error: task_id={} hub_whale_id={} error={:?}",
+                rt.task_id, rt.hub_whale.id, e
+            );
+            rt.send_stats().await;
+            return;
+        }
+    };
+
+    rt.hub_user_key = Some(hub_user_key.clone());
+
+    match rt.deposit(&hub_user_key).await {
         Ok((tx_id, deposit_time_millis)) => {
             rt.stats.kaspa_deposit_tx_id = Some(tx_id);
             rt.stats.kaspa_deposit_tx_time_millis = Some(deposit_time_millis);
             info!(
-                "deposit completed: task_id={} kaspa_whale_id={} hub_whale_id={} hub_addr={} tx_id={:?}",
+                "deposit completed: task_id={} kaspa_whale_id={} hub_whale_id={} hub_user_addr={} tx_id={:?}",
                 rt.task_id,
                 rt.kaspa_whale.id,
                 rt.hub_whale.id,
-                hub_addr,
+                hub_user_addr,
                 tx_id
             );
             rt.send_stats().await;
@@ -164,12 +222,12 @@ async fn do_round_trip_inner(rt: &mut RoundTrip<'_>) {
             return;
         }
     };
-    match rt.await_hub_credit().await {
+    match rt.await_hub_credit(&hub_user_key).await {
         Ok(()) => {
             rt.stats.deposit_credit_time_millis = Some(now_millis());
             info!(
-                "hub credit received: task_id={} hub_whale_id={} hub_addr={}",
-                rt.task_id, rt.hub_whale.id, hub_addr
+                "hub credit received: task_id={} hub_whale_id={} hub_user_addr={}",
+                rt.task_id, rt.hub_whale.id, hub_user_addr
             );
             rt.send_stats().await;
         }
@@ -184,7 +242,7 @@ async fn do_round_trip_inner(rt: &mut RoundTrip<'_>) {
         }
     };
 
-    let withdraw_res = rt.withdraw().await;
+    let withdraw_res = rt.withdraw(&hub_user_key).await;
     if !withdraw_res.is_ok() {
         let e = withdraw_res.err().unwrap();
         error!(
@@ -204,8 +262,8 @@ async fn do_round_trip_inner(rt: &mut RoundTrip<'_>) {
         Ok(()) => {
             rt.stats.withdraw_credit_time_millis = Some(now_millis());
             info!(
-                "kaspa credit received: task_id={} hub_whale_id={} hub_addr={} kaspa_addr={}",
-                rt.task_id, rt.hub_whale.id, hub_addr, kaspa_addr
+                "kaspa credit received: task_id={} hub_whale_id={} hub_user_addr={} kaspa_addr={}",
+                rt.task_id, rt.hub_whale.id, hub_user_addr, kaspa_addr
             );
             rt.send_stats().await;
         }
@@ -229,6 +287,7 @@ struct RoundTrip<'a> {
     stats: RoundTripStats,
     cancel: CancellationToken,
     tx: &'a mpsc::Sender<RoundTripStats>,
+    hub_user_key: Option<EasyHubKey>,
 }
 
 impl<'a> RoundTrip<'a> {
@@ -240,8 +299,6 @@ impl<'a> RoundTrip<'a> {
         cancel_token: CancellationToken,
         tx: &'a mpsc::Sender<RoundTripStats>,
     ) -> Self {
-        let mut res = res.clone();
-        res.hub.rpc = res.hub.rpc().with_signer(hub_whale.key.signer());
         Self {
             res,
             kaspa_whale,
@@ -250,6 +307,7 @@ impl<'a> RoundTrip<'a> {
             task_id,
             cancel: cancel_token,
             tx,
+            hub_user_key: None,
         }
     }
 
@@ -262,7 +320,7 @@ impl<'a> RoundTrip<'a> {
         }
     }
 
-    async fn deposit(&self) -> Result<(TransactionId, u128)> {
+    async fn deposit(&self, hub_user_key: &EasyHubKey) -> Result<(TransactionId, u128)> {
         use crate::sim::sim::FIXED_TRANSFER_SOMPI;
 
         let a = self.res.args.escrow_address.clone();
@@ -278,7 +336,7 @@ impl<'a> RoundTrip<'a> {
             self.res.args.domain_hub,
             self.res.args.token_hub,
             amt,
-            &self.hub_whale.key.signer(),
+            &hub_user_key.signer(),
         );
 
         let kaspa_whale = self.kaspa_whale.clone();
@@ -294,12 +352,12 @@ impl<'a> RoundTrip<'a> {
         Ok((tx_id, now_millis()))
     }
 
-    async fn await_hub_credit(&self) -> Result<()> {
+    async fn await_hub_credit(&self, hub_user_key: &EasyHubKey) -> Result<()> {
         use crate::sim::sim::FIXED_TRANSFER_SOMPI;
 
-        let a = self.hub_whale.key.signer().address_string;
+        let a = hub_user_key.signer().address_string;
         debug!(
-            "await hub credit starting: task_id={} hub_whale_id={} hub_addr={} expected_value={}",
+            "await hub credit starting: task_id={} hub_whale_id={} hub_user_addr={} expected_value={}",
             self.task_id, self.hub_whale.id, a, FIXED_TRANSFER_SOMPI
         );
         loop {
@@ -345,7 +403,7 @@ impl<'a> RoundTrip<'a> {
         Ok(())
     }
 
-    async fn withdraw(&self) -> Result<(Address, String, u128)> {
+    async fn withdraw(&self, hub_user_key: &EasyHubKey) -> Result<(Address, String, u128)> {
         use crate::sim::sim::FIXED_TRANSFER_SOMPI;
 
         let kaspa_recipient = get_kaspa_keypair();
@@ -354,7 +412,8 @@ impl<'a> RoundTrip<'a> {
             self.task_id, self.hub_whale.id, kaspa_recipient.address, FIXED_TRANSFER_SOMPI
         );
 
-        let res_hub = self.res.hub.clone();
+        let mut res_hub = self.res.hub.clone();
+        res_hub.rpc = res_hub.rpc().with_signer(hub_user_key.signer());
         let domain_kas = self.res.args.domain_kas;
         let token_hub_str = self.res.args.token_hub_str();
         let kaspa_addr = kaspa_recipient.address.clone();

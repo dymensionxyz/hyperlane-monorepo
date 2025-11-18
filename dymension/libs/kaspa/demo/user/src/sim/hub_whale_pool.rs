@@ -17,7 +17,6 @@ use url::Url;
 
 pub struct HubWhale {
     pub provider: CosmosProvider<ModuleQueryClient>,
-    pub key: EasyHubKey,
     last_used: Mutex<Instant>,
     pub id: usize,
 }
@@ -70,7 +69,6 @@ impl HubWhalePool {
 
             let whale = Arc::new(HubWhale {
                 provider,
-                key,
                 last_used: Mutex::new(base_time - std::time::Duration::from_secs(id as u64)),
                 id,
             });
@@ -149,18 +147,14 @@ mod tests {
     #[test]
     fn test_lru_tracking() {
         let base = Instant::now();
-        let k1 = EasyHubKey::new();
-        let k2 = EasyHubKey::new();
 
         let w1 = Arc::new(HubWhale {
             provider: unsafe { std::mem::zeroed() },
-            key: k1,
             last_used: Mutex::new(base - std::time::Duration::from_secs(10)),
             id: 1,
         });
         let w2 = Arc::new(HubWhale {
             provider: unsafe { std::mem::zeroed() },
-            key: k2,
             last_used: Mutex::new(base - std::time::Duration::from_secs(5)),
             id: 2,
         });
