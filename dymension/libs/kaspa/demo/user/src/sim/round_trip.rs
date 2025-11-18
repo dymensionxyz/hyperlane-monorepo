@@ -311,7 +311,8 @@ impl<'a> RoundTrip<'a> {
         }
     }
 
-    async fn send_stats(&self) {
+    async fn send_stats(&mut self) {
+        self.stats.update_stage();
         if let Err(e) = self.tx.send(self.stats.clone()).await {
             error!(
                 "stat send error: task_id={} kaspa_whale_id={} error={:?}",

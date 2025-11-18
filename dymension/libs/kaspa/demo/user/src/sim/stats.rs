@@ -36,7 +36,6 @@ impl StatsWriter {
 
     pub fn log_stat(&self, stat: &RoundTripStats) {
         info!("{:#?}", stat);
-        info!("stage: {:?}", stat.stage());
         if let Some(deposit_time_ms) = stat.deposit_time_ms() {
             info!("deposit credit time: ms={}", deposit_time_ms);
         }
@@ -71,6 +70,7 @@ pub fn write_metadata(file_path: &str, total_spend: u64, total_ops: u64) -> Resu
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct RoundTripStats {
     pub op_id: u64,
+    pub stage: String,
     pub kaspa_whale_id: Option<usize>,
     pub hub_whale_id: Option<usize>,
     pub kaspa_deposit_tx_id: Option<TransactionId>,
@@ -89,7 +89,34 @@ impl RoundTripStats {
     pub fn new(op_id: u64) -> Self {
         let mut d = RoundTripStats::default();
         d.op_id = op_id;
+        d.update_stage();
         d
+    }
+
+    pub fn update_stage(&mut self) {
+        self.stage = self.compute_stage().to_string();
+    }
+
+    fn compute_stage(&self) -> &'static str {
+        if self.kaspa_deposit_tx_time_millis.is_none() {
+            return "PreDeposit";
+        }
+        if self.deposit_credit_error.is_some() {
+            return "PostDepositNotCredited";
+        }
+        if self.deposit_credit_time_millis.is_none() {
+            return "AwaitingDepositCredit";
+        }
+        if self.hub_withdraw_tx_time_millis.is_none() {
+            return "PreWithdrawal";
+        }
+        if self.withdraw_credit_error.is_some() {
+            return "PostWithdrawalNotCredited";
+        }
+        if self.withdraw_credit_time_millis.is_none() {
+            return "AwaitingWithdrawalCredit";
+        }
+        "Complete"
     }
 
     pub fn deposit_time_ms(&self) -> Option<u128> {
@@ -110,21 +137,5 @@ impl RoundTripStats {
             (Some(start), Some(end)) => Some(end.saturating_sub(start)),
             _ => None,
         }
-    }
-
-    pub fn stage(&self) -> &'static str {
-        if self.kaspa_deposit_tx_time_millis.is_none() {
-            return "PreDeposit";
-        }
-        if self.deposit_credit_error.is_some() {
-            return "PostDepositNotCredited";
-        }
-        if self.hub_withdraw_tx_time_millis.is_none() {
-            return "PreWithdrawal";
-        }
-        if self.withdraw_credit_error.is_some() {
-            return "PostWithdrawalNotCredited";
-        }
-        "Complete"
     }
 }
