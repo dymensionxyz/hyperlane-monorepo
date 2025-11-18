@@ -30,7 +30,7 @@ use tracing::warn;
 
 const MAX_RETRIES: usize = 3;
 const RETRY_DELAY_MS: u64 = 2000;
-const HUB_FUND_AMOUNT: u64 = 1_000_000_000_000_000_000;
+const HUB_FUND_AMOUNT: u64 = 50_000_000_000_000_000; // 0.05 dym to pay gas
 
 fn now_millis() -> u128 {
     std::time::SystemTime::now()
