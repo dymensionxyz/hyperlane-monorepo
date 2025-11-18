@@ -64,7 +64,7 @@ impl KaspaWhalePool {
         for (id, secret_str) in secrets.into_iter().enumerate() {
             let storage_folder = wallet_dir_prefix
                 .as_ref()
-                .map(|prefix| format!("{}/kaspa-whale-{}", prefix, id));
+                .map(|prefix| format!("{}/{}", prefix, id));
 
             if let Some(ref folder) = storage_folder {
                 std::fs::create_dir_all(folder)?;
