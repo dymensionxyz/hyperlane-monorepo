@@ -7,8 +7,7 @@ See Epic for more info
 ## Structure
 
 ```
-├──  tooling
-│   └──  user // self contained tooling for users, validator operators, developers etc
+├──  tooling // tooling for users, validator operators, developers etc
 ├──  lib
 │   ├──  core // shared by relayer and validator libs
 │   ├──  relayer // not used by validator lib

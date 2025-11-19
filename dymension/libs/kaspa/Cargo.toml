@@ -9,7 +9,7 @@ members = [
     "lib/api",
     "lib/hardcode",
     "lib/kms",
-    "tooling/user",
+    "tooling",
 ]
 
 [workspace.dependencies]
