@@ -106,6 +106,47 @@ impl HttpClient {
         Self { url, client: c }
     }
 
+    /// Fetches all valid Hyperlane deposits for a given Kaspa address.
+    ///
+    /// This function paginates through all accepted transactions for the address and filters
+    /// for valid Hyperlane deposits (escrow transfers with valid payloads).
+    ///
+    /// # Pagination Strategy
+    ///
+    /// The Kaspa API `/addresses/{kaspaAddress}/full-transactions-page` endpoint supports
+    /// time-based pagination using `before` and `after` query parameters:
+    /// - `before=T`: Returns transactions that occurred EARLIER than timestamp T (where block_time < T)
+    ///   - Example: `before=1000` returns txs at times 999, 998, 997... (older transactions)
+    /// - `after=T`: Returns transactions that occurred LATER than timestamp T (where block_time > T)
+    ///   - Example: `after=1000` returns txs at times 1001, 1002, 1003... (newer transactions)
+    /// - Only one of `before` or `after` can be used per request (mutually exclusive)
+    ///
+    /// This function uses a backward pagination strategy (newest to oldest):
+    /// 1. First request uses `after=lower_bound_unix_time` to get transactions after the checkpoint
+    /// 2. Subsequent requests use `before=oldest_tx_time - 1` to page backward through history
+    /// 3. Continues until reaching `lower_bound_unix_time` or no more transactions exist
+    ///
+    /// # Parameters
+    ///
+    /// - `lower_bound_unix_time`: Optional timestamp (epoch millis) to start scanning from.
+    ///   If None, scans from genesis. Used as checkpoint for incremental syncing.
+    /// - `address`: The Kaspa address to query deposits for
+    /// - `domain_kas`: Expected Kaspa domain ID in the Hyperlane payload for validation
+    ///
+    /// # Returns
+    ///
+    /// Vector of valid Hyperlane deposits, ordered newest to oldest, filtered by:
+    /// - Transaction is accepted (not rejected)
+    /// - Has a payload (required for Hyperlane messages)
+    /// - Is a valid escrow transfer (funds sent to the monitored address)
+    /// - Contains valid Hyperlane payload for the specified domain
+    ///
+    /// # Implementation Notes
+    ///
+    /// - Fetches 500 transactions per page to minimize API calls
+    /// - Filters transactions in-flight to reduce memory usage
+    /// - Updates pagination cursor (`upper_bound_t`) from each transaction's block_time
+    /// - Stops when either: fewer than 500 txs returned OR cursor reaches lower bound
     pub async fn get_deposits_by_address(
         &self,
         lower_bound_unix_time: Option<i64>,
