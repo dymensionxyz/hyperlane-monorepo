@@ -510,6 +510,12 @@ pub fn build_kaspa_connection_conf(
                 .get_opt_key("depositLookBack")
                 .parse_duration()
                 .end(),
+            deposit_query_overlap: chain
+                .chain(err)
+                .get_opt_key("depositQueryOverlap")
+                .parse_duration()
+                .end()
+                .unwrap_or(std::time::Duration::from_secs(60 * 5)),
         })
     } else {
         None

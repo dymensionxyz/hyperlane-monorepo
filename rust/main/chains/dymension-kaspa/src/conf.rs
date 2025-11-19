@@ -63,6 +63,7 @@ pub struct RelayerDepositTimings {
     pub retry_delay_exponent: f64,
     pub retry_delay_max: std::time::Duration,
     pub deposit_look_back: Option<std::time::Duration>,
+    pub deposit_query_overlap: std::time::Duration,
 }
 
 impl Default for RelayerDepositTimings {
@@ -73,6 +74,7 @@ impl Default for RelayerDepositTimings {
             retry_delay_exponent: 2.0,
             retry_delay_max: std::time::Duration::from_secs(3600),
             deposit_look_back: None,
+            deposit_query_overlap: std::time::Duration::from_secs(60 * 5),
         }
     }
 }

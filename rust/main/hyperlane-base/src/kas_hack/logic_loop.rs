@@ -115,9 +115,8 @@ where
     async fn deposit_loop(&self) {
         info!("Dymension, starting deposit loop with queue");
 
-        // First iteration: use full lookback to catch up on missed deposits
-        // Subsequent iterations: only look back 2x poll interval to handle clock skew
-        let mut lookback_ms = self.config.deposit_look_back.map(|d| d.as_millis() as i64);
+        let overlap_ms = self.config.deposit_query_overlap.as_millis() as i64;
+        let mut last_query_time: Option<i64> = None;
 
         loop {
             self.process_deposit_queue().await;
@@ -127,7 +126,13 @@ where
                 .expect("System time before Unix epoch")
                 .as_millis() as i64;
 
-            let lower_bound = lookback_ms.map(|lb| now - lb);
+            let lower_bound = match last_query_time {
+                None => self
+                    .config
+                    .deposit_look_back
+                    .map(|d| now - d.as_millis() as i64),
+                Some(last) => Some(last - overlap_ms),
+            };
 
             match self
                 .provider
@@ -147,7 +152,7 @@ where
                 }
             }
 
-            lookback_ms = Some(self.config.poll_interval.as_millis() as i64 * 4); // look back 4x poll interval to account for any slowness
+            last_query_time = Some(now);
             time::sleep(self.config.poll_interval).await;
         }
     }
