@@ -106,12 +106,16 @@ impl HttpClient {
         Self { url, client: c }
     }
 
+
     pub async fn get_deposits_by_address(
         &self,
         from_unix_time: Option<i64>,
         address: &str,
         domain_kas: u32,
     ) -> Result<Vec<Deposit>> {
+        /*
+        https://api-tn10.kaspa.org/docs#/Kaspa%20addresses/get_full_transactions_for_address_page_addresses__kaspaAddress__full_transactions_page_get
+         */
         let n: i64 = 500;
 
         let c = self.get_config();
@@ -268,7 +272,7 @@ fn has_valid_hyperlane_payload(tx: &TxModel, domain_kas: u32) -> bool {
 mod tests {
     use super::*;
     use crate::message::ParsedHL;
-    use hardcode::hl::HL_DOMAIN_KASPA_TEST10;
+    use hardcode::hl::{HL_DOMAIN_KASPA_TEST10, HL_DOMAIN_KASPA_TEST10_LEGACY};
 
     #[tokio::test]
     #[ignore = "dont hit real api"]
