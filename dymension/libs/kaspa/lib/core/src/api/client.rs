@@ -122,9 +122,13 @@ impl HttpClient {
     /// - Only one of `before` or `after` can be used per request (mutually exclusive)
     ///
     /// This function uses a backward pagination strategy (newest to oldest):
-    /// 1. First request uses `after=lower_bound_unix_time` to get transactions after the checkpoint
-    /// 2. Subsequent requests use `before=oldest_tx_time - 1` to page backward through history
-    /// 3. Continues until reaching `lower_bound_unix_time` or no more transactions exist
+    /// 1. First request: `after=lower_bound_unix_time` gets txs with time > checkpoint
+    ///    - API returns them newest-first, e.g., [12, 11, 10] if limit=3
+    /// 2. Subsequent requests: `before=oldest_seen_time - 1` continues paging backward
+    ///    - Next batch: [9, 8, 7], then [6, 5, 4], etc.
+    /// 3. Stops when: fewer than 500 txs returned OR cursor goes below `lower_bound_unix_time`
+    ///
+    /// Note: API always returns results sorted newest-first regardless of pagination direction
     ///
     /// # Parameters
     ///
@@ -186,13 +190,16 @@ impl HttpClient {
 
             let txs_found = res.len();
 
-            // Filter and convert in one pass to avoid holding all raw txs in memory
-            for tx in res {
-                // Update pagination cursor from last tx regardless of filtering
-                if let Some(t) = tx.block_time {
+            // Update pagination cursor to the oldest transaction's time in this batch.
+            // The API returns transactions sorted newest-first, so the last element is the oldest.
+            if let Some(last_tx) = res.last() {
+                if let Some(t) = last_tx.block_time {
                     upper_bound_t = t - 1;
                 }
+            }
 
+            // Filter and convert in one pass to avoid holding all raw txs in memory
+            for tx in res {
                 // Early exits for cheap checks first
                 if tx.payload.is_none() {
                     continue;
