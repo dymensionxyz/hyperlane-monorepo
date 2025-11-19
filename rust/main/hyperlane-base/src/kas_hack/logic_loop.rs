@@ -121,7 +121,7 @@ where
         loop {
             self.process_deposit_queue().await;
 
-            let now = std::time::SystemTime::now()
+            let query_start = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .expect("System time before Unix epoch")
                 .as_millis() as i64;
@@ -130,7 +130,7 @@ where
                 None => self
                     .config
                     .deposit_look_back
-                    .map(|d| now - d.as_millis() as i64),
+                    .map(|d| query_start - d.as_millis() as i64),
                 Some(last) => Some(last - overlap_ms),
             };
 
@@ -152,8 +152,20 @@ where
                 }
             }
 
-            last_query_time = Some(now);
-            time::sleep(self.config.poll_interval).await;
+            let query_end = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time before Unix epoch")
+                .as_millis() as i64;
+
+            last_query_time = Some(query_start);
+
+            let elapsed = query_end - query_start;
+            let poll_interval_ms = self.config.poll_interval.as_millis() as i64;
+            let sleep_ms = poll_interval_ms.saturating_sub(elapsed);
+
+            if sleep_ms > 0 {
+                time::sleep(Duration::from_millis(sleep_ms as u64)).await;
+            }
         }
     }
 
