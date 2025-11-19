@@ -224,71 +224,51 @@ async fn respond_validate_new_deposits<
     info!("validator: checking new kaspa deposit");
     let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
     if res.must_val_stuff().toggles.deposit_enabled {
-        // Attempt validation with automatic reconnection on WebSocket errors
-        let validation_result = validate_new_deposit(
-            &res.must_api(),
-            res.must_rest_client(),
-            &deposits,
-            &res.must_wallet().net,
-            &res.must_escrow().addr,
-            res.must_hub_rpc(),
-            DepositMustMatch::new(
-                res.must_val_stuff().hub_domain,
-                res.must_val_stuff().hub_token_id,
-                res.must_val_stuff().kas_domain,
-                res.must_val_stuff().kas_token_placeholder,
-            ),
-        )
-        .await;
+        // Capture variables for the closure
+        let rest_client = res.must_rest_client();
+        let net = res.must_wallet().net.clone();
+        let escrow_addr = res.must_escrow().addr.clone();
+        let hub_rpc = res.must_hub_rpc().clone();
+        let must_match = DepositMustMatch::new(
+            res.must_val_stuff().hub_domain,
+            res.must_val_stuff().hub_token_id,
+            res.must_val_stuff().kas_domain,
+            res.must_val_stuff().kas_token_placeholder,
+        );
+        let deposits_clone = deposits.clone();
 
-        // If validation failed with a WebSocket error, attempt reconnection and retry
-        match validation_result {
-            Ok(_) => {}
-            Err(e) => {
-                let error_str = e.to_string();
-                if error_str.contains("WebSocket is not connected")
-                    || error_str.contains("RPC Server (remote error)")
-                {
-                    tracing::warn!(
-                        error = ?e,
-                        "Deposit validation failed with WebSocket error, attempting reconnection"
-                    );
+        // Use with_reconnect for automatic WebSocket reconnection and retry
+        res.must_wallet()
+            .with_reconnect(|api| {
+                // Clone variables inside closure so they can be moved into async block
+                let deposits = deposits_clone.clone();
+                let net = net.clone();
+                let escrow_addr = escrow_addr.clone();
+                let hub_rpc = hub_rpc.clone();
+                let must_match = must_match.clone();
 
-                    // Attempt to reconnect
-                    if let Err(reconnect_err) = res.must_wallet().reconnect().await {
-                        return Err(AppError(eyre::eyre!(
-                            "Deposit validation failed and reconnection failed: original error: {}, reconnect error: {}",
-                            e,
-                            reconnect_err
-                        )));
-                    }
-
-                    // Retry validation after reconnection
+                async move {
                     validate_new_deposit(
-                        &res.must_api(),
-                        res.must_rest_client(),
+                        &api,
+                        rest_client,
                         &deposits,
-                        &res.must_wallet().net,
-                        &res.must_escrow().addr,
-                        res.must_hub_rpc(),
-                        DepositMustMatch::new(
-                            res.must_val_stuff().hub_domain,
-                            res.must_val_stuff().hub_token_id,
-                            res.must_val_stuff().kas_domain,
-                            res.must_val_stuff().kas_token_placeholder,
-                        ),
+                        &net,
+                        &escrow_addr,
+                        &hub_rpc,
+                        must_match,
                     )
                     .await
-                    .map_err(|retry_err| {
-                        eprintln!("Deposit validation failed after reconnection: {:?}", retry_err);
-                        AppError(Report::from(retry_err))
-                    })?;
-                } else {
-                    eprintln!("Deposit validation failed: {:?}", e);
-                    return Err(AppError(Report::from(e)));
+                    .map_err(|e| {
+                        // Convert ValidationError to kaspa_wallet_core::error::Error
+                        kaspa_wallet_core::error::Error::Custom(e.to_string())
+                    })
                 }
-            }
-        }
+            })
+            .await
+            .map_err(|e| {
+                eprintln!("Deposit validation failed: {:?}", e);
+                AppError(e)
+            })?;
     }
     info!(
         message_id = ?deposits.hl_message.id(),
