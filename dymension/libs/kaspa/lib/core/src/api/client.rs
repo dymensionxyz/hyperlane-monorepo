@@ -116,52 +116,88 @@ impl HttpClient {
         /*
         https://api-tn10.kaspa.org/docs#/Kaspa%20addresses/get_full_transactions_for_address_page_addresses__kaspaAddress__full_transactions_page_get
          */
-        let n: i64 = 500;
-
+        let limit: i64 = 500;
         let c = self.get_config();
-        info!(url = ?c.base_path, "kaspa: querying deposits");
+
+        info!(
+            url = ?c.base_path,
+            address = %address,
+            from_unix_time = ?from_unix_time,
+            "kaspa: querying deposits"
+        );
 
         let mut deposits: Vec<Deposit> = Vec::new();
+        let mut after = from_unix_time;
 
-        let res = transactions_page(
-            &c,
-            args {
-                kaspa_address: address.to_string(),
-                limit: Some(n),
-                before: Some(upper_bound_t),
-                after: Some(lower_bound_t),
-                fields: None,
-                resolve_previous_outpoints: Some("no".to_string()),
-                acceptance: Some(AcceptanceMode::Accepted),
-            },
-        )
-        .await?;
+        loop {
+            let page_txs = transactions_page(
+                &c,
+                args {
+                    kaspa_address: address.to_string(),
+                    limit: Some(limit),
+                    before: None,
+                    after,
+                    fields: None,
+                    resolve_previous_outpoints: Some("no".to_string()),
+                    acceptance: Some(AcceptanceMode::Accepted),
+                },
+            )
+            .await?;
 
-        for tx in res {
-            if !is_valid_escrow_transfer(&tx, &address.to_string())? {
-                continue;
+            let page_count = page_txs.len();
+            info!(
+                page_count = page_count,
+                after = ?after,
+                "kaspa: received transaction page"
+            );
+
+            if page_txs.is_empty() {
+                break;
             }
 
-            if !has_valid_hyperlane_payload(&tx, domain_kas) {
-                continue;
-            }
+            let mut newest_block_time: Option<i64> = None;
 
-            let tx_id = tx.transaction_id.clone();
-            let tx_time = tx.block_time;
-            match Deposit::try_from(tx) {
-                Ok(deposit) => deposits.push(deposit),
-                Err(e) => {
-                    tracing::info!(
-                        tx_id = ?tx_id,
-                        block_time = ?tx_time,
-                        error = ?e,
-                        "kaspa: skipped invalid deposit"
+            for tx in page_txs {
+                if let Some(block_time) = tx.block_time {
+                    newest_block_time = Some(
+                        newest_block_time
+                            .map(|t| t.max(block_time))
+                            .unwrap_or(block_time)
                     );
+                }
+
+                if !is_valid_escrow_transfer(&tx, &address.to_string())? {
                     continue;
                 }
+
+                if !has_valid_hyperlane_payload(&tx, domain_kas) {
+                    continue;
+                }
+
+                let tx_id = tx.transaction_id.clone();
+                let tx_time = tx.block_time;
+                match Deposit::try_from(tx) {
+                    Ok(deposit) => deposits.push(deposit),
+                    Err(e) => {
+                        info!(
+                            tx_id = ?tx_id,
+                            block_time = ?tx_time,
+                            error = ?e,
+                            "kaspa: skipped invalid deposit"
+                        );
+                        continue;
+                    }
+                }
             }
+
+            if (page_count as i64) < limit {
+                break;
+            }
+
+            after = newest_block_time;
         }
 
+        info!(deposits_count = deposits.len(), "kaspa: finished querying deposits");
         Ok(deposits)
     }
 
@@ -302,7 +338,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "dont hit real api"]
+    // #[ignore = "dont hit real api"]
     async fn test_get_deposit_stress() {
         /*
         Tries to check if its really working as we observed that the relayer missed many deposits
