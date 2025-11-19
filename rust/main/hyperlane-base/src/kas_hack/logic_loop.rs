@@ -119,6 +119,11 @@ where
         let mut last_query_time: Option<i64> = None;
 
         loop {
+            let loop_start = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time before Unix epoch")
+                .as_millis() as i64;
+
             self.process_deposit_queue().await;
 
             let query_start = std::time::SystemTime::now()
@@ -152,14 +157,14 @@ where
                 }
             }
 
-            let query_end = std::time::SystemTime::now()
+            let loop_end = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .expect("System time before Unix epoch")
                 .as_millis() as i64;
 
             last_query_time = Some(query_start);
 
-            let elapsed = query_end - query_start;
+            let elapsed = loop_end - loop_start;
             let poll_interval_ms = self.config.poll_interval.as_millis() as i64;
             let sleep_ms = poll_interval_ms.saturating_sub(elapsed);
 
