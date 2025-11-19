@@ -132,6 +132,75 @@ impl EasyKaspaWallet {
         self.wallet.rpc_api()
     }
 
+    /// Reconnect the wallet to the Kaspa node
+    pub async fn reconnect(&self) -> Result<()> {
+        info!("Attempting to reconnect wallet to Kaspa node");
+        self.wallet
+            .clone()
+            .connect(Some(self.net.rpc_url.clone()), &self.net.network_id)
+            .await
+            .map_err(|e| eyre::eyre!("Failed to reconnect wallet: {}", e))?;
+
+        let is_connected = self.wallet.is_connected();
+        info!(connected = is_connected, "Wallet reconnection attempt completed");
+
+        if !is_connected {
+            return Err(eyre::eyre!("Wallet reconnection failed - not connected"));
+        }
+
+        Ok(())
+    }
+
+    /// Check if an error is a WebSocket connection error that warrants reconnection
+    fn is_websocket_error(err: &kaspa_wallet_core::error::Error) -> bool {
+        let err_str = err.to_string().to_lowercase();
+        err_str.contains("websocket is not connected")
+            || err_str.contains("websocket")
+            || err_str.contains("connection")
+            || err_str.contains("remote error")
+    }
+
+    /// Execute an RPC call with automatic reconnection on WebSocket errors
+    ///
+    /// This wrapper attempts to execute the provided async function. If it fails with a
+    /// WebSocket error, it will attempt to reconnect once and retry the operation.
+    pub async fn with_reconnect<F, T, Fut>(&self, operation: F) -> Result<T>
+    where
+        F: Fn(Arc<DynRpcApi>) -> Fut,
+        Fut: std::future::Future<Output = Result<T, kaspa_wallet_core::error::Error>>,
+    {
+        let api = self.api();
+        match operation(api.clone()).await {
+            Ok(result) => Ok(result),
+            Err(e) if Self::is_websocket_error(&e) => {
+                tracing::warn!(
+                    error = ?e,
+                    "RPC call failed with WebSocket error, attempting reconnection"
+                );
+
+                // Attempt to reconnect
+                if let Err(reconnect_err) = self.reconnect().await {
+                    return Err(eyre::eyre!(
+                        "RPC call failed and reconnection failed: original error: {}, reconnect error: {}",
+                        e,
+                        reconnect_err
+                    ));
+                }
+
+                // Retry the operation after reconnection
+                let new_api = self.api();
+                operation(new_api).await.map_err(|retry_err| {
+                    eyre::eyre!(
+                        "RPC call failed after reconnection: original error: {}, retry error: {}",
+                        e,
+                        retry_err
+                    )
+                })
+            }
+            Err(e) => Err(eyre::eyre!("RPC call failed: {}", e)),
+        }
+    }
+
     pub fn account(&self) -> Arc<dyn Account> {
         self.wallet.account().unwrap()
     }
