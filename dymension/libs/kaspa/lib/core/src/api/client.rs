@@ -106,132 +106,55 @@ impl HttpClient {
         Self { url, client: c }
     }
 
-    /// Fetches all valid Hyperlane deposits for a given Kaspa address.
-    ///
-    /// This function paginates through all accepted transactions for the address and filters
-    /// for valid Hyperlane deposits (escrow transfers with valid payloads).
-    ///
-    /// # Pagination Strategy
-    ///
-    /// The Kaspa API `/addresses/{kaspaAddress}/full-transactions-page` endpoint supports
-    /// time-based pagination using `before` and `after` query parameters:
-    /// - `before=T`: Returns transactions that occurred EARLIER than timestamp T (where block_time < T)
-    ///   - Example: `before=1000` returns txs at times 999, 998, 997... (older transactions)
-    /// - `after=T`: Returns transactions that occurred LATER than timestamp T (where block_time > T)
-    ///   - Example: `after=1000` returns txs at times 1001, 1002, 1003... (newer transactions)
-    /// - Only one of `before` or `after` can be used per request (mutually exclusive)
-    ///
-    /// This function uses a backward pagination strategy (newest to oldest):
-    /// 1. First request: `after=lower_bound_unix_time` gets txs with time > checkpoint
-    ///    - API returns them newest-first, e.g., [12, 11, 10] if limit=3
-    /// 2. Subsequent requests: `before=oldest_seen_time - 1` continues paging backward
-    ///    - Next batch: [9, 8, 7], then [6, 5, 4], etc.
-    /// 3. Stops when: fewer than 500 txs returned OR cursor goes below `lower_bound_unix_time`
-    ///
-    /// Note: API always returns results sorted newest-first regardless of pagination direction
-    ///
-    /// # Parameters
-    ///
-    /// - `lower_bound_unix_time`: Optional timestamp (epoch millis) to start scanning from.
-    ///   If None, scans from genesis. Used as checkpoint for incremental syncing.
-    /// - `address`: The Kaspa address to query deposits for
-    /// - `domain_kas`: Expected Kaspa domain ID in the Hyperlane payload for validation
-    ///
-    /// # Returns
-    ///
-    /// Vector of valid Hyperlane deposits, ordered newest to oldest, filtered by:
-    /// - Transaction is accepted (not rejected)
-    /// - Has a payload (required for Hyperlane messages)
-    /// - Is a valid escrow transfer (funds sent to the monitored address)
-    /// - Contains valid Hyperlane payload for the specified domain
-    ///
-    /// # Implementation Notes
-    ///
-    /// - Fetches 500 transactions per page to minimize API calls
-    /// - Filters transactions in-flight to reduce memory usage
-    /// - Updates pagination cursor (`upper_bound_t`) from each transaction's block_time
-    /// - Stops when either: fewer than 500 txs returned OR cursor reaches lower bound
     pub async fn get_deposits_by_address(
         &self,
-        lower_bound_unix_time: Option<i64>,
+        from_unix_time: Option<i64>,
         address: &str,
         domain_kas: u32,
     ) -> Result<Vec<Deposit>> {
         let n: i64 = 500;
-        let initial_lower_bound_t = lower_bound_unix_time.unwrap_or(0);
-        let mut upper_bound_t = 0i64;
 
         let c = self.get_config();
         info!(url = ?c.base_path, "kaspa: querying deposits");
 
         let mut deposits: Vec<Deposit> = Vec::new();
 
-        let mut lower_bound_t = initial_lower_bound_t;
-        loop {
-            // only upper_bound_t or lower_bound_t can be used in the query, not both.
-            // so in case upper_bound_t is set (>0) it means we need to page and we use the last tx received timestamp as upper_bound_t
-            if upper_bound_t > 0 {
-                lower_bound_t = 0;
+        let res = transactions_page(
+            &c,
+            args {
+                kaspa_address: address.to_string(),
+                limit: Some(n),
+                before: Some(upper_bound_t),
+                after: Some(lower_bound_t),
+                fields: None,
+                resolve_previous_outpoints: Some("no".to_string()),
+                acceptance: Some(AcceptanceMode::Accepted),
+            },
+        )
+        .await?;
+
+        for tx in res {
+            if !is_valid_escrow_transfer(&tx, &address.to_string())? {
+                continue;
             }
 
-            let res = transactions_page(
-                &c,
-                args {
-                    kaspa_address: address.to_string(),
-                    limit: Some(n),
-                    before: Some(upper_bound_t),
-                    after: Some(lower_bound_t),
-                    fields: None,
-                    resolve_previous_outpoints: Some("no".to_string()),
-                    acceptance: Some(AcceptanceMode::Accepted),
-                },
-            )
-            .await?;
-
-            let txs_found = res.len();
-
-            // Update pagination cursor to the oldest transaction's time in this batch.
-            // The API returns transactions sorted newest-first, so the last element is the oldest.
-            if let Some(last_tx) = res.last() {
-                if let Some(t) = last_tx.block_time {
-                    upper_bound_t = t - 1;
-                }
+            if !has_valid_hyperlane_payload(&tx, domain_kas) {
+                continue;
             }
 
-            // Filter and convert in one pass to avoid holding all raw txs in memory
-            for tx in res {
-                // Early exits for cheap checks first
-                if tx.payload.is_none() {
+            let tx_id = tx.transaction_id.clone();
+            let tx_time = tx.block_time;
+            match Deposit::try_from(tx) {
+                Ok(deposit) => deposits.push(deposit),
+                Err(e) => {
+                    tracing::info!(
+                        tx_id = ?tx_id,
+                        block_time = ?tx_time,
+                        error = ?e,
+                        "kaspa: skipped invalid deposit"
+                    );
                     continue;
                 }
-
-                if !is_valid_escrow_transfer(&tx, &address.to_string())? {
-                    continue;
-                }
-
-                if !has_valid_hyperlane_payload(&tx, domain_kas) {
-                    continue;
-                }
-
-                let tx_id = tx.transaction_id.clone();
-                let tx_time = tx.block_time;
-                match Deposit::try_from(tx) {
-                    Ok(deposit) => deposits.push(deposit),
-                    Err(e) => {
-                        tracing::info!(
-                            tx_id = ?tx_id,
-                            block_time = ?tx_time,
-                            error = ?e,
-                            "kaspa: skipped invalid deposit"
-                        );
-                        continue;
-                    }
-                }
-            }
-
-            // if txs found are less than n, or we already did paging till the initial lower bound
-            if txs_found < n as usize || upper_bound_t < initial_lower_bound_t {
-                break;
             }
         }
 
@@ -348,7 +271,7 @@ mod tests {
     use hardcode::hl::HL_DOMAIN_KASPA_TEST10;
 
     #[tokio::test]
-    #[ignore = "dont hil real api"]
+    #[ignore = "dont hit real api"]
     async fn test_get_deposits() {
         // https://explorer-tn10.kaspa.org/addresses/kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr?page=1
         let client = HttpClient::new(
@@ -359,6 +282,37 @@ mod tests {
 
         let deposits = client
             .get_deposits_by_address(Some(1751299515650), address, HL_DOMAIN_KASPA_TEST10)
+            .await;
+
+        match deposits {
+            Ok(deposits) => {
+                println!("Found deposits: n = {:?}", deposits.len());
+                for deposit in deposits {
+                    println!("Deposit: {:?}", deposit);
+                }
+            }
+            Err(e) => {
+                println!("Query deposits: {:?}", e);
+            }
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "dont hit real api"]
+    async fn test_get_deposit_stress() {
+        /*
+        Tries to check if its really working as we observed that the relayer missed many deposits
+         */
+        let client = HttpClient::new(
+            "https://api-tn10.kaspa.org/".to_string(),
+            RateLimitConfig::default(),
+        );
+        // blumbus address Nov 19 2025
+        let address = "kaspatest:pzwcd30pvdn0k4snvj5awkmlm6srzuw8d8e766ff5vwceg2akta3799nq2a3p";
+
+        let deposits = client
+        // the first deposit which didnt get seen in the stress test at 12.35 Nov 19 2025 https://explorer-tn10.kaspa.org/txs/c241b6d96df9c5b7f812a10417f685049e305616428123392573f8b5200c8273
+            .get_deposits_by_address(Some(1763552129987), address, HL_DOMAIN_KASPA_TEST10_LEGACY)
             .await;
 
         match deposits {
