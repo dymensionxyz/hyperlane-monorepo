@@ -509,7 +509,8 @@ pub fn build_kaspa_connection_conf(
                 .chain(err)
                 .get_opt_key("depositLookBack")
                 .parse_duration()
-                .end(),
+                .end()
+                .unwrap_or(std::time::Duration::from_secs(0)),
             deposit_query_overlap: chain
                 .chain(err)
                 .get_opt_key("depositQueryOverlap")
