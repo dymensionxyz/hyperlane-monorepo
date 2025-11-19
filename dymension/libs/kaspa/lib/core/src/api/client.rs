@@ -115,7 +115,7 @@ impl HttpClient {
         /*
         https://api-tn10.kaspa.org/docs#/Kaspa%20addresses/get_full_transactions_for_address_page_addresses__kaspaAddress__full_transactions_page_get
          */
-        let limit: i64 = 20;
+        let limit: i64 = 500;
         let c = self.get_config();
 
         info!(
@@ -340,7 +340,7 @@ mod tests {
     }
 
     #[tokio::test]
-    // #[ignore = "dont hit real api"]
+    #[ignore = "dont hit real api"]
     async fn test_get_deposit_stress() {
         /*
         Tries to check if its really working as we observed that the relayer missed many deposits
@@ -353,9 +353,7 @@ mod tests {
         let address = "kaspatest:pzwcd30pvdn0k4snvj5awkmlm6srzuw8d8e766ff5vwceg2akta3799nq2a3p";
 
         let deposits = client
-            // the first deposit which didnt get seen in the stress test at 12.35 Nov 19 2025 https://explorer-tn10.kaspa.org/txs/c241b6d96df9c5b7f812a10417f685049e305616428123392573f8b5200c8273
-            // .get_deposits_by_address(Some(1763552129987), address, HL_DOMAIN_KASPA_TEST10_LEGACY)
-            // .get_deposits_by_address(Some(1763551862627), address, HL_DOMAIN_KASPA_TEST10_LEGACY)
+            // at time of writing test, am absolutely sure how many deposits are just after this time, because of stress testing
             .get_deposits_by_address(Some(1763568168707), address, HL_DOMAIN_KASPA_TEST10_LEGACY)
             .await;
 
