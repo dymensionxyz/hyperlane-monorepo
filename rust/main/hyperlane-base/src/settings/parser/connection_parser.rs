@@ -504,7 +504,7 @@ pub fn build_kaspa_connection_conf(
                 .get_opt_key("depositRetryDelayMax")
                 .parse_duration()
                 .end()
-                .unwrap_or(std::time::Duration::from_secs(3600)),
+                .unwrap_or(std::time::Duration::from_secs(60*60)),
             deposit_look_back: chain
                 .chain(err)
                 .get_opt_key("depositLookBack")
