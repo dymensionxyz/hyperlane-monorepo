@@ -48,3 +48,7 @@ pub const REQUIRED_FINALITY_BLUE_SCORE_CONFIRMATIONS: i64 = 1000;
 pub const MAX_SWEEP_INPUTS: usize = 1000;
 
 pub const MAX_MASS_MARGIN: f64 = 0.9; // 90% of the max mass
+
+// Fixed delay in seconds for retrying deposits when validators return 503 Service Unavailable.
+// This prevents exponential backoff for infrastructure issues and provides consistent retry timing.
+pub const SERVICE_UNAVAILABLE_RETRY_DELAY_SECS: u64 = 30;

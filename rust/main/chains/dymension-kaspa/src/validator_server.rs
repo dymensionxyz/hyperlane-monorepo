@@ -16,6 +16,7 @@ use dym_kas_core::wallet::EasyKaspaWallet;
 use dym_kas_core::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use dym_kas_validator::confirmation::validate_confirmed_withdrawals;
 use dym_kas_validator::deposit::{validate_new_deposit, MustMatch as DepositMustMatch};
+use dym_kas_validator::error::ValidationError;
 use dym_kas_validator::withdraw::{validate_sign_withdrawal_fxg, MustMatch as WithdrawMustMatch};
 pub use dym_kas_validator::KaspaSecpKeypair;
 use eyre::Report;
@@ -78,35 +79,133 @@ impl<
     }
 }
 
-struct AppError(eyre::Report);
+enum AppError {
+    Validation(ValidationError),
+    Generic(eyre::Report),
+}
+
+impl From<ValidationError> for AppError {
+    fn from(e: ValidationError) -> Self {
+        AppError::Validation(e)
+    }
+}
+
+impl From<eyre::Report> for AppError {
+    fn from(e: eyre::Report) -> Self {
+        AppError::Generic(e)
+    }
+}
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let err_msg = self.0.to_string();
-        eprintln!("Validator error: {}", err_msg);
+        match self {
+            AppError::Validation(ve) => {
+                eprintln!("Validator error: {:?}", ve);
 
-        // HTTP status code differentiation enables retryable vs non-retryable error handling in clients
-        let (status_code, response_body) = if err_msg.contains("not safe against reorg") {
-            // Use 202 Accepted for non-final deposits (retryable)
-            (
-                StatusCode::ACCEPTED,
-                format!("Deposit not final: {}", err_msg),
-            )
-        } else if err_msg.contains("Hub is not bootstrapped") {
-            // Use 503 Service Unavailable for infrastructure issues (retryable)
-            (
-                StatusCode::SERVICE_UNAVAILABLE,
-                format!("Service unavailable: {}", err_msg),
-            )
-        } else {
-            // Default to 500 for other validation errors
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Validation failed: {}", err_msg),
-            )
-        };
+                // Map ValidationError variants to HTTP status codes
+                let (status_code, response_body) = match ve {
+                    // 202 ACCEPTED: Transaction not final yet (retryable with wait)
+                    ValidationError::NotSafeAgainstReorg { .. } => (
+                        StatusCode::ACCEPTED,
+                        format!("Deposit not final: {}", ve),
+                    ),
 
-        (status_code, response_body).into_response()
+                    // 503 SERVICE UNAVAILABLE: Infrastructure/external service issues (retryable with fixed delay)
+                    ValidationError::HubNotBootstrapped
+                    | ValidationError::HubQueryError { .. }
+                    | ValidationError::KaspaNodeError { .. }
+                    | ValidationError::ExternalApiError { .. } => (
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        format!("Service unavailable: {}", ve),
+                    ),
+
+                    // 422 UNPROCESSABLE ENTITY: Validation failed, transaction is invalid (non-retryable)
+                    ValidationError::DoubleSpending { .. }
+                    | ValidationError::HLMessageFieldMismatch { .. }
+                    | ValidationError::InvalidTransactionHash
+                    | ValidationError::PayloadParseError { .. }
+                    | ValidationError::InsufficientDepositAmount { .. }
+                    | ValidationError::WrongDepositAddress { .. }
+                    | ValidationError::HLMessageIdMismatch
+                    | ValidationError::EscrowWithdrawalNotAllowed { .. }
+                    | ValidationError::PayloadMismatch
+                    | ValidationError::MessageIdsMismatch
+                    | ValidationError::EscrowAmountMismatch { .. }
+                    | ValidationError::SigHashType
+                    | ValidationError::InvalidOutpointData { .. }
+                    | ValidationError::MissingTransactionPayload
+                    | ValidationError::MissingTransactionInputs
+                    | ValidationError::MissingTransactionOutputs
+                    | ValidationError::MissingScriptPubKeyAddress
+                    | ValidationError::ScriptPubKeyExtractionError { .. }
+                    | ValidationError::AnchorSpent { .. }
+                    | ValidationError::NonEscrowAnchor { .. }
+                    | ValidationError::MultipleAnchors => (
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        format!("Transaction rejected: {}", ve),
+                    ),
+
+                    // 404 NOT FOUND: Resource not found (may be retryable)
+                    ValidationError::MessageNotDispatched { .. }
+                    | ValidationError::TransactionDataNotFound
+                    | ValidationError::UtxoNotFound { .. }
+                    | ValidationError::OutpointMissing { .. }
+                    | ValidationError::PreviousTransactionNotFound
+                    | ValidationError::NextAnchorNotFound
+                    | ValidationError::AnchorNotFound { .. }
+                    | ValidationError::NoMessages => (
+                        StatusCode::NOT_FOUND,
+                        format!("Required data not found: {}", ve),
+                    ),
+
+                    // 409 CONFLICT: State conflict (retryable)
+                    ValidationError::MessagesNotUnprocessed
+                    | ValidationError::HubAnchorMismatch { .. }
+                    | ValidationError::AnchorMismatch { .. } => (
+                        StatusCode::CONFLICT,
+                        format!("State conflict: {}", ve),
+                    ),
+
+                    // 500 INTERNAL SERVER ERROR: Conversion/unexpected errors
+                    ValidationError::BlockHashConversionError { .. }
+                    | ValidationError::TransactionHashConversionError { .. }
+                    | ValidationError::TransactionFetchError { .. }
+                    | ValidationError::FinalityCheckError { .. }
+                    | ValidationError::FailedGeneralVerification { .. }
+                    | ValidationError::InsufficientOutpoints { .. }
+                    | ValidationError::MessageCacheLengthMismatch { .. }
+                    | ValidationError::MissingOutputs => (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        format!("Internal error: {}", ve),
+                    ),
+                };
+
+                (status_code, response_body).into_response()
+            }
+            AppError::Generic(e) => {
+                let err_msg = e.to_string();
+                eprintln!("Validator error: {}", err_msg);
+
+                // For generic errors, check if they're WebSocket/infrastructure related
+                let (status_code, response_body) = if err_msg.contains("WebSocket is not connected")
+                    || err_msg.contains("RPC Server (remote error)")
+                    || err_msg.contains("reconnection failed")
+                    || err_msg.contains("sign")
+                {
+                    (
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        format!("Service unavailable: {}", err_msg),
+                    )
+                } else {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        format!("Internal error: {}", err_msg),
+                    )
+                };
+
+                (status_code, response_body).into_response()
+            }
+        }
     }
 }
 
@@ -222,7 +321,7 @@ async fn respond_validate_new_deposits<
     body: Bytes,
 ) -> HandlerResult<Json<SignedCheckpointWithMessageId>> {
     info!("validator: checking new kaspa deposit");
-    let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
+    let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError::Generic(e))?;
     if res.must_val_stuff().toggles.deposit_enabled {
         validate_new_deposit(
             &res.must_api(),
@@ -238,11 +337,64 @@ async fn respond_validate_new_deposits<
                 res.must_val_stuff().kas_token_placeholder,
             ),
         )
+<<<<<<< Updated upstream
         .await
         .map_err(|e| {
             eprintln!("Deposit validation failed: {:?}", e);
             AppError(Report::from(e))
         })?;
+=======
+        .await;
+
+        // If validation failed with a WebSocket error, attempt reconnection and retry
+        match validation_result {
+            Ok(_) => {}
+            Err(e) => {
+                // Check if it's a KaspaNodeError (WebSocket disconnection)
+                let should_reconnect = matches!(e, ValidationError::KaspaNodeError { .. });
+
+                if should_reconnect {
+                    tracing::warn!(
+                        error = ?e,
+                        "Deposit validation failed with Kaspa node error, attempting reconnection"
+                    );
+
+                    // Attempt to reconnect
+                    if let Err(reconnect_err) = res.must_wallet().reconnect().await {
+                        return Err(AppError::Generic(eyre::eyre!(
+                            "Deposit validation failed and reconnection failed: original error: {}, reconnect error: {}",
+                            e,
+                            reconnect_err
+                        )));
+                    }
+
+                    // Retry validation after reconnection
+                    validate_new_deposit(
+                        &res.must_api(),
+                        res.must_rest_client(),
+                        &deposits,
+                        &res.must_wallet().net,
+                        &res.must_escrow().addr,
+                        res.must_hub_rpc(),
+                        DepositMustMatch::new(
+                            res.must_val_stuff().hub_domain,
+                            res.must_val_stuff().hub_token_id,
+                            res.must_val_stuff().kas_domain,
+                            res.must_val_stuff().kas_token_placeholder,
+                        ),
+                    )
+                    .await
+                    .map_err(|retry_err| {
+                        eprintln!("Deposit validation failed after reconnection: {:?}", retry_err);
+                        AppError::Validation(retry_err)
+                    })?;
+                } else {
+                    eprintln!("Deposit validation failed: {:?}", e);
+                    return Err(AppError::Validation(e));
+                }
+            }
+        }
+>>>>>>> Stashed changes
     }
     info!(
         message_id = ?deposits.hl_message.id(),
@@ -267,7 +419,7 @@ async fn respond_validate_new_deposits<
         .must_signing()
         .sign_with_fallback(to_sign)
         .await
-        .map_err(|e| AppError(e.into()))?;
+        .map_err(|e| AppError::Generic(e.into()))?;
     info!("validator: signed deposit");
 
     Ok(Json(sig))
@@ -282,7 +434,7 @@ async fn respond_sign_pskts<
 ) -> HandlerResult<Json<Bundle>> {
     info!("validator: signing pskts");
 
-    let fxg: WithdrawFXG = body.try_into().map_err(|e: Report| AppError(e))?;
+    let fxg: WithdrawFXG = body.try_into().map_err(|e: Report| AppError::Generic(e))?;
     let escrow = res.must_escrow();
     let val_stuff = res.must_val_stuff();
 
@@ -319,7 +471,7 @@ async fn respond_sign_pskts<
     .await
     .map_err(|e| {
         eprintln!("Withdrawal validation and singing failed: {:?}", e);
-        AppError(Report::from(e))
+        AppError::Generic(Report::from(e))
     })?;
 
     Ok(Json(bundle))
@@ -403,14 +555,14 @@ async fn respond_validate_confirmed_withdrawals<
     body: Bytes,
 ) -> HandlerResult<Json<HLCoreSignature>> {
     info!("validator: checking confirmed kaspa withdrawal");
-    let conf_fxg: ConfirmationFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
+    let conf_fxg: ConfirmationFXG = body.try_into().map_err(|e: eyre::Report| AppError::Generic(e))?;
 
     if res.must_val_stuff().toggles.withdrawal_confirmation_enabled {
         validate_confirmed_withdrawals(&conf_fxg, res.must_rest_client(), &res.must_escrow().addr)
             .await
             .map_err(|e| {
                 eprintln!("Withdrawal confirmation validation failed: {:?}", e);
-                AppError(Report::from(e))
+                AppError::Validation(e)
             })?;
         info!("validator: confirmed withdrawal is valid");
     }
@@ -423,7 +575,7 @@ async fn respond_validate_confirmed_withdrawals<
             progress_indication: progress_indication.clone(),
         })
         .await
-        .map_err(|e| AppError(e.into()))?;
+        .map_err(|e| AppError::Generic(e.into()))?;
 
     info!("validator: signed confirmed withdrawal");
 

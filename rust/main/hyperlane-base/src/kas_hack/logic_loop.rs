@@ -6,6 +6,7 @@ use dym_kas_core::{
 use dym_kas_relayer::confirm::expensive_trace_transactions;
 use dym_kas_relayer::deposit::{build_deposit_fxg, check_deposit_finality, KaspaTxError};
 use dymension_kaspa::{Deposit, KaspaProvider};
+use dym_kas_hardcode::tx::SERVICE_UNAVAILABLE_RETRY_DELAY_SECS;
 use ethers::utils::hex::ToHex;
 use eyre::Result;
 use hyperlane_core::{
@@ -354,12 +355,26 @@ where
             Ok(outcome) => outcome,
             Err(e) => {
                 let kaspa_err = self.chain_error_to_kaspa_error(&e);
+
+                // Check if error is due to service unavailability (503 error from validator)
+                let error_str = e.to_string();
+                let is_service_unavailable = error_str.contains("ServiceUnavailable")
+                    || error_str.contains("Service unavailable")
+                    || error_str.contains("503");
+
                 return if kaspa_err.is_retryable() {
+                    // Use fixed delay for 503 errors, exponential backoff for others
+                    let custom_delay = if is_service_unavailable {
+                        Some(Duration::from_secs(SERVICE_UNAVAILABLE_RETRY_DELAY_SECS))
+                    } else {
+                        None
+                    };
+
                     DepositRelayResult::Retryable {
                         deposit_id,
                         amount,
                         error: eyre::eyre!("Gather sigs and send deposit to hub: {}", e),
-                        custom_delay: None,
+                        custom_delay,
                     }
                 } else {
                     DepositRelayResult::NonRetryable {
