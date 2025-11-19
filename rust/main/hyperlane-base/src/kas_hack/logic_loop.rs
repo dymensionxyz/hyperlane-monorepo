@@ -115,36 +115,21 @@ where
     async fn deposit_loop(&self) {
         info!("Dymension, starting deposit loop with queue");
 
-        let overlap_ms = self.config.deposit_query_overlap.as_millis() as i64;
-        let mut last_query_time: Option<i64> = None;
+        // let from_time = now - timingsConfig.look_back
+        // let last_query_time = zero time / unix epoch / a long time ago 
 
         loop {
-            let loop_start = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("System time before Unix epoch")
-                .as_millis() as i64;
-
             self.process_deposit_queue().await;
 
-            let query_start = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("System time before Unix epoch")
-                .as_millis() as i64;
-
-            let lower_bound = match last_query_time {
-                None => self
-                    .config
-                    .deposit_look_back
-                    .map(|d| query_start - d.as_millis() as i64),
-                Some(last) => Some(last - overlap_ms),
-            };
+            // let to_sleep = max(0, poll_interval - (now - last_query_time))
+            // sleep for to_sleep
 
             match self
                 .provider
                 .rest()
                 .get_deposits(
                     &self.provider.escrow_address().to_string(),
-                    lower_bound,
+                    from_time,
                     self.provider.domain().id(),
                 )
                 .await
@@ -156,21 +141,8 @@ where
                     error!(error = ?e, "Dymension, query new Kaspa deposits failed");
                 }
             }
-
-            let loop_end = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("System time before Unix epoch")
-                .as_millis() as i64;
-
-            last_query_time = Some(query_start);
-
-            let elapsed = loop_end - loop_start;
-            let poll_interval_ms = self.config.poll_interval.as_millis() as i64;
-            let sleep_ms = poll_interval_ms.saturating_sub(elapsed);
-
-            if sleep_ms > 0 {
-                time::sleep(Duration::from_millis(sleep_ms as u64)).await;
-            }
+            // set last_query_time = now
+            // set from_time = last_query_time - timingsConfig.query_overlap
         }
     }
 
