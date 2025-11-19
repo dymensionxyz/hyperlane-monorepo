@@ -75,6 +75,7 @@ dym_kas_hardcode = { path = "../../../dymension/libs/kaspa/lib/hardcode" , packa
 api-rs = { path = "../../../dymension/libs/kaspa/lib/api", package = "openapi" }
 dym_kas_relayer = { path = "../../../dymension/libs/kaspa/lib/relayer" , package="relayer"}
 dym_kas_validator = { path = "../../../dymension/libs/kaspa/lib/validator" , package="validator"}
+kaspa-storage = { path = "../../../dymension/libs/kaspa/lib/storage" }
 
 kaspa-consensus-core = { git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }
 kaspa-hashes ={ git = "https://github.com/kaspanet/rusty-kaspa", rev = "9ff5d0f" }

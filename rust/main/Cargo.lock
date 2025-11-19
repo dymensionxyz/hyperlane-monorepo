@@ -6698,6 +6698,7 @@ dependencies = [
  "kaspa-core 0.2.0",
  "kaspa-core 1.0.1",
  "kaspa-hashes",
+ "kaspa-storage",
  "maplit",
  "mockall",
  "moka",
