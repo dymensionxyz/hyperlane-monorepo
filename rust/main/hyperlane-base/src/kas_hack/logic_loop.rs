@@ -123,6 +123,7 @@ where
 
             // let to_sleep = max(0, poll_interval - (now - last_query_time))
             // sleep for to_sleep
+            // set last_query_time = now
 
             match self
                 .provider
@@ -141,7 +142,6 @@ where
                     error!(error = ?e, "Dymension, query new Kaspa deposits failed");
                 }
             }
-            // set last_query_time = now
             // set from_time = last_query_time - timingsConfig.query_overlap
         }
     }
