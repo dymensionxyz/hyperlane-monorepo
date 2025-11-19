@@ -1,5 +1,7 @@
 pub mod api;
 pub mod balance;
+pub mod bridge_types;
+pub mod config;
 pub mod confirmation;
 pub mod consts;
 pub mod deposit;
@@ -7,6 +9,7 @@ pub mod env;
 pub mod escrow;
 pub mod finality;
 pub mod message;
+pub mod operations;
 pub mod payload;
 pub mod pskt;
 pub mod user;

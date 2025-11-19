@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 kaspa-core = { workspace = true }
-corelib = { path = "../lib/core", package = "core" }
+corelib = { path = "../lib/core", package = "kaspa-core" }
 hardcode = { path = "../lib/hardcode" }
 validator = { path = "../lib/validator" }
 relayer = { path = "../lib/relayer" }

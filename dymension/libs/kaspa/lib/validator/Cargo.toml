@@ -4,7 +4,7 @@ version = "0.2.0"
 edition = "2021"
 
 [dependencies]
-corelib = { path = "../core", package = "core" }
+corelib = { path = "../core", package = "kaspa-core" }
 api-rs = { path = "../api", package = "openapi" }
 hardcode = { path = "../hardcode", package = "hardcode" }
 kaspa-addresses = { workspace = true }

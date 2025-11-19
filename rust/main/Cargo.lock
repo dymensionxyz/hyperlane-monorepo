@@ -2817,51 +2817,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "core"
-version = "0.2.0"
-dependencies = [
- "bincode",
- "borsh 1.5.1",
- "bytes",
- "clap 4.5.41",
- "eyre",
- "governor",
- "hardcode",
- "hex 0.4.3",
- "hyperlane-core",
- "hyperlane-cosmos",
- "hyperlane-cosmos-dymension-rs",
- "hyperlane-warp-route",
- "kaspa-addresses",
- "kaspa-consensus-core",
- "kaspa-core",
- "kaspa-grpc-client",
- "kaspa-hashes",
- "kaspa-rpc-core",
- "kaspa-txscript",
- "kaspa-wallet-core",
- "kaspa-wallet-keys",
- "kaspa-wallet-pskt",
- "kaspa-wrpc-client",
- "log",
- "openapi",
- "postcard",
- "prost 0.13.4",
- "reqwest 0.12.15",
- "reqwest-middleware",
- "reqwest-ratelimit",
- "reqwest-retry",
- "secp256k1 0.29.1",
- "serde",
- "serde-value",
- "serde_json",
- "tokio",
- "tracing",
- "url",
- "workflow-core",
-]
-
-[[package]]
 name = "core-api-client"
 version = "1.0.0"
 source = "git+https://github.com/hyperlane-xyz/radix-apis-rust-clients.git?branch=hyperlane#e453efa17ebce976b22561fb32383da3e4b4e99e"
@@ -4048,7 +4003,6 @@ dependencies = [
  "base64 0.21.7",
  "bech32 0.11.0",
  "bytes",
- "core",
  "cosmrs",
  "crypto",
  "derive-new",
@@ -4070,9 +4024,11 @@ dependencies = [
  "itertools 0.13.0",
  "kaspa-addresses",
  "kaspa-bip32",
+ "kaspa-bridge",
  "kaspa-consensus-client",
  "kaspa-consensus-core",
- "kaspa-core",
+ "kaspa-core 0.2.0",
+ "kaspa-core 1.0.1",
  "kaspa-grpc-client",
  "kaspa-hashes",
  "kaspa-rpc-core",
@@ -6714,7 +6670,6 @@ dependencies = [
  "config",
  "console-subscriber",
  "convert_case 0.6.0",
- "core",
  "dashmap 5.5.3",
  "derive-new",
  "derive_builder 0.12.0",
@@ -6740,7 +6695,8 @@ dependencies = [
  "hyperlane-test",
  "itertools 0.13.0",
  "kaspa-consensus-core",
- "kaspa-core",
+ "kaspa-core 0.2.0",
+ "kaspa-core 1.0.1",
  "kaspa-hashes",
  "maplit",
  "mockall",
@@ -7755,6 +7711,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "kaspa-bridge"
+version = "0.2.0"
+dependencies = [
+ "async-trait",
+ "eyre",
+ "hex 0.4.3",
+ "kaspa-core 0.2.0",
+ "kaspa-storage",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "kaspa-consensus-client"
 version = "1.0.1"
 source = "git+https://github.com/kaspanet/rusty-kaspa?rev=9ff5d0f#9ff5d0fb5059451107957972235ff2a4e6390808"
@@ -7798,7 +7767,7 @@ dependencies = [
  "itertools 0.13.0",
  "js-sys",
  "kaspa-addresses",
- "kaspa-core",
+ "kaspa-core 1.0.1",
  "kaspa-hashes",
  "kaspa-math",
  "kaspa-merkle",
@@ -7829,7 +7798,7 @@ dependencies = [
  "derive_more 0.99.18",
  "futures",
  "kaspa-consensus-core",
- "kaspa-core",
+ "kaspa-core 1.0.1",
  "kaspa-hashes",
  "kaspa-notify",
  "kaspa-utils",
@@ -7866,6 +7835,53 @@ dependencies = [
 
 [[package]]
 name = "kaspa-core"
+version = "0.2.0"
+dependencies = [
+ "bincode",
+ "borsh 1.5.1",
+ "bytes",
+ "clap 4.5.41",
+ "eyre",
+ "governor",
+ "hardcode",
+ "hex 0.4.3",
+ "hyperlane-core",
+ "hyperlane-cosmos",
+ "hyperlane-cosmos-dymension-rs",
+ "hyperlane-warp-route",
+ "kaspa-addresses",
+ "kaspa-consensus-core",
+ "kaspa-core 1.0.1",
+ "kaspa-grpc-client",
+ "kaspa-hashes",
+ "kaspa-rpc-core",
+ "kaspa-txscript",
+ "kaspa-wallet-core",
+ "kaspa-wallet-keys",
+ "kaspa-wallet-pskt",
+ "kaspa-wrpc-client",
+ "log",
+ "openapi",
+ "postcard",
+ "prost 0.13.4",
+ "rand 0.8.5",
+ "reqwest 0.12.15",
+ "reqwest-middleware",
+ "reqwest-ratelimit",
+ "reqwest-retry",
+ "secp256k1 0.29.1",
+ "serde",
+ "serde-value",
+ "serde_json",
+ "sha3 0.10.8",
+ "tokio",
+ "tracing",
+ "url",
+ "workflow-core",
+]
+
+[[package]]
+name = "kaspa-core"
 version = "1.0.1"
 source = "git+https://github.com/kaspanet/rusty-kaspa?rev=9ff5d0f#9ff5d0fb5059451107957972235ff2a4e6390808"
 dependencies = [
@@ -7897,7 +7913,7 @@ dependencies = [
  "futures-util",
  "h2 0.4.7",
  "itertools 0.13.0",
- "kaspa-core",
+ "kaspa-core 1.0.1",
  "kaspa-grpc-core",
  "kaspa-notify",
  "kaspa-rpc-core",
@@ -7930,7 +7946,7 @@ dependencies = [
  "h2 0.4.7",
  "kaspa-addresses",
  "kaspa-consensus-core",
- "kaspa-core",
+ "kaspa-core 1.0.1",
  "kaspa-notify",
  "kaspa-rpc-core",
  "kaspa-utils",
@@ -8023,7 +8039,7 @@ dependencies = [
  "async-trait",
  "borsh 1.5.1",
  "futures",
- "kaspa-core",
+ "kaspa-core 1.0.1",
  "kaspa-rpc-core",
  "separator",
  "serde",
@@ -8067,7 +8083,7 @@ dependencies = [
  "itertools 0.13.0",
  "kaspa-addresses",
  "kaspa-consensus-core",
- "kaspa-core",
+ "kaspa-core 1.0.1",
  "kaspa-hashes",
  "kaspa-txscript",
  "kaspa-txscript-errors",
@@ -8103,7 +8119,7 @@ dependencies = [
  "kaspa-consensus-core",
  "kaspa-consensus-notify",
  "kaspa-consensus-wasm",
- "kaspa-core",
+ "kaspa-core 1.0.1",
  "kaspa-hashes",
  "kaspa-index-core",
  "kaspa-math",
@@ -8137,6 +8153,20 @@ dependencies = [
  "quote 1.0.37",
  "regex",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "kaspa-storage"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "eyre",
+ "hex 0.4.3",
+ "kaspa-core 0.2.0",
+ "rocksdb",
+ "serde",
+ "thiserror 2.0.12",
+ "tracing",
 ]
 
 [[package]]
@@ -8262,7 +8292,7 @@ dependencies = [
  "kaspa-consensus-client",
  "kaspa-consensus-core",
  "kaspa-consensus-wasm",
- "kaspa-core",
+ "kaspa-core 1.0.1",
  "kaspa-hashes",
  "kaspa-metrics-core",
  "kaspa-notify",
@@ -11332,7 +11362,6 @@ dependencies = [
  "base64 0.22.1",
  "bincode",
  "bytes",
- "core",
  "eyre",
  "hardcode",
  "hex 0.4.3",
@@ -11343,7 +11372,8 @@ dependencies = [
  "kaspa-addresses",
  "kaspa-consensus-client",
  "kaspa-consensus-core",
- "kaspa-core",
+ "kaspa-core 0.2.0",
+ "kaspa-core 1.0.1",
  "kaspa-grpc-client",
  "kaspa-hashes",
  "kaspa-rpc-core",
@@ -15950,7 +15980,6 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "axum 0.8.4",
- "core",
  "ethers 2.0.14",
  "eyre",
  "hardcode",
@@ -15961,7 +15990,8 @@ dependencies = [
  "hyperlane-warp-route",
  "kaspa-addresses",
  "kaspa-consensus-core",
- "kaspa-core",
+ "kaspa-core 0.2.0",
+ "kaspa-core 1.0.1",
  "kaspa-grpc-client",
  "kaspa-hashes",
  "kaspa-rpc-core",

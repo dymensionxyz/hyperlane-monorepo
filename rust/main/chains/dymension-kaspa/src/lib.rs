@@ -21,6 +21,8 @@ mod endpoints;
 mod util;
 mod withdrawal_utils;
 
+mod hub_client_impl;
+
 // Direct reexports of lib stuff:
 pub use dym_kas_core;
 pub use dym_kas_relayer;
@@ -31,7 +33,7 @@ pub use util::*;
 mod validator_server;
 
 pub use {
-    self::conf::*, self::error::*, self::indexers::*, self::ism::*, self::mailbox::*,
-    self::providers::*, self::validator_announce::*, self::validator_server::*,
+    self::conf::*, self::error::*, self::hub_client_impl::*, self::indexers::*, self::ism::*,
+    self::mailbox::*, self::providers::*, self::validator_announce::*, self::validator_server::*,
     self::withdrawal_utils::*,
 };

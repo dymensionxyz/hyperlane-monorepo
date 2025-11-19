@@ -9,6 +9,8 @@ members = [
     "lib/api",
     "lib/hardcode",
     "lib/kms",
+    "lib/storage",
+    "lib/bridge",
     "tooling",
 ]
 
