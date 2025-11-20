@@ -245,6 +245,7 @@ async fn do_round_trip_inner(rt: &mut RoundTrip<'_>) {
     let withdraw_res = rt.withdraw(&hub_user_key).await;
     if !withdraw_res.is_ok() {
         let e = withdraw_res.err().unwrap();
+        rt.stats.withdrawal_error = Some(e.to_string());
         error!(
             "withdrawal error: task_id={} hub_whale_id={} hub_user_addr={} error={:?}",
             rt.task_id, rt.hub_whale.id, hub_user_addr, e

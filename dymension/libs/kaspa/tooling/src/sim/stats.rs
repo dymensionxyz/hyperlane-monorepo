@@ -80,6 +80,7 @@ pub struct RoundTripStats {
     pub deposit_credit_error: Option<String>,
     pub hub_withdraw_tx_id: Option<String>,
     pub hub_withdraw_tx_time_millis: Option<u128>,
+    pub withdrawal_error: Option<String>,
     pub withdraw_credit_time_millis: Option<u128>,
     pub withdraw_credit_error: Option<String>,
     pub deposit_addr_hub: Option<String>,
@@ -99,9 +100,6 @@ impl RoundTripStats {
     }
 
     fn compute_stage(&self) -> &'static str {
-        if self.deposit_error.is_some() {
-            return "DepositFailed";
-        }
         if self.kaspa_deposit_tx_time_millis.is_none() {
             return "PreDeposit";
         }
