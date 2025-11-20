@@ -181,6 +181,18 @@ pub struct SimulateTrafficCli {
     /// The number of seconds to wait for the simulation to cancel
     #[arg(long, required = true)]
     pub cancel_wait: u64,
+
+    /// Deposit amount in sompi (e.g. 4100000000 for 41 KAS)
+    #[arg(long, required = true)]
+    pub deposit_amount: u64,
+
+    /// Withdrawal fee percentage as decimal in [0,1] (e.g. 0.01 for 1%)
+    #[arg(long, required = true)]
+    pub withdrawal_fee_pct: f64,
+
+    /// Fee denomination (the hub token denom for fees)
+    #[arg(long, required = true)]
+    pub fee_denom: String,
 }
 
 #[derive(Args, Debug, Clone)]
