@@ -229,7 +229,6 @@ async fn respond_validate_new_deposits<
     let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
     if res.must_val_stuff().toggles.deposit_enabled {
         validate_new_deposit(
-            &res.must_api(),
             res.must_rest_client(),
             &deposits,
             &res.must_wallet().net,

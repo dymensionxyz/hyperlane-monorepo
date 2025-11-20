@@ -105,7 +105,6 @@ impl MustMatch {
 /// Note: If the utxo value is higher of the amount the deposit is also accepted
 ///
 pub async fn validate_new_deposit(
-    client_node: &Arc<DynRpcApi>,
     client_rest: &HttpClient,
     deposit: &DepositFXG,
     net: &NetworkInfo,
@@ -120,7 +119,6 @@ pub async fn validate_new_deposit(
         }
     })?;
     validate_new_deposit_inner(
-        client_node,
         client_rest,
         deposit,
         net,
@@ -143,7 +141,6 @@ pub async fn validate_new_deposit(
 /// Note: If the utxo value is higher of the amount the deposit is also accepted
 ///
 pub async fn validate_new_deposit_inner(
-    _client_node: &Arc<DynRpcApi>,
     client_rest: &HttpClient,
     d_untrusted: &DepositFXG,
     net: &NetworkInfo,
