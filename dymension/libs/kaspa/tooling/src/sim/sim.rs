@@ -178,7 +178,7 @@ impl TrafficSim {
         let stats_writer = StatsWriter::new(stats_file_path.clone())?;
         info!("Writing stats to: {}", stats_file_path);
 
-        let (stats_tx, mut stats_rx) = mpsc::channel(100);
+        let (stats_tx, mut stats_rx) = mpsc::channel(10000);
 
         let collector_handle = tokio::spawn(async move {
             let mut count = 0u64;
