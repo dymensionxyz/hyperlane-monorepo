@@ -127,7 +127,6 @@ pub struct TaskArgs {
     pub escrow_address: Address,
     pub deposit_amount: u64,
     pub withdrawal_fee_pct: f64,
-    pub fee_denom: String,
 }
 
 impl TaskArgs {
@@ -214,6 +213,7 @@ async fn do_round_trip_inner(rt: &mut RoundTrip<'_>) {
             rt.send_stats().await;
         }
         Err(e) => {
+            rt.stats.deposit_error = Some(e.to_string());
             error!(
                 "deposit error: task_id={} kaspa_whale_id={} error={:?}",
                 rt.task_id, rt.kaspa_whale.id, e
@@ -246,8 +246,8 @@ async fn do_round_trip_inner(rt: &mut RoundTrip<'_>) {
     if !withdraw_res.is_ok() {
         let e = withdraw_res.err().unwrap();
         error!(
-            "withdrawal error: task_id={} hub_whale_id={} error={:?}",
-            rt.task_id, rt.hub_whale.id, e
+            "withdrawal error: task_id={} hub_whale_id={} hub_user_addr={} error={:?}",
+            rt.task_id, rt.hub_whale.id, hub_user_addr, e
         );
         rt.send_stats().await;
         return;
@@ -404,7 +404,7 @@ impl<'a> RoundTrip<'a> {
     async fn withdraw(&self, hub_user_key: &EasyHubKey) -> Result<(Address, String, u128)> {
         let withdrawal_amount = self.res.args.deposit_amount;
         let fee_amount = (withdrawal_amount as f64 * self.res.args.withdrawal_fee_pct) as u64;
-        let fee_denom = self.res.args.fee_denom.clone();
+        let fee_denom = self.res.args.hub_denom();
 
         let kaspa_recipient = get_kaspa_keypair();
         debug!(
@@ -542,9 +542,6 @@ mod tests {
             .unwrap(),
             deposit_amount: 4_100_000_000,
             withdrawal_fee_pct: 0.01,
-            fee_denom:
-                "hyperlane/0x726f757465725f61707000000000000000000000000000020000000000000002"
-                    .to_string(),
         };
         let denom = args.hub_denom();
         assert_eq!(

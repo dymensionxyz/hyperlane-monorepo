@@ -76,7 +76,6 @@ impl TryFrom<SimulateTrafficCli> for SimulateTrafficArgs {
                 escrow_address: addr,
                 deposit_amount: cli.deposit_amount,
                 withdrawal_fee_pct: cli.withdrawal_fee_pct,
-                fee_denom: cli.fee_denom.clone(),
             },
             kaspa_whale_secrets: cli.kaspa_whale_secrets,
             hub_whale_priv_keys: cli.hub_whale_priv_keys,

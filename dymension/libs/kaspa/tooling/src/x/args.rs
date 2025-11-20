@@ -189,10 +189,6 @@ pub struct SimulateTrafficCli {
     /// Withdrawal fee percentage as decimal in [0,1] (e.g. 0.01 for 1%)
     #[arg(long, required = true)]
     pub withdrawal_fee_pct: f64,
-
-    /// Fee denomination (the hub token denom for fees)
-    #[arg(long, required = true)]
-    pub fee_denom: String,
 }
 
 #[derive(Args, Debug, Clone)]
