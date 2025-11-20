@@ -296,6 +296,10 @@ impl KaspaProvider {
         &self.cosmos_rpc
     }
 
+    pub fn kaspa_urls_grpc(&self) -> &Vec<String> {
+        &self.conf.kaspa_urls_grpc
+    }
+
     pub fn wallet(&self) -> &EasyKaspaWallet {
         &self.easy_wallet
     }

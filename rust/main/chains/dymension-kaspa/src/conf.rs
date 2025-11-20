@@ -15,7 +15,7 @@ pub struct ConnectionConf {
 
     pub kaspa_urls_wrpc: Vec<String>, // Direct connection to Kaspa DAG node, e.g. localhost:17210
     pub kaspa_urls_rest: Vec<Url>, // Connection to Kaspa indexer server, e.g. https://api.kaspa.org
-
+    pub kaspa_urls_grpc: Vec<String>,
     // Used by both agents to build escrow public object
     pub validator_pub_keys: Vec<String>,
 
@@ -107,6 +107,7 @@ impl ConnectionConf {
         wallet_secret: String,
         wallet_dir: Option<String>,
         kaspa_urls_wrpc: Vec<String>,
+        kaspa_urls_grpc: Vec<String>,
         kaspa_urls_rest: Vec<Url>,
         validator_hosts: Vec<String>,
         validator_pub_keys: Vec<String>,
@@ -163,6 +164,7 @@ impl ConnectionConf {
             wallet_secret,
             wallet_dir,
             kaspa_urls_wrpc,
+            kaspa_urls_grpc,
             kaspa_urls_rest,
             validator_stuff: v,
             validator_pub_keys,

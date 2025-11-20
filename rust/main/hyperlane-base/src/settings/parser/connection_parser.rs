@@ -300,6 +300,15 @@ pub fn build_kaspa_connection_conf(
         .map(|s| s.trim().to_string())
         .collect();
 
+    let grpc_urls: Vec<String> = chain
+        .chain(err)
+        .get_key("kaspaUrlsGrpc")
+        .parse_string()
+        .end()?
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .collect();
+
     let rest_urls: Vec<Url> = {
         chain
             .chain(err)
@@ -520,6 +529,7 @@ pub fn build_kaspa_connection_conf(
             wallet_secret.to_owned(),
             wallet_dir,
             wrpc_urls,
+            grpc_urls,
             rest_urls,
             validator_hosts,
             validator_pubks,

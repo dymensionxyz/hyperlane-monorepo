@@ -11,6 +11,8 @@ use hyperlane_core::H256;
 use hyperlane_core::U256;
 use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
 use kaspa_addresses::Address;
+use kaspa_grpc_client::GrpcClient;
+use kaspa_rpc_core::api::rpc::RpcApi;
 use kaspa_rpc_core::RpcBlock;
 use kaspa_rpc_core::{RpcHash, RpcTransaction, RpcTransactionOutput};
 use kaspa_txscript::extract_script_pub_key_address;
@@ -110,6 +112,7 @@ pub async fn validate_new_deposit(
     escrow_address: &Address,
     hub_client: &CosmosProvider<ModuleQueryClient>,
     must_match: MustMatch,
+    kaspa_urls_grpc: &Vec<String>,
 ) -> Result<(), ValidationError> {
     let hub_bootstrapped = hub_client.query().hub_bootstrapped().await.map_err(|e| {
         ValidationError::HubQueryError {
@@ -124,6 +127,7 @@ pub async fn validate_new_deposit(
         escrow_address,
         hub_bootstrapped,
         must_match,
+        kaspa_urls_grpc,
     )
     .await
 }
@@ -139,13 +143,14 @@ pub async fn validate_new_deposit(
 /// Note: If the utxo value is higher of the amount the deposit is also accepted
 ///
 pub async fn validate_new_deposit_inner(
-    client_node: &Arc<DynRpcApi>,
+    _client_node: &Arc<DynRpcApi>,
     client_rest: &HttpClient,
     d_untrusted: &DepositFXG,
     net: &NetworkInfo,
     escrow_address: &Address,
     hub_bootstrapped: bool,
     must_match: MustMatch,
+    kaspa_urls_grpc: &Vec<String>,
 ) -> Result<(), ValidationError> {
     if !hub_bootstrapped {
         return Err(ValidationError::HubNotBootstrapped);
@@ -179,7 +184,21 @@ pub async fn validate_new_deposit_inner(
         });
     }
 
-    let containing_block: RpcBlock = client_node
+    // Connect to Kaspa node via gRPC to fetch the block
+    let grpc_url = kaspa_urls_grpc
+        .first()
+        .ok_or_else(|| ValidationError::KaspaNodeError {
+            reason: "No gRPC URL provided".to_string(),
+        })?
+        .clone();
+
+    let grpc_client = GrpcClient::connect(grpc_url)
+        .await
+        .map_err(|e| ValidationError::KaspaNodeError {
+            reason: format!("Failed to connect to gRPC: {}", e),
+        })?;
+
+    let containing_block: RpcBlock = grpc_client
         .get_block(containing_block_hash, true)
         .await
         .map_err(|e| ValidationError::KaspaNodeError {

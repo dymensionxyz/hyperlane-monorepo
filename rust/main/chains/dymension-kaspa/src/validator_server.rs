@@ -199,6 +199,10 @@ impl<
     fn must_val_stuff(&self) -> &ValidatorStuff {
         self.kas_provider.as_ref().unwrap().must_validator_stuff()
     }
+
+    fn must_kaspa_urls_grpc(&self) -> &Vec<String> {
+        self.kas_provider.as_ref().unwrap().kaspa_urls_grpc()
+    }
 }
 
 impl<
@@ -237,6 +241,7 @@ async fn respond_validate_new_deposits<
                 res.must_val_stuff().kas_domain,
                 res.must_val_stuff().kas_token_placeholder,
             ),
+            res.must_kaspa_urls_grpc(),
         )
         .await
         .map_err(|e| {
