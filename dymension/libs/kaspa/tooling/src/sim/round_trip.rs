@@ -81,14 +81,11 @@ where
         .unwrap_or_else(|| eyre::eyre!("{} failed after {} retries", operation_name, MAX_RETRIES)))
 }
 
-async fn fund_hub_addr(
-    hub_key: &EasyHubKey,
-    hub: &CosmosProvider<ModuleQueryClient>,
-    amount: u64,
-) -> Result<()> {
+async fn fund_hub_addr(hub_key: &EasyHubKey, hub_whale: &HubWhale, amount: u64) -> Result<()> {
+    let _lock = hub_whale.lock_for_tx().await;
     let hub_addr = hub_key.signer().address_string.clone();
     debug!("funding hub address: addr={} amount={}", hub_addr, amount);
-    let rpc = hub.rpc();
+    let rpc = hub_whale.provider.rpc();
     let msg = MsgSend {
         from_address: rpc.get_signer()?.address_string.clone(),
         to_address: hub_addr.clone(),
@@ -180,7 +177,7 @@ async fn do_round_trip_inner(rt: &mut RoundTrip<'_>) {
         rt.task_id, rt.kaspa_whale.id, rt.hub_whale.id, hub_user_addr
     );
 
-    match fund_hub_addr(&hub_user_key, &rt.hub_whale.provider, HUB_FUND_AMOUNT).await {
+    match fund_hub_addr(&hub_user_key, &rt.hub_whale, HUB_FUND_AMOUNT).await {
         Ok(()) => {
             info!(
                 "hub user funded: task_id={} hub_whale_id={} hub_user_addr={}",
@@ -372,7 +369,7 @@ impl<'a> RoundTrip<'a> {
                 if self.cancel.is_cancelled() {
                     return Err(RoundTripError::Cancelled.into());
                 }
-                tokio::time::sleep(Duration::from_millis(1000)).await;
+                tokio::time::sleep(Duration::from_millis(3000)).await;
                 continue;
             }
             break;
@@ -388,7 +385,7 @@ impl<'a> RoundTrip<'a> {
                 if self.cancel.is_cancelled() {
                     return Err(RoundTripError::Cancelled.into());
                 }
-                tokio::time::sleep(Duration::from_millis(1000)).await;
+                tokio::time::sleep(Duration::from_millis(3000)).await;
                 continue;
             }
             if balance != U256::from(FIXED_TRANSFER_SOMPI) {
@@ -484,7 +481,7 @@ impl<'a> RoundTrip<'a> {
                 if self.cancel.is_cancelled() {
                     return Err(RoundTripError::Cancelled.into());
                 }
-                tokio::time::sleep(Duration::from_millis(1000)).await;
+                tokio::time::sleep(Duration::from_millis(3000)).await;
                 continue;
             }
             if balance != FIXED_TRANSFER_SOMPI as i64 {
