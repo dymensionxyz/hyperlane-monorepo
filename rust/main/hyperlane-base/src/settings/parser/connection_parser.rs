@@ -300,15 +300,6 @@ pub fn build_kaspa_connection_conf(
         .map(|s| s.trim().to_string())
         .collect();
 
-    let grpc_urls: Vec<String> = chain
-        .chain(err)
-        .get_key("kaspaUrlsGrpc")
-        .parse_string()
-        .end()?
-        .split(',')
-        .map(|s| s.trim().to_string())
-        .collect();
-
     let rest_urls: Vec<Url> = {
         chain
             .chain(err)
@@ -387,6 +378,13 @@ pub fn build_kaspa_connection_conf(
         } else {
             None
         };
+
+    let kaspa_grpc_url = chain
+        .chain(err)
+        .get_opt_key("kaspaGrpcUrl")
+        .parse_string()
+        .end()
+        .map(|s| s.to_string());
 
     let threshold_ism = chain
         .chain(err)
@@ -529,11 +527,11 @@ pub fn build_kaspa_connection_conf(
             wallet_secret.to_owned(),
             wallet_dir,
             wrpc_urls,
-            grpc_urls,
             rest_urls,
             validator_hosts,
             validator_pubks,
             kaspa_escrow_key_source,
+            kaspa_grpc_url,
             threshold_ism as usize,
             threshold_escrow as usize,
             grpcs,

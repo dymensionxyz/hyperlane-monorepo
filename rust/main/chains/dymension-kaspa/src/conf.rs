@@ -15,7 +15,7 @@ pub struct ConnectionConf {
 
     pub kaspa_urls_wrpc: Vec<String>, // Direct connection to Kaspa DAG node, e.g. localhost:17210
     pub kaspa_urls_rest: Vec<Url>, // Connection to Kaspa indexer server, e.g. https://api.kaspa.org
-    pub kaspa_urls_grpc: Vec<String>,
+
     // Used by both agents to build escrow public object
     pub validator_pub_keys: Vec<String>,
 
@@ -38,6 +38,7 @@ pub struct ValidatorStuff {
     pub kas_token_placeholder: H256,
     pub hub_mailbox_id: String,
     pub kas_escrow_key_source: KaspaEscrowKeySource,
+    pub kaspa_grpc_url: String,
     pub toggles: ValidationConf,
 }
 
@@ -107,11 +108,11 @@ impl ConnectionConf {
         wallet_secret: String,
         wallet_dir: Option<String>,
         kaspa_urls_wrpc: Vec<String>,
-        kaspa_urls_grpc: Vec<String>,
         kaspa_urls_rest: Vec<Url>,
         validator_hosts: Vec<String>,
         validator_pub_keys: Vec<String>,
         kaspa_escrow_key_source: Option<KaspaEscrowKeySource>,
+        kaspa_grpc_url: Option<String>,
         multisig_threshold_hub_ism: usize,
         multisig_threshold_kaspa_schnorr: usize,
         hub_grpc_urls: Vec<Url>,
@@ -130,6 +131,8 @@ impl ConnectionConf {
     ) -> Self {
         let v = match kaspa_escrow_key_source {
             Some(kas_escrow_key_source) => {
+                let grpc_url = kaspa_grpc_url
+                    .expect("kaspa_grpc_url required when running as validator");
                 if hub_domain == 0 || kas_domain == 0 || hub_token_id == H256::default() {
                     panic!("Missing validator config: hub_domain: {}, kas_domain: {}, hub_token_id: {}, kas_token_placeholder: {}", hub_domain, kas_domain, hub_token_id, kas_token_placeholder)
                 } else {
@@ -140,6 +143,7 @@ impl ConnectionConf {
                         kas_token_placeholder,
                         hub_mailbox_id,
                         kas_escrow_key_source,
+                        kaspa_grpc_url: grpc_url,
                         toggles: ValidationConf {
                             deposit_enabled: true,
                             withdrawal_enabled: true,
@@ -164,7 +168,6 @@ impl ConnectionConf {
             wallet_secret,
             wallet_dir,
             kaspa_urls_wrpc,
-            kaspa_urls_grpc,
             kaspa_urls_rest,
             validator_stuff: v,
             validator_pub_keys,

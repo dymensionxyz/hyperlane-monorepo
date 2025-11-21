@@ -203,10 +203,6 @@ impl<
         self.kas_provider.as_ref().unwrap().must_validator_stuff()
     }
 
-    fn must_kaspa_urls_grpc(&self) -> &Vec<String> {
-        self.kas_provider.as_ref().unwrap().kaspa_urls_grpc()
-    }
-
     fn must_kaspa_grpc_client(&self) -> kaspa_grpc_client::GrpcClient {
         self.kaspa_grpc_client.clone().unwrap()
     }

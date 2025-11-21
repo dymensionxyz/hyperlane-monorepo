@@ -232,12 +232,14 @@ impl BaseAgent for Validator {
 
             // Create GrpcClient with automatic reconnection
             let grpc_url = prov
-                .kaspa_urls_grpc()
-                .first()
-                .expect("At least one Kaspa gRPC URL required")
+                .must_validator_stuff()
+                .kaspa_grpc_url
                 .clone();
 
-            info!("validator: initializing Kaspa gRPC client with reconnection support");
+            info!(
+                grpc_url = %grpc_url,
+                "validator: initializing Kaspa gRPC client with reconnection support"
+            );
             let grpc_client = kaspa_grpc_client::GrpcClient::connect_with_args(
                 NotificationMode::Direct,
                 grpc_url,
