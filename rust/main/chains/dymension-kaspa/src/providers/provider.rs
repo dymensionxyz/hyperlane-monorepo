@@ -384,6 +384,15 @@ impl KaspaProvider {
 
         info!("kaspa provider: constructed withdrawal TXs, got withdrawal FXG, now gathering sigs and signing relayer fee");
 
+        // Log payload size and PSKT count before sending to validators
+        if let Ok(bz) = bytes::Bytes::try_from(&fxg) {
+            info!(
+                payload_size_bytes = bz.len(),
+                num_pskts = fxg.bundle.len(),
+                "kaspa provider: withdrawal FXG payload size and PSKT count"
+            );
+        }
+
         let bundles_validators = self.validators().get_withdraw_sigs(&fxg).await?;
 
         let finalized = combine_bundles_with_fee(
