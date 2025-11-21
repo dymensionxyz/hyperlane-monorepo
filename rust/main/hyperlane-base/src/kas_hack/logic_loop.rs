@@ -688,7 +688,6 @@ where
 
         let tx_hash = h512_to_cosmos_hash(outcome.transaction_id).encode_hex_upper::<String>();
 
-        info!("Dymension, indicate progress tx hash: {:?}",outcome);
         if !outcome.executed {
             return Err(KaspaTxError::ProcessingError(eyre::eyre!(
                 "Indicate progress failed, TX was not executed on-chain, tx hash: {tx_hash}"
