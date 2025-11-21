@@ -44,12 +44,12 @@ Give Dymension team `validator_ism_addr` and `validator_escrow_pub_key`. Don't w
 
 #### Config
 
-Use the config json template provided by Dymension team at `hyperlane-deployments/validators/artifacts/<network>/config/kaspa/validator-config.json`. Populate `.chains.<kaspa>.validatorEscrowPrivateKey` with the escrow secret value `validator_escrow_secret` (keep quotes ⚠️). Also populate `.validator.key` with validator_ism_priv_key and prefix with '0x'. Your file should look something like:
+Use the config json template provided by Dymension team at `hyperlane-monorepo/dymension/validators/bridge/artifacts/<network>/config/kaspa/validator-config.json`. Populate `.chains.<kaspa-network-name>.kaspaEscrowPrivateKey` with the escrow secret value `validator_escrow_secret` (keep quotes ⚠️). Also populate `.validator.key` with validator_ism_priv_key and prefix with '0x'. Your file should look something like:
 
 ```
 {
     "chains": {
-      "kaspatest10": {
+      "<kaspa-network-name>": {
         // ...
         "kaspaEscrowPrivateKey": "\"b230e7e6dc106593e55049ecb594e10f5be7576cc654a580c8d8494c34ffd832\"",
         // ...
