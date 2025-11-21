@@ -4,6 +4,7 @@ use eyre::Result;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::network::NetworkId;
 use kaspa_wallet_keys::secret::Secret;
+use tracing::info;
 
 pub struct DepositArgs {
     pub wallet_secret: String,
@@ -17,6 +18,8 @@ pub struct DepositArgs {
 
 pub async fn do_deposit(args: DepositArgs) -> Result<()> {
     let s = Secret::from(args.wallet_secret);
+    info!("Loaded wallet secret."); 
+    info!("Connecting to Kaspa node at {} wallet dir {}", args.rpc_url,args.wallet_dir.as_deref().unwrap_or("default"));
     let w = get_wallet(&s, args.network_id, args.rpc_url, args.wallet_dir).await?;
     let a = Address::try_from(args.escrow_address)?;
     let amt = args.amount.parse::<u64>().unwrap();

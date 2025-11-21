@@ -150,6 +150,7 @@ pub struct ValidatorServerResources<
 > {
     signing: Option<ValidatorISMSigningResources<S, H>>,
     kas_provider: Option<Box<KaspaProvider>>,
+    kaspa_grpc_client: Option<kaspa_grpc_client::GrpcClient>,
 }
 
 impl<
@@ -160,10 +161,12 @@ impl<
     pub fn new(
         signing: ValidatorISMSigningResources<S, H>,
         kas_provider: Box<KaspaProvider>,
+        kaspa_grpc_client: kaspa_grpc_client::GrpcClient,
     ) -> Self {
         Self {
             signing: Some(signing),
             kas_provider: Some(kas_provider),
+            kaspa_grpc_client: Some(kaspa_grpc_client),
         }
     }
     fn must_signing(&self) -> &ValidatorISMSigningResources<S, H> {
@@ -203,6 +206,10 @@ impl<
     fn must_kaspa_urls_grpc(&self) -> &Vec<String> {
         self.kas_provider.as_ref().unwrap().kaspa_urls_grpc()
     }
+
+    fn must_kaspa_grpc_client(&self) -> kaspa_grpc_client::GrpcClient {
+        self.kaspa_grpc_client.clone().unwrap()
+    }
 }
 
 impl<
@@ -214,6 +221,7 @@ impl<
         Self {
             signing: None,
             kas_provider: None,
+            kaspa_grpc_client: None,
         }
     }
 }
@@ -240,7 +248,7 @@ async fn respond_validate_new_deposits<
                 res.must_val_stuff().kas_domain,
                 res.must_val_stuff().kas_token_placeholder,
             ),
-            res.must_kaspa_urls_grpc(),
+            res.must_kaspa_grpc_client(),
         )
         .await
         .map_err(|e| {

@@ -17,7 +17,6 @@ use kaspa_rpc_core::RpcBlock;
 use kaspa_rpc_core::{RpcHash, RpcTransaction, RpcTransactionOutput};
 use kaspa_txscript::extract_script_pub_key_address;
 use kaspa_wallet_core::prelude::DynRpcApi;
-use std::sync::Arc;
 
 #[derive(Clone, Default)]
 pub struct MustMatch {
@@ -111,7 +110,7 @@ pub async fn validate_new_deposit(
     escrow_address: &Address,
     hub_client: &CosmosProvider<ModuleQueryClient>,
     must_match: MustMatch,
-    kaspa_urls_grpc: &Vec<String>,
+    kaspa_grpc_client: GrpcClient,
 ) -> Result<(), ValidationError> {
     let hub_bootstrapped = hub_client.query().hub_bootstrapped().await.map_err(|e| {
         ValidationError::HubQueryError {
@@ -125,7 +124,7 @@ pub async fn validate_new_deposit(
         escrow_address,
         hub_bootstrapped,
         must_match,
-        kaspa_urls_grpc,
+        kaspa_grpc_client,
     )
     .await
 }
@@ -147,7 +146,7 @@ pub async fn validate_new_deposit_inner(
     escrow_address: &Address,
     hub_bootstrapped: bool,
     must_match: MustMatch,
-    kaspa_urls_grpc: &Vec<String>,
+    grpc_client: GrpcClient,
 ) -> Result<(), ValidationError> {
     if !hub_bootstrapped {
         return Err(ValidationError::HubNotBootstrapped);
@@ -180,20 +179,6 @@ pub async fn validate_new_deposit_inner(
             required: finality_status.required_confirmations,
         });
     }
-
-    // Connect to Kaspa node via gRPC to fetch the block
-    let grpc_url = kaspa_urls_grpc
-        .first()
-        .ok_or_else(|| ValidationError::KaspaNodeError {
-            reason: "No gRPC URL provided".to_string(),
-        })?
-        .clone();
-
-    let grpc_client = GrpcClient::connect(grpc_url)
-        .await
-        .map_err(|e| ValidationError::KaspaNodeError {
-            reason: format!("Failed to connect to gRPC: {}", e),
-        })?;
 
     let containing_block: RpcBlock = grpc_client
         .get_block(containing_block_hash, true)

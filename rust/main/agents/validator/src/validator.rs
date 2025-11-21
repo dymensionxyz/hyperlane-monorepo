@@ -12,6 +12,9 @@ use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, warn, Instrument};
 
 use dymension_kaspa;
+use kaspa_grpc_client;
+use kaspa_rpc_core::notify::mode::NotificationMode;
+use kaspa_utils_tower;
 use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB, DB},
     git_sha,
@@ -226,8 +229,30 @@ impl BaseAgent for Validator {
                 Arc::new(self.raw_signer.clone()),
                 self.signer.clone(),
             );
+
+            // Create GrpcClient with automatic reconnection
+            let grpc_url = prov
+                .kaspa_urls_grpc()
+                .first()
+                .expect("At least one Kaspa gRPC URL required")
+                .clone();
+
+            info!("validator: initializing Kaspa gRPC client with reconnection support");
+            let grpc_client = kaspa_grpc_client::GrpcClient::connect_with_args(
+                NotificationMode::Direct,
+                grpc_url,
+                None,            // subscription_context
+                true,            // reconnect - enable automatic reconnection
+                None,            // connection_event_sender
+                false,           // override_handle_stop_notify
+                None,            // timeout_duration - use default
+                Arc::new(kaspa_utils_tower::counters::TowerConnectionCounters::default()), // counters
+            )
+            .await
+            .expect("Failed to create Kaspa gRPC client");
+
             router = router.merge(dymension_kaspa::router(
-                dymension_kaspa::ValidatorServerResources::new(signing, prov),
+                dymension_kaspa::ValidatorServerResources::new(signing, prov, grpc_client),
             ))
         }
 
