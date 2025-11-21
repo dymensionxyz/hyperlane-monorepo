@@ -9,6 +9,7 @@ use axum::{
     routing::post,
     Router,
 };
+use tower_http::limit::RequestBodyLimitLayer;
 use dym_kas_core::api::client::HttpClient;
 use dym_kas_core::deposit::DepositFXG;
 use dym_kas_core::escrow::EscrowPublic;
@@ -118,6 +119,8 @@ pub fn router<
 >(
     resources: ValidatorServerResources<S, H>,
 ) -> Router {
+    const WITHDRAWAL_BODY_LIMIT: usize = 10 * 1024 * 1024; // 10 MB for large PSKT bundles
+
     Router::new()
         .route(
             ROUTE_VALIDATE_NEW_DEPOSITS,
@@ -127,7 +130,11 @@ pub fn router<
             ROUTE_VALIDATE_CONFIRMED_WITHDRAWALS,
             post(respond_validate_confirmed_withdrawals::<S, H>),
         )
-        .route(ROUTE_SIGN_PSKTS, post(respond_sign_pskts::<S, H>))
+        .route(
+            ROUTE_SIGN_PSKTS,
+            post(respond_sign_pskts::<S, H>)
+                .layer(RequestBodyLimitLayer::new(WITHDRAWAL_BODY_LIMIT)),
+        )
         .route("/kaspa-ping", post(respond_kaspa_ping::<S, H>))
         .with_state(Arc::new(resources))
 }
