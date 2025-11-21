@@ -77,16 +77,14 @@
           "http": "https://www.google.com"
         }
       ],
-      "walletSecret": "L1cinda_14",
-      "kaspaUrlsWrpc": "localhost:17210",
-      "kaspaUrlsGrpc": "grpc://localhost:16210",
+      "walletSecret": "123456qwe",
+      "kaspaUrlsWrpc": "api-kaspa.mzonder.com:17210",
       "kaspaUrlsRest": "https://kaspa-testnet-rest.mzonder.com",
       "validatorHosts": "http://localhost:9090",
-      "maxSweepInputs": 5,
       "kaspaMinDepositSompi": 4000000000,
-      "validatorPubsKaspa": "037139403d0eac2becb7d4a4fc10f1457e92e6aea3bf7a1a1afcc4ff02374c2656",
-      "escrowAddress": "kaspatest:pzpfa8x9yhv9w37xrrg0ajpp2u3wlxk9ps7f8zkhypnz66p2ay5sgth7x3sd4",
-      "kaspaEscrowPrivateKey": "\"83bcb5c346649ace4f4c773c361e90fbfd1812db9666bbc80471aa21d6875560\"",
+      "validatorPubsKaspa": "02f1d9c3a546a7d25f59fe4f7ca03393477a83c32c9bd777fc4d72a3c5ea6831eb",
+      "escrowAddress": "kaspatest:prc0upr64nthepvynew04vk6pzxjm6tekxnkgnynse42sdl0svtez2gffk6nv",
+      "kaspaEscrowPrivateKey": "\"47e2af5bc1b9ccf11555e3817d528b28c76a2d9096c94c8f13a6add121b61568\"",
       "kaspaMultisigThresholdHubIsm": 1,
       "kaspaMultisigThresholdEscrow": 1,
       "hubMailboxId": "0x68797065726c616e650000000000000000000000000000000000000000000000",
@@ -102,7 +100,7 @@
       "hubDomain": 587907060,
       "kasDomain": 897658017,
       "hubTokenId": "0x726f757465725f61707000000000000000000000000000020000000000000000",
-      "kasTokenId": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      "kasTokenId": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
     }
   },
   "defaultRpcConsensusType": "fallback",
