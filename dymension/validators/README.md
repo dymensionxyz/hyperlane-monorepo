@@ -14,4 +14,6 @@ Use [README_bridge_kaspa.md](./bridge/README_bridge_kaspa.md) to run a Kaspa val
 
 # Setting up the other chains <> Dymension bridge
 
+## 1. Run Hyperlane validator
+
 Use [README_bridge_other.md](./bridge/README_bridge_other.md) to run a validator for other chains.
