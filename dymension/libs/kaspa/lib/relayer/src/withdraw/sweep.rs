@@ -313,7 +313,7 @@ fn prepare_next_iteration_inputs(
 ///
 /// # Parameters
 /// * `anchor_amount` - The amount available in the anchor UTXO that will be used for withdrawals (not swept)
-/// * `max_sweep_inputs` - Maximum number of inputs to sweep
+/// * `max_sweep_inputs` - Optional maximum number of inputs to sweep (if None, only bundle size limit applies)
 /// * `max_sweep_bundle_bytes` - Maximum bundle size in bytes (to fit within validator body limit)
 pub async fn create_sweeping_bundle(
     relayer_wallet: &EasyKaspaWallet,
@@ -322,7 +322,7 @@ pub async fn create_sweeping_bundle(
     mut relayer_inputs: Vec<PopulatedInput>,
     total_withdrawal_amount: u64,
     anchor_amount: u64,
-    max_sweep_inputs: usize,
+    max_sweep_inputs: Option<usize>,
     max_sweep_bundle_bytes: usize,
 ) -> Result<Bundle> {
     use kaspa_txscript::standard::pay_to_address_script;
@@ -367,18 +367,21 @@ pub async fn create_sweeping_bundle(
     );
     // Process escrow inputs recursively until:
     // 1. All are consumed, OR
-    // 2. Reached the maximum number of inputs (configurable hard limit)
+    // 2. Reached the maximum bundle size (always enforced), OR
+    // 3. Reached the maximum number of inputs (if configured)
     while !escrow_inputs.is_empty() {
-        // Enforce hard limit: never sweep more than max_sweep_inputs
-        if total_inputs_swept >= max_sweep_inputs {
-            info!(
-                total_swept_amount = total_swept_amount,
-                total_inputs_swept = total_inputs_swept,
-                max_inputs = max_sweep_inputs,
-                remaining_escrow_inputs = escrow_inputs.len(),
-                "kaspa relayer sweeping: stopped at max_sweep_inputs hard limit"
-            );
-            break;
+        // Check input count limit if configured
+        if let Some(max_inputs) = max_sweep_inputs {
+            if total_inputs_swept >= max_inputs {
+                info!(
+                    total_swept_amount = total_swept_amount,
+                    total_inputs_swept = total_inputs_swept,
+                    max_inputs = max_inputs,
+                    remaining_escrow_inputs = escrow_inputs.len(),
+                    "kaspa relayer sweeping: stopped at configured max_sweep_inputs limit"
+                );
+                break;
+            }
         }
         // Find batch size that fits within mass limit
         let batch_size = calculate_sweep_size(

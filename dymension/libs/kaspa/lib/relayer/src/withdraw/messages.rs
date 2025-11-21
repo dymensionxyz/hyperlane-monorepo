@@ -110,7 +110,7 @@ pub async fn on_new_withdrawals(
     escrow_public: EscrowPublic,
     min_withdrawal_sompi: U256,
     tx_fee_multiplier: f64,
-    max_sweep_inputs: usize,
+    max_sweep_inputs: Option<usize>,
     max_sweep_bundle_bytes: usize,
 ) -> Result<Option<WithdrawFXG>> {
     let (current_anchor, pending_msgs) = filter_pending_withdrawals(messages, cosmos.query())
@@ -139,7 +139,7 @@ pub async fn build_withdrawal_fxg(
     escrow_public: EscrowPublic,
     min_withdrawal_sompi: U256,
     tx_fee_multiplier: f64,
-    max_sweep_inputs: usize,
+    max_sweep_inputs: Option<usize>,
     max_sweep_bundle_bytes: usize,
 ) -> Result<Option<WithdrawFXG>> {
     // Filter out dust messages and create Kaspa outputs for the rest

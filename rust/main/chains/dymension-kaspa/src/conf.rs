@@ -55,7 +55,7 @@ pub struct RelayerStuff {
     pub validator_hosts: Vec<String>,
     pub deposit_timings: RelayerDepositTimings,
     pub tx_fee_multiplier: f64,
-    pub max_sweep_inputs: usize,
+    pub max_sweep_inputs: Option<usize>,
     pub max_sweep_bundle_bytes: usize,
 }
 
@@ -155,7 +155,7 @@ impl ConnectionConf {
                 validator_hosts,
                 deposit_timings: kaspa_time_config.unwrap_or_default(),
                 tx_fee_multiplier: kas_tx_fee_multiplier,
-                max_sweep_inputs: max_sweep_inputs.unwrap_or(hardcode::tx::MAX_SWEEP_INPUTS),
+                max_sweep_inputs, // None by default, only enforced if configured
                 // Validator accepts 10 MB body limit. Use 8 MB for sweeping bundle
                 // to leave 2 MB margin for messages, anchors, and protobuf overhead
                 max_sweep_bundle_bytes: 8 * 1024 * 1024,
