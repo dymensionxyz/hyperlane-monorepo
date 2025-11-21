@@ -16,7 +16,7 @@ use eyre::Result;
 use hyperlane_core::config::OpSubmissionConfig;
 use hyperlane_core::NativeToken;
 use hyperlane_core::{
-    BlockInfo, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneMessage,
+    BlockInfo, ChainInfo, ChainResult, Decode, HyperlaneChain, HyperlaneDomain, HyperlaneMessage,
     HyperlaneProvider, HyperlaneProviderError, TxnInfo, H256, H512, U256,
 };
 use hyperlane_cosmos::ConnectionConf as HubConnectionConf;
@@ -382,16 +382,52 @@ impl KaspaProvider {
             None => return Ok(None),
         };
 
-        info!("kaspa provider: constructed withdrawal TXs, got withdrawal FXG, now gathering sigs and signing relayer fee");
+        // Calculate PSKT counts
+        let total_pskts = fxg.bundle.iter().count();
+        let sweep_count = fxg.messages.iter().filter(|m| m.is_empty()).count();
+        let withdrawal_count = fxg.messages.iter().filter(|m| !m.is_empty()).count();
 
-        // Log payload size and PSKT count before sending to validators
-        if let Ok(bz) = bytes::Bytes::try_from(&fxg) {
-            info!(
-                payload_size_bytes = bz.len(),
-                num_pskts = fxg.bundle.iter().count(),
-                "kaspa provider: withdrawal FXG payload size and PSKT count"
-            );
-        }
+        // Calculate withdrawal amounts from messages
+        let total_withdrawal_sompi: u64 = fxg
+            .messages
+            .iter()
+            .flatten()
+            .map(|msg| {
+                let body = msg.body.as_slice();
+                if body.len() >= 32 {
+                    if let Ok(token_msg) = hyperlane_warp_route::TokenMessage::read_from(&mut &body[..]) {
+                        token_msg.amount().as_u64()
+                    } else {
+                        0
+                    }
+                } else {
+                    0
+                }
+            })
+            .sum();
+
+        // Calculate swept amounts from sweep PSKTs (sum of inputs for first N PSKTs)
+        let total_swept_sompi: u64 = fxg
+            .bundle
+            .iter()
+            .take(sweep_count)
+            .map(|pskt| {
+                pskt.inputs
+                    .iter()
+                    .filter_map(|input| input.utxo_entry.as_ref())
+                    .map(|entry| entry.amount)
+                    .sum::<u64>()
+            })
+            .sum();
+
+        info!(
+            total_pskts = total_pskts,
+            sweep_pskts = sweep_count,
+            withdrawal_pskts = withdrawal_count,
+            swept_sompi = total_swept_sompi,
+            withdrawal_sompi = total_withdrawal_sompi,
+            "kaspa provider: constructed withdrawal TXs, got withdrawal FXG, now gathering sigs and signing relayer fee"
+        );
 
         let bundles_validators = self.validators().get_withdraw_sigs(&fxg).await?;
 

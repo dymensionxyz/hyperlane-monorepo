@@ -136,19 +136,19 @@ fn calculate_sweep_size(
             Ok(mass) if mass <= MAXIMUM_STANDARD_TRANSACTION_MASS => {
                 best_size = mid;
                 low = mid + 1;
-                info!(
+                /*info!(
                     batch_size = mid,
                     mass = mass,
                     "kaspa relayer sweeping: batch size fits within mass limit"
-                );
+                );*/
             }
-            Ok(mass) => {
+            Ok(_mass) => {
                 high = mid - 1;
-                info!(
+                /*info!(
                     batch_size = mid,
                     mass = mass,
                     "kaspa relayer sweeping: batch size exceeds mass limit"
-                );
+                );*/
             }
             Err(e) => {
                 high = mid - 1;
