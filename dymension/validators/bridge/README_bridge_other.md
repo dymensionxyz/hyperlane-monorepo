@@ -41,11 +41,11 @@ Fund the `dymension-validator` key with a small amount of DYM tokens (<1 DYM). T
 
 Set the `.signer.key` in the dymension sub object in the config. Make sure there is a `0x` prefix. It should look like
 
-```
+```json
 {
     "chains": {
       "dymension": {
-...
+// ...
         "signer": {
           "type": "cosmosKey",
           "prefix": "dym",
@@ -66,29 +66,13 @@ The architecture is to run using docker on a provisioned VM. The gist is to firs
 
 ### PHASE 0: MACHINE SETUP
 
-First archive the relevant contents of this deployments directory
-
-```bash
-tar -cvf hyperlane-deployments-validators.tar ./validator
-
-
-scp -i /path/to/your/private-key.pem \
-  hyperlane-deployments-validators.tar \
-  ubuntu@<remote-host>:/home/ubuntu/hyperlane-deployments-validators.tar
-```
-
-connect to the remote VM and extract the archive
+connect to the remote VM and clone the dymension's hyperlane-monorepo fork.
 
 ```bash
 ssh -i /path/to/your/private-key.pem \
-  ubuntu@<remote-host>
-tar -xvf /home/ubuntu/hyperlane-deployments-validators.tar
-```
+  <user>@<remote-host>
 
-Now we work from inside the unzipped directory:
-
-```
-cd validators
+git clone https://github.com/dymensionxyz/hyperlane-monorepo.git --branch main-dym && cd hyperlane-monorepo/dymension/validators/bridge
 ```
 
 install dependencies by running `scripts/install-dependencies.sh`

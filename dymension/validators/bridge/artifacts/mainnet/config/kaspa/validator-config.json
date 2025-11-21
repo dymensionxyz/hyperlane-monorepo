@@ -1,6 +1,6 @@
 {
   "chains": {
-    "kaspatest10": {
+    "kaspa": {
       "protocol": "kaspa",
       "name": "kaspa",
       "domainId": 1000000,
@@ -17,7 +17,7 @@
         }
       ],
       "walletSecret": "lkjsdf",
-      "kaspaUrlsWrpc": "<kaspa-network-rpc-url-without-protocol>:<port>",
+      "kaspaUrlsWrpc": "<kaspa-network-rpc-url-without-protocol>:17210",
       "kaspaUrlsRest": "(http|https)://<kaspa-network-rest-url>",
       "validatorHosts": "",
       "validatorPubsKaspa": "<all_validator_pub_keys_separated_by_commas-PROVIDED_BY_DIMENSION>",

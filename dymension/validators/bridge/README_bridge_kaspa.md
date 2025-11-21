@@ -166,29 +166,15 @@ The architecture is to run using docker on a provisioned VM. The gist is to firs
 
 ### PHASE 0: MACHINE SETUP
 
-First archive the relevant contents of this deployments directory
+use the `terraform/README.md` to provision the infrastructure. once the infrastructure is provisioned, proceed with the following steps.
 
-```bash
-tar -cvf hyperlane-deployments-validators.tar ./validator
-
-
-scp -i /path/to/your/private-key.pem \
-  hyperlane-deployments-validators.tar \
-  ubuntu@<remote-host>:/home/ubuntu/hyperlane-deployments-validators.tar
-```
-
-connect to the remote VM and extract the archive
+connect to the remote VM and clone the dymension's hyperlane-monorepo fork.
 
 ```bash
 ssh -i /path/to/your/private-key.pem \
-  ubuntu@<remote-host>
-tar -xvf /home/ubuntu/hyperlane-deployments-validators.tar
-```
+  <user>@<remote-host>
 
-Now we work from inside the unzipped directory:
-
-```
-cd validators
+git clone https://github.com/dymensionxyz/hyperlane-monorepo.git --branch main-dym && cd hyperlane-monorepo/dymension/validators/bridge
 ```
 
 install dependencies by running `scripts/install-dependencies.sh`
@@ -227,15 +213,11 @@ go
 foundryup
 ```
 
-clone the validator repository and build the validator container (takes time), you can proceed with most of other steps in another terminal window while the container is building
+build the validator container (takes time), you can proceed with most of other steps in another terminal window while the container is building
 
 ```bash
-cd
-git clone https://github.com/dymensionxyz/hyperlane-monorepo.git --branch main-dym
-
-# Build using Dockerfile from deployments repo, with monorepo as context
 docker build -t hyperlane-kaspa-validator \
-  -f ~/validators/artifacts/<network>/config/kaspa/Dockerfile \
+  -f ~/hyperlane-monorepo/dymension/validators/bridge/artifacts/<network>/config/kaspa/Dockerfile \
   ~/hyperlane-monorepo
 ```
 
@@ -243,7 +225,7 @@ docker build -t hyperlane-kaspa-validator \
 
 Use the key generation tool to securely store two key pairs in AWS
 
-```
+```bash
 mkdir -p ~/kaspa/{db,config,logs}
 echo '<kaspa_kms_key_arn>' > ~/kaspa/kaspa-kms-key-arn
 echo '<kaspa_secret_path>' > ~/kaspa/kaspa-secret-path
@@ -279,8 +261,8 @@ Update all placeholders inside  and `${HOME}/kaspa/config/validator-config.json`
 
 1. Add a pointer to your AWS hosted key which allows minting of KAS on Dymension (replacing the preexisting 'validator' subobject)
 
-```
-# in the TOP LEVEL object
+```json
+// in the TOP LEVEL object
     "validator": {
         "id": "<kaspa_dym_kms_key_arn>",
         "type": "aws",
@@ -290,8 +272,8 @@ Update all placeholders inside  and `${HOME}/kaspa/config/validator-config.json`
 
 2. Add a pointer to your AWS hosted key which allows release KAS escrow
 
-```
-# in the chains.kaspatest10 object
+```json
+// in the chains.kaspatest10 object
    "kaspaKey": {
           "type": "aws",
           "secretId": "<kaspa_secret_arn>",
@@ -301,7 +283,7 @@ Update all placeholders inside  and `${HOME}/kaspa/config/validator-config.json`
 ```
 
 3. Zero out the `kaspaEscrowPrivateKey` field
-```
+```json
   "kaspaEscrowPrivateKey":"",
 ```
 
