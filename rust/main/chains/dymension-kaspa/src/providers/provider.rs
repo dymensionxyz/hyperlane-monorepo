@@ -388,7 +388,7 @@ impl KaspaProvider {
         if let Ok(bz) = bytes::Bytes::try_from(&fxg) {
             info!(
                 payload_size_bytes = bz.len(),
-                num_pskts = fxg.bundle.len(),
+                num_pskts = fxg.bundle.iter().count(),
                 "kaspa provider: withdrawal FXG payload size and PSKT count"
             );
         }
