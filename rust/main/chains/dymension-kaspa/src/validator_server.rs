@@ -27,7 +27,6 @@ use hyperlane_core::{HyperlaneChain, HyperlaneDomain, Signature as HLCoreSignatu
 use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use hyperlane_cosmos_rs::prost::Message;
-use kaspa_wallet_core::prelude::DynRpcApi;
 use kaspa_wallet_pskt::prelude::*;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha3::{digest::Update, Digest, Keccak256};
@@ -150,7 +149,6 @@ pub struct ValidatorServerResources<
 > {
     signing: Option<ValidatorISMSigningResources<S, H>>,
     kas_provider: Option<Box<KaspaProvider>>,
-    kaspa_grpc_client: Option<kaspa_grpc_client::GrpcClient>,
 }
 
 impl<
@@ -161,12 +159,10 @@ impl<
     pub fn new(
         signing: ValidatorISMSigningResources<S, H>,
         kas_provider: Box<KaspaProvider>,
-        kaspa_grpc_client: kaspa_grpc_client::GrpcClient,
     ) -> Self {
         Self {
             signing: Some(signing),
             kas_provider: Some(kas_provider),
-            kaspa_grpc_client: Some(kaspa_grpc_client),
         }
     }
     fn must_signing(&self) -> &ValidatorISMSigningResources<S, H> {
@@ -174,9 +170,6 @@ impl<
     }
     fn kas_key_source(&self) -> crate::conf::KaspaEscrowKeySource {
         self.kas_provider.as_ref().unwrap().kas_key_source().clone()
-    }
-    fn must_api(&self) -> Arc<DynRpcApi> {
-        self.must_wallet().api()
     }
 
     fn must_escrow(&self) -> EscrowPublic {
@@ -204,7 +197,11 @@ impl<
     }
 
     fn must_kaspa_grpc_client(&self) -> kaspa_grpc_client::GrpcClient {
-        self.kaspa_grpc_client.clone().unwrap()
+        self.kas_provider
+            .as_ref()
+            .unwrap()
+            .grpc_client()
+            .expect("gRPC client required for validator")
     }
 }
 
@@ -217,7 +214,6 @@ impl<
         Self {
             signing: None,
             kas_provider: None,
-            kaspa_grpc_client: None,
         }
     }
 }

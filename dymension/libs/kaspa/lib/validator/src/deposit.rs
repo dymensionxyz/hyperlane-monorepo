@@ -16,7 +16,6 @@ use kaspa_rpc_core::api::rpc::RpcApi;
 use kaspa_rpc_core::RpcBlock;
 use kaspa_rpc_core::{RpcHash, RpcTransaction, RpcTransactionOutput};
 use kaspa_txscript::extract_script_pub_key_address;
-use kaspa_wallet_core::prelude::DynRpcApi;
 
 #[derive(Clone, Default)]
 pub struct MustMatch {

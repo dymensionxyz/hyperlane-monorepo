@@ -38,7 +38,7 @@ pub struct ValidatorStuff {
     pub kas_token_placeholder: H256,
     pub hub_mailbox_id: String,
     pub kas_escrow_key_source: KaspaEscrowKeySource,
-    pub kaspa_grpc_url: String,
+    pub kaspa_grpc_urls: Vec<String>,
     pub toggles: ValidationConf,
 }
 
@@ -112,7 +112,7 @@ impl ConnectionConf {
         validator_hosts: Vec<String>,
         validator_pub_keys: Vec<String>,
         kaspa_escrow_key_source: Option<KaspaEscrowKeySource>,
-        kaspa_grpc_url: Option<String>,
+        kaspa_urls_grpc: Vec<String>,
         multisig_threshold_hub_ism: usize,
         multisig_threshold_kaspa_schnorr: usize,
         hub_grpc_urls: Vec<Url>,
@@ -131,8 +131,9 @@ impl ConnectionConf {
     ) -> Self {
         let v = match kaspa_escrow_key_source {
             Some(kas_escrow_key_source) => {
-                let grpc_url = kaspa_grpc_url
-                    .expect("kaspa_grpc_url required when running as validator");
+                if kaspa_urls_grpc.is_empty() {
+                    panic!("kaspaUrlsGrpc required when running as validator");
+                }
                 if hub_domain == 0 || kas_domain == 0 || hub_token_id == H256::default() {
                     panic!("Missing validator config: hub_domain: {}, kas_domain: {}, hub_token_id: {}, kas_token_placeholder: {}", hub_domain, kas_domain, hub_token_id, kas_token_placeholder)
                 } else {
@@ -143,7 +144,7 @@ impl ConnectionConf {
                         kas_token_placeholder,
                         hub_mailbox_id,
                         kas_escrow_key_source,
-                        kaspa_grpc_url: grpc_url,
+                        kaspa_grpc_urls: kaspa_urls_grpc,
                         toggles: ValidationConf {
                             deposit_enabled: true,
                             withdrawal_enabled: true,
