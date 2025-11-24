@@ -107,11 +107,11 @@ impl KaspaProvider {
                 kaspa_grpc_client::GrpcClient::connect_with_args(
                     NotificationMode::Direct,
                     grpc_url.clone(),
-                    None,            // subscription_context
-                    true,            // reconnect - enable automatic reconnection
-                    None,            // connection_event_sender
-                    false,           // override_handle_stop_notify
-                    None,            // timeout_duration - use default
+                    None,  // subscription_context
+                    true,  // reconnect - enable automatic reconnection
+                    None,  // connection_event_sender
+                    false, // override_handle_stop_notify
+                    None,  // timeout_duration - use default
                     Arc::new(kaspa_utils_tower::counters::TowerConnectionCounters::default()),
                 )
                 .await
@@ -325,7 +325,6 @@ impl KaspaProvider {
     pub fn hub_rpc(&self) -> &CosmosProvider<ModuleQueryClient> {
         &self.cosmos_rpc
     }
-
 
     pub fn wallet(&self) -> &EasyKaspaWallet {
         &self.easy_wallet

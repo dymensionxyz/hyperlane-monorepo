@@ -384,11 +384,7 @@ pub fn build_kaspa_connection_conf(
         .get_opt_key("kaspaUrlsGrpc")
         .parse_string()
         .end()
-        .map(|s| {
-            s.split(',')
-                .map(|s| s.trim().to_string())
-                .collect()
-        })
+        .map(|s| s.split(',').map(|s| s.trim().to_string()).collect())
         .unwrap_or_default();
 
     let threshold_ism = chain
