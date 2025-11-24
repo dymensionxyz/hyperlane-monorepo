@@ -9,7 +9,6 @@ use axum::{
     routing::post,
     Router,
 };
-use tower_http::limit::RequestBodyLimitLayer;
 use dym_kas_core::api::client::HttpClient;
 use dym_kas_core::deposit::DepositFXG;
 use dym_kas_core::escrow::EscrowPublic;
@@ -33,6 +32,7 @@ use kaspa_wallet_pskt::prelude::*;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha3::{digest::Update, Digest, Keccak256};
 use std::sync::Arc;
+use tower_http::limit::RequestBodyLimitLayer;
 use tracing::{error, info};
 
 #[derive(Clone)]
@@ -140,8 +140,7 @@ pub fn router<
         )
         .route(
             "/kaspa-ping",
-            post(respond_kaspa_ping::<S, H>)
-                .layer(RequestBodyLimitLayer::new(DEFAULT_BODY_LIMIT)),
+            post(respond_kaspa_ping::<S, H>).layer(RequestBodyLimitLayer::new(DEFAULT_BODY_LIMIT)),
         )
         .layer(DefaultBodyLimit::disable())
         .with_state(Arc::new(resources))
@@ -296,7 +295,7 @@ async fn respond_sign_pskts<
     body: Bytes,
 ) -> HandlerResult<Json<Bundle>> {
     info!("validator: signing pskts");
-    
+
     let fxg: WithdrawFXG = body.try_into().map_err(|e: Report| AppError(e))?;
     let escrow = res.must_escrow();
     let val_stuff = res.must_val_stuff();

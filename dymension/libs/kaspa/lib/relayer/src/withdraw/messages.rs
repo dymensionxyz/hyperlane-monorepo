@@ -188,7 +188,9 @@ pub async fn build_withdrawal_fxg(
         return Ok(None);
     }
 
-    let (sweeping_bundle, inputs, adjusted_outputs, adjusted_msgs) = if escrow_inputs.len() > SWEEPING_THRESHOLD {
+    let (sweeping_bundle, inputs, adjusted_outputs, adjusted_msgs) = if escrow_inputs.len()
+        > SWEEPING_THRESHOLD
+    {
         // Sweep
 
         // Extract the current anchor from the escrow UTXO set.
@@ -238,7 +240,12 @@ pub async fn build_withdrawal_fxg(
         let (adjusted_outputs, adjusted_msgs) =
             adjust_outputs_for_available_funds_swept(&inputs, outputs, valid_msgs)?;
 
-        (Some(sweeping_bundle), inputs, adjusted_outputs, adjusted_msgs)
+        (
+            Some(sweeping_bundle),
+            inputs,
+            adjusted_outputs,
+            adjusted_msgs,
+        )
     } else {
         info!("kaspa relayer: no sweep needed, continuing to withdrawal");
 
