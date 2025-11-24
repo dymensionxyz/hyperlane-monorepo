@@ -81,14 +81,11 @@ where
         .unwrap_or_else(|| eyre::eyre!("{} failed after {} retries", operation_name, MAX_RETRIES)))
 }
 
-async fn fund_hub_addr(
-    hub_key: &EasyHubKey,
-    hub: &CosmosProvider<ModuleQueryClient>,
-    amount: u64,
-) -> Result<()> {
+async fn fund_hub_addr(hub_key: &EasyHubKey, hub_whale: &HubWhale, amount: u64) -> Result<()> {
+    let _lock = hub_whale.lock_for_tx().await;
     let hub_addr = hub_key.signer().address_string.clone();
     debug!("funding hub address: addr={} amount={}", hub_addr, amount);
-    let rpc = hub.rpc();
+    let rpc = hub_whale.provider.rpc();
     let msg = MsgSend {
         from_address: rpc.get_signer()?.address_string.clone(),
         to_address: hub_addr.clone(),
@@ -128,6 +125,8 @@ pub struct TaskArgs {
     pub domain_hub: u32,
     pub token_hub: H256,
     pub escrow_address: Address,
+    pub deposit_amount: u64,
+    pub withdrawal_fee_pct: f64,
 }
 
 impl TaskArgs {
@@ -136,6 +135,10 @@ impl TaskArgs {
     }
     pub fn hub_denom(&self) -> String {
         format!("hyperlane/{}", self.token_hub_str())
+    }
+    /// Net amount to withdraw such that withdrawal + fee < deposit_amount
+    pub fn net_withdrawal_amount(&self) -> u64 {
+        (self.deposit_amount as f64 / (1.0 + self.withdrawal_fee_pct)) as u64 - 1
     }
 }
 
@@ -180,7 +183,7 @@ async fn do_round_trip_inner(rt: &mut RoundTrip<'_>) {
         rt.task_id, rt.kaspa_whale.id, rt.hub_whale.id, hub_user_addr
     );
 
-    match fund_hub_addr(&hub_user_key, &rt.hub_whale.provider, HUB_FUND_AMOUNT).await {
+    match fund_hub_addr(&hub_user_key, &rt.hub_whale, HUB_FUND_AMOUNT).await {
         Ok(()) => {
             info!(
                 "hub user funded: task_id={} hub_whale_id={} hub_user_addr={}",
@@ -214,6 +217,7 @@ async fn do_round_trip_inner(rt: &mut RoundTrip<'_>) {
             rt.send_stats().await;
         }
         Err(e) => {
+            rt.stats.deposit_error = Some(e.to_string());
             error!(
                 "deposit error: task_id={} kaspa_whale_id={} error={:?}",
                 rt.task_id, rt.kaspa_whale.id, e
@@ -245,9 +249,10 @@ async fn do_round_trip_inner(rt: &mut RoundTrip<'_>) {
     let withdraw_res = rt.withdraw(&hub_user_key).await;
     if !withdraw_res.is_ok() {
         let e = withdraw_res.err().unwrap();
+        rt.stats.withdrawal_error = Some(e.to_string());
         error!(
-            "withdrawal error: task_id={} hub_whale_id={} error={:?}",
-            rt.task_id, rt.hub_whale.id, e
+            "withdrawal error: task_id={} hub_whale_id={} hub_user_addr={} error={:?}",
+            rt.task_id, rt.hub_whale.id, hub_user_addr, e
         );
         rt.send_stats().await;
         return;
@@ -322,10 +327,8 @@ impl<'a> RoundTrip<'a> {
     }
 
     async fn deposit(&self, hub_user_key: &EasyHubKey) -> Result<(TransactionId, u128)> {
-        use crate::sim::sim::FIXED_TRANSFER_SOMPI;
-
         let a = self.res.args.escrow_address.clone();
-        let amt = FIXED_TRANSFER_SOMPI;
+        let amt = self.res.args.deposit_amount;
         debug!(
             "deposit starting: task_id={} kaspa_whale_id={} escrow_addr={} amount={}",
             self.task_id, self.kaspa_whale.id, a, amt
@@ -354,12 +357,11 @@ impl<'a> RoundTrip<'a> {
     }
 
     async fn await_hub_credit(&self, hub_user_key: &EasyHubKey) -> Result<()> {
-        use crate::sim::sim::FIXED_TRANSFER_SOMPI;
-
+        let expected_amount = self.res.args.deposit_amount;
         let a = hub_user_key.signer().address_string;
         debug!(
             "await hub credit starting: task_id={} hub_whale_id={} hub_user_addr={} expected_value={}",
-            self.task_id, self.hub_whale.id, a, FIXED_TRANSFER_SOMPI
+            self.task_id, self.hub_whale.id, a, expected_amount
         );
         loop {
             let balance = self
@@ -372,7 +374,7 @@ impl<'a> RoundTrip<'a> {
                 if self.cancel.is_cancelled() {
                     return Err(RoundTripError::Cancelled.into());
                 }
-                tokio::time::sleep(Duration::from_millis(1000)).await;
+                tokio::time::sleep(Duration::from_millis(3000)).await;
                 continue;
             }
             break;
@@ -388,13 +390,13 @@ impl<'a> RoundTrip<'a> {
                 if self.cancel.is_cancelled() {
                     return Err(RoundTripError::Cancelled.into());
                 }
-                tokio::time::sleep(Duration::from_millis(1000)).await;
+                tokio::time::sleep(Duration::from_millis(3000)).await;
                 continue;
             }
-            if balance != U256::from(FIXED_TRANSFER_SOMPI) {
+            if balance != U256::from(expected_amount) {
                 let e = RoundTripError::HubBalanceMismatch {
                     balance: balance.as_u64() as i64,
-                    expected: FIXED_TRANSFER_SOMPI as i64,
+                    expected: expected_amount as i64,
                 };
                 return Err(e.into());
             }
@@ -405,12 +407,15 @@ impl<'a> RoundTrip<'a> {
     }
 
     async fn withdraw(&self, hub_user_key: &EasyHubKey) -> Result<(Address, String, u128)> {
-        use crate::sim::sim::FIXED_TRANSFER_SOMPI;
+        let withdrawal_amount = self.res.args.net_withdrawal_amount();
+        let fee_amount = self.res.args.deposit_amount - withdrawal_amount;
+        let fee_denom = self.res.args.hub_denom();
 
         let kaspa_recipient = get_kaspa_keypair();
+        let hub_user_addr = hub_user_key.signer().address_string.clone();
         debug!(
-            "withdraw starting: task_id={} hub_whale_id={} kaspa_recipient_addr={} amount={}",
-            self.task_id, self.hub_whale.id, kaspa_recipient.address, FIXED_TRANSFER_SOMPI
+            "withdraw starting: task_id={} hub_whale_id={} hub_user_addr={} kaspa_recipient_addr={} amount={} fee_amount={} fee_denom={}",
+            self.task_id, self.hub_whale.id, hub_user_addr, kaspa_recipient.address, withdrawal_amount, fee_amount, fee_denom
         );
 
         let mut res_hub = self.res.hub.clone();
@@ -424,13 +429,15 @@ impl<'a> RoundTrip<'a> {
             let res_hub = res_hub.clone();
             let token_hub_str = token_hub_str.clone();
             let kaspa_addr = kaspa_addr.clone();
+            let fee_denom = fee_denom.clone();
             async move {
                 let rpc = res_hub.rpc();
-                let amount = FIXED_TRANSFER_SOMPI.to_string();
+                let amount = withdrawal_amount.to_string();
                 let recipient = x::addr::hl_recipient(&kaspa_addr.to_string());
+                let sender = rpc.get_signer()?.address_string.clone();
 
                 let req = MsgRemoteTransfer {
-                    sender: rpc.get_signer()?.address_string.clone(),
+                    sender: sender.clone(),
                     token_id: token_hub_str,
                     destination_domain: domain_kas,
                     recipient,
@@ -438,8 +445,8 @@ impl<'a> RoundTrip<'a> {
                     custom_hook_id: "".to_string(),
                     gas_limit: "0".to_string(),
                     max_fee: Some(Coin {
-                        denom: "adym".to_string(),
-                        amount: "1000".to_string(),
+                        denom: fee_denom,
+                        amount: fee_amount.to_string(),
                     }),
                     custom_hook_metadata: "".to_string(),
                 };
@@ -458,7 +465,11 @@ impl<'a> RoundTrip<'a> {
                             Err(RoundTripError::WithdrawalTxFailed { response }.into())
                         }
                     }
-                    Err(e) => Err(eyre::eyre!("hub send error: {:?}", e)),
+                    Err(e) => Err(eyre::eyre!(
+                        "hub send error: sender={} error={:?}",
+                        sender,
+                        e
+                    )),
                 }
             }
         })
@@ -468,11 +479,11 @@ impl<'a> RoundTrip<'a> {
     }
 
     async fn await_kaspa_credit(&self, kaspa_addr: Address) -> Result<()> {
-        use crate::sim::sim::FIXED_TRANSFER_SOMPI;
+        let expected_credit = self.res.args.net_withdrawal_amount();
 
         debug!(
             "await kaspa credit starting: task_id={} hub_whale_id={} kaspa_addr={} expected_value={}",
-            self.task_id, self.hub_whale.id, kaspa_addr, FIXED_TRANSFER_SOMPI
+            self.task_id, self.hub_whale.id, kaspa_addr, expected_credit
         );
         loop {
             let balance = self
@@ -484,13 +495,13 @@ impl<'a> RoundTrip<'a> {
                 if self.cancel.is_cancelled() {
                     return Err(RoundTripError::Cancelled.into());
                 }
-                tokio::time::sleep(Duration::from_millis(1000)).await;
+                tokio::time::sleep(Duration::from_millis(3000)).await;
                 continue;
             }
-            if balance != FIXED_TRANSFER_SOMPI as i64 {
+            if balance != expected_credit as i64 {
                 let e = RoundTripError::KaspaBalanceMismatch {
                     balance,
-                    expected: FIXED_TRANSFER_SOMPI as i64,
+                    expected: expected_credit as i64,
                 };
                 return Err(e.into());
             }
@@ -540,6 +551,8 @@ mod tests {
                 "kaspatest:pzlq49spp66vkjjex0w7z8708f6zteqwr6swy33fmy4za866ne90v7e6pyrfr",
             )
             .unwrap(),
+            deposit_amount: 4_100_000_000,
+            withdrawal_fee_pct: 0.01,
         };
         let denom = args.hub_denom();
         assert_eq!(
