@@ -1123,9 +1123,13 @@ async fn submit_kaspa_batch(
     if !mailbox.supports_batching() {
         panic!("Kaspa must support batching")
     }
+    let batch_size = batch.len();
     let res = mailbox.process_batch(batch.iter().collect()).await;
     match res {
         Ok(batch_result) => {
+            // Check if ALL operations failed (indicates pending confirmation blocking)
+            let all_failed = batch_result.failed_indexes.len() == batch_size;
+
             let (_, excluded_ops): (Vec<_>, Vec<_>) =
                 batch.into_iter().enumerate().partition_map(|(i, op)| {
                     if !batch_result.failed_indexes.contains(&i) {
@@ -1136,8 +1140,24 @@ async fn submit_kaspa_batch(
                         Either::Right(op)
                     }
                 });
-            for op in excluded_ops {
-                send_back_on_failed_submission(op, prepare_queue.clone(), &metrics, None).await;
+
+            // If all operations failed (likely due to pending confirmation),
+            // keep them in submit_queue instead of sending back to prepare_queue.
+            // This avoids expensive re-validation (delivery checks, etc.)
+            if all_failed && !excluded_ops.is_empty() {
+                info!(
+                    batch_size = excluded_ops.len(),
+                    "Kaspa batch: all ops failed (likely blocked by pending confirmation), requeueing to submit_queue"
+                );
+                for op in excluded_ops {
+                    // Keep operations in submit_queue - they're already validated, just blocked
+                    submit_queue.push(op, Some(PendingOperationStatus::ReadyToSubmit)).await;
+                }
+            } else {
+                // Partial failure or individual validation issues - send back to prepare for re-validation
+                for op in excluded_ops {
+                    send_back_on_failed_submission(op, prepare_queue.clone(), &metrics, None).await;
+                }
             }
             /*
             We should do a second part here where we confirm the operations that were successful
