@@ -131,11 +131,8 @@ impl ConnectionConf {
     ) -> Self {
         let v = match kaspa_escrow_key_source {
             Some(kas_escrow_key_source) => {
-                if kaspa_urls_grpc.is_empty() {
-                    panic!("kaspaUrlsGrpc required when running as validator");
-                }
-                if hub_domain == 0 || kas_domain == 0 || hub_token_id == H256::default() {
-                    panic!("Missing validator config: hub_domain: {}, kas_domain: {}, hub_token_id: {}, kas_token_placeholder: {}", hub_domain, kas_domain, hub_token_id, kas_token_placeholder)
+                if hub_domain == 0 || kas_domain == 0 || hub_token_id == H256::default() || kaspa_urls_grpc.is_empty(){
+                    panic!("Missing validator config: hub_domain: {}, kas_domain: {}, hub_token_id: {}, kas_token_placeholder: {}, kaspaUrlsGrpc: {:?}", hub_domain, kas_domain, hub_token_id, kas_token_placeholder, kaspa_urls_grpc)
                 } else {
                     Some(ValidatorStuff {
                         hub_domain,
