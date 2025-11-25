@@ -339,7 +339,10 @@ docker compose up -d
 To update the validator docker image, pull the latest changes from the `main-dym` branch and build the docker image.
 
 ```bash
+cd ~/hyperlane-monorepo
 git pull origin main-dym
+# OR
+git clone https://github.com/dymensionxyz/hyperlane-monorepo.git --branch main-dym
 ```
 
 Re-build the docker image
