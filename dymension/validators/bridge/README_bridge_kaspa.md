@@ -66,6 +66,17 @@ Populate `.chains.<kaspa-network-name>.kaspaEscrowPrivateKey` with the escrow se
 }
 ```
 
+additionally, populate the following placeholders:
+
+| Placeholder                                                          | Description                                | Example                         |
+| -------------------------------------------------------------------- | ------------------------------------------ | ------------------------------- |
+| `<kaspa-network-rpc-url-without-protocol>`                           | Kaspa network wRPC URL without protocol    | `wrpc-kaspa.example.com`        |
+| `<kaspa-network-rest-url>`                                           | Kaspa network REST API URL                 | `https://api-kaspa.example.com` |
+| `<validator_escrow_secret>`                                          | Validator escrow private key (keep quotes) | `"your-private-key-here"`       |
+| `<dymension-hub-grpc-url>`                                           | Dymension hub gRPC URL                     | `https://grpc.example.com`      |
+| `<port>`                                                             | Respectful port number of the service      | `443`                           |
+| `<validator_ism_priv_key>`                                           | Validator ISM private key                  | `0xabcd1234...`                 |
+
 #### Running
 
 Copy the dummy `kaspa.wallet` from `hyperlane-monorepo/dymension/validators/bridge/artifacts/<network>/config/kaspa/kaspa.wallet` to `~/.kaspa/kaspa.wallet`: `cp <dummy> ~/.kaspa/kaspa.wallet`. This wallet is just to stop the Kaspa query client crashing because it expects a key. Signing uses the `validator_escrow_secret` generated before!
@@ -267,11 +278,6 @@ Update all placeholders inside `${HOME}/kaspa/config/validator-config.json`. Bel
 
 | Placeholder                                                          | Description                                | Example                         |
 | -------------------------------------------------------------------- | ------------------------------------------ | ------------------------------- |
-| `<interchain_gas_paymaster_address-PROVIDED_BY_DIMENSION>`           | Interchain gas paymaster contract address  | `0x1234567890abcdef...`         |
-| `<mailbox_address-PROVIDED_BY_DIMENSION>`                            | Mailbox contract address                   | `0xabcdef1234567890...`         |
-| `<merkle_tree_hook_address-PROVIDED_BY_DIMENSION>`                   | Merkle tree hook contract address          | `0x9876543210fedcba...`         |
-| `<validator_announce_address-PROVIDED_BY_DIMENSION>`                 | Validator announce contract address        | `0xfedcba0987654321...`         |
-| `<all_validator_pub_keys_separated_by_commas-PROVIDED_BY_DIMENSION>` | All validator public keys                  | `pubkey1,pubkey2,pubkey3`       |
 | `<kaspa-network-rpc-url-without-protocol>`                           | Kaspa network wRPC URL without protocol    | `wrpc-kaspa.example.com`        |
 | `<kaspa-network-rest-url>`                                           | Kaspa network REST API URL                 | `https://api-kaspa.example.com` |
 | `<validator_escrow_secret>`                                          | Validator escrow private key (keep quotes) | `"your-private-key-here"`       |
