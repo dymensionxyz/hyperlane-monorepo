@@ -596,11 +596,8 @@ async fn submit_classic_task(
             has some oddities like retrying all failed messages individually.
              */
             submit_kaspa_batch(
-                &domain,
                 &mut prepare_queue,
                 &mut submit_queue,
-                &mut confirm_queue,
-                max_batch_size,
                 &metrics,
                 batch,
             )
@@ -1102,11 +1099,8 @@ impl MessageProcessorMetrics {
 // NOTE: this code has a long history: see https://github.com/dymensionxyz/hyperlane-monorepo/blob/e53677d0aeca030a8fbe986dc15db952ab187ed5/rust/main/agents/relayer/src/msg/message_processor.rs#L1123-L1177
 // for old comments and explanations
 async fn submit_kaspa_batch(
-    kas_domain: &HyperlaneDomain,
     prepare_queue: &mut OpQueue,
     submit_queue: &mut OpQueue,
-    confirm_queue: &mut OpQueue,
-    max_batch_size: u32,
     metrics: &MessageProcessorMetrics,
     batch: Vec<Box<dyn PendingOperation>>, // from the submit queue
 ) {

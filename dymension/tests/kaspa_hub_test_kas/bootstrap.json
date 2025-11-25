@@ -4,9 +4,9 @@
             "@type": "/dymensionxyz.dymension.kas.MsgBootstrap",
             "authority": "dym10d07y265gmmuvt4z0w9aw880jnsr700jgllrna",
             "mailbox": "0x68797065726c616e650000000000000000000000000000000000000000000000",
-            "ism": "0x726f757465725f69736d00000000000000000000000000ff0000000000000000",
+            "ism": "0x726f757465725f69736d00000000000000000000000000010000000000000000",
             "outpoint": {
-                "transactionId": "DSp3mwVECC9HBl6Oedjig+T3+B0XgfszqjsMuVE60r8=",
+                "transactionId": "JIIakwl8n94JRwj+6y3aVYbfs3OLg6eNNmbJp/3m+Zk=",
                 "index": 0
             }
         }
