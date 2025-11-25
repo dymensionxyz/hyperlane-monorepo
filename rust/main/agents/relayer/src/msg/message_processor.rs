@@ -598,6 +598,7 @@ async fn submit_classic_task(
             submit_kaspa_batch(
                 &mut prepare_queue,
                 &mut submit_queue,
+                &mut confirm_queue,
                 &metrics,
                 batch,
             )
@@ -1101,6 +1102,7 @@ impl MessageProcessorMetrics {
 async fn submit_kaspa_batch(
     prepare_queue: &mut OpQueue,
     submit_queue: &mut OpQueue,
+    confirm_queue: &mut OpQueue,
     metrics: &MessageProcessorMetrics,
     batch: Vec<Box<dyn PendingOperation>>, // from the submit queue
 ) {
