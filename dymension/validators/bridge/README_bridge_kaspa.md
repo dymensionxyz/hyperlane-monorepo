@@ -293,7 +293,6 @@ Update all placeholders inside `${HOME}/kaspa/config/validator-config.json`. Bel
 | -------------------------------------------------------------------- | ------------------------------------------ | ------------------------------- |
 | `<kaspa-network-rpc-url-without-protocol>`                           | Kaspa network wRPC URL without protocol    | `wrpc-kaspa.example.com`        |
 | `<kaspa-network-rest-url>`                                           | Kaspa network REST API URL                 | `https://api-kaspa.example.com` |
-| `<validator_escrow_secret>`                                          | Validator escrow private key (keep quotes) | `"your-private-key-here"`       |
 | `<dymension-hub-grpc-url>`                                           | Dymension hub gRPC URL                     | `https://grpc.example.com`      |
 | `<port>`                                                             | Respectful port number of the service      | `443`                           |
 | `<validator_ism_priv_key>`                                           | Validator ISM private key                  | `0xabcd1234...`                 |
