@@ -19,11 +19,14 @@ BOTH methods have the same structure
     - [PHASE 2: CONFIG POPULATION AND RUNNING](#phase-2-config-population-and-running)
       - [Config](#config)
       - [Running](#running)
+      - [Updating](#updating)
   - [INSTRUCTIONS AWS AND KMS](#instructions-aws-and-kms)
     - [PHASE 0: MACHINE SETUP](#phase-0-machine-setup)
     - [PHASE 1: KEY GENERATION AND SHARING](#phase-1-key-generation-and-sharing-1)
     - [PHASE 2: CONFIG POPULATION AND RUNNING](#phase-2-config-population-and-running-1)
-    - [Updating the validator docker image version](#updating-the-validator-docker-image-version)
+      - [Config](#config-1)
+      - [Running](#running-1)
+      - [Updating](#updating-1)
 
 ## HARDWARE REQUIREMENTS
 
@@ -81,14 +84,14 @@ Populate `.chains.<kaspa-network-name>.kaspaEscrowPrivateKey` with the escrow se
 
 additionally, populate the following placeholders:
 
-| Placeholder                                                          | Description                                | Example                         |
-| -------------------------------------------------------------------- | ------------------------------------------ | ------------------------------- |
-| `<kaspa-network-rpc-url-without-protocol>`                           | Kaspa network wRPC URL without protocol    | `wrpc-kaspa.example.com`        |
-| `<kaspa-network-rest-url>`                                           | Kaspa network REST API URL                 | `https://api-kaspa.example.com` |
-| `<validator_escrow_secret>`                                          | Validator escrow private key (keep quotes) | `"your-private-key-here"`       |
-| `<dymension-hub-grpc-url>`                                           | Dymension hub gRPC URL                     | `https://grpc.example.com`      |
-| `<port>`                                                             | Respectful port number of the service      | `443`                           |
-| `<validator_ism_priv_key>`                                           | Validator ISM private key                  | `0xabcd1234...`                 |
+| JSON Path                                            | Description                                | Example                               |
+| ---------------------------------------------------- | ------------------------------------------ | ------------------------------------- |
+| `.chains.<kaspa-network-name>.kaspaUrlsWrpc`         | Kaspa network wRPC URL without protocol    | `wrpc-kaspa.example.com:17210`        |
+| `.chains.<kaspa-network-name>.kaspaUrlsGrpc`         | Kaspa network gRPC URL                     | `grpc://grpc-kaspa.example.com:16210` |
+| `.chains.<kaspa-network-name>.kaspaUrlsRest`         | Kaspa network REST API URL                 | `https://api-kaspa.example.com`       |
+| `.chains.<kaspa-network-name>.kaspaEscrowPrivateKey` | Validator escrow private key (keep quotes) | `"your-private-key-here"`             |
+| `.chains.<kaspa-network-name>.grpcUrls[0].http`      | Dymension hub gRPC URL with port           | `https://grpc.example.com:443`        |
+| `.validator.key`                                     | Validator ISM private key                  | `0xabcd1234...`                       |
 
 #### Running
 
@@ -101,6 +104,12 @@ Make a database directory in place of your choosing (such as `mkdir valdb`)
 ```bash
 cd ${HOME}/hyperlane-monorepo/rust/main
 cargo build --release --bin validator
+```
+
+*Copy Binary to Standard Path*
+
+```bash
+sudo cp ${HOME}/hyperlane-monorepo/rust/main/target/release/validator /usr/local/bin/hyperlane-validator
 ```
 
 *Setup Environment Variables*
@@ -123,7 +132,7 @@ After=network-online.target
 WorkingDirectory=${HOME}/hyperlane-monorepo/rust/main
 User=$USER
 Environment="CONFIG_FILES=${CONFIG_FILES}"
-ExecStart=${HOME}/hyperlane-monorepo/rust/main/target/release/validator \
+ExecStart=/usr/local/bin/hyperlane-validator \
 --db ${DB_VALIDATOR} \
 --originChainName ${ORIGIN_CHAIN} \
 --reorgPeriod 1 \
@@ -152,8 +161,7 @@ journalctl -u validator -f -o cat
 ```bash
 tmux
 echo $DB_VALIDATOR && echo $CONFIG_FILES && sleep 3s
-cd ${HOME}/hyperlane-monorepo/rust/main
-./target/release/validator \
+/usr/local/bin/hyperlane-validator \
 --db $DB_VALIDATOR \
 --originChainName $ORIGIN_CHAIN \
 --reorgPeriod 1 \
@@ -187,6 +195,20 @@ journalctl -u validator -f -o cat
 Make sure 9090 or whatever chosen metrics-port is exposed and tell Dymension team. Your validator will answer queries at that port.
 
 Now you are finished
+
+#### Updating
+
+To update the validator, pull the latest changes from the `main-dym` branch and build the validator.
+
+```bash
+cd ~/hyperlane-monorepo
+git pull origin main-dym
+cd rust/main
+cargo build --release --bin validator
+sudo systemctl stop validator
+sudo cp target/release/validator /usr/local/bin/hyperlane-validator
+sudo systemctl start validator
+```
 
 ## INSTRUCTIONS AWS AND KMS
 
@@ -280,6 +302,7 @@ Give Dymension team `validator_ism_addr` and `validator_escrow_pub_key`
 
 ### PHASE 2: CONFIG POPULATION AND RUNNING
 
+#### Config
 
 Copy config to a kaspa local directory. replace `<network>` with either `blumbus` or `mainnet`:
 
@@ -289,13 +312,13 @@ cp -r ${HOME}/hyperlane-monorepo/dymension/validators/bridge/artifacts/<network>
 
 Update all placeholders inside `${HOME}/kaspa/config/validator-config.json`. Below is an index of all placeholders that need to be configured:
 
-| Placeholder                                                          | Description                                | Example                         |
-| -------------------------------------------------------------------- | ------------------------------------------ | ------------------------------- |
-| `<kaspa-network-rpc-url-without-protocol>`                           | Kaspa network wRPC URL without protocol    | `wrpc-kaspa.example.com`        |
-| `<kaspa-network-rest-url>`                                           | Kaspa network REST API URL                 | `https://api-kaspa.example.com` |
-| `<dymension-hub-grpc-url>`                                           | Dymension hub gRPC URL                     | `https://grpc.example.com`      |
-| `<port>`                                                             | Respectful port number of the service      | `443`                           |
-| `<validator_ism_priv_key>`                                           | Validator ISM private key                  | `0xabcd1234...`                 |
+| JSON Path                                       | Description                             | Example                               |
+| ----------------------------------------------- | --------------------------------------- | ------------------------------------- |
+| `.chains.<kaspa-network-name>.kaspaUrlsWrpc`    | Kaspa network wRPC URL without protocol | `wrpc-kaspa.example.com:17210`        |
+| `.chains.<kaspa-network-name>.kaspaUrlsGrpc`    | Kaspa network gRPC URL                  | `grpc://grpc-kaspa.example.com:16210` |
+| `.chains.<kaspa-network-name>.kaspaUrlsRest`    | Kaspa network REST API URL              | `https://api-kaspa.example.com`       |
+| `.chains.<kaspa-network-name>.grpcUrls[0].http` | Dymension hub gRPC URL with port        | `https://grpc.example.com:443`        |
+| `.validator.key`                                | Validator ISM private key               | `0xabcd1234...`                       |
 
 **Additional AWS KMS Configuration:**
 
@@ -327,6 +350,8 @@ Update all placeholders inside `${HOME}/kaspa/config/validator-config.json`. Bel
   "kaspaEscrowPrivateKey":"",
 ```
 
+#### Running
+
 Start the validators on the remote host
 
 ```bash
@@ -334,7 +359,7 @@ cd ~/kaspa
 docker compose up -d
 ```
 
-### Updating the validator docker image version
+#### Updating 
 
 To update the validator docker image, pull the latest changes from the `main-dym` branch and build the docker image.
 
