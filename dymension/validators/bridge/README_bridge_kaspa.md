@@ -341,16 +341,18 @@ To update the validator docker image, pull the latest changes from the `main-dym
 ```bash
 cd ~/hyperlane-monorepo
 git pull origin main-dym
+
 # OR
 git clone https://github.com/dymensionxyz/hyperlane-monorepo.git --branch main-dym
+cd hyperlane-monorepo
 ```
 
 Re-build the docker image
 
 ```bash
 docker build -t hyperlane-kaspa-validator \
-  -f ~/hyperlane-monorepo/dymension/validators/bridge/artifacts/<network>/config/kaspa/Dockerfile \
-  ~/hyperlane-monorepo
+  -f dymension/validators/bridge/artifacts/<network>/config/kaspa/Dockerfile \
+  .
 ```
 
 Then, restart the validator container.
