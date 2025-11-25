@@ -12,6 +12,19 @@ BOTH methods have the same structure
 4. Fill in template with own info (keys or key locations)
 5. Run
 
+- [HOW TO RUN VALIDATOR INSTANCE FOR BRIDGING DYMENSION \<-\> KASPA](#how-to-run-validator-instance-for-bridging-dymension---kaspa)
+  - [HARDWARE REQUIREMENTS](#hardware-requirements)
+  - [INSTRUCTIONS BARE METAL](#instructions-bare-metal)
+    - [PHASE 1: KEY GENERATION AND SHARING](#phase-1-key-generation-and-sharing)
+    - [PHASE 2: CONFIG POPULATION AND RUNNING](#phase-2-config-population-and-running)
+      - [Config](#config)
+      - [Running](#running)
+  - [INSTRUCTIONS AWS AND KMS](#instructions-aws-and-kms)
+    - [PHASE 0: MACHINE SETUP](#phase-0-machine-setup)
+    - [PHASE 1: KEY GENERATION AND SHARING](#phase-1-key-generation-and-sharing-1)
+    - [PHASE 2: CONFIG POPULATION AND RUNNING](#phase-2-config-population-and-running-1)
+    - [Updating the validator docker image version](#updating-the-validator-docker-image-version)
+
 ## HARDWARE REQUIREMENTS
 
 - 2GB of RAM
@@ -319,5 +332,29 @@ Start the validators on the remote host
 
 ```bash
 cd ~/kaspa
+docker compose up -d
+```
+
+### Updating the validator docker image version
+
+To update the validator docker image, pull the latest changes from the `main-dym` branch and build the docker image.
+
+```bash
+git pull origin main-dym
+```
+
+Re-build the docker image
+
+```bash
+docker build -t hyperlane-kaspa-validator \
+  -f ~/hyperlane-monorepo/dymension/validators/bridge/artifacts/<network>/config/kaspa/Dockerfile \
+  ~/hyperlane-monorepo
+```
+
+Then, restart the validator container.
+
+```bash
+cd ~/kaspa
+docker compose down
 docker compose up -d
 ```
