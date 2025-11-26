@@ -539,7 +539,7 @@ pub fn build_kaspa_connection_conf(
 
     let validator_request_timeout = chain
         .chain(err)
-        .get_opt_key("validatorRequestTimeout")
+        .get_opt_key("signRequestTimeout")
         .parse_duration()
         .end()
         .unwrap_or(std::time::Duration::from_secs(15));
