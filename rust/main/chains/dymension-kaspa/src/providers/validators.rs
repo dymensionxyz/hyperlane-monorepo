@@ -161,19 +161,14 @@ impl ValidatorsClient {
             }
         }
 
-        // All futures completed - sort by index to preserve host order
-        if successes.len() >= threshold {
-            successes.sort_by_key(|(idx, _)| *idx);
-            Ok(successes.into_iter().map(|(_, v)| v).collect())
-        } else {
-            Err(ChainCommunicationError::from_other_str(&format!(
-                "collect {}: threshold={} but got only {} successes from {} validators",
-                request_type,
-                threshold,
-                successes.len(),
-                hosts.len()
-            )))
-        }
+        // All futures completed without reaching threshold
+        Err(ChainCommunicationError::from_other_str(&format!(
+            "collect {}: threshold={} but got only {} successes from {} validators",
+            request_type,
+            threshold,
+            successes.len(),
+            hosts.len()
+        )))
     }
 
     pub fn new(
