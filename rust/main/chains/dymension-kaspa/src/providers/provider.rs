@@ -28,24 +28,11 @@ use kaspa_addresses::Address;
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
 use kaspa_rpc_core::notify::mode::NotificationMode;
 use kaspa_wallet_core::prelude::DynRpcApi;
-use prometheus::{histogram_opts, register_histogram_vec_with_registry, HistogramVec, Registry};
+use prometheus::Registry;
 use std::sync::Arc;
 use tonic::async_trait;
 use tracing::{error, info};
 use url::Url;
-
-fn create_validator_latency_histogram(registry: &Registry) -> Result<HistogramVec> {
-    let buckets = vec![0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 15.0, 30.0];
-    Ok(register_histogram_vec_with_registry!(
-        histogram_opts!(
-            "hyperlane_validator_request_duration_seconds",
-            "Latency of HTTP requests to validators",
-            buckets
-        ),
-        &["validator_host", "request_type", "status"],
-        registry
-    )?)
-}
 
 struct ProcessedWithdrawals {
     fxg: std::sync::Arc<dym_kas_core::withdraw::WithdrawFXG>,
@@ -87,9 +74,17 @@ impl KaspaProvider {
     ) -> ChainResult<Self> {
         let rest = RestProvider::new(cfg.clone(), signer, metrics.clone(), chain.clone())?;
 
-        let validator_metrics =
-            registry.and_then(|reg| create_validator_latency_histogram(reg).ok());
-        let validators = ValidatorsClient::new(cfg.clone(), validator_metrics)?;
+        let kaspa_metrics = if let Some(reg) = registry {
+            KaspaBridgeMetrics::new(reg).expect("Failed to create KaspaBridgeMetrics")
+        } else {
+            KaspaBridgeMetrics::new(&prometheus::default_registry())
+                .expect("Failed to create default KaspaBridgeMetrics")
+        };
+
+        let validators = ValidatorsClient::new(
+            cfg.clone(),
+            Some(kaspa_metrics.validator_request_duration.clone()),
+        )?;
 
         let easy_wallet = get_easy_wallet(
             domain.clone(),
@@ -104,13 +99,6 @@ impl KaspaProvider {
             .validator_stuff
             .as_ref()
             .map(|v| v.kas_escrow_key_source.clone());
-
-        let kaspa_metrics = if let Some(reg) = registry {
-            KaspaBridgeMetrics::new(reg).expect("Failed to create KaspaBridgeMetrics")
-        } else {
-            KaspaBridgeMetrics::new(&prometheus::default_registry())
-                .expect("Failed to create default KaspaBridgeMetrics")
-        };
 
         // Create gRPC client for validator if configured
         let grpc_client = if let Some(validator_stuff) = &cfg.validator_stuff {

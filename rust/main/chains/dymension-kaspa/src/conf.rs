@@ -68,7 +68,6 @@ pub struct RelayerDepositTimings {
     pub retry_delay_max: std::time::Duration,
     pub deposit_look_back: std::time::Duration,
     pub deposit_query_overlap: std::time::Duration,
-    pub validator_request_timeout: std::time::Duration,
 }
 
 impl Default for RelayerDepositTimings {
@@ -80,7 +79,6 @@ impl Default for RelayerDepositTimings {
             retry_delay_max: std::time::Duration::from_secs(3600),
             deposit_look_back: std::time::Duration::from_secs(0),
             deposit_query_overlap: std::time::Duration::from_secs(60 * 5),
-            validator_request_timeout: std::time::Duration::from_secs(15),
         }
     }
 }
@@ -129,6 +127,7 @@ impl ConnectionConf {
         kas_token_placeholder: H256,
         kas_tx_fee_multiplier: f64,
         max_sweep_inputs: Option<usize>,
+        validator_request_timeout: std::time::Duration,
     ) -> Self {
         let v = match kaspa_escrow_key_source {
             Some(kas_escrow_key_source) => {
@@ -164,11 +163,13 @@ impl ConnectionConf {
                 let deposit_timings = kaspa_time_config.unwrap_or_default();
                 Some(RelayerStuff {
                     validator_hosts,
-                    validator_request_timeout: deposit_timings.validator_request_timeout,
                     deposit_timings,
                     tx_fee_multiplier: kas_tx_fee_multiplier,
-                    max_sweep_inputs,
+                    max_sweep_inputs, // None by default, only enforced if configured
+                    // Validator accepts 10 MB body limit. Use 8 MB for sweeping bundle
+                    // to leave 2 MB margin for messages, anchors, and protobuf overhead
                     max_sweep_bundle_bytes: 8 * 1024 * 1024,
+                    validator_request_timeout,
                 })
             }
         };

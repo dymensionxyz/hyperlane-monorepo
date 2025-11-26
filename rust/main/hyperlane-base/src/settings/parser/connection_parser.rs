@@ -532,16 +532,17 @@ pub fn build_kaspa_connection_conf(
                 .parse_duration()
                 .end()
                 .unwrap_or(std::time::Duration::from_secs(60 * 5)),
-            validator_request_timeout: chain
-                .chain(err)
-                .get_opt_key("validatorRequestTimeout")
-                .parse_duration()
-                .end()
-                .unwrap_or(std::time::Duration::from_secs(15)),
         })
     } else {
         None
     };
+
+    let validator_request_timeout = chain
+        .chain(err)
+        .get_opt_key("validatorRequestTimeout")
+        .parse_duration()
+        .end()
+        .unwrap_or(std::time::Duration::from_secs(15));
 
     Some(ChainConnectionConf::Kaspa(
         dymension_kaspa::ConnectionConf::new(
@@ -567,6 +568,7 @@ pub fn build_kaspa_connection_conf(
             kas_token_placeholder,
             kaspa_tx_fee_multiplier,
             max_sweep_inputs,
+            validator_request_timeout,
         ),
     ))
 }
