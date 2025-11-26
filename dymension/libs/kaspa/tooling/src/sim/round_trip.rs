@@ -420,6 +420,10 @@ impl<'a> RoundTrip<'a> {
         };
         let kaspa_recipient = get_kaspa_keypair(kaspa_prefix);
         let hub_user_addr = hub_user_key.signer().address_string.clone();
+        info!(
+            "kaspa_recipient_key: {:?}",
+            kaspa_recipient.private_key.secret_bytes()
+        );
         debug!(
             "withdraw starting: task_id={} hub_whale_id={} hub_user_addr={} kaspa_recipient_addr={} amount={} fee_amount={} fee_denom={}",
             self.task_id, self.hub_whale.id, hub_user_addr, kaspa_recipient.address, withdrawal_amount, fee_amount, fee_denom
