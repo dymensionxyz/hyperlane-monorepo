@@ -56,7 +56,6 @@ impl ValidatorsClient {
         metrics: Option<prometheus::HistogramVec>,
         request_type: &str,
         threshold: usize,
-        overall_timeout: std::time::Duration,
         request_fn: F,
     ) -> ChainResult<Vec<T>>
     where
@@ -70,127 +69,111 @@ impl ValidatorsClient {
             validators_count = hosts.len(),
             threshold = threshold,
             request_type = request_type,
-            overall_timeout_secs = overall_timeout.as_secs(),
             "kaspa: collecting validator responses"
         );
 
-        let collection_future = async {
-            let mut futures: FuturesUnordered<_> = hosts
-                .iter()
-                .enumerate()
-                .map(|(index, host)| {
-                    let host = host.clone();
-                    let request_type = request_type.to_string();
-                    let start = Instant::now();
-                    let fut = request_fn(host.clone());
-                    let metrics_clone = metrics.clone();
+        let mut futures: FuturesUnordered<_> = hosts
+            .iter()
+            .enumerate()
+            .map(|(index, host)| {
+                let host = host.clone();
+                let request_type = request_type.to_string();
+                let start = Instant::now();
+                let fut = request_fn(host.clone());
+                let metrics_clone = metrics.clone();
 
-                    async move {
-                        let result = fut.await;
-                        let duration = start.elapsed();
-                        let status = if result.is_ok() { "success" } else { "failure" };
+                async move {
+                    let result = fut.await;
+                    let duration = start.elapsed();
+                    let status = if result.is_ok() { "success" } else { "failure" };
 
-                        if let Some(metrics) = &metrics_clone {
-                            metrics
-                                .with_label_values(&[&host, &request_type, status])
-                                .observe(duration.as_secs_f64());
-                        }
-
-                        (index, host, result, duration)
+                    if let Some(metrics) = &metrics_clone {
+                        metrics
+                            .with_label_values(&[&host, &request_type, status])
+                            .observe(duration.as_secs_f64());
                     }
-                })
-                .collect();
 
-            let mut successes: Vec<(usize, T)> = Vec::new();
+                    (index, host, result, duration)
+                }
+            })
+            .collect();
 
-            while let Some((index, host, result, duration)) = futures.next().await {
-                match result {
-                    Ok(value) => {
+        let mut successes: Vec<(usize, T)> = Vec::new();
+
+        while let Some((index, host, result, duration)) = futures.next().await {
+            match result {
+                Ok(value) => {
+                    info!(
+                        validator = ?host,
+                        validator_index = index,
+                        duration_ms = duration.as_millis(),
+                        request_type = request_type,
+                        "kaspa: validator response success"
+                    );
+                    successes.push((index, value));
+
+                    if successes.len() >= threshold {
                         info!(
-                            validator = ?host,
-                            validator_index = index,
-                            duration_ms = duration.as_millis(),
+                            collected = successes.len(),
+                            threshold = threshold,
+                            remaining = futures.len(),
                             request_type = request_type,
-                            "kaspa: validator response success"
+                            "kaspa: reached threshold, returning early"
                         );
-                        successes.push((index, value));
 
-                        if successes.len() >= threshold {
-                            info!(
-                                collected = successes.len(),
-                                threshold = threshold,
-                                remaining = futures.len(),
-                                request_type = request_type,
-                                "kaspa: reached threshold, returning early"
-                            );
-
-                            let request_type_owned = request_type.to_string();
-                            tokio::spawn(async move {
-                                while let Some((_, host, result, duration)) = futures.next().await {
-                                    let status = if result.is_ok() { "success" } else { "failure" };
-                                    debug!(
+                        let request_type_owned = request_type.to_string();
+                        tokio::spawn(async move {
+                            while let Some((_, host, result, duration)) = futures.next().await {
+                                let status = if result.is_ok() { "success" } else { "failure" };
+                                debug!(
+                                    validator = ?host,
+                                    duration_ms = duration.as_millis(),
+                                    status = status,
+                                    request_type = %request_type_owned,
+                                    "kaspa: background validator response"
+                                );
+                                if let Err(e) = result {
+                                    error!(
                                         validator = ?host,
-                                        duration_ms = duration.as_millis(),
-                                        status = status,
+                                        error = ?e,
                                         request_type = %request_type_owned,
-                                        "kaspa: background validator response"
+                                        "kaspa: background validator failed"
                                     );
-                                    if let Err(e) = result {
-                                        error!(
-                                            validator = ?host,
-                                            error = ?e,
-                                            request_type = %request_type_owned,
-                                            "kaspa: background validator failed"
-                                        );
-                                    }
                                 }
-                            });
+                            }
+                        });
 
-                            // Sort by index to preserve host order
-                            successes.sort_by_key(|(idx, _)| *idx);
-                            return Ok::<Vec<T>, ChainCommunicationError>(
-                                successes.into_iter().map(|(_, v)| v).collect(),
-                            );
-                        }
-                    }
-                    Err(e) => {
-                        error!(
-                            validator = ?host,
-                            validator_index = index,
-                            error = ?e,
-                            duration_ms = duration.as_millis(),
-                            request_type = request_type,
-                            "kaspa: validator response failed"
-                        );
+                        // Sort by index to preserve host order
+                        successes.sort_by_key(|(idx, _)| *idx);
+                        return Ok(successes.into_iter().map(|(_, v)| v).collect());
                     }
                 }
+                Err(e) => {
+                    error!(
+                        validator = ?host,
+                        validator_index = index,
+                        error = ?e,
+                        duration_ms = duration.as_millis(),
+                        request_type = request_type,
+                        "kaspa: validator response failed"
+                    );
+                }
             }
+        }
 
-            // All futures completed - sort by index to preserve host order
-            if successes.len() >= threshold {
-                successes.sort_by_key(|(idx, _)| *idx);
-                Ok(successes.into_iter().map(|(_, v)| v).collect())
-            } else {
-                Err(ChainCommunicationError::from_other_str(&format!(
-                    "collect {}: threshold={} but got only {} successes from {} validators",
-                    request_type,
-                    threshold,
-                    successes.len(),
-                    hosts.len()
-                )))
-            }
-        };
-
-        // Wrap with overall timeout
-        tokio::time::timeout(overall_timeout, collection_future)
-            .await
-            .map_err(|_| {
-                ChainCommunicationError::from_other_str(&format!(
-                    "collect {}: overall timeout of {}s exceeded",
-                    request_type,
-                    overall_timeout.as_secs()
-                ))
-            })?
+        // All futures completed - sort by index to preserve host order
+        if successes.len() >= threshold {
+            successes.sort_by_key(|(idx, _)| *idx);
+            Ok(successes.into_iter().map(|(_, v)| v).collect())
+        } else {
+            Err(ChainCommunicationError::from_other_str(&format!(
+                "collect {}: threshold={} but got only {} successes from {} validators",
+                request_type,
+                threshold,
+                successes.len(),
+                hosts.len()
+            )))
+        }
     }
 
     pub fn new(
@@ -227,20 +210,12 @@ impl ValidatorsClient {
         let hosts = self.hosts();
         let metrics = self.metrics.clone();
         let fxg = fxg.clone();
-        let overall_timeout = std::time::Duration::from_secs(60);
 
-        Self::collect_with_threshold(
-            hosts,
-            metrics,
-            "deposit",
-            threshold,
-            overall_timeout,
-            move |host| {
-                let client = client.clone();
-                let fxg = fxg.clone();
-                Box::pin(async move { request_validate_new_deposits(&client, host, &fxg).await })
-            },
-        )
+        Self::collect_with_threshold(hosts, metrics, "deposit", threshold, move |host| {
+            let client = client.clone();
+            let fxg = fxg.clone();
+            Box::pin(async move { request_validate_new_deposits(&client, host, &fxg).await })
+        })
         .await
     }
 
@@ -253,22 +228,12 @@ impl ValidatorsClient {
         let hosts = self.hosts();
         let metrics = self.metrics.clone();
         let fxg = fxg.clone();
-        let overall_timeout = std::time::Duration::from_secs(60);
 
-        Self::collect_with_threshold(
-            hosts,
-            metrics,
-            "confirmation",
-            threshold,
-            overall_timeout,
-            move |host| {
-                let client = client.clone();
-                let fxg = fxg.clone();
-                Box::pin(
-                    async move { request_validate_new_confirmation(&client, host, &fxg).await },
-                )
-            },
-        )
+        Self::collect_with_threshold(hosts, metrics, "confirmation", threshold, move |host| {
+            let client = client.clone();
+            let fxg = fxg.clone();
+            Box::pin(async move { request_validate_new_confirmation(&client, host, &fxg).await })
+        })
         .await
     }
 
@@ -277,22 +242,14 @@ impl ValidatorsClient {
         let hosts = self.hosts();
         let client = self.http_client.clone();
         let metrics = self.metrics.clone();
-        let overall_timeout = std::time::Duration::from_secs(60);
 
-        Self::collect_with_threshold(
-            hosts,
-            metrics,
-            "withdrawal",
-            threshold,
-            overall_timeout,
-            move |host| {
-                let client = client.clone();
-                let fxg = fxg.clone();
-                Box::pin(async move {
-                    request_sign_withdrawal_bundle(&client, host, fxg.as_ref()).await
-                })
-            },
-        )
+        Self::collect_with_threshold(hosts, metrics, "withdrawal", threshold, move |host| {
+            let client = client.clone();
+            let fxg = fxg.clone();
+            Box::pin(
+                async move { request_sign_withdrawal_bundle(&client, host, fxg.as_ref()).await },
+            )
+        })
         .await
     }
 
