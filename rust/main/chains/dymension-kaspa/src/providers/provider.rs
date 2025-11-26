@@ -28,14 +28,27 @@ use kaspa_addresses::Address;
 use kaspa_rpc_core::model::{RpcTransaction, RpcTransactionId};
 use kaspa_rpc_core::notify::mode::NotificationMode;
 use kaspa_wallet_core::prelude::DynRpcApi;
-use prometheus::Registry;
+use prometheus::{histogram_opts, register_histogram_vec_with_registry, HistogramVec, Registry};
 use std::sync::Arc;
 use tonic::async_trait;
 use tracing::{error, info};
 use url::Url;
 
+fn create_validator_latency_histogram(registry: &Registry) -> Result<HistogramVec> {
+    let buckets = vec![0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 15.0, 30.0];
+    Ok(register_histogram_vec_with_registry!(
+        histogram_opts!(
+            "hyperlane_validator_request_duration_seconds",
+            "Latency of HTTP requests to validators",
+            buckets
+        ),
+        &["validator_host", "request_type", "status"],
+        registry
+    )?)
+}
+
 struct ProcessedWithdrawals {
-    fxg: dym_kas_core::withdraw::WithdrawFXG,
+    fxg: std::sync::Arc<dym_kas_core::withdraw::WithdrawFXG>,
     tx_ids: Vec<RpcTransactionId>,
 }
 
@@ -73,7 +86,10 @@ impl KaspaProvider {
         registry: Option<&Registry>,
     ) -> ChainResult<Self> {
         let rest = RestProvider::new(cfg.clone(), signer, metrics.clone(), chain.clone())?;
-        let validators = ValidatorsClient::new(cfg.clone())?;
+
+        let validator_metrics =
+            registry.and_then(|reg| create_validator_latency_histogram(reg).ok());
+        let validators = ValidatorsClient::new(cfg.clone(), validator_metrics)?;
 
         let easy_wallet = get_easy_wallet(
             domain.clone(),
@@ -371,7 +387,7 @@ impl KaspaProvider {
                 self.pending_confirmation
                     .push(ConfirmationFXG::from_msgs_outpoints(
                         processed.fxg.ids(),
-                        processed.fxg.anchors,
+                        processed.fxg.anchors.clone(),
                     ));
                 info!("kaspa provider: added to progress indication work queue");
 
@@ -420,11 +436,12 @@ impl KaspaProvider {
 
         info!("kaspa provider: constructed withdrawal TXs, got withdrawal FXG, now gathering sigs and signing relayer fee");
 
-        let bundles_validators = self.validators().get_withdraw_sigs(&fxg).await?;
+        let fxg_arc = std::sync::Arc::new(fxg);
+        let bundles_validators = self.validators().get_withdraw_sigs(fxg_arc.clone()).await?;
 
         let finalized = combine_bundles_with_fee(
             bundles_validators,
-            &fxg,
+            fxg_arc.as_ref(),
             self.conf.multisig_threshold_kaspa,
             &self.escrow(),
             &self.easy_wallet,
@@ -435,7 +452,10 @@ impl KaspaProvider {
 
         info!("kaspa provider: submitted TXs, now indicating progress on the Hub");
 
-        Ok(Some(ProcessedWithdrawals { fxg, tx_ids }))
+        Ok(Some(ProcessedWithdrawals {
+            fxg: fxg_arc,
+            tx_ids,
+        }))
     }
 
     async fn submit_txs(&self, txs: Vec<RpcTransaction>) -> Result<Vec<RpcTransactionId>> {

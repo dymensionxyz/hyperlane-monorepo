@@ -1,7 +1,6 @@
 use std::str::FromStr;
 
 use derive_new::new;
-use dym_kas_hardcode as hardcode;
 use url::Url;
 
 use hyperlane_core::{
@@ -58,6 +57,7 @@ pub struct RelayerStuff {
     pub tx_fee_multiplier: f64,
     pub max_sweep_inputs: Option<usize>,
     pub max_sweep_bundle_bytes: usize,
+    pub validator_request_timeout: std::time::Duration,
 }
 
 #[derive(Debug, Clone)]
@@ -68,6 +68,7 @@ pub struct RelayerDepositTimings {
     pub retry_delay_max: std::time::Duration,
     pub deposit_look_back: std::time::Duration,
     pub deposit_query_overlap: std::time::Duration,
+    pub validator_request_timeout: std::time::Duration,
 }
 
 impl Default for RelayerDepositTimings {
@@ -79,6 +80,7 @@ impl Default for RelayerDepositTimings {
             retry_delay_max: std::time::Duration::from_secs(3600),
             deposit_look_back: std::time::Duration::from_secs(0),
             deposit_query_overlap: std::time::Duration::from_secs(60 * 5),
+            validator_request_timeout: std::time::Duration::from_secs(15),
         }
     }
 }
@@ -158,15 +160,17 @@ impl ConnectionConf {
 
         let r = match validator_hosts.len() {
             0 => None,
-            _ => Some(RelayerStuff {
-                validator_hosts,
-                deposit_timings: kaspa_time_config.unwrap_or_default(),
-                tx_fee_multiplier: kas_tx_fee_multiplier,
-                max_sweep_inputs, // None by default, only enforced if configured
-                // Validator accepts 10 MB body limit. Use 8 MB for sweeping bundle
-                // to leave 2 MB margin for messages, anchors, and protobuf overhead
-                max_sweep_bundle_bytes: 8 * 1024 * 1024,
-            }),
+            _ => {
+                let deposit_timings = kaspa_time_config.unwrap_or_default();
+                Some(RelayerStuff {
+                    validator_hosts,
+                    validator_request_timeout: deposit_timings.validator_request_timeout,
+                    deposit_timings,
+                    tx_fee_multiplier: kas_tx_fee_multiplier,
+                    max_sweep_inputs,
+                    max_sweep_bundle_bytes: 8 * 1024 * 1024,
+                })
+            }
         };
 
         Self {

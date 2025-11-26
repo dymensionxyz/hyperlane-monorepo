@@ -532,6 +532,12 @@ pub fn build_kaspa_connection_conf(
                 .parse_duration()
                 .end()
                 .unwrap_or(std::time::Duration::from_secs(60 * 5)),
+            validator_request_timeout: chain
+                .chain(err)
+                .get_opt_key("validatorRequestTimeout")
+                .parse_duration()
+                .end()
+                .unwrap_or(std::time::Duration::from_secs(15)),
         })
     } else {
         None
