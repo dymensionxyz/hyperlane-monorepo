@@ -119,6 +119,9 @@ impl Mailbox for KaspaMailbox {
             .map(|op| op.try_batch().map(|item| item.data))
             .collect::<ChainResult<Vec<HyperlaneMessage>>>()?;
 
+        // TODO: there's not need for this, withdrawals are already tracked by the relaye using vanilla hyperlane tech
+        // this is just a double storage and moreover, its not at the earliest time that the relayer actually observes the mailbox
+        // on the hub..
         record_withdrawal_batch_metrics(self.provider.metrics(), &msgs, WithdrawalStage::Initiated);
 
         self.provider.hack_store_withdrawals_for_query(&msgs);
