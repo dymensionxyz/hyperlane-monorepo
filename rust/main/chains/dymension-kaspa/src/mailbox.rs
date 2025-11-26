@@ -121,9 +121,6 @@ impl Mailbox for KaspaMailbox {
 
         record_withdrawal_batch_metrics(self.provider.metrics(), &msgs, WithdrawalStage::Initiated);
 
-        // TODO: there's not need for this, withdrawals are already tracked by the relaye using vanilla hyperlane tech
-        // this is just a double storage and moreover, its not at the earliest time that the relayer actually observes the mailbox
-        // on the hub..
         self.provider.hack_store_withdrawals_for_query(&msgs);
 
         // Cannot process withdrawals while a confirmation is pending on the Hub.
@@ -142,7 +139,7 @@ impl Mailbox for KaspaMailbox {
         {
             Ok(results) => results.into_iter().map(|(msg, _)| msg).collect(),
             Err(e) => {
-                error!(error = ?e, "kaspa mailbox: failed to process withdrawals TXs");
+                error!(error = ?e, "kaspa mailbox: process withdrawals TXs");
                 record_withdrawal_batch_metrics(
                     self.provider.metrics(),
                     &msgs,

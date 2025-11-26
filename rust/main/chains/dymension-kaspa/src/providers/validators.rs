@@ -36,9 +36,8 @@ impl std::fmt::Debug for ValidatorsClient {
 
 #[async_trait]
 impl BlockNumberGetter for ValidatorsClient {
-    // TODO: needed?
     async fn get_block_number(&self) -> Result<u64, ChainCommunicationError> {
-        return ChainResult::Err(ChainCommunicationError::from_other_str("not implemented"));
+        ChainResult::Err(ChainCommunicationError::from_other_str("not implemented"))
     }
 }
 
