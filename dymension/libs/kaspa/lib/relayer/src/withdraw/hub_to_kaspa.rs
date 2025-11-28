@@ -288,21 +288,34 @@ fn create_withdrawal_pskt(
 
 /// Return outputs generated based on the provided messages. Filter out messages
 /// with dust amount.
+///
+/// Returns:
+/// - Vec of valid messages (will be processed)
+/// - Vec of transaction outputs (for valid messages)
+/// - Vec of skipped messages (dust or parse errors, should not be retried)
 pub fn get_outputs_from_msgs(
     messages: Vec<HyperlaneMessage>,
     prefix: Prefix,
     min_withdrawal_sompi: U256,
-) -> (Vec<HyperlaneMessage>, Vec<TransactionOutput>) {
+) -> (
+    Vec<HyperlaneMessage>,
+    Vec<TransactionOutput>,
+    Vec<HyperlaneMessage>,
+) {
     let mut hl_msgs: Vec<HyperlaneMessage> = Vec::new();
     let mut outputs: Vec<TransactionOutput> = Vec::new();
+    let mut skipped_msgs: Vec<HyperlaneMessage> = Vec::new();
+
     for m in messages {
         let tm = match parse_hyperlane_metadata(&m) {
             Ok(tm) => tm,
             Err(e) => {
                 info!(
                     error = %e,
-                    "kaspa relayer: skipped message, failed to parse TokenMessage from HyperlaneMessage body"
+                    message_id = ?m.id(),
+                    "kaspa relayer: permanently skipped message, failed to parse TokenMessage from HyperlaneMessage body"
                 );
+                skipped_msgs.push(m);
                 continue;
             }
         };
@@ -315,15 +328,16 @@ pub fn get_outputs_from_msgs(
             info!(
                 amount = o.value,
                 message_id = ?m.id(),
-                "kaspa relayer: skipped withdrawal, amount below minimum withdrawal threshold"
+                "kaspa relayer: permanently skipped withdrawal, amount below minimum withdrawal threshold"
             );
+            skipped_msgs.push(m);
             continue;
         }
 
         outputs.push(o);
         hl_msgs.push(m);
     }
-    (hl_msgs, outputs)
+    (hl_msgs, outputs, skipped_msgs)
 }
 
 async fn get_utxo_to_spend(

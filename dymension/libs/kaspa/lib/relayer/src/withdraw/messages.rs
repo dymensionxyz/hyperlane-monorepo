@@ -101,8 +101,8 @@ fn adjust_outputs_for_mass_limit(
     }
 }
 
-/// Processes given messages and returns WithdrawFXG and the very first outpoint
-/// (the one preceding all the given transfers; it should be used during process indication).
+/// Processes given messages and returns WithdrawFXG and skipped messages.
+/// Skipped messages are those filtered out due to dust threshold or parse errors.
 pub async fn on_new_withdrawals(
     messages: Vec<HyperlaneMessage>,
     relayer: EasyKaspaWallet,
@@ -112,7 +112,7 @@ pub async fn on_new_withdrawals(
     tx_fee_multiplier: f64,
     max_sweep_inputs: Option<usize>,
     max_sweep_bundle_bytes: usize,
-) -> Result<Option<WithdrawFXG>> {
+) -> Result<(Option<WithdrawFXG>, Vec<HyperlaneMessage>)> {
     let (current_anchor, pending_msgs) = filter_pending_withdrawals(messages, cosmos.query())
         .await
         .map_err(|e| eyre::eyre!("Get pending withdrawals: {}", e))?;
@@ -141,9 +141,9 @@ pub async fn build_withdrawal_fxg(
     tx_fee_multiplier: f64,
     max_sweep_inputs: Option<usize>,
     max_sweep_bundle_bytes: usize,
-) -> Result<Option<WithdrawFXG>> {
+) -> Result<(Option<WithdrawFXG>, Vec<HyperlaneMessage>)> {
     // Filter out dust messages and create Kaspa outputs for the rest
-    let (valid_msgs, outputs) = get_outputs_from_msgs(
+    let (valid_msgs, outputs, skipped_msgs) = get_outputs_from_msgs(
         pending_msgs,
         relayer.net.address_prefix,
         min_withdrawal_sompi,
@@ -151,7 +151,7 @@ pub async fn build_withdrawal_fxg(
 
     if outputs.is_empty() {
         info!("kaspa relayer: no valid pending withdrawals found, all in batch already processed and confirmed on hub");
-        return Ok(None); // nothing to process
+        return Ok((None, skipped_msgs)); // nothing to process
     }
 
     // Get all the UTXOs for the escrow and the relayer
@@ -185,7 +185,7 @@ pub async fn build_withdrawal_fxg(
             "Relayer has no UTXOs available. Cannot process withdrawals without relayer funds to pay transaction fees. \
             Please fund relayer address. All withdrawal operations will be marked as failed and retried later."
         );
-        return Ok(None);
+        return Ok((None, skipped_msgs));
     }
 
     let (sweeping_bundle, inputs, adjusted_outputs, adjusted_msgs) = if escrow_inputs.len()
@@ -313,11 +313,14 @@ pub async fn build_withdrawal_fxg(
         None => Bundle::from(pskt),
     };
 
-    Ok(Some(WithdrawFXG::new(
-        bundle,
-        messages,
-        vec![current_anchor, new_anchor],
-    )))
+    Ok((
+        Some(WithdrawFXG::new(
+            bundle,
+            messages,
+            vec![current_anchor, new_anchor],
+        )),
+        skipped_msgs,
+    ))
 }
 
 #[cfg(test)]

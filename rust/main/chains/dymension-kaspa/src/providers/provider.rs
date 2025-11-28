@@ -37,6 +37,7 @@ use url::Url;
 struct ProcessedWithdrawals {
     fxg: std::sync::Arc<dym_kas_core::withdraw::WithdrawFXG>,
     tx_ids: Vec<RpcTransactionId>,
+    skipped_msgs: Vec<HyperlaneMessage>,
 }
 
 #[derive(Debug, Clone)]
@@ -387,6 +388,12 @@ impl KaspaProvider {
                     }
                 }
 
+                // Include skipped messages (dust/parse errors) with empty tx_id
+                // This prevents them from being marked as failed and retried
+                for msg in processed.skipped_msgs {
+                    result.push((msg, String::new()));
+                }
+
                 self.hack_store_withdrawals_kaspa_tx_for_query(&result);
 
                 Ok(result)
@@ -406,7 +413,7 @@ impl KaspaProvider {
         &self,
         msgs: Vec<HyperlaneMessage>,
     ) -> Result<Option<ProcessedWithdrawals>> {
-        let fxg = match on_new_withdrawals(
+        let (fxg_opt, skipped_msgs) = on_new_withdrawals(
             msgs.clone(),
             self.easy_wallet.clone(),
             self.cosmos_rpc.clone(),
@@ -416,10 +423,24 @@ impl KaspaProvider {
             self.must_relayer_stuff().max_sweep_inputs,
             self.must_relayer_stuff().max_sweep_bundle_bytes,
         )
-        .await?
-        {
+        .await?;
+
+        let fxg = match fxg_opt {
             Some(fxg) => fxg,
-            None => return Ok(None),
+            None => {
+                return Ok(skipped_msgs
+                    .is_empty()
+                    .then_some(())
+                    .map(|_| ProcessedWithdrawals {
+                        fxg: std::sync::Arc::new(dym_kas_core::withdraw::WithdrawFXG::new(
+                            kaspa_wallet_pskt::bundle::Bundle::new(),
+                            vec![],
+                            vec![],
+                        )),
+                        tx_ids: vec![],
+                        skipped_msgs,
+                    }))
+            }
         };
 
         info!("kaspa provider: constructed withdrawal TXs, got withdrawal FXG, now gathering sigs and signing relayer fee");
@@ -443,6 +464,7 @@ impl KaspaProvider {
         Ok(Some(ProcessedWithdrawals {
             fxg: fxg_arc,
             tx_ids,
+            skipped_msgs,
         }))
     }
 
