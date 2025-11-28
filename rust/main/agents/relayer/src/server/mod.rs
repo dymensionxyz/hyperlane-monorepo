@@ -2,12 +2,14 @@ use std::collections::HashMap;
 use std::env;
 use std::sync::Arc;
 
-use axum::Router;
+use axum::{routing::get, Json, Router};
 use derive_new::new;
 use hyperlane_core::HyperlaneDomain;
+use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast::Sender;
 
 use hyperlane_base::db::HyperlaneRocksDB;
+use hyperlane_base::AgentMetadata;
 use hyperlane_core::KaspaDb;
 use tokio::sync::RwLock;
 
@@ -16,6 +18,11 @@ use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::op_queue::OperationPriorityQueue;
 use crate::msg::pending_message::MessageContext;
 use crate::server::environment_variable::EnvironmentVariableApi;
+
+#[derive(Serialize, Deserialize, Debug)]
+struct VersionResponse {
+    git_sha: String,
+}
 
 pub const ENDPOINT_MESSAGES_QUEUE_SIZE: usize = 100;
 
@@ -45,6 +52,8 @@ pub struct Server {
     prover_syncs: Option<HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>>,
     #[new(default)]
     kaspa_db: Option<Arc<dyn KaspaDb>>,
+    #[new(default)]
+    metadata: Option<Arc<AgentMetadata>>,
 }
 
 impl Server {
@@ -92,6 +101,11 @@ impl Server {
         self
     }
 
+    pub fn with_metadata(mut self, metadata: Arc<AgentMetadata>) -> Self {
+        self.metadata = Some(metadata);
+        self
+    }
+
     // return a custom router that can be used in combination with other routers
     pub fn router(self) -> Router {
         let mut router = Router::new();
@@ -136,6 +150,17 @@ impl Server {
         if expose_environment_variable_endpoint {
             router = router.merge(EnvironmentVariableApi::new().router());
         }
+
+        if let Some(metadata) = self.metadata {
+            let version_handler = get(move || async move {
+                let response = VersionResponse {
+                    git_sha: metadata.git_sha.clone(),
+                };
+                Json(response)
+            });
+            router = router.route("/version", version_handler);
+        }
+
         router
     }
 }

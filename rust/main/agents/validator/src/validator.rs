@@ -66,9 +66,9 @@ pub struct Validator {
 }
 
 /// Metadata for `validator`
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct ValidatorMetadata {
-    git_sha: String,
+    pub git_sha: String,
     rpcs: Vec<H256>,
     allows_public_rpcs: bool,
 }
@@ -210,6 +210,7 @@ impl BaseAgent for Validator {
             .merge(validator_server::router(
                 self.origin_chain.clone(),
                 self.core.metrics.clone(),
+                Arc::new(self.agent_metadata.clone()),
             ))
             .merge(
                 merkle_tree_insertions::list_merkle_tree_insertions::ServerState::new(

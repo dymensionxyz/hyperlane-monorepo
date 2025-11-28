@@ -100,6 +100,7 @@ pub struct Relayer {
     agent_metrics: AgentMetrics,
     chain_metrics: ChainMetrics,
     runtime_metrics: RuntimeMetrics,
+    agent_metadata: AgentMetadata,
     /// Tokio console server
     pub tokio_console_server: Option<console_subscriber::Server>,
     dymension_kaspa_args: Option<DymensionKaspaArgs>,
@@ -136,7 +137,7 @@ impl BaseAgent for Relayer {
     type Metadata = AgentMetadata;
 
     async fn from_settings(
-        _agent_metadata: Self::Metadata,
+        agent_metadata: Self::Metadata,
         settings: Self::Settings,
         core_metrics: Arc<CoreMetrics>,
         agent_metrics: AgentMetrics,
@@ -298,6 +299,7 @@ impl BaseAgent for Relayer {
             agent_metrics,
             chain_metrics,
             runtime_metrics,
+            agent_metadata,
             tokio_console_server: Some(tokio_console_server),
             dymension_kaspa_args: dymension_args,
             origins,
@@ -581,6 +583,7 @@ impl BaseAgent for Relayer {
                     .as_ref()
                     .and_then(|dym_args| dym_args.kas_provider.kaspa_db().cloned()),
             ) // Set kaspa_db to server_builder from dymension_args provider if available
+            .with_metadata(Arc::new(self.agent_metadata.clone()))
             .router();
 
         let server = self
