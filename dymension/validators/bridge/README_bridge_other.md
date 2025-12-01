@@ -52,7 +52,8 @@ Fund the `hyperlane-announcement` key with a small amount of DYM tokens (<1 DYM)
         "signer": {
           "type": "cosmosKey",
           "prefix": "dym",
-          "key": "0x485a13000989c3dfe8f0981c9858447a84f0b24c5b0757c06c7daeffae894555"
+          "key": "0x485a13000989c3dfe8f0981c9858447a84f0b24c5b0757c06c7daeffae894555",
+          "accountAddressType": "Bitcoin"
         }
 ```
 - [Configure S3 Bucket](https://docs.hyperlane.xyz/docs/operate/validators/validator-signatures-aws) and set
