@@ -52,7 +52,6 @@ struct VersionResponse {
 #[derive(Serialize)]
 struct ValidatorInfoResponse {
     ism_address: String,
-    kaspa_pubkey: Option<String>,
 }
 
 #[derive(Clone)]
@@ -201,11 +200,7 @@ async fn respond_validator_info<
 ) -> HandlerResult<Json<ValidatorInfoResponse>> {
     info!("validator: info requested");
     let ism_address = format!("{:?}", res.must_signing().ism_address());
-    let kaspa_pubkey = res.get_kaspa_pubkey().await;
-    Ok(Json(ValidatorInfoResponse {
-        ism_address,
-        kaspa_pubkey,
-    }))
+    Ok(Json(ValidatorInfoResponse { ism_address }))
 }
 
 #[derive(Clone)]
@@ -268,27 +263,6 @@ impl<
             .unwrap()
             .grpc_client()
             .expect("gRPC client required for validator")
-    }
-
-    async fn get_kaspa_pubkey(&self) -> Option<String> {
-        let kas_key_source = self.kas_key_source();
-        let keypair_result: Result<KaspaSecpKeypair, eyre::Report> = match &kas_key_source {
-            crate::conf::KaspaEscrowKeySource::Direct(json_str) => serde_json::from_str(json_str)
-                .map_err(|e| eyre::eyre!("parse Kaspa keypair from JSON: {}", e)),
-            crate::conf::KaspaEscrowKeySource::Aws(aws_config) => {
-                dym_kas_kms::load_kaspa_keypair_from_aws(aws_config)
-                    .await
-                    .map_err(|e| eyre::eyre!("load Kaspa keypair from AWS: {}", e))
-            }
-        };
-
-        match keypair_result {
-            Ok(keypair) => Some(keypair.public_key().to_string()),
-            Err(e) => {
-                error!("get Kaspa public key: {}", e);
-                None
-            }
-        }
     }
 }
 
