@@ -23,7 +23,9 @@ use hyperlane_core::{
     Checkpoint, CheckpointWithMessageId, HyperlaneSignerExt, Signable,
     SignedCheckpointWithMessageId, H256,
 };
-use hyperlane_core::{HyperlaneChain, HyperlaneDomain, Signature as HLCoreSignature};
+use hyperlane_core::{
+    HyperlaneChain, HyperlaneDomain, HyperlaneSigner, Signature as HLCoreSignature,
+};
 use hyperlane_cosmos::{native::ModuleQueryClient, CosmosProvider};
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
 use hyperlane_cosmos_rs::prost::Message;
@@ -47,18 +49,24 @@ struct VersionResponse {
     git_sha: String,
 }
 
+#[derive(Serialize)]
+struct ValidatorInfoResponse {
+    ism_address: String,
+    kaspa_pubkey: Option<String>,
+}
+
 #[derive(Clone)]
 pub struct ValidatorISMSigningResources<
-    S: HyperlaneSignerExt + Send + Sync + 'static,
-    H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
+    S: HyperlaneSigner + HyperlaneSignerExt + Send + Sync + 'static,
+    H: HyperlaneSigner + HyperlaneSignerExt + Clone + Send + Sync + 'static,
 > {
     direct_signer: Arc<S>,
     singleton_signer: H,
 }
 
 impl<
-        S: HyperlaneSignerExt + Send + Sync + 'static,
-        H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
+        S: HyperlaneSigner + HyperlaneSignerExt + Send + Sync + 'static,
+        H: HyperlaneSigner + HyperlaneSignerExt + Clone + Send + Sync + 'static,
     > ValidatorISMSigningResources<S, H>
 {
     pub fn new(direct_signer: Arc<S>, singleton_signer: H) -> Self {
@@ -88,6 +96,10 @@ impl<
         }
 
         Ok(self.singleton_signer.sign(signable).await?)
+    }
+
+    pub fn ism_address(&self) -> hyperlane_core::H160 {
+        self.singleton_signer.eth_address()
     }
 }
 
@@ -126,8 +138,8 @@ impl IntoResponse for AppError {
 type HandlerResult<T> = Result<T, AppError>;
 
 pub fn router<
-    S: HyperlaneSignerExt + Send + Sync + 'static,
-    H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
+    S: HyperlaneSigner + HyperlaneSignerExt + Send + Sync + 'static,
+    H: HyperlaneSigner + HyperlaneSignerExt + Clone + Send + Sync + 'static,
 >(
     resources: ValidatorServerResources<S, H>,
 ) -> Router {
@@ -155,13 +167,14 @@ pub fn router<
             post(respond_kaspa_ping::<S, H>).layer(RequestBodyLimitLayer::new(DEFAULT_BODY_LIMIT)),
         )
         .route("/version", get(respond_version::<S, H>))
+        .route("/validator-info", get(respond_validator_info::<S, H>))
         .layer(DefaultBodyLimit::disable())
         .with_state(Arc::new(resources))
 }
 
 async fn respond_kaspa_ping<
-    S: HyperlaneSignerExt + Send + Sync + 'static,
-    H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
+    S: HyperlaneSigner + HyperlaneSignerExt + Send + Sync + 'static,
+    H: HyperlaneSigner + HyperlaneSignerExt + Clone + Send + Sync + 'static,
 >(
     State(_): State<Arc<ValidatorServerResources<S, H>>>,
     _body: Bytes,
@@ -171,8 +184,8 @@ async fn respond_kaspa_ping<
 }
 
 async fn respond_version<
-    S: HyperlaneSignerExt + Send + Sync + 'static,
-    H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
+    S: HyperlaneSigner + HyperlaneSignerExt + Send + Sync + 'static,
+    H: HyperlaneSigner + HyperlaneSignerExt + Clone + Send + Sync + 'static,
 >(
     State(_): State<Arc<ValidatorServerResources<S, H>>>,
 ) -> HandlerResult<Json<VersionResponse>> {
@@ -180,18 +193,33 @@ async fn respond_version<
     Ok(Json(VersionResponse { git_sha: git_sha() }))
 }
 
+async fn respond_validator_info<
+    S: HyperlaneSigner + HyperlaneSignerExt + Send + Sync + 'static,
+    H: HyperlaneSigner + HyperlaneSignerExt + Clone + Send + Sync + 'static,
+>(
+    State(res): State<Arc<ValidatorServerResources<S, H>>>,
+) -> HandlerResult<Json<ValidatorInfoResponse>> {
+    info!("validator: info requested");
+    let ism_address = format!("{:?}", res.must_signing().ism_address());
+    let kaspa_pubkey = res.get_kaspa_pubkey().await;
+    Ok(Json(ValidatorInfoResponse {
+        ism_address,
+        kaspa_pubkey,
+    }))
+}
+
 #[derive(Clone)]
 pub struct ValidatorServerResources<
-    S: HyperlaneSignerExt + Send + Sync + 'static,
-    H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
+    S: HyperlaneSigner + HyperlaneSignerExt + Send + Sync + 'static,
+    H: HyperlaneSigner + HyperlaneSignerExt + Clone + Send + Sync + 'static,
 > {
     signing: Option<ValidatorISMSigningResources<S, H>>,
     kas_provider: Option<Box<KaspaProvider>>,
 }
 
 impl<
-        S: HyperlaneSignerExt + Send + Sync + 'static,
-        H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
+        S: HyperlaneSigner + HyperlaneSignerExt + Send + Sync + 'static,
+        H: HyperlaneSigner + HyperlaneSignerExt + Clone + Send + Sync + 'static,
     > ValidatorServerResources<S, H>
 {
     pub fn new(
@@ -241,11 +269,32 @@ impl<
             .grpc_client()
             .expect("gRPC client required for validator")
     }
+
+    async fn get_kaspa_pubkey(&self) -> Option<String> {
+        let kas_key_source = self.kas_key_source();
+        let keypair_result: Result<KaspaSecpKeypair, eyre::Report> = match &kas_key_source {
+            crate::conf::KaspaEscrowKeySource::Direct(json_str) => serde_json::from_str(json_str)
+                .map_err(|e| eyre::eyre!("parse Kaspa keypair from JSON: {}", e)),
+            crate::conf::KaspaEscrowKeySource::Aws(aws_config) => {
+                dym_kas_kms::load_kaspa_keypair_from_aws(aws_config)
+                    .await
+                    .map_err(|e| eyre::eyre!("load Kaspa keypair from AWS: {}", e))
+            }
+        };
+
+        match keypair_result {
+            Ok(keypair) => Some(keypair.public_key().to_string()),
+            Err(e) => {
+                error!("get Kaspa public key: {}", e);
+                None
+            }
+        }
+    }
 }
 
 impl<
-        S: HyperlaneSignerExt + Send + Sync + 'static,
-        H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
+        S: HyperlaneSigner + HyperlaneSignerExt + Send + Sync + 'static,
+        H: HyperlaneSigner + HyperlaneSignerExt + Clone + Send + Sync + 'static,
     > Default for ValidatorServerResources<S, H>
 {
     fn default() -> Self {
@@ -257,8 +306,8 @@ impl<
 }
 
 async fn respond_validate_new_deposits<
-    S: HyperlaneSignerExt + Send + Sync + 'static,
-    H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
+    S: HyperlaneSigner + HyperlaneSignerExt + Send + Sync + 'static,
+    H: HyperlaneSigner + HyperlaneSignerExt + Clone + Send + Sync + 'static,
 >(
     State(res): State<Arc<ValidatorServerResources<S, H>>>,
     body: Bytes,
@@ -316,8 +365,8 @@ async fn respond_validate_new_deposits<
 }
 
 async fn respond_sign_pskts<
-    S: HyperlaneSignerExt + Send + Sync + 'static,
-    H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
+    S: HyperlaneSigner + HyperlaneSignerExt + Send + Sync + 'static,
+    H: HyperlaneSigner + HyperlaneSignerExt + Clone + Send + Sync + 'static,
 >(
     State(res): State<Arc<ValidatorServerResources<S, H>>>,
     body: Bytes,
@@ -438,8 +487,8 @@ impl Signable for SignableProgressIndication {
 }
 
 async fn respond_validate_confirmed_withdrawals<
-    S: HyperlaneSignerExt + Send + Sync + 'static,
-    H: HyperlaneSignerExt + Clone + Send + Sync + 'static,
+    S: HyperlaneSigner + HyperlaneSignerExt + Send + Sync + 'static,
+    H: HyperlaneSigner + HyperlaneSignerExt + Clone + Send + Sync + 'static,
 >(
     State(res): State<Arc<ValidatorServerResources<S, H>>>,
     body: Bytes,
