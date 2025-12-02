@@ -549,7 +549,6 @@ where
 
         let utxos = self
             .provider
-            .rpc()
             .get_utxos_by_addresses(vec![escrow_addr.clone()])
             .await?;
 

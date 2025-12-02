@@ -601,6 +601,22 @@ impl KaspaProvider {
     pub async fn wallet_net(&self) -> dym_kas_core::wallet::NetworkInfo {
         self.easy_wallet.read().await.net.clone()
     }
+
+    /// Get UTXOs by addresses with automatic reconnection on WebSocket errors
+    pub async fn get_utxos_by_addresses(
+        &self,
+        addresses: Vec<kaspa_addresses::Address>,
+    ) -> Result<Vec<kaspa_rpc_core::RpcUtxosByAddressesEntry>> {
+        self.rpc_with_reconnect(move |rpc| {
+            let addrs = addresses.clone();
+            async move {
+                rpc.get_utxos_by_addresses(addrs)
+                    .await
+                    .map_err(|e| eyre::eyre!("get UTXOs by addresses: {}", e))
+            }
+        })
+        .await
+    }
 }
 
 impl std::fmt::Debug for KaspaProvider {
