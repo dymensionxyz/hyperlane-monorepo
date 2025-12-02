@@ -77,7 +77,6 @@ impl ValidatorsClient {
             + 'static,
         V: Fn(usize, &String, &T) -> bool + Send + Sync + 'static,
     {
-    
         let mut futures: FuturesUnordered<_> = hosts
             .iter()
             .enumerate()
@@ -211,52 +210,57 @@ impl ValidatorsClient {
         let metrics = self.metrics.clone();
         let fxg = fxg.clone();
 
-        let validator =
-            move |index: usize,
-                  host: &String,
-                  signed_checkpoint: &SignedCheckpointWithMessageId| {
-                if let Some(expected) = expected_addresses.get(index) {
-                    match H160::from_str(expected) {
-                        Ok(expected_h160) => match signed_checkpoint.recover() {
-                            Ok(recovered_signer) => {
-                                if recovered_signer != expected_h160 {
+        let validator = if expected_addresses.is_empty() {
+            None
+        } else {
+            Some(
+                move |index: usize,
+                      host: &String,
+                      signed_checkpoint: &SignedCheckpointWithMessageId| {
+                    if let Some(expected) = expected_addresses.get(index) {
+                        match H160::from_str(expected) {
+                            Ok(expected_h160) => match signed_checkpoint.recover() {
+                                Ok(recovered_signer) => {
+                                    if recovered_signer != expected_h160 {
+                                        error!(
+                                            validator = ?host,
+                                            validator_index = index,
+                                            expected_signer = ?expected_h160,
+                                            actual_signer = ?recovered_signer,
+                                            "kaspa: signature verification failed - signer mismatch"
+                                        );
+                                        false
+                                    } else {
+                                        true
+                                    }
+                                }
+                                Err(e) => {
                                     error!(
                                         validator = ?host,
                                         validator_index = index,
-                                        expected_signer = ?expected_h160,
-                                        actual_signer = ?recovered_signer,
-                                        "kaspa: signature verification failed - signer mismatch"
+                                        error = ?e,
+                                        "kaspa: failed to recover signer from signature"
                                     );
                                     false
-                                } else {
-                                    true
                                 }
-                            }
+                            },
                             Err(e) => {
                                 error!(
                                     validator = ?host,
                                     validator_index = index,
+                                    expected_address = ?expected,
                                     error = ?e,
-                                    "kaspa: failed to recover signer from signature"
+                                    "kaspa: failed to parse expected ISM address"
                                 );
                                 false
                             }
-                        },
-                        Err(e) => {
-                            error!(
-                                validator = ?host,
-                                validator_index = index,
-                                expected_address = ?expected,
-                                error = ?e,
-                                "kaspa: failed to parse expected ISM address"
-                            );
-                            false
                         }
+                    } else {
+                        true
                     }
-                } else {
-                    true
-                }
-            };
+                },
+            )
+        };
 
         Self::collect_with_threshold(
             hosts,
@@ -268,7 +272,7 @@ impl ValidatorsClient {
                 let fxg = fxg.clone();
                 Box::pin(async move { request_validate_new_deposits(&client, host, &fxg).await })
             },
-            Some(validator),
+            validator,
         )
         .await
     }
