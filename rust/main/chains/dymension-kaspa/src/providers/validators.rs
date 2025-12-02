@@ -240,12 +240,6 @@ impl ValidatorsClient {
                                     );
                                     false
                                 } else {
-                                    debug!(
-                                        validator = ?host,
-                                        validator_index = index,
-                                        signer = ?recovered_signer,
-                                        "kaspa: signature verified successfully"
-                                    );
                                     true
                                 }
                             }
