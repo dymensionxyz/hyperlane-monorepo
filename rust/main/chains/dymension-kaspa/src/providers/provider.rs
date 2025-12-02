@@ -332,7 +332,7 @@ impl KaspaProvider {
         &self.rest
     }
 
-    pub async fn rpc(&self) -> Arc<DynRpcApi> {
+    async fn rpc(&self) -> Arc<DynRpcApi> {
         let wallet = self.easy_wallet.read().await;
         wallet.api()
     }
