@@ -32,7 +32,7 @@ use prometheus::Registry;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tonic::async_trait;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 use url::Url;
 
 struct ProcessedWithdrawals {
@@ -366,7 +366,7 @@ impl KaspaProvider {
     }
 
     /// Execute RPC operation with automatic reconnection on error
-    async fn rpc_with_reconnect<T, F, Fut>(&self, op_name: &str, op: F) -> Result<T>
+    async fn rpc_with_reconnect<T, F, Fut>(&self, op: F) -> Result<T>
     where
         F: Fn(Arc<DynRpcApi>) -> Fut,
         Fut: std::future::Future<Output = Result<T>>,
@@ -379,18 +379,8 @@ impl KaspaProvider {
                 if err_str.contains("WebSocket is not connected")
                     || err_str.contains("not connected")
                 {
-                    warn!(
-                        operation = op_name,
-                        error = %e,
-                        "kaspa: WRPC connection error, recreating and retrying"
-                    );
-
                     if let Err(recreate_err) = self.recreate_wallet_connection().await {
-                        error!(
-                            operation = op_name,
-                            recreate_error = %recreate_err,
-                            "kaspa: failed to recreate WRPC connection"
-                        );
+                        error!(recreate_error = %recreate_err, "kaspa: failed to recreate WRPC connection");
                         return Err(e);
                     }
 
@@ -530,7 +520,7 @@ impl KaspaProvider {
             let allow_orphan = false;
             let tx_clone = tx.clone();
             let tx_id = self
-                .rpc_with_reconnect("submit_transaction", move |rpc| {
+                .rpc_with_reconnect(move |rpc| {
                     let tx = tx_clone.clone();
                     async move {
                         rpc.submit_transaction(tx, allow_orphan)
@@ -552,7 +542,7 @@ impl KaspaProvider {
     pub async fn update_balance_metrics(&self) -> Result<()> {
         let escrow_addr = self.escrow_address();
         let utxos = self
-            .rpc_with_reconnect("get_utxos_by_addresses", move |rpc| {
+            .rpc_with_reconnect(move |rpc| {
                 let addr = escrow_addr.clone();
                 async move {
                     rpc.get_utxos_by_addresses(vec![addr])
@@ -574,7 +564,7 @@ impl KaspaProvider {
             wallet.account().change_address()?
         };
         let change_utxos = self
-            .rpc_with_reconnect("get_utxos_by_addresses", move |rpc| {
+            .rpc_with_reconnect(move |rpc| {
                 let addr = change_addr.clone();
                 async move {
                     rpc.get_utxos_by_addresses(vec![addr])
