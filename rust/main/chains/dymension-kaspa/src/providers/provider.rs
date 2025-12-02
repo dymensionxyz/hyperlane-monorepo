@@ -347,8 +347,6 @@ impl KaspaProvider {
 
     /// Recreate the WRPC wallet connection
     async fn recreate_wallet_connection(&self) -> Result<()> {
-        info!("kaspa: recreating WRPC wallet connection");
-
         let new_wallet = get_easy_wallet(
             self.domain.clone(),
             self.conf.kaspa_urls_wrpc[0].clone(),
@@ -361,7 +359,7 @@ impl KaspaProvider {
         let mut wallet = self.easy_wallet.write().await;
         *wallet = new_wallet;
 
-        info!("kaspa: successfully recreated WRPC wallet connection");
+        info!("kaspa: recreated WRPC wallet connection");
         Ok(())
     }
 

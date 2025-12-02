@@ -143,13 +143,12 @@ impl EasyKaspaWallet {
 
     /// Reconnect the wallet's WRPC connection
     pub async fn reconnect(&self) -> Result<()> {
-        info!("kaspa: reconnecting WRPC");
         self.wallet
             .clone()
             .connect(Some(self.net.rpc_url.clone()), &self.net.network_id)
             .await
             .map_err(|e| eyre::eyre!("reconnect WRPC: {}", e))?;
-        info!("kaspa: successfully reconnected WRPC");
+        info!("kaspa: reconnected WRPC");
         Ok(())
     }
 
