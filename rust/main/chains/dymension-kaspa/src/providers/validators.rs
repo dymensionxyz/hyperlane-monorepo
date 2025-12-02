@@ -77,13 +77,7 @@ impl ValidatorsClient {
             + 'static,
         V: Fn(usize, &String, &T) -> bool + Send + Sync + 'static,
     {
-        info!(
-            validators_count = hosts.len(),
-            threshold = threshold,
-            request_type = request_type,
-            "kaspa: collecting validator responses"
-        );
-
+    
         let mut futures: FuturesUnordered<_> = hosts
             .iter()
             .enumerate()
@@ -143,13 +137,6 @@ impl ValidatorsClient {
                             tokio::spawn(async move {
                                 while let Some((_, host, result, duration)) = futures.next().await {
                                     let status = if result.is_ok() { "success" } else { "failure" };
-                                    debug!(
-                                        validator = ?host,
-                                        duration_ms = duration.as_millis(),
-                                        status = status,
-                                        request_type = %request_type_owned,
-                                        "kaspa: background validator response"
-                                    );
                                     if let Err(e) = result {
                                         error!(
                                             validator = ?host,
@@ -224,11 +211,13 @@ impl ValidatorsClient {
         let metrics = self.metrics.clone();
         let fxg = fxg.clone();
 
-        let validator = move |index: usize, host: &String, signed_checkpoint: &SignedCheckpointWithMessageId| {
-            if let Some(expected) = expected_addresses.get(index) {
-                match H160::from_str(expected) {
-                    Ok(expected_h160) => {
-                        match signed_checkpoint.recover() {
+        let validator =
+            move |index: usize,
+                  host: &String,
+                  signed_checkpoint: &SignedCheckpointWithMessageId| {
+                if let Some(expected) = expected_addresses.get(index) {
+                    match H160::from_str(expected) {
+                        Ok(expected_h160) => match signed_checkpoint.recover() {
                             Ok(recovered_signer) => {
                                 if recovered_signer != expected_h160 {
                                     error!(
@@ -252,23 +241,22 @@ impl ValidatorsClient {
                                 );
                                 false
                             }
+                        },
+                        Err(e) => {
+                            error!(
+                                validator = ?host,
+                                validator_index = index,
+                                expected_address = ?expected,
+                                error = ?e,
+                                "kaspa: failed to parse expected ISM address"
+                            );
+                            false
                         }
                     }
-                    Err(e) => {
-                        error!(
-                            validator = ?host,
-                            validator_index = index,
-                            expected_address = ?expected,
-                            error = ?e,
-                            "kaspa: failed to parse expected ISM address"
-                        );
-                        false
-                    }
+                } else {
+                    true
                 }
-            } else {
-                true
-            }
-        };
+            };
 
         Self::collect_with_threshold(
             hosts,
@@ -303,7 +291,9 @@ impl ValidatorsClient {
             move |host| {
                 let client = client.clone();
                 let fxg = fxg.clone();
-                Box::pin(async move { request_validate_new_confirmation(&client, host, &fxg).await })
+                Box::pin(
+                    async move { request_validate_new_confirmation(&client, host, &fxg).await },
+                )
             },
             None::<fn(usize, &String, &Signature) -> bool>,
         )
@@ -324,9 +314,9 @@ impl ValidatorsClient {
             move |host| {
                 let client = client.clone();
                 let fxg = fxg.clone();
-                Box::pin(
-                    async move { request_sign_withdrawal_bundle(&client, host, fxg.as_ref()).await },
-                )
+                Box::pin(async move {
+                    request_sign_withdrawal_bundle(&client, host, fxg.as_ref()).await
+                })
             },
             None::<fn(usize, &String, &Bundle) -> bool>,
         )
