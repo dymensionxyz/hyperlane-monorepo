@@ -63,11 +63,8 @@ pub struct KaspaProvider {
     /// gRPC client for validator operations (None for relayer)
     grpc_client: Option<kaspa_grpc_client::GrpcClient>,
 
-    /// Cached address prefix from wallet network (doesn't change)
-    address_prefix: kaspa_addresses::Prefix,
-
-    /// Cached network info from wallet (doesn't change)
-    network_info: dym_kas_core::wallet::NetworkInfo,
+    /// Cached escrow public (immutable, computed from config)
+    escrow: EscrowPublic,
 }
 
 impl KaspaProvider {
@@ -132,8 +129,11 @@ impl KaspaProvider {
             None
         };
 
-        let address_prefix = easy_wallet.net.address_prefix;
-        let network_info = easy_wallet.net.clone();
+        let escrow = EscrowPublic::from_strs(
+            cfg.validator_pub_keys.clone(),
+            easy_wallet.net.address_prefix,
+            cfg.multisig_threshold_kaspa as u8,
+        );
 
         let provider = KaspaProvider {
             domain: domain.clone(),
@@ -147,8 +147,7 @@ impl KaspaProvider {
             metrics: kaspa_metrics,
             kaspa_db: None,
             grpc_client,
-            address_prefix,
-            network_info,
+            escrow,
         };
 
         if let Err(e) = provider.update_balance_metrics().await {
@@ -592,11 +591,7 @@ impl KaspaProvider {
     }
 
     pub fn escrow(&self) -> EscrowPublic {
-        EscrowPublic::from_strs(
-            self.conf.validator_pub_keys.clone(),
-            self.address_prefix,
-            self.conf.multisig_threshold_kaspa as u8,
-        )
+        self.escrow.clone()
     }
 
     pub fn escrow_address(&self) -> Address {
@@ -607,14 +602,14 @@ impl KaspaProvider {
         &self.metrics
     }
 
-    /// Get the address prefix from the cached value
-    pub fn address_prefix(&self) -> kaspa_addresses::Prefix {
-        self.address_prefix
+    /// Get the address prefix from the wallet
+    pub async fn address_prefix(&self) -> kaspa_addresses::Prefix {
+        self.easy_wallet.read().await.net.address_prefix
     }
 
-    /// Get the wallet network info from the cached value
-    pub fn wallet_net(&self) -> &dym_kas_core::wallet::NetworkInfo {
-        &self.network_info
+    /// Get the wallet network info (cloned)
+    pub async fn wallet_net(&self) -> dym_kas_core::wallet::NetworkInfo {
+        self.easy_wallet.read().await.net.clone()
     }
 }
 
@@ -622,9 +617,8 @@ impl std::fmt::Debug for KaspaProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("KaspaProvider")
             .field("domain", &self.domain)
-            .field("address_prefix", &self.address_prefix)
-            .field("network_info", &self.network_info)
             .field("easy_wallet", &"<RwLock<EasyKaspaWallet>>")
+            .field("escrow", &self.escrow)
             .finish()
     }
 }
