@@ -63,7 +63,10 @@ pub struct KaspaProvider {
     /// gRPC client for validator operations (None for relayer)
     grpc_client: Option<kaspa_grpc_client::GrpcClient>,
 
-    /// Cached escrow public (immutable, computed from config)
+    /// Cached escrow public key data computed from validator_pub_keys and address_prefix.
+    /// Cached because easy_wallet is wrapped in RwLock for reconnection support, so we
+    /// can't synchronously access wallet.net.address_prefix needed for EscrowPublic::from_strs().
+    /// This escrow data is immutable and determined entirely by config at initialization.
     escrow: EscrowPublic,
 }
 
