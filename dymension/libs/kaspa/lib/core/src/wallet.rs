@@ -128,11 +128,6 @@ impl EasyKaspaWallet {
         })
     }
 
-    /// Get the raw RPC API without reconnection protection.
-    ///
-    /// WARNING: Direct use of this method bypasses automatic reconnection.
-    /// Prefer using `rpc_with_reconnect()` instead to ensure resilience
-    /// to WebSocket disconnections.
     pub fn api(&self) -> Arc<DynRpcApi> {
         self.wallet.rpc_api()
     }
