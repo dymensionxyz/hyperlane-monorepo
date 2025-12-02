@@ -493,10 +493,7 @@ impl KaspaProvider {
         let fxg_arc = std::sync::Arc::new(fxg);
         let bundles_validators = self.validators().get_withdraw_sigs(fxg_arc.clone()).await?;
 
-        let wallet_for_fee = {
-            let wallet = self.easy_wallet.read().await;
-            wallet.clone()
-        };
+        let wallet_for_fee = self.clone_wallet().await;
         let finalized = combine_bundles_with_fee(
             bundles_validators,
             fxg_arc.as_ref(),
@@ -562,10 +559,7 @@ impl KaspaProvider {
         self.metrics().update_escrow_utxo_count(utxos.len() as i64);
 
         // Get change address balance
-        let change_addr = {
-            let wallet = self.easy_wallet.read().await;
-            wallet.account().change_address()?
-        };
+        let change_addr = self.clone_wallet().await.account().change_address()?;
         let change_utxos = self
             .rpc_with_reconnect(move |rpc| {
                 let addr = change_addr.clone();
