@@ -393,6 +393,12 @@ impl KaspaProvider {
         }
     }
 
+    /// Clone the wallet under read lock
+    async fn clone_wallet(&self) -> dym_kas_core::wallet::EasyKaspaWallet {
+        let wallet = self.easy_wallet.read().await;
+        wallet.clone()
+    }
+
     pub fn must_validator_stuff(&self) -> &ValidatorStuff {
         self.conf.validator_stuff.as_ref().unwrap()
     }
@@ -465,10 +471,7 @@ impl KaspaProvider {
         &self,
         msgs: Vec<HyperlaneMessage>,
     ) -> Result<Option<ProcessedWithdrawals>> {
-        let wallet_clone = {
-            let wallet = self.easy_wallet.read().await;
-            wallet.clone()
-        };
+        let wallet_clone = self.clone_wallet().await;
         let fxg = match on_new_withdrawals(
             msgs.clone(),
             wallet_clone,
