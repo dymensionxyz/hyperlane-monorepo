@@ -82,6 +82,8 @@ pub struct MessageContext {
     pub metrics: MessageSubmissionMetrics,
     /// Application operation verifier
     pub application_operation_verifier: Arc<dyn ApplicationOperationVerifier>,
+    /// Maximum message backoff time in seconds. If None, no cap is applied.
+    pub max_message_backoff_seconds: Option<u64>,
 }
 
 /// A message that is pending processing and submission.
@@ -626,17 +628,23 @@ impl PendingMessage {
     ) -> Option<Self> {
         let num_retries = Self::get_retries_or_skip(ctx.origin_db.clone(), &message, max_retries)?;
         let message_status = Self::get_message_status(ctx.origin_db.clone(), &message);
+        let max_backoff_seconds = ctx.max_message_backoff_seconds;
         let mut pending_message = Self::new(message, ctx, message_status, app_context, max_retries);
         if num_retries > 0 {
-            let next_attempt_after = Self::next_attempt_after(num_retries, max_retries);
+            let next_attempt_after =
+                Self::next_attempt_after(num_retries, max_retries, max_backoff_seconds);
             pending_message.num_retries = num_retries;
             pending_message.next_attempt_after = next_attempt_after;
         }
         Some(pending_message)
     }
 
-    fn next_attempt_after(num_retries: u32, max_retries: u32) -> Option<Instant> {
-        PendingMessage::calculate_msg_backoff(num_retries, max_retries, None)
+    fn next_attempt_after(
+        num_retries: u32,
+        max_retries: u32,
+        max_backoff_seconds: Option<u64>,
+    ) -> Option<Instant> {
+        PendingMessage::calculate_msg_backoff(num_retries, max_retries, None, max_backoff_seconds)
             .and_then(|dur| Instant::now().checked_add(dur))
     }
 
@@ -933,6 +941,7 @@ impl PendingMessage {
             self.num_retries,
             self.max_retries,
             Some(self.message.id()),
+            self.ctx.max_message_backoff_seconds,
         )
         .and_then(|dur| self.last_attempted_at.checked_add(dur));
     }
@@ -959,8 +968,9 @@ impl PendingMessage {
         num_retries: u32,
         max_retries: u32,
         message_id: Option<H256>,
+        max_backoff_seconds: Option<u64>,
     ) -> Option<Duration> {
-        Some(Duration::from_secs(match num_retries {
+        let backoff_secs = match num_retries {
             i if i < 1 => return None,
             1 => 5,
             2 => 10,
@@ -1002,7 +1012,16 @@ impl PendingMessage {
                 }
                 chrono::Duration::weeks(10).num_seconds() as u64
             }
-        }))
+        };
+
+        // Apply the cap if configured
+        let capped_secs = if let Some(max_secs) = max_backoff_seconds {
+            backoff_secs.min(max_secs)
+        } else {
+            backoff_secs
+        };
+
+        Some(Duration::from_secs(capped_secs))
     }
 
     async fn clarify_reason(&self, reason: ReprepareReason) -> Option<ReprepareReason> {
@@ -1261,6 +1280,7 @@ mod test {
         let next_prepare_attempt = PendingMessage::next_attempt_after(
             DEFAULT_MAX_MESSAGE_RETRIES,
             DEFAULT_MAX_MESSAGE_RETRIES,
+            None,
         )
         .unwrap();
 
@@ -1305,7 +1325,7 @@ mod test {
 
         // Intentionally only up to 50 because after that we add some randomness that'll cause this test to flake
         for i in 0..=50 {
-            let backoff_duration = PendingMessage::calculate_msg_backoff(i, u32::MAX, None)
+            let backoff_duration = PendingMessage::calculate_msg_backoff(i, u32::MAX, None, None)
                 .unwrap_or(Duration::from_secs(0));
             // Uncomment to show the impact of changes to the backoff duration:
 
@@ -1355,7 +1375,7 @@ mod test {
     fn check_default_max_message_retries() {
         let total_backoff_duration: Duration = (0..DEFAULT_MAX_MESSAGE_RETRIES)
             .filter_map(|i| {
-                PendingMessage::calculate_msg_backoff(i, DEFAULT_MAX_MESSAGE_RETRIES, None)
+                PendingMessage::calculate_msg_backoff(i, DEFAULT_MAX_MESSAGE_RETRIES, None, None)
             })
             .sum();
 
@@ -1384,7 +1404,7 @@ mod test {
     fn check_ccip_retry() {
         let backoff_durations: Vec<Duration> = (0..DEFAULT_MAX_MESSAGE_RETRIES)
             .filter_map(|i| {
-                PendingMessage::calculate_msg_backoff(i, DEFAULT_MAX_MESSAGE_RETRIES, None)
+                PendingMessage::calculate_msg_backoff(i, DEFAULT_MAX_MESSAGE_RETRIES, None, None)
             })
             .collect();
 

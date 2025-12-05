@@ -273,6 +273,7 @@ impl BaseAgent for Relayer {
                             destination_domain,
                         ),
                         application_operation_verifier: application_operation_verifier.clone(),
+                        max_message_backoff_seconds: settings.max_message_backoff_seconds,
                     }),
                 );
             }

@@ -124,5 +124,6 @@ pub fn dummy_message_context(
         transaction_gas_limit: Default::default(),
         metrics: dummy_submission_metrics(),
         application_operation_verifier: Arc::new(DummyApplicationOperationVerifier {}),
+        max_message_backoff_seconds: None,
     }
 }

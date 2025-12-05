@@ -796,6 +796,7 @@ pub mod test {
                         *expected_retries,
                         DEFAULT_MAX_MESSAGE_RETRIES,
                         None,
+                        None,
                     )
                     .map(|b| b.as_secs_f32().round());
                     let actual_backoff = pm.next_attempt_after().map(|instant| {

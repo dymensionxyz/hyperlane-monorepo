@@ -74,6 +74,8 @@ pub struct RelayerSettings {
     pub tx_id_indexing_enabled: bool,
     /// Whether to enable IGP indexing.
     pub igp_indexing_enabled: bool,
+    /// Maximum message backoff time in seconds. If None, no cap is applied.
+    pub max_message_backoff_seconds: Option<u64>,
 }
 
 /// Config for gas payment enforcement
@@ -369,6 +371,12 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .parse_bool()
             .unwrap_or(true);
 
+        let max_message_backoff_seconds = p
+            .chain(&mut err)
+            .get_opt_key("maxMessageBackoffSeconds")
+            .parse_u64()
+            .end();
+
         err.into_result(RelayerSettings {
             base,
             db,
@@ -387,6 +395,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             max_retries: max_message_retries,
             tx_id_indexing_enabled,
             igp_indexing_enabled,
+            max_message_backoff_seconds,
         })
     }
 }
