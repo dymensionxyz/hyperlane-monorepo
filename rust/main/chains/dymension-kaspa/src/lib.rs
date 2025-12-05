@@ -18,6 +18,7 @@ mod validator_announce;
 
 mod endpoints;
 
+mod kaspa_util;
 mod util;
 mod withdrawal_utils;
 
@@ -27,6 +28,7 @@ pub use dym_kas_relayer;
 pub use dym_kas_validator;
 pub use dymension_kaspa_hl_constants as hl_domains;
 
+pub use kaspa_util::*;
 pub use util::*;
 
 mod validator_server;
