@@ -1,8 +1,6 @@
 use dym_kas_core::consts::RELAYER_SIG_OP_COUNT;
 use dym_kas_core::escrow::EscrowPublic;
-use dym_kas_core::pskt::{
-    estimate_mass, input_sighash_type, PopulatedInput, PopulatedInputBuilder,
-};
+use dym_kas_core::pskt::{estimate_mass, input_sighash_type, PopulatedInput, PopulatedInputBuilder};
 use dym_kas_core::wallet::EasyKaspaWallet;
 use dym_kas_hardcode::tx::{DUST_AMOUNT, RELAYER_SWEEPING_PRIORITY_FEE};
 use eyre::{eyre, Result};
@@ -14,9 +12,6 @@ use kaspa_wallet_pskt::bundle::Bundle;
 use kaspa_wallet_pskt::prelude::{Creator, OutputBuilder, Signer, PSKT};
 use kaspa_wallet_pskt::pskt::InputBuilder;
 use tracing::info;
-
-// Re-export for backwards compatibility
-pub use dym_kas_core::pskt::utxo_reference_from_populated_input;
 
 /// Helper function to create test outputs for mass estimation
 fn create_test_outputs(

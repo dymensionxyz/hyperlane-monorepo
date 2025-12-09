@@ -365,9 +365,6 @@ pub(crate) fn extract_current_anchor(
     Ok((anchor_input, escrow_inputs))
 }
 
-// Re-export estimate_mass from dym_kas_core
-pub use dym_kas_core::pskt::estimate_mass;
-
 pub async fn combine_bundles_with_fee(
     bundles_validators: Vec<Bundle>,
     fxg: &WithdrawFXG,
@@ -590,7 +587,7 @@ mod tests {
     use bytes::Bytes;
 
     use crate::kas_bridge::withdraw::WithdrawFXG;
-    use dym_kas_core::pskt::is_valid_sighash_type;
+    use dym_kas_core::pskt::{estimate_mass, is_valid_sighash_type};
     use hyperlane_core::H256;
     use kaspa_consensus_core::network::NetworkType::Devnet;
     use kaspa_consensus_core::tx::ScriptPublicKey;
