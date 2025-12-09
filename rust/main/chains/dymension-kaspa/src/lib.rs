@@ -6,7 +6,7 @@
 #[allow(missing_docs)]
 pub mod application;
 pub mod conf;
-mod consts;
+pub mod consts;
 mod error;
 mod indexers;
 mod ism;
@@ -27,7 +27,7 @@ pub mod kas_validator;
 
 // Direct reexports of lib stuff:
 pub use dym_kas_core;
-pub use dymension_kaspa_hl_constants as hl_domains;
+pub use consts as hl_domains;
 
 // Re-export message module from kas_bridge as hl_message for semantic clarity
 pub use kas_bridge::message as hl_message;
