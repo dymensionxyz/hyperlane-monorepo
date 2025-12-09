@@ -34,10 +34,8 @@ pub use kas_bridge::message as hl_message;
 
 pub use util::*;
 
-mod validator_server;
-
 pub use {
     self::conf::*, self::error::*, self::indexers::*, self::ism::*, self::mailbox::*,
-    self::providers::*, self::validator_announce::*, self::validator_server::*,
+    self::providers::*, self::validator_announce::*, self::kas_validator::server::*,
     self::withdrawal_utils::*,
 };
