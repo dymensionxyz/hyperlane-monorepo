@@ -1,13 +1,13 @@
 use hex;
 use hyperlane_core::H256;
 use kaspa_addresses::{Address, Prefix, Version};
-use kaspa_consensus_core::hashing::sighash_type::{
-    SigHashType, SIG_HASH_ALL, SIG_HASH_ANY_ONE_CAN_PAY,
-};
 use kaspa_consensus_core::tx::ScriptPublicKey;
 use kaspa_txscript::pay_to_address_script;
 use std::collections::HashSet;
 use std::hash::Hash;
+
+// Re-export sighash utilities from dym_kas_core
+pub use dym_kas_core::pskt::{input_sighash_type, is_valid_sighash_type};
 
 pub fn kaspa_address_to_h256(address: Address) -> H256 {
     let bytes_32: [u8; 32] = address.payload.as_slice().try_into().unwrap();
@@ -36,14 +36,6 @@ pub fn get_recipient_script_pubkey(recipient: H256, prefix: Prefix) -> ScriptPub
 
 pub fn get_recipient_script_pubkey_address(address: &Address) -> ScriptPublicKey {
     pay_to_address_script(address)
-}
-
-pub fn input_sighash_type() -> SigHashType {
-    SigHashType::from_u8(SIG_HASH_ALL.to_u8() | SIG_HASH_ANY_ONE_CAN_PAY.to_u8()).unwrap()
-}
-
-pub fn is_valid_sighash_type(t: SigHashType) -> bool {
-    t.to_u8() == input_sighash_type().to_u8()
 }
 
 /// Find the first duplicate if any.
