@@ -21,7 +21,7 @@ mod endpoints;
 mod util;
 mod withdrawal_utils;
 
-pub mod bridge;
+pub mod ops;
 pub mod kas_relayer;
 pub mod kas_validator;
 
@@ -29,8 +29,8 @@ pub mod kas_validator;
 pub use dym_kas_core;
 pub use consts as hl_domains;
 
-// Re-export message module from bridge as hl_message for semantic clarity
-pub use bridge::message as hl_message;
+// Re-export message module from ops as hl_message for semantic clarity
+pub use ops::message as hl_message;
 
 pub use util::*;
 

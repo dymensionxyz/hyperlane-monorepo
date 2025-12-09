@@ -1,4 +1,4 @@
-use crate::bridge::confirmation::ConfirmationFXG;
+use crate::ops::confirmation::ConfirmationFXG;
 use std::sync::Mutex;
 
 #[derive(Debug)]

@@ -1,5 +1,5 @@
-use crate::bridge::deposit::DepositFXG;
-use crate::bridge::message::{add_kaspa_metadata_hl_messsage, ParsedHL};
+use crate::ops::deposit::DepositFXG;
+use crate::ops::message::{add_kaspa_metadata_hl_messsage, ParsedHL};
 use crate::kas_validator::error::ValidationError;
 use dym_kas_core::api::client::HttpClient;
 use dym_kas_core::finality::is_safe_against_reorg;
