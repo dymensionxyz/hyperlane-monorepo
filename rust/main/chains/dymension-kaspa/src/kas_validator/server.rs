@@ -1,8 +1,8 @@
 use crate::conf::ValidatorStuff;
 use crate::endpoints::*;
 use crate::providers::KaspaProvider;
-use crate::kas_bridge::deposit::DepositFXG;
-use crate::kas_bridge::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
+use crate::bridge::deposit::DepositFXG;
+use crate::bridge::{confirmation::ConfirmationFXG, withdraw::WithdrawFXG};
 use super::confirmation::validate_confirmed_withdrawals;
 use super::deposit::{validate_new_deposit, MustMatch as DepositMustMatch};
 use super::withdraw::{validate_sign_withdrawal_fxg, MustMatch as WithdrawMustMatch};

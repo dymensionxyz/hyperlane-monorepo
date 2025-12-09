@@ -1,4 +1,4 @@
-use crate::kas_bridge::deposit::DepositFXG;
+use crate::bridge::deposit::DepositFXG;
 use dym_kas_core::api::client::{Deposit, HttpClient};
 use dym_kas_core::finality::is_safe_against_reorg;
 use eyre::Result;
@@ -119,7 +119,7 @@ pub fn build_deposit_fxg(
 #[cfg(test)]
 mod tests {
 
-    use crate::kas_bridge::message::ParsedHL;
+    use crate::bridge::message::ParsedHL;
 
     #[test]
     fn test_parsed_hl_parse() {
