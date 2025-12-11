@@ -1,7 +1,6 @@
-use crate::kas_relayer::withdraw::minimum::is_small_value;
+use crate::kas_relayer::withdraw::minimum::is_dust_message;
 use crate::kas_relayer::KaspaBridgeMetrics;
-use hyperlane_core::{Decode, HyperlaneMessage, U256};
-use hyperlane_warp_route::TokenMessage;
+use hyperlane_core::{HyperlaneMessage, U256};
 use std::collections::HashSet;
 use tracing::info;
 
@@ -44,15 +43,6 @@ pub fn record_withdrawal_batch_metrics(
                 }
             }
         }
-    }
-}
-
-/// Checks if a message contains a dust amount (below min_sompi threshold).
-/// Returns true if the message is dust or cannot be parsed.
-fn is_dust_message(msg: &HyperlaneMessage, min_sompi: U256) -> bool {
-    match TokenMessage::read_from(&mut msg.body.as_slice()) {
-        Ok(token_msg) => is_small_value(token_msg.amount().as_u64(), min_sompi),
-        Err(_) => false, // If we can't parse, don't treat as dust
     }
 }
 
