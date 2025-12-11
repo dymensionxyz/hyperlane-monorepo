@@ -71,7 +71,7 @@ pub fn calculate_failed_indexes(
             }
             // Exclude dust messages from failed indexes to prevent retry
             if is_dust_message(msg, min_sompi) {
-                error!(
+                info!(
                     message_id = ?msg.id(),
                     min_sompi = min_sompi.as_u64(),
                     "kaspa mailbox: not retrying dust message"
