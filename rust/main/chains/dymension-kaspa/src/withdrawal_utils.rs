@@ -3,7 +3,7 @@ use crate::kas_relayer::KaspaBridgeMetrics;
 use hyperlane_core::{Decode, HyperlaneMessage, U256};
 use hyperlane_warp_route::TokenMessage;
 use std::collections::HashSet;
-use tracing::error;
+use tracing::info;
 
 pub enum WithdrawalStage {
     Initiated,
