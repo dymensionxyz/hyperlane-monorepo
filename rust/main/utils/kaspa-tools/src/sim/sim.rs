@@ -231,6 +231,10 @@ impl TrafficSim {
 
             total_ops += 1;
 
+            if total_ops >= max_ops {
+                break;
+            }
+
             let sleep_millis = self.params.distr_time().sample(&mut rng) as u64;
             tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
 

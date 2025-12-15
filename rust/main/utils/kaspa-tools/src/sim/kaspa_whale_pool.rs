@@ -32,6 +32,16 @@ impl KaspaWhale {
         .map_err(Into::into)
     }
 
+    /// Get the receive address of this Kaspa whale wallet
+    pub fn receive_address(&self) -> Result<Address> {
+        self.wallet
+            .wallet
+            .account()
+            .map_err(|e| eyre::eyre!("Failed to get account: {}", e))?
+            .receive_address()
+            .map_err(|e| eyre::eyre!("Failed to get receive address: {}", e))
+    }
+
     fn mark_used(&self) {
         *self.last_used.lock().unwrap() = Instant::now();
     }

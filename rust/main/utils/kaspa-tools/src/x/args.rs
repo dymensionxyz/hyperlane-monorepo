@@ -33,9 +33,20 @@ pub enum Commands {
     Deposit(DepositCli),
     /// Create a relayer
     Relayer,
-    /// Simulate traffic
+    /// Simulation commands (stress test or single roundtrip)
     #[clap(name = "sim")]
-    SimulateTraffic(SimulateTrafficCli),
+    Sim {
+        #[command(subcommand)]
+        action: SimAction,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum SimAction {
+    /// Stress test with multiple concurrent operations using whale pools
+    Stresstest(SimulateTrafficCli),
+    /// Single roundtrip: deposit from kaspa whale to hub whale, then withdraw back
+    Roundtrip(RoundtripCli),
 }
 
 #[derive(Subcommand, Debug)]
@@ -186,6 +197,92 @@ pub struct SimulateTrafficCli {
     pub cancel_wait: u64,
 
     /// Deposit amount in sompi (e.g. 4100000000 for 41 KAS)
+    #[arg(long, required = true)]
+    pub deposit_amount: u64,
+
+    /// Withdrawal fee percentage as decimal in [0,1] (e.g. 0.01 for 1%)
+    #[arg(long, required = true)]
+    pub withdrawal_fee_pct: f64,
+
+    /// Kaspa network (testnet or mainnet)
+    #[arg(long, required = true)]
+    pub kaspa_network: String,
+}
+
+#[derive(Args, Debug)]
+/// Single roundtrip test: deposit from kaspa wallet to hub wallet, then withdraw back
+/// Uses the same kaspa wallet for deposit source and withdrawal destination
+/// Uses the hub whale for receiving deposit and sending withdrawal
+pub struct RoundtripCli {
+    /// Kaspa wallet secret (password for the wallet keychain)
+    #[arg(long, required = true)]
+    pub kaspa_wallet_secret: String,
+
+    /// Kaspa wallet directory
+    #[arg(long)]
+    pub kaspa_wallet_dir: Option<String>,
+
+    /// Hub whale private key in hex (for receiving deposit and sending withdrawal)
+    #[arg(long, required = true)]
+    pub hub_whale_priv_key: String,
+
+    /// Kaspa wRPC URL
+    #[arg(long, required = true)]
+    pub kaspa_wrpc_url: String,
+
+    /// Kaspa HL domain
+    #[arg(long, required = true)]
+    pub domain_kas: u32,
+
+    /// Kaspa HL token placeholder contract addr
+    #[arg(long, required = true)]
+    pub token_kas_placeholder: H256,
+
+    /// Hub HL domain
+    #[arg(long, required = true)]
+    pub domain_hub: u32,
+
+    /// The HL Warp token ID for kaspa on the Hub
+    #[arg(long, required = true)]
+    pub token_hub: H256,
+
+    /// Kaspa escrow address
+    #[arg(long, required = true)]
+    pub escrow_address: String,
+
+    /// Hub RPC URL
+    #[arg(long, required = true)]
+    pub hub_rpc_url: String,
+
+    /// Hub gRPC URL
+    #[arg(long, required = true)]
+    pub hub_grpc_url: String,
+
+    /// Hub chain ID
+    #[arg(long, required = true)]
+    pub hub_chain_id: String,
+
+    /// Hub address prefix
+    #[arg(long, required = true)]
+    pub hub_prefix: String,
+
+    /// Hub native denom
+    #[arg(long, required = true)]
+    pub hub_denom: String,
+
+    /// Hub native token decimals
+    #[arg(long, required = true)]
+    pub hub_decimals: u32,
+
+    /// Kaspa REST API URL
+    #[arg(long, required = true)]
+    pub kaspa_rest_url: String,
+
+    /// Timeout in seconds for waiting for deposit/withdrawal confirmation
+    #[arg(long, required = true)]
+    pub timeout: u64,
+
+    /// Deposit amount in sompi (e.g. 6000000000 for 60 KAS)
     #[arg(long, required = true)]
     pub deposit_amount: u64,
 
