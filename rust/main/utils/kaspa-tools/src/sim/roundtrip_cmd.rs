@@ -3,10 +3,10 @@
 
 use crate::x::args::RoundtripCli;
 use crate::x;
-use corelib::api::base::RateLimitConfig;
-use corelib::api::client::HttpClient;
-use corelib::user::payload::make_deposit_payload_easy;
-use corelib::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
+use dym_kas_core::api::base::RateLimitConfig;
+use dym_kas_core::api::client::HttpClient;
+use dym_kas_core::wallet::{EasyKaspaWallet, EasyKaspaWalletArgs, Network};
+use dymension_kaspa::ops::user::payload::make_deposit_payload_easy;
 use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
 use cosmrs::Any;
 use eyre::Result;
@@ -228,7 +228,7 @@ pub async fn do_roundtrip(cli: RoundtripCli) -> Result<RoundtripResult> {
     );
 
     // Execute deposit
-    let deposit_result = corelib::user::deposit::deposit_with_payload(
+    let deposit_result = dymension_kaspa::ops::user::deposit::deposit_with_payload(
         &kaspa_wallet.wallet,
         &kaspa_secret,
         escrow_address.clone(),
