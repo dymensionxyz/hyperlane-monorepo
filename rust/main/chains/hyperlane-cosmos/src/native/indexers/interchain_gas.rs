@@ -24,7 +24,6 @@ pub struct CosmosNativeInterchainGas {
     address: H256,
     domain: HyperlaneDomain,
     provider: CosmosProvider<ModuleQueryClient>,
-    native_token: String,
 }
 
 impl InterchainGasPaymaster for CosmosNativeInterchainGas {}
@@ -33,36 +32,23 @@ impl CosmosNativeInterchainGas {
     ///  Gas Payment Indexer
     pub fn new(
         provider: CosmosProvider<ModuleQueryClient>,
-        conf: &ConnectionConf,
+        _conf: &ConnectionConf,
         locator: ContractLocator,
     ) -> ChainResult<Self> {
         Ok(CosmosNativeInterchainGas {
             address: locator.address,
             domain: locator.domain.clone(),
-            native_token: conf.get_native_token().denom.clone(),
             provider,
         })
     }
 
-    /// parses a cosmos sdk.Coin in a string representation '{amoun}{denom}'
-    /// only returns the amount if it matches the native token in the config
-    fn parse_gas_payment(&self, coin: &str) -> ChainResult<U256> {
-        // Convert the coin to a u256 by taking everything before the first non-numeric character
+    /// Parses a cosmos sdk.Coin in string representation '{amount}{denom}'.
+    /// Extracts the amount, trusting the IGP contract to validate the denom.
+    fn parse_gas_payment(coin: &str) -> ChainResult<U256> {
         match coin.find(|c: char| !c.is_numeric()) {
-            Some(first_non_numeric) => {
-                let amount = U256::from_dec_str(&coin[..first_non_numeric])?;
-                let denom = &coin[first_non_numeric..];
-                if denom == self.native_token {
-                    Ok(amount)
-                } else {
-                    Err(ChainCommunicationError::from_other_str(&format!(
-                        "invalid gas payment: {coin} expected denom: {}",
-                        self.native_token
-                    )))
-                }
-            }
+            Some(first_non_numeric) => Ok(U256::from_dec_str(&coin[..first_non_numeric])?),
             None => Err(ChainCommunicationError::from_other_str(&format!(
-                "invalid coin: {coin}"
+                "invalid coin format: {coin}"
             ))),
         }
     }
@@ -95,7 +81,7 @@ impl CosmosEventIndexer<InterchainGasPayment> for CosmosNativeInterchainGas {
                 "igp_id" => igp_id = Some(value.parse()?),
                 "message_id" => message_id = Some(value.parse()?),
                 "gas_amount" => gas_amount = Some(U256::from_dec_str(&value)?),
-                "payment" => payment = Some(self.parse_gas_payment(&value)?),
+                "payment" => payment = Some(Self::parse_gas_payment(&value)?),
                 "destination" => destination = Some(value.parse()?),
                 _ => continue,
             }
