@@ -35,23 +35,14 @@ pub enum Commands {
     Deposit(DepositCli),
     /// Create a relayer
     Relayer,
-    /// Simulation commands (stress test or single roundtrip)
+    /// Stress test traffic simulation with multiple concurrent operations
     #[clap(name = "sim")]
-    Sim {
-        #[command(subcommand)]
-        action: SimAction,
-    },
+    Sim(SimulateTrafficCli),
+    /// Single roundtrip test: deposit from kaspa to hub, then withdraw back
+    Roundtrip(RoundtripCli),
     /// Decode a Kaspa withdrawal tx payload to extract Hyperlane message IDs
     #[clap(name = "decode-payload")]
     DecodePayload(DecodePayloadCli),
-}
-
-#[derive(Subcommand, Debug)]
-pub enum SimAction {
-    /// Stress test with multiple concurrent operations using whale pools
-    Stresstest(SimulateTrafficCli),
-    /// Single roundtrip: deposit from kaspa wallet to hub wallet, then withdraw back
-    Roundtrip(RoundtripCli),
 }
 
 #[derive(Subcommand, Debug)]
