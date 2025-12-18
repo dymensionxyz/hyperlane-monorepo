@@ -1,5 +1,4 @@
 pub mod addr;
-pub mod collections;
 pub mod confirmation;
 pub mod deposit;
 pub mod message;

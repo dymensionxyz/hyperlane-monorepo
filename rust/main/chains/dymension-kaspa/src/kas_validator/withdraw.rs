@@ -3,7 +3,6 @@
 use crate::consts::ALLOWED_HL_MESSAGE_VERSION;
 use crate::kas_validator::error::ValidationError;
 use crate::ops::addr::h256_to_script_pubkey;
-use crate::ops::collections;
 use crate::ops::payload::MessageIDs;
 use crate::ops::withdraw::{filter_pending_withdrawals, WithdrawFXG};
 use dym_kas_core::escrow::*;
@@ -19,7 +18,7 @@ use kaspa_consensus_core::tx::{ScriptPublicKey, TransactionOutpoint};
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::pskt::{Inner, Input, Signer, PSKT};
 use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
 use tracing::{debug, info};
 
@@ -194,7 +193,8 @@ async fn validate_messages(
         num_msgs
     );
     let msg_ids: Vec<H256> = messages.iter().map(|m| m.id()).collect();
-    if let Some(duplicate) = collections::find_duplicate(&msg_ids) {
+    let mut seen = HashSet::new();
+    if let Some(duplicate) = msg_ids.iter().find(|id| !seen.insert(*id)) {
         let message_id = duplicate.encode_hex();
         return Err(ValidationError::DoubleSpending { message_id });
     }
