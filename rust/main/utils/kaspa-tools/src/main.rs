@@ -1,5 +1,5 @@
 use clap::Parser;
-use x::args::{Cli, Commands, ValidatorAction, ValidatorBackend};
+use x::args::{Cli, Commands, SimAction, ValidatorAction, ValidatorBackend};
 
 mod sim;
 use sim::{SimulateTrafficArgs, TrafficSim};
@@ -52,11 +52,27 @@ async fn run(cli: Cli) {
             println!("Relayer address: {}", signer.address);
             println!("Relayer private key: {}", signer.private_key);
         }
-        Commands::SimulateTraffic(args) => {
-            let sim = SimulateTrafficArgs::try_from(args).unwrap();
-            let sim = TrafficSim::new(sim).await.unwrap();
-            sim.run().await.unwrap();
-        }
+        Commands::Sim { action } => match action {
+            SimAction::Stresstest(args) => {
+                let sim = SimulateTrafficArgs::try_from(args).unwrap();
+                let sim = TrafficSim::new(sim).await.unwrap();
+                sim.run().await.unwrap();
+            }
+            SimAction::Roundtrip(args) => {
+                let result = sim::roundtrip::do_roundtrip(args).await;
+                match result {
+                    Ok(r) => {
+                        if !r.is_success() {
+                            std::process::exit(1);
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("roundtrip failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+        },
     }
 }
 
