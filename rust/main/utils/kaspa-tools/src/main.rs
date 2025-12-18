@@ -1,9 +1,15 @@
 use clap::Parser;
-use x::args::{Cli, Commands, ValidatorAction, ValidatorBackend};
+use x::args::{Cli, Commands, SimulateTrafficCli, ValidatorAction, ValidatorBackend};
 
 mod sim;
 use sim::{SimulateTrafficArgs, TrafficSim};
 mod x;
+
+async fn run_sim(args: SimulateTrafficCli) -> eyre::Result<()> {
+    let sim = SimulateTrafficArgs::try_from(args)?;
+    let sim = TrafficSim::new(sim).await?;
+    sim.run().await
+}
 
 async fn run(cli: Cli) {
     tracing_subscriber::fmt::init();
@@ -53,18 +59,17 @@ async fn run(cli: Cli) {
             println!("Relayer private key: {}", signer.private_key);
         }
         Commands::Sim(args) => {
-            let sim = SimulateTrafficArgs::try_from(args).unwrap();
-            let sim = TrafficSim::new(sim).await.unwrap();
-            sim.run().await.unwrap();
-        }
-        Commands::Roundtrip(args) => match sim::roundtrip::do_roundtrip(args).await {
-            Ok(true) => {}
-            Ok(false) => std::process::exit(1),
-            Err(e) => {
-                eprintln!("error: {}", e);
+            if let Err(e) = run_sim(args).await {
+                eprintln!("error: {e}");
                 std::process::exit(1);
             }
-        },
+        }
+        Commands::Roundtrip(args) => {
+            if let Err(e) = sim::roundtrip::do_roundtrip(args).await {
+                eprintln!("error: {e}");
+                std::process::exit(1);
+            }
+        }
         Commands::DecodePayload(args) => {
             if let Err(e) = x::decode_payload::decode_payload(&args.payload) {
                 eprintln!("decode payload: {e}");

@@ -18,7 +18,7 @@ use tokio::sync::mpsc;
 use tokio::sync::Mutex as AsyncMutex;
 use tokio_util::sync::CancellationToken;
 
-pub async fn do_roundtrip(cli: RoundtripCli) -> Result<bool> {
+pub async fn do_roundtrip(cli: RoundtripCli) -> Result<()> {
     let kaspa_network = cli.bridge.parse_kaspa_network()?;
     let escrow_address = cli.bridge.parse_escrow_address()?;
 
@@ -123,13 +123,11 @@ pub async fn do_roundtrip(cli: RoundtripCli) -> Result<bool> {
 
     // Print result
     println!();
-    match final_stats {
-        Some(stats) => print_result(&stats),
-        None => {
-            println!("FAILED: no response");
-            Ok(false)
-        }
-    }
+    let Some(stats) = final_stats else {
+        println!("FAILED: no response");
+        return Err(eyre::eyre!("no stats received"));
+    };
+    print_result(&stats)
 }
 
 fn print_stage(stage: &str) {
@@ -145,7 +143,7 @@ fn print_stage(stage: &str) {
     println!("{}", msg);
 }
 
-fn print_result(stats: &RoundTripStats) -> Result<bool> {
+fn print_result(stats: &RoundTripStats) -> Result<()> {
     let deposit_ok = stats.deposit_error.is_none() && stats.deposit_credit_error.is_none();
     let withdraw_ok = stats.withdrawal_error.is_none() && stats.withdraw_credit_error.is_none();
 
@@ -185,7 +183,11 @@ fn print_result(stats: &RoundTripStats) -> Result<bool> {
         println!("INCOMPLETE");
     }
 
-    Ok(deposit_ok && withdraw_ok && stats.stage == "Complete")
+    if deposit_ok && withdraw_ok && stats.stage == "Complete" {
+        Ok(())
+    } else {
+        Err(eyre::eyre!("roundtrip failed"))
+    }
 }
 
 fn format_duration(ms: u128) -> String {
