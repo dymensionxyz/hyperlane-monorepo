@@ -41,6 +41,9 @@ pub enum Commands {
         #[command(subcommand)]
         action: SimAction,
     },
+    /// Decode a Kaspa withdrawal tx payload to extract Hyperlane message IDs
+    #[clap(name = "decode-payload")]
+    DecodePayload(DecodePayloadCli),
 }
 
 #[derive(Subcommand, Debug)]
@@ -308,4 +311,12 @@ pub struct RoundtripCli {
 
     #[command(flatten)]
     pub bridge: CommonBridgeArgs,
+}
+
+#[derive(Args, Debug)]
+pub struct DecodePayloadCli {
+    /// The payload to decode (hex string, with or without 0x prefix).
+    /// This is the payload field from a Kaspa withdrawal transaction.
+    #[arg(required = true, index = 1)]
+    pub payload: String,
 }
