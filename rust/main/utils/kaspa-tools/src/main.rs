@@ -57,20 +57,14 @@ async fn run(cli: Cli) {
             let sim = TrafficSim::new(sim).await.unwrap();
             sim.run().await.unwrap();
         }
-        Commands::Roundtrip(args) => {
-            let result = sim::roundtrip::do_roundtrip(args).await;
-            match result {
-                Ok(r) => {
-                    if !r.is_success() {
-                        std::process::exit(1);
-                    }
-                }
-                Err(e) => {
-                    eprintln!("roundtrip failed: {}", e);
-                    std::process::exit(1);
-                }
+        Commands::Roundtrip(args) => match sim::roundtrip::do_roundtrip(args).await {
+            Ok(true) => {}
+            Ok(false) => std::process::exit(1),
+            Err(e) => {
+                eprintln!("error: {}", e);
+                std::process::exit(1);
             }
-        }
+        },
         Commands::DecodePayload(args) => {
             if let Err(e) = x::decode_payload::decode_payload(&args.payload) {
                 eprintln!("decode payload: {e}");
