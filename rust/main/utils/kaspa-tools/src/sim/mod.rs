@@ -1,10 +1,10 @@
-pub mod hub_whale_pool;
-pub mod kaspa_whale_pool;
-pub mod key_cosmos;
+mod hub_whale_pool;
+mod kaspa_whale_pool;
+mod key_cosmos;
 mod key_kaspa;
-pub mod round_trip;
+mod round_trip;
 pub mod roundtrip;
 mod sim;
-pub mod stats;
-pub mod util;
+mod stats;
+mod util;
 pub use sim::*;
