@@ -32,7 +32,7 @@ impl hyperlane_core::DeliveryDb for HyperlaneRocksDB {
                     error = %e,
                     "DELIVERY_STORAGE: Failed to store delivery transaction"
                 );
-                Err(e)
+                Err(e.into())
             }
         }
     }
@@ -64,7 +64,7 @@ impl hyperlane_core::DeliveryDb for HyperlaneRocksDB {
                     error = %e,
                     "DELIVERY_STORAGE: Error retrieving delivery transaction"
                 );
-                Err(e)
+                Err(e.into())
             }
         }
     }
