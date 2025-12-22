@@ -7,11 +7,9 @@ use derive_new::new;
 use hyperlane_core::HyperlaneDomain;
 use tokio::sync::broadcast::Sender;
 
-use hyperlane_base::{
-    contract_sync::ContractSyncer,
-    db::HyperlaneRocksDB,
-};
+use hyperlane_base::db::HyperlaneRocksDB;
 use hyperlane_core::{HyperlaneMessage, KaspaDb};
+use hyperlane_base::ContractSyncer;
 use tokio::sync::RwLock;
 
 use crate::merkle_tree::builder::MerkleTreeBuilder;

@@ -8,7 +8,7 @@ use tracing::warn;
 use hyperlane_base::server::utils::{
     ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse,
 };
-use hyperlane_core::{HyperlaneDomainProtocol, HyperlaneMessage, H256, H512};
+use hyperlane_core::{HyperlaneDomainProtocol, H512};
 
 // For parsing base58 transaction signatures for Solana
 use bs58;

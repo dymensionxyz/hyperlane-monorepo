@@ -2,11 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::{routing::get, Router};
-use derive_new::new;
-use hyperlane_base::{
-    contract_sync::ContractSyncer,
-    db::HyperlaneRocksDB,
-};
+use hyperlane_base::{ContractSyncer, db::HyperlaneRocksDB};
 use hyperlane_core::HyperlaneMessage;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::warn;
