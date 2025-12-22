@@ -5,7 +5,7 @@ use derive_new::new;
 use hyperlane_base::db::HyperlaneRocksDB;
 use tower_http::cors::{Any, CorsLayer};
 
-pub mod delivered;
+pub mod handler;
 
 #[derive(Clone, Debug, new)]
 pub struct ServerState {
@@ -20,7 +20,7 @@ impl ServerState {
             .allow_headers(Any);
 
         Router::new()
-            .route("/sealevel/delivered", get(delivered::handler))
+            .route("/delivered", get(handler::handler))
             .layer(cors)
             .with_state(self)
     }

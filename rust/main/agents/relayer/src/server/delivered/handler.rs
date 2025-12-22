@@ -7,16 +7,16 @@ use serde::{Deserialize, Serialize};
 use hyperlane_base::server::utils::{
     ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse,
 };
-use hyperlane_core::{SealevelDb, H256};
+use hyperlane_core::{DeliveryDb, H256};
 
-use crate::server::sealevel::ServerState;
+use crate::server::delivered::ServerState;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct QueryParams {
     /// The Hyperlane message ID
     pub message_id: String,
-    /// The destination domain ID (Sealevel chain)
-    pub destination_domain: u32,
+    /// The destination domain ID
+    pub domain_id: u32,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -27,18 +27,18 @@ pub struct DeliveredResponse {
     pub tx_hash: Option<String>,
 }
 
-/// Check if a message has been delivered to a Sealevel destination and return the tx hash
+/// Check if a message has been delivered to a destination and return the tx hash
 pub async fn handler(
     State(state): State<ServerState>,
     Query(query_params): Query<QueryParams>,
 ) -> ServerResult<ServerSuccessResponse<DeliveredResponse>> {
     let message_id_str = query_params.message_id;
-    let destination_domain = query_params.destination_domain;
+    let domain_id = query_params.domain_id;
 
     tracing::debug!(
         %message_id_str,
-        %destination_domain,
-        "Checking Sealevel delivery status"
+        %domain_id,
+        "Checking delivery status"
     );
 
     // Parse the message ID
@@ -52,14 +52,11 @@ pub async fn handler(
     })?;
 
     // Get the database for the destination domain
-    let db = state.dbs.get(&destination_domain).ok_or_else(|| {
+    let db = state.dbs.get(&domain_id).ok_or_else(|| {
         ServerErrorResponse::new(
             StatusCode::NOT_FOUND,
             ServerErrorBody {
-                message: format!(
-                    "No database found for destination domain: {}",
-                    destination_domain
-                ),
+                message: format!("No database found for domain: {}", domain_id),
             },
         )
     })?;
@@ -71,7 +68,7 @@ pub async fn handler(
         Err(e) => {
             tracing::error!(
                 %message_id_str,
-                %destination_domain,
+                %domain_id,
                 error = ?e,
                 "Error retrieving delivery tx from database"
             );

@@ -12,8 +12,8 @@ pub mod iterator;
 
 /// DB operations tied to specific Mailbox
 mod hyperlane_db;
-/// Sealevel-specific db operations for delivery tracking
-mod sealevel_db;
+/// Delivery tracking db operations for all destination chains
+mod delivery_db;
 /// Type-specific db operations
 mod typed_db;
 

@@ -113,10 +113,10 @@ pub trait KaspaDb: Send + Sync + Debug {
     ) -> Result<()>;
 }
 
-/// Trait for Sealevel/Solana-specific database operations (delivery tracking)
+/// Trait for tracking message delivery across all destination chains.
 /// This trait is defined in hyperlane-core to avoid circular dependencies.
 #[auto_impl(&, Box, Arc)]
-pub trait SealevelDb: Send + Sync + Debug {
+pub trait DeliveryDb: Send + Sync + Debug {
     /// Store the destination transaction hash for a delivered message
     fn store_delivery_tx(
         &self,

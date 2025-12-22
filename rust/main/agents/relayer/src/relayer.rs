@@ -54,8 +54,8 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, InterchainGasPayment,
-    MerkleTreeInsertion, QueueOperation, SealevelDb, H512, U256,
+    DeliveryDb, HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion,
+    QueueOperation, H512, U256,
 };
 use hyperlane_cosmos::native::CosmosNativeMailbox;
 use lander::DispatcherMetrics;
@@ -255,13 +255,9 @@ impl BaseAgent for Relayer {
                     origin_chain_setup.ignore_reorg_reports,
                 );
 
-                // Create destination_db for Sealevel destinations
-                let destination_db: Option<Arc<dyn SealevelDb>> =
-                    if destination_domain.domain_protocol() == HyperlaneDomainProtocol::Sealevel {
-                        Some(Arc::new(destination.database.clone()))
-                    } else {
-                        None
-                    };
+                // Create destination_db for storing delivery info
+                let destination_db: Arc<dyn DeliveryDb> =
+                    Arc::new(destination.database.clone());
 
                 msg_ctxs.insert(
                     ContextKey {
@@ -272,7 +268,6 @@ impl BaseAgent for Relayer {
                         destination_mailbox: destination_mailbox.clone(),
                         origin_db: Arc::new(db.clone()),
                         destination_db,
-                        destination_domain: destination_domain.clone(),
                         cache: cache.clone(),
                         metadata_builder: Arc::new(metadata_builder),
                         origin_gas_payment_enforcer,

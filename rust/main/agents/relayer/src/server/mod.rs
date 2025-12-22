@@ -19,6 +19,7 @@ use crate::server::environment_variable::EnvironmentVariableApi;
 
 pub const ENDPOINT_MESSAGES_QUEUE_SIZE: usize = 100;
 
+pub mod delivered;
 pub mod environment_variable;
 pub mod igp;
 pub mod kaspa;
@@ -26,7 +27,6 @@ pub mod merkle_tree_insertions;
 pub mod messages;
 pub mod operations;
 pub mod proofs;
-pub mod sealevel;
 
 #[derive(new)]
 pub struct Server {
@@ -120,7 +120,7 @@ impl Server {
             router = router
                 .merge(messages::ServerState::new(dbs.clone()).router())
                 .merge(merkle_tree_insertions::ServerState::new(dbs.clone()).router())
-                .merge(sealevel::ServerState::new(dbs.clone()).router());
+                .merge(delivered::ServerState::new(dbs.clone()).router());
         }
         if let Some(gas_enforcers) = self.gas_enforcers {
             router = router.merge(igp::ServerState::new(gas_enforcers.clone()).router());
