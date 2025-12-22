@@ -956,28 +956,9 @@ impl PendingMessage {
                 );
             }
 
-            // Store on origin: tx_hash -> message_id (for /delivered/by_tx endpoint)
-            // This allows querying by origin chain tx hash to get the message_id
-            if let Err(e) = self
-                .ctx
-                .origin_db_delivery
-                .store_delivery_tx(&message_id, &outcome.transaction_id)
-            {
-                warn!(
-                    message_id = ?message_id,
-                    tx_id = ?outcome.transaction_id,
-                    origin = ?self.message.origin,
-                    error = %e,
-                    "DELIVERY_STORAGE: Failed to store reverse lookup on origin"
-                );
-            } else {
-                warn!(
-                    message_id = ?message_id,
-                    tx_id = ?outcome.transaction_id,
-                    origin = ?self.message.origin,
-                    "DELIVERY_STORAGE: Successfully stored reverse lookup on origin"
-                );
-            }
+            // Note: Reverse lookup (tx_hash -> message_id) for dispatch tx hash is not stored here
+            // because we don't have access to the origin dispatch tx hash at delivery time.
+            // The /delivered/by_tx endpoint uses chain query instead.
         } else {
             warn!(
                 message_id = ?self.message.id(),

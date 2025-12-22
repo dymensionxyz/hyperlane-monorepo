@@ -576,6 +576,11 @@ impl BaseAgent for Relayer {
             .iter()
             .map(|(key, origin)| (key.id(), origin.prover_sync.clone()))
             .collect();
+        let message_syncs: HashMap<_, _> = self
+            .origins
+            .iter()
+            .map(|(key, origin)| (key.id(), origin.message_sync.clone()))
+            .collect();
 
         let relayer_router = relayer_server::Server::new(self.destinations.len())
             .with_op_retry(sender.clone())
@@ -584,6 +589,7 @@ impl BaseAgent for Relayer {
             .with_gas_enforcers(gas_enforcers)
             .with_msg_ctxs(msg_ctxs)
             .with_prover_sync(prover_syncs)
+            .with_message_syncs(message_syncs)
             .with_kaspa_db(
                 self.dymension_kaspa_args
                     .as_ref()

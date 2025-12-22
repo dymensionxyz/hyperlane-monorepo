@@ -96,6 +96,14 @@ where
         self.broadcast_sender.clone()
     }
 
+    /// Fetch logs emitted in a transaction with the given hash
+    pub async fn fetch_logs_by_tx_hash(
+        &self,
+        tx_hash: H512,
+    ) -> hyperlane_core::ChainResult<Vec<(Indexed<T>, LogMeta)>> {
+        self.indexer.fetch_logs_by_tx_hash(tx_hash).await
+    }
+
     /// Sync logs and write them to the LogStore
     #[instrument(name = "ContractSync", fields(domain=self.domain().name()), skip(self, opts))]
     pub async fn sync(&self, label: &'static str, opts: SyncOptions<T>) {
@@ -367,6 +375,14 @@ pub trait ContractSyncer<T>: Send + Sync {
 
     /// If this syncer is also a broadcaster, return the channel to receive txids
     fn get_broadcaster(&self) -> Option<BroadcastMpscSender<H512>>;
+
+    /// Fetch logs emitted in a transaction with the given hash
+    async fn fetch_logs_by_tx_hash(
+        &self,
+        _tx_hash: H512,
+    ) -> hyperlane_core::ChainResult<Vec<(Indexed<T>, LogMeta)>> {
+        Ok(vec![])
+    }
 }
 
 #[derive(new)]
@@ -429,6 +445,13 @@ where
     fn get_broadcaster(&self) -> Option<BroadcastMpscSender<H512>> {
         ContractSync::get_broadcaster(self)
     }
+
+    async fn fetch_logs_by_tx_hash(
+        &self,
+        tx_hash: H512,
+    ) -> hyperlane_core::ChainResult<Vec<(Indexed<T>, LogMeta)>> {
+        ContractSync::fetch_logs_by_tx_hash(self, tx_hash).await
+    }
 }
 
 /// Log store for sequence aware cursors
@@ -472,5 +495,12 @@ where
 
     fn get_broadcaster(&self) -> Option<BroadcastMpscSender<H512>> {
         ContractSync::get_broadcaster(self)
+    }
+
+    async fn fetch_logs_by_tx_hash(
+        &self,
+        tx_hash: H512,
+    ) -> hyperlane_core::ChainResult<Vec<(Indexed<T>, LogMeta)>> {
+        ContractSync::fetch_logs_by_tx_hash(self, tx_hash).await
     }
 }
