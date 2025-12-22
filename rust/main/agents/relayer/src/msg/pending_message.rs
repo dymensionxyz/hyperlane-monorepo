@@ -20,9 +20,10 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
-    FixedPointNumber, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox,
-    MessageSubmissionData, PendingOperation, PendingOperationResult, PendingOperationStatus,
-    ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
+    FixedPointNumber, HyperlaneChain, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage,
+    Mailbox, MessageSubmissionData, PendingOperation, PendingOperationResult,
+    PendingOperationStatus, ReprepareReason, SealevelDb, TryBatchAs, TxCostEstimate, TxOutcome,
+    H256, U256,
 };
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
 
@@ -68,6 +69,10 @@ pub struct MessageContext {
     pub destination_mailbox: Arc<dyn Mailbox>,
     /// Origin chain database to verify gas payments.
     pub origin_db: Arc<dyn HyperlaneDb>,
+    /// Destination chain database for storing delivery info.
+    pub destination_db: Option<Arc<dyn SealevelDb>>,
+    /// The destination domain.
+    pub destination_domain: HyperlaneDomain,
     /// Cache to store commonly used data calls.
     pub cache: OptionalCache<MeteredCache<LocalCache>>,
     /// Used to construct the ISM metadata needed to verify a message from the
@@ -918,6 +923,29 @@ impl PendingMessage {
             .store_processed_by_nonce(&self.message.nonce, &true)?;
         self.ctx.metrics.update_nonce(&self.message);
         self.ctx.metrics.messages_processed.inc();
+
+        // Store delivery tx hash for Sealevel destinations
+        if self.ctx.destination_domain.domain_protocol() == HyperlaneDomainProtocol::Sealevel {
+            if let (Some(db), Some(outcome)) =
+                (&self.ctx.destination_db, &self.submission_outcome)
+            {
+                let message_id = self.message.id();
+                if let Err(e) = db.store_delivery_tx(&message_id, &outcome.transaction_id) {
+                    warn!(
+                        message_id = ?message_id,
+                        error = %e,
+                        "Failed to store Sealevel delivery tx hash"
+                    );
+                } else {
+                    debug!(
+                        message_id = ?message_id,
+                        tx_id = ?outcome.transaction_id,
+                        "Stored Sealevel delivery tx hash"
+                    );
+                }
+            }
+        }
+
         Ok(())
     }
 

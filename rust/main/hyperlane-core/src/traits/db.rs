@@ -112,3 +112,18 @@ pub trait KaspaDb: Send + Sync + Debug {
         hub_tx: &H256,
     ) -> Result<()>;
 }
+
+/// Trait for Sealevel/Solana-specific database operations (delivery tracking)
+/// This trait is defined in hyperlane-core to avoid circular dependencies.
+#[auto_impl(&, Box, Arc)]
+pub trait SealevelDb: Send + Sync + Debug {
+    /// Store the destination transaction hash for a delivered message
+    fn store_delivery_tx(
+        &self,
+        message_id: &H256,
+        destination_tx: &crate::H512,
+    ) -> Result<()>;
+
+    /// Retrieve the destination transaction hash for a message
+    fn retrieve_delivery_tx(&self, message_id: &H256) -> Result<Option<crate::H512>>;
+}

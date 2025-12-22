@@ -26,6 +26,7 @@ pub mod merkle_tree_insertions;
 pub mod messages;
 pub mod operations;
 pub mod proofs;
+pub mod sealevel;
 
 #[derive(new)]
 pub struct Server {
@@ -118,7 +119,8 @@ impl Server {
         if let Some(dbs) = self.dbs.as_ref() {
             router = router
                 .merge(messages::ServerState::new(dbs.clone()).router())
-                .merge(merkle_tree_insertions::ServerState::new(dbs.clone()).router());
+                .merge(merkle_tree_insertions::ServerState::new(dbs.clone()).router())
+                .merge(sealevel::ServerState::new(dbs.clone()).router());
         }
         if let Some(gas_enforcers) = self.gas_enforcers {
             router = router.merge(igp::ServerState::new(gas_enforcers.clone()).router());
