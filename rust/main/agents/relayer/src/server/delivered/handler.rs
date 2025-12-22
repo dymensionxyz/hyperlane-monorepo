@@ -14,7 +14,9 @@ use crate::server::delivered::ServerState;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct QueryParams {
-    /// The Hyperlane message ID
+    /// The Hyperlane message ID (hex string, 64 characters, with or without 0x prefix)
+    /// Example: "0x8ebdc20c6c728c5715412ee928599c7286151f76d9079c8bdee08a335c7d072f"
+    /// or: "8ebdc20c6c728c5715412ee928599c7286151f76d9079c8bdee08a335c7d072f"
     pub message_id: String,
     /// The destination domain ID
     pub domain_id: u32,
@@ -44,13 +46,15 @@ pub async fn handler(
         "DELIVERY_API: Checking delivery status"
     );
 
-    // Parse the message ID
+    // Parse the message ID (accepts hex with or without 0x prefix)
+    // Expected format: 64 hex characters (32 bytes), e.g. "0x8ebdc20c6c728c5715412ee928599c7286151f76d9079c8bdee08a335c7d072f"
     let message_id: H256 = match message_id_str.parse() {
         Ok(id) => {
             warn!(
                 %message_id_str,
                 %domain_id,
                 message_id = ?id,
+                parsed_hex = %format!("{:x}", id),
                 "DELIVERY_API: Successfully parsed message_id"
             );
             id
@@ -60,12 +64,15 @@ pub async fn handler(
                 %message_id_str,
                 %domain_id,
                 error = %e,
-                "DELIVERY_API: Invalid message_id format"
+                "DELIVERY_API: Invalid message_id format - expected 64 hex characters (with or without 0x prefix)"
             );
             return Err(ServerErrorResponse::new(
                 StatusCode::BAD_REQUEST,
                 ServerErrorBody {
-                    message: format!("Invalid message_id format: {}", e),
+                    message: format!(
+                        "Invalid message_id format: {}. Expected 64 hex characters (32 bytes), with or without 0x prefix. Example: 0x8ebdc20c6c728c5715412ee928599c7286151f76d9079c8bdee08a335c7d072f",
+                        e
+                    ),
                 },
             ));
         }
