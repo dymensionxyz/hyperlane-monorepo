@@ -10,11 +10,20 @@ use tracing::warn;
 pub mod by_tx;
 pub mod handler;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ServerState {
     pub dbs: HashMap<u32, HyperlaneRocksDB>,
     /// Message syncs for chain queries (domain_id -> message_sync)
     pub message_syncs: HashMap<u32, Arc<dyn ContractSyncer<HyperlaneMessage>>>,
+}
+
+impl std::fmt::Debug for ServerState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ServerState")
+            .field("dbs", &self.dbs)
+            .field("message_syncs", &format!("HashMap<u32, Arc<dyn ContractSyncer>> ({} entries)", self.message_syncs.len()))
+            .finish()
+    }
 }
 
 impl ServerState {
