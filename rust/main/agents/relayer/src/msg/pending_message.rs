@@ -68,6 +68,8 @@ pub struct MessageContext {
     pub destination_mailbox: Arc<dyn Mailbox>,
     /// Origin chain database to verify gas payments.
     pub origin_db: Arc<dyn HyperlaneDb>,
+    /// Origin chain database for reverse lookup (tx_hash -> message_id).
+    pub origin_db_delivery: Arc<dyn DeliveryDb>,
     /// Destination chain database for storing delivery info.
     pub destination_db: Arc<dyn DeliveryDb>,
     /// Cache to store commonly used data calls.
@@ -927,9 +929,12 @@ impl PendingMessage {
             warn!(
                 message_id = ?message_id,
                 tx_id = ?outcome.transaction_id,
+                origin = ?self.message.origin,
                 destination = ?self.message.destination,
                 "DELIVERY_STORAGE: Attempting to store delivery tx hash"
             );
+            
+            // Store on destination: message_id -> tx_hash (for /delivered endpoint)
             if let Err(e) = self
                 .ctx
                 .destination_db
@@ -940,14 +945,37 @@ impl PendingMessage {
                     tx_id = ?outcome.transaction_id,
                     destination = ?self.message.destination,
                     error = %e,
-                    "DELIVERY_STORAGE: Failed to store delivery tx hash"
+                    "DELIVERY_STORAGE: Failed to store delivery tx hash on destination"
                 );
             } else {
                 warn!(
                     message_id = ?message_id,
                     tx_id = ?outcome.transaction_id,
                     destination = ?self.message.destination,
-                    "DELIVERY_STORAGE: Successfully stored delivery tx hash"
+                    "DELIVERY_STORAGE: Successfully stored delivery tx hash on destination"
+                );
+            }
+
+            // Store on origin: tx_hash -> message_id (for /delivered/by_tx endpoint)
+            // This allows querying by origin chain tx hash to get the message_id
+            if let Err(e) = self
+                .ctx
+                .origin_db_delivery
+                .store_delivery_tx(&message_id, &outcome.transaction_id)
+            {
+                warn!(
+                    message_id = ?message_id,
+                    tx_id = ?outcome.transaction_id,
+                    origin = ?self.message.origin,
+                    error = %e,
+                    "DELIVERY_STORAGE: Failed to store reverse lookup on origin"
+                );
+            } else {
+                warn!(
+                    message_id = ?message_id,
+                    tx_id = ?outcome.transaction_id,
+                    origin = ?self.message.origin,
+                    "DELIVERY_STORAGE: Successfully stored reverse lookup on origin"
                 );
             }
         } else {

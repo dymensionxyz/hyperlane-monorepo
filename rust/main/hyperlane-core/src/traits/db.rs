@@ -126,4 +126,7 @@ pub trait DeliveryDb: Send + Sync + Debug {
 
     /// Retrieve the destination transaction hash for a message
     fn retrieve_delivery_tx(&self, message_id: &H256) -> Result<Option<crate::H512>>;
+
+    /// Retrieve the message ID for a destination transaction hash (reverse lookup)
+    fn retrieve_message_id_by_tx(&self, destination_tx: &crate::H512) -> Result<Option<H256>>;
 }

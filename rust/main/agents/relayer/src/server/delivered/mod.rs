@@ -6,6 +6,7 @@ use hyperlane_base::db::HyperlaneRocksDB;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::warn;
 
+pub mod by_tx;
 pub mod handler;
 
 #[derive(Clone, Debug, new)]
@@ -31,6 +32,7 @@ impl ServerState {
 
         Router::new()
             .route("/delivered", get(handler::handler))
+            .route("/delivered/by_tx", get(by_tx::handler))
             .layer(cors)
             .with_state(self)
     }
