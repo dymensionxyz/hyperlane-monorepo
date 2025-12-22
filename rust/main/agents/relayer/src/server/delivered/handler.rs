@@ -8,7 +8,10 @@ use tracing::warn;
 use hyperlane_base::server::utils::{
     ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse,
 };
-use hyperlane_core::{DeliveryDb, H256};
+use hyperlane_core::{DeliveryDb, HyperlaneDomainProtocol, H256};
+
+// For converting H512 to base58 for Solana transaction signatures
+use bs58;
 
 use crate::server::delivered::ServerState;
 
@@ -111,13 +114,31 @@ pub async fn handler(
     // Retrieve the delivery tx hash from the database
     let tx_hash = match db.retrieve_delivery_tx(&message_id) {
         Ok(Some(tx)) => {
-            warn!(
-                %message_id_str,
-                %domain_id,
-                tx_hash = %format!("{:x}", tx),
-                "DELIVERY_API: Found delivery tx hash in database"
-            );
-            Some(format!("{:x}", tx))
+            // Check if this is a Sealevel domain - if so, convert H512 to base58
+            // Otherwise, return as hex
+            let domain = db.domain();
+            let tx_hash_str = if domain.domain_protocol() == HyperlaneDomainProtocol::Sealevel {
+                // Convert H512 to base58 for Solana transaction signatures
+                let base58_tx = bs58::encode(tx.as_bytes()).into_string();
+                warn!(
+                    %message_id_str,
+                    %domain_id,
+                    tx_hash_base58 = %base58_tx,
+                    "DELIVERY_API: Found delivery tx hash in database (Sealevel - converted to base58)"
+                );
+                base58_tx
+            } else {
+                // For other chains, return hex format
+                let hex_tx = format!("{:x}", tx);
+                warn!(
+                    %message_id_str,
+                    %domain_id,
+                    tx_hash_hex = %hex_tx,
+                    "DELIVERY_API: Found delivery tx hash in database (non-Sealevel - hex format)"
+                );
+                hex_tx
+            };
+            Some(tx_hash_str)
         }
         Ok(None) => {
             warn!(
