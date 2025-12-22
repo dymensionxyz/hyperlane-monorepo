@@ -924,6 +924,12 @@ impl PendingMessage {
         // Store delivery tx hash for all destinations
         if let Some(outcome) = &self.submission_outcome {
             let message_id = self.message.id();
+            warn!(
+                message_id = ?message_id,
+                tx_id = ?outcome.transaction_id,
+                destination = ?self.message.destination,
+                "DELIVERY_STORAGE: Attempting to store delivery tx hash"
+            );
             if let Err(e) = self
                 .ctx
                 .destination_db
@@ -931,16 +937,25 @@ impl PendingMessage {
             {
                 warn!(
                     message_id = ?message_id,
+                    tx_id = ?outcome.transaction_id,
+                    destination = ?self.message.destination,
                     error = %e,
-                    "Failed to store delivery tx hash"
+                    "DELIVERY_STORAGE: Failed to store delivery tx hash"
                 );
             } else {
-                debug!(
+                warn!(
                     message_id = ?message_id,
                     tx_id = ?outcome.transaction_id,
-                    "Stored delivery tx hash"
+                    destination = ?self.message.destination,
+                    "DELIVERY_STORAGE: Successfully stored delivery tx hash"
                 );
             }
+        } else {
+            warn!(
+                message_id = ?self.message.id(),
+                destination = ?self.message.destination,
+                "DELIVERY_STORAGE: No submission_outcome available, cannot store delivery tx hash"
+            );
         }
 
         Ok(())

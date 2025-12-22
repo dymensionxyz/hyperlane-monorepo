@@ -117,10 +117,19 @@ impl Server {
             }
         }
         if let Some(dbs) = self.dbs.as_ref() {
+            use tracing::warn;
+            warn!(
+                dbs_count = %dbs.len(),
+                "DELIVERY_API: Setting up delivered endpoint router"
+            );
             router = router
                 .merge(messages::ServerState::new(dbs.clone()).router())
                 .merge(merkle_tree_insertions::ServerState::new(dbs.clone()).router())
                 .merge(delivered::ServerState::new(dbs.clone()).router());
+            warn!("DELIVERY_API: Delivered endpoint router setup complete");
+        } else {
+            use tracing::warn;
+            warn!("DELIVERY_API: No databases available, /delivered endpoint will not be registered");
         }
         if let Some(gas_enforcers) = self.gas_enforcers {
             router = router.merge(igp::ServerState::new(gas_enforcers.clone()).router());
