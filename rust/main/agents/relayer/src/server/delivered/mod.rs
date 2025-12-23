@@ -39,12 +39,6 @@ impl ServerState {
     pub fn router(self) -> Router {
         let dbs_count = self.dbs.len();
         let domain_ids: Vec<u32> = self.dbs.keys().copied().collect();
-        
-        warn!(
-            dbs_count = %dbs_count,
-            domain_ids = ?domain_ids,
-            "DELIVERY_API: Registering /delivered endpoint"
-        );
 
         let cors = CorsLayer::new()
             .allow_origin(Any)

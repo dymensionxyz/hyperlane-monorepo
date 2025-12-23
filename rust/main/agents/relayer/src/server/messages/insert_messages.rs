@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use hyperlane_base::server::utils::{
     ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse,
 };
-use hyperlane_core::{HyperlaneMessage, H256, H512};
+use hyperlane_core::{HyperlaneMessage, H256};
 
 use crate::server::messages::ServerState;
 
@@ -72,7 +72,6 @@ pub async fn handler(
         let dispatched_block_number = message.dispatched_block_number;
         match state.dbs.get(&message.message.origin) {
             Some(db) => {
-                // Use zero transaction_id for manually inserted messages since we don't have the actual tx_id
                 db.upsert_message(&message.message, dispatched_block_number)
                     .map_err(|err| {
                         let error_msg = "Failed to upsert message";

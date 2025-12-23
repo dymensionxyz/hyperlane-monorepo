@@ -37,17 +37,9 @@ pub struct DeliveredResponse {
 pub async fn handler(
     State(state): State<ServerState>,
     Query(query_params): Query<QueryParams>,
-) -> ServerResult<ServerSuccessResponse<DeliveredResponse>> {
-    warn!("DELIVERY_API: Handler called");
-    
+) -> ServerResult<ServerSuccessResponse<DeliveredResponse>> {    
     let message_id_str = query_params.message_id.clone();
     let domain_id = query_params.domain_id;
-
-    warn!(
-        %message_id_str,
-        %domain_id,
-        "DELIVERY_API: Checking delivery status"
-    );
 
     // Parse the message ID (accepts hex with or without 0x prefix)
     // Expected format: 64 hex characters (32 bytes), e.g. "0x8ebdc20c6c728c5715412ee928599c7286151f76d9079c8bdee08a335c7d072f"
@@ -84,11 +76,6 @@ pub async fn handler(
     // Get the database for the destination domain
     let db = match state.dbs.get(&domain_id) {
         Some(db) => {
-            warn!(
-                %message_id_str,
-                %domain_id,
-                "DELIVERY_API: Found database for domain"
-            );
             db
         }
         None => {
@@ -165,15 +152,6 @@ pub async fn handler(
     };
 
     let delivered = tx_hash.is_some();
-
-    warn!(
-        %message_id_str,
-        %domain_id,
-        delivered = %delivered,
-        tx_hash = ?tx_hash,
-        "DELIVERY_API: Returning response"
-    );
-
     let response = DeliveredResponse { delivered, tx_hash };
 
     Ok(ServerSuccessResponse::new(response))

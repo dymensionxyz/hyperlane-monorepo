@@ -41,25 +41,12 @@ pub async fn handler(
     State(state): State<ServerState>,
     Query(query_params): Query<QueryParams>,
 ) -> ServerResult<ServerSuccessResponse<MessageIdResponse>> {
-    warn!("DELIVERY_API_BY_TX: Handler called");
-
     let tx_hash_str = query_params.tx_hash.clone();
     let origin_domain_id = query_params.origin_domain_id;
-
-    warn!(
-        %tx_hash_str,
-        %origin_domain_id,
-        "DELIVERY_API_BY_TX: Looking up message_id by tx_hash on origin domain"
-    );
 
     // Get the database for the origin domain (where the tx hash is from)
     let db = match state.dbs.get(&origin_domain_id) {
         Some(db) => {
-            warn!(
-                %tx_hash_str,
-                %origin_domain_id,
-                "DELIVERY_API_BY_TX: Found database for origin domain"
-            );
             db
         }
         None => {
@@ -132,11 +119,6 @@ pub async fn handler(
         }
     } else {
         // For other chains, parse as hex
-        warn!(
-            %tx_hash_str,
-            %origin_domain_id,
-            "DELIVERY_API_BY_TX: Parsing tx_hash as hex (non-Sealevel)"
-        );
         match tx_hash_str.parse() {
             Ok(hash) => hash,
             Err(e) => {
@@ -159,20 +141,7 @@ pub async fn handler(
         }
     };
 
-    warn!(
-        %tx_hash_str,
-        %origin_domain_id,
-        tx_hash_h512 = ?tx_hash_h512,
-        "DELIVERY_API_BY_TX: Successfully parsed tx_hash, checking database first"
-    );
-
     // First, try to retrieve from database (where relayer stores dispatch tx -> message_id mappings)
-    warn!(
-        %tx_hash_str,
-        %origin_domain_id,
-        "DELIVERY_API_BY_TX: Checking database for dispatch tx -> message_id mapping"
-    );
-
     let message_id_from_db = match db.retrieve_message_id_by_dispatch_tx(&tx_hash_h512) {
         Ok(Some(message_id)) => {
             warn!(

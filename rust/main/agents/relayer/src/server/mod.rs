@@ -128,11 +128,6 @@ impl Server {
             }
         }
         if let Some(dbs) = self.dbs.as_ref() {
-            use tracing::warn;
-            warn!(
-                dbs_count = %dbs.len(),
-                "DELIVERY_API: Setting up delivered endpoint router"
-            );
             router = router
                 .merge(messages::ServerState::new(dbs.clone()).router())
                 .merge(merkle_tree_insertions::ServerState::new(dbs.clone()).router());
@@ -145,7 +140,6 @@ impl Server {
                     delivered::ServerState::new(dbs.clone(), HashMap::new()).router()
                 );
             }
-            warn!("DELIVERY_API: Delivered endpoint router setup complete");
         } else {
             use tracing::warn;
             warn!("DELIVERY_API: No databases available, /delivered endpoint will not be registered");

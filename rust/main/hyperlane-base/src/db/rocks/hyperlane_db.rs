@@ -726,10 +726,6 @@ impl HyperlaneDb for HyperlaneRocksDB {
     }
 
     fn retrieve_message_id_by_dispatch_tx(&self, dispatch_tx_id: &H512) -> DbResult<Option<H256>> {
-        warn!(
-            dispatch_tx_id = ?dispatch_tx_id,
-            "RETRIEVING MESSAGE ID BY DISPATCH TX"
-        );
         self.retrieve_value_by_key(MESSAGE_ID_BY_DISPATCH_TX, dispatch_tx_id)
     }
 }

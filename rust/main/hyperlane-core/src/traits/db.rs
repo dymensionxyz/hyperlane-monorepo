@@ -114,13 +114,8 @@ pub trait KaspaDb: Send + Sync + Debug {
 }
 
 /// Trait for tracking message delivery across all destination chains.
-/// This trait is defined in hyperlane-core to avoid circular dependencies.
 #[auto_impl(&, Box, Arc)]
 pub trait DeliveryDb: Send + Sync + Debug {
-
-    // FIXME: store_dispatched_tx
-    // FIXME: retrieve_dispatched_tx
-
     /// Store the destination transaction hash for a delivered message
     fn store_delivery_tx(
         &self,
@@ -130,7 +125,4 @@ pub trait DeliveryDb: Send + Sync + Debug {
 
     /// Retrieve the destination transaction hash for a message
     fn retrieve_delivery_tx(&self, message_id: &H256) -> Result<Option<crate::H512>>;
-
-    // Retrieve the message ID for a destination transaction hash (reverse lookup)
-    // fn retrieve_message_id_by_tx(&self, destination_tx: &crate::H512) -> Result<Option<H256>>;
 }
