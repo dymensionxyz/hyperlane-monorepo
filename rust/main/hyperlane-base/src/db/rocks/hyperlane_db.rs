@@ -81,6 +81,7 @@ impl HyperlaneRocksDB {
         &self.0
     }
 
+    /// Store a message with its dispatch transaction ID.
     pub fn store_message_with_dispatch_tx(
         &self,
         message: &HyperlaneMessage,

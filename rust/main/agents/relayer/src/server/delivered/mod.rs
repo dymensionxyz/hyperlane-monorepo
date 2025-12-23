@@ -5,7 +5,6 @@ use axum::{routing::get, Router};
 use hyperlane_base::{ContractSyncer, db::HyperlaneRocksDB};
 use hyperlane_core::HyperlaneMessage;
 use tower_http::cors::{Any, CorsLayer};
-use tracing::warn;
 
 pub mod by_tx;
 pub mod handler;
@@ -37,9 +36,6 @@ impl ServerState {
 
 impl ServerState {
     pub fn router(self) -> Router {
-        let dbs_count = self.dbs.len();
-        let domain_ids: Vec<u32> = self.dbs.keys().copied().collect();
-
         let cors = CorsLayer::new()
             .allow_origin(Any)
             .allow_methods(Any)
