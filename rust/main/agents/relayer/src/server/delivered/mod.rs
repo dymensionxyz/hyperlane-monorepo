@@ -13,7 +13,7 @@ pub mod handler;
 #[derive(Clone)]
 pub struct ServerState {
     pub dbs: HashMap<u32, HyperlaneRocksDB>,
-    /// Message syncs for chain queries (domain_id -> message_sync)
+    /// Message syncs for chain queries by the /delivered endpoint (domain_id -> message_sync)
     pub message_syncs: HashMap<u32, Arc<dyn ContractSyncer<HyperlaneMessage>>>,
 }
 

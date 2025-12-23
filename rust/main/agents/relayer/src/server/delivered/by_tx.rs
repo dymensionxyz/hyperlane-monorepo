@@ -11,7 +11,7 @@ use hyperlane_base::{
         ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse,
     },
 };
-use hyperlane_core::{HyperlaneDomainProtocol, HyperlaneMessage, H512};
+use hyperlane_core::{HyperlaneDomainProtocol, H512};
 
 // For parsing base58 transaction signatures for Solana
 use bs58;
@@ -141,8 +141,8 @@ pub async fn handler(
         }
     };
 
-    // First, try to retrieve from database (where relayer stores dispatch tx -> message_id mappings)
-    let message_id_from_db = match db.retrieve_message_id_by_dispatch_tx(&tx_hash_h512) {
+    // Retrieve from database (where relayer stores dispatch tx -> message_id mappings)
+    let message_id = match db.retrieve_message_id_by_dispatch_tx(&tx_hash_h512) {
         Ok(Some(message_id)) => {
             warn!(
                 %tx_hash_str,
@@ -150,173 +150,86 @@ pub async fn handler(
                 message_id = ?message_id,
                 "DELIVERY_API_BY_TX: Found message_id in database"
             );
-            Some(message_id)
+            message_id
         }
         Ok(None) => {
             warn!(
                 %tx_hash_str,
                 %origin_domain_id,
-                "DELIVERY_API_BY_TX: No message_id found in database, will query chain"
-            );
-            None
-        }
-        Err(e) => {
-            warn!(
-                %tx_hash_str,
-                %origin_domain_id,
-                error = %e,
-                "DELIVERY_API_BY_TX: Database error when retrieving message_id, will query chain"
-            );
-            None
-        }
-    };
-
-    // If we found the message_id in database, get the full message to extract destination_domain_id
-    if let Some(message_id) = message_id_from_db {
-        match db.retrieve_message_by_id(&message_id) {
-            Ok(Some(message)) => {
-                let destination_domain_id = message.destination;
-                warn!(
-                    %tx_hash_str,
-                    %origin_domain_id,
-                    message_id = ?message_id,
-                    destination_domain_id = %destination_domain_id,
-                    "DELIVERY_API_BY_TX: Successfully retrieved message from database, returning response"
-                );
-
-                let response = MessageIdResponse {
-                    message_id: format!("{:x}", message_id),
-                    destination_domain_id,
-                };
-
-                return Ok(ServerSuccessResponse::new(response));
-            }
-            Ok(None) => {
-                warn!(
-                    %tx_hash_str,
-                    %origin_domain_id,
-                    message_id = ?message_id,
-                    "DELIVERY_API_BY_TX: message_id found in database but full message not found, will query chain"
-                );
-            }
-            Err(e) => {
-                warn!(
-                    %tx_hash_str,
-                    %origin_domain_id,
-                    message_id = ?message_id,
-                    error = %e,
-                    "DELIVERY_API_BY_TX: Database error retrieving full message, will query chain"
-                );
-            }
-        }
-    }
-
-    // Fallback: Query the chain for dispatch events by tx hash
-    warn!(
-        %tx_hash_str,
-        %origin_domain_id,
-        "DELIVERY_API_BY_TX: Querying chain for dispatch events"
-    );
-
-    let message_sync = match state.message_syncs.get(&origin_domain_id) {
-        Some(sync) => {
-            warn!(
-                %tx_hash_str,
-                %origin_domain_id,
-                "DELIVERY_API_BY_TX: Found message_sync for origin domain"
-            );
-            sync
-        }
-        None => {
-            warn!(
-                %tx_hash_str,
-                %origin_domain_id,
-                available_domains = ?state.message_syncs.keys().collect::<Vec<_>>(),
-                "DELIVERY_API_BY_TX: No message_sync found for origin domain"
+                "DELIVERY_API_BY_TX: No message_id found in database"
             );
             return Err(ServerErrorResponse::new(
                 StatusCode::NOT_FOUND,
                 ServerErrorBody {
                     message: format!(
-                        "No message_sync available for origin domain: {}. Chain query not possible.",
-                        origin_domain_id
-                    ),
-                },
-            ));
-        }
-    };
-
-    // Fetch dispatch events from the chain
-    let dispatch_events = match message_sync.fetch_logs_by_tx_hash(tx_hash_h512).await {
-        Ok(events) => {
-            warn!(
-                %tx_hash_str,
-                %origin_domain_id,
-                events_count = %events.len(),
-                "DELIVERY_API_BY_TX: Fetched dispatch events from chain"
-            );
-            events
-        }
-        Err(e) => {
-            warn!(
-                %tx_hash_str,
-                %origin_domain_id,
-                error = %e,
-                "DELIVERY_API_BY_TX: Error querying chain for dispatch events"
-            );
-            return Err(ServerErrorResponse::new(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                ServerErrorBody {
-                    message: format!("Chain query error: {}", e),
-                },
-            ));
-        }
-    };
-
-    // Extract the first message from the dispatch events
-    let (indexed_message, _log_meta) = match dispatch_events.first() {
-        Some(event) => event,
-        None => {
-            warn!(
-                %tx_hash_str,
-                %origin_domain_id,
-                "DELIVERY_API_BY_TX: No dispatch events found for tx_hash"
-            );
-            return Err(ServerErrorResponse::new(
-                StatusCode::NOT_FOUND,
-                ServerErrorBody {
-                    message: format!(
-                        "No dispatch events found for tx_hash: {} on origin domain: {}",
+                        "No message found for tx_hash: {} on origin domain: {}",
                         tx_hash_str, origin_domain_id
                     ),
                 },
             ));
         }
+        Err(e) => {
+            warn!(
+                %tx_hash_str,
+                %origin_domain_id,
+                error = %e,
+                "DELIVERY_API_BY_TX: Database error when retrieving message_id"
+            );
+            return Err(ServerErrorResponse::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ServerErrorBody {
+                    message: format!("Database error: {}", e),
+                },
+            ));
+        }
     };
 
-    let message = indexed_message.inner();
-    let message_id = message.id();
-    let destination_domain_id = message.destination;
-
-    warn!(
-        %tx_hash_str,
-        %origin_domain_id,
-        message_id = ?message_id,
-        destination_domain_id = %destination_domain_id,
-        "DELIVERY_API_BY_TX: Found message in dispatch events"
-    );
-
-    warn!(
-        %tx_hash_str,
-        %origin_domain_id,
-        message_id = ?message_id,
-        destination_domain_id = %destination_domain_id,
-        "DELIVERY_API_BY_TX: Successfully retrieved message from chain, returning response"
-    );
+    // Get the full message to extract destination_domain_id
+    let message = match db.retrieve_message_by_id(&message_id) {
+        Ok(Some(message)) => {
+            warn!(
+                %tx_hash_str,
+                %origin_domain_id,
+                message_id = ?message_id,
+                destination_domain_id = %message.destination,
+                "DELIVERY_API_BY_TX: Successfully retrieved message from database"
+            );
+            message
+        }
+        Ok(None) => {
+            warn!(
+                %tx_hash_str,
+                %origin_domain_id,
+                message_id = ?message_id,
+                "DELIVERY_API_BY_TX: message_id found in database but full message not found"
+            );
+            return Err(ServerErrorResponse::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ServerErrorBody {
+                    message: "Message ID found but message data missing from database".to_string(),
+                },
+            ));
+        }
+        Err(e) => {
+            warn!(
+                %tx_hash_str,
+                %origin_domain_id,
+                message_id = ?message_id,
+                error = %e,
+                "DELIVERY_API_BY_TX: Database error retrieving full message"
+            );
+            return Err(ServerErrorResponse::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ServerErrorBody {
+                    message: format!("Database error: {}", e),
+                },
+            ));
+        }
+    };
 
     let response = MessageIdResponse {
         message_id: format!("{:x}", message_id),
-        destination_domain_id,
+        destination_domain_id: message.destination,
     };
 
     Ok(ServerSuccessResponse::new(response))
