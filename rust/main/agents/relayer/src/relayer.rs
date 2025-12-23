@@ -67,7 +67,7 @@ mod origin;
 
 const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
-const ADVANCED_LOG_META: bool = false;
+const ADVANCED_LOG_META: bool = true;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 struct ContextKey {
