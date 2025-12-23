@@ -5,8 +5,11 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
-use hyperlane_base::server::utils::{
-    ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse,
+use hyperlane_base::{
+    db::HyperlaneDb,
+    server::utils::{
+        ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse,
+    },
 };
 use hyperlane_core::{HyperlaneDomainProtocol, HyperlaneMessage, H512};
 
