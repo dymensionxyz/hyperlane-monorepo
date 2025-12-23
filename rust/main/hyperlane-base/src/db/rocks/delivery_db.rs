@@ -12,11 +12,6 @@ const MESSAGE_ID_BY_TX: &str = "message_id_by_tx_";
 /// Tracks delivery transaction hashes for all destination chains
 impl hyperlane_core::DeliveryDb for HyperlaneRocksDB {
     fn store_delivery_tx(&self, message_id: &H256, destination_tx: &H512) -> Result<()> {
-        warn!(
-            message_id = ?message_id,
-            destination_tx = ?destination_tx,
-            "DELIVERY_STORAGE: Storing delivery transaction"
-        );
         // Store message_id -> tx_hash mapping
         match self.store_encodable(DELIVERY_TX, message_id.to_vec(), destination_tx) {
             Ok(()) => {
@@ -26,7 +21,7 @@ impl hyperlane_core::DeliveryDb for HyperlaneRocksDB {
                         warn!(
                             message_id = ?message_id,
                             destination_tx = ?destination_tx,
-                            "DELIVERY_STORAGE: Successfully stored delivery transaction (both directions)"
+                            "DELIVERY_STORAGE: Successfully stored delivery transaction"
                         );
                         Ok(())
                     }
@@ -54,10 +49,6 @@ impl hyperlane_core::DeliveryDb for HyperlaneRocksDB {
     }
 
     fn retrieve_delivery_tx(&self, message_id: &H256) -> Result<Option<H512>> {
-        warn!(
-            message_id = ?message_id,
-            "DELIVERY_STORAGE: Retrieving delivery transaction"
-        );
         match self.retrieve_decodable(DELIVERY_TX, message_id.to_vec()) {
             Ok(Some(tx)) => {
                 warn!(
@@ -84,39 +75,5 @@ impl hyperlane_core::DeliveryDb for HyperlaneRocksDB {
             }
         }
     }
-
-    /* 
-    fn retrieve_message_id_by_tx(&self, destination_tx: &H512) -> Result<Option<H256>> {
-        warn!(
-            destination_tx = ?destination_tx,
-            "DELIVERY_STORAGE: Retrieving message_id by transaction hash"
-        );
-        match self.retrieve_decodable(MESSAGE_ID_BY_TX, destination_tx.to_vec()) {
-            Ok(Some(message_id)) => {
-                warn!(
-                    destination_tx = ?destination_tx,
-                    message_id = ?message_id,
-                    "DELIVERY_STORAGE: Found message_id for transaction hash"
-                );
-                Ok(Some(message_id))
-            }
-            Ok(None) => {
-                warn!(
-                    destination_tx = ?destination_tx,
-                    "DELIVERY_STORAGE: No message_id found for transaction hash"
-                );
-                Ok(None)
-            }
-            Err(e) => {
-                warn!(
-                    destination_tx = ?destination_tx,
-                    error = %e,
-                    "DELIVERY_STORAGE: Error retrieving message_id by transaction hash"
-                );
-                Err(e.into())
-            }
-        }
-    }
-    */
 }
 

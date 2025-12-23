@@ -89,6 +89,13 @@ impl HyperlaneRocksDB {
     ) -> DbResult<bool> {
         self.store_message(message, dispatched_block_number)?;
         // - `dispatch_tx_id` --> `message_id` (for /delivered/by_tx API)
+        warn!(
+            dispatch_tx_id = ?dispatch_tx_id,
+            message_id = ?message.id(),
+            origin_domain = %message.origin,
+            destination_domain = %message.destination,
+            "STORING MESSAGE ID BY DISPATCH TX"
+        );
         self.store_message_id_by_dispatch_tx(dispatch_tx_id, &message.id())?;
         Ok(true)
     }
@@ -715,11 +722,6 @@ impl HyperlaneDb for HyperlaneRocksDB {
     }
 
     fn store_message_id_by_dispatch_tx(&self, dispatch_tx_id: &H512, message_id: &H256) -> DbResult<()> {
-        warn!(
-            dispatch_tx_id = ?dispatch_tx_id,
-            message_id = ?message_id,
-            "STORING MESSAGE ID BY DISPATCH TX"
-        );
         self.store_value_by_key(MESSAGE_ID_BY_DISPATCH_TX, dispatch_tx_id, message_id)
     }
 
