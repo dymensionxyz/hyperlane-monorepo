@@ -73,7 +73,7 @@ pub async fn handler(
         match state.dbs.get(&message.message.origin) {
             Some(db) => {
                 // Use zero transaction_id for manually inserted messages since we don't have the actual tx_id
-                db.upsert_message(&message.message, dispatched_block_number, &H512::zero())
+                db.upsert_message(&message.message, dispatched_block_number)
                     .map_err(|err| {
                         let error_msg = "Failed to upsert message";
                         tracing::debug!(message_id=?message.message.id(), ?err, "{error_msg}");

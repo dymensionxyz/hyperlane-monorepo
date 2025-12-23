@@ -2,7 +2,8 @@ use std::ops::Add;
 
 use async_trait::async_trait;
 use eyre::{bail, Result};
-use tracing::{debug, instrument, trace};
+use tracing::{debug, instrument, trace, warn};
+
 
 use hyperlane_core::{
     identifiers::UniqueIdentifier, Decode, Encode, GasPaymentKey, HyperlaneDomain,

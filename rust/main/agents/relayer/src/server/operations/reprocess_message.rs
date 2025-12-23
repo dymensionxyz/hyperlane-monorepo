@@ -271,7 +271,7 @@ mod tests {
         use hyperlane_core::H512;
         dbs.get(&domain.id())
             .expect("DB not found")
-            .store_message(&message, dispatched_block_number, &H512::zero())
+            .store_message(&message, dispatched_block_number)
             .expect("DB Error");
     }
 
