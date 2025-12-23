@@ -926,13 +926,6 @@ impl PendingMessage {
         // Store delivery tx hash for all destinations
         if let Some(outcome) = &self.submission_outcome {
             let message_id = self.message.id();
-            warn!(
-                message_id = ?message_id,
-                tx_id = ?outcome.transaction_id,
-                origin = ?self.message.origin,
-                destination = ?self.message.destination,
-                "DELIVERY_STORAGE: Attempting to store delivery tx hash"
-            );
             
             // Store on destination: message_id -> tx_hash (for /delivered endpoint)
             if let Err(e) = self
@@ -955,10 +948,6 @@ impl PendingMessage {
                     "DELIVERY_STORAGE: Successfully stored delivery tx hash on destination"
                 );
             }
-
-            // Note: Reverse lookup (tx_hash -> message_id) for dispatch tx hash is not stored here
-            // because we don't have access to the origin dispatch tx hash at delivery time.
-            // The /delivered/by_tx endpoint uses chain query instead.
         } else {
             warn!(
                 message_id = ?self.message.id(),
@@ -1297,6 +1286,8 @@ mod test {
             fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
             fn store_payload_uuids_by_message_id(&self, message_id: &H256, payload_uuids: Vec<UniqueIdentifier>) -> DbResult<()>;
             fn retrieve_payload_uuids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
+            fn store_message_id_by_dispatch_tx(&self, dispatch_tx_id: &hyperlane_core::H512, message_id: &H256) -> DbResult<()>;
+            fn retrieve_message_id_by_dispatch_tx(&self, dispatch_tx_id: &hyperlane_core::H512) -> DbResult<Option<H256>>;
         }
     }
 

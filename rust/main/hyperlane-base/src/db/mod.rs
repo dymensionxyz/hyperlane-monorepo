@@ -5,7 +5,7 @@ pub use rocks::*;
 use hyperlane_core::{
     identifiers::UniqueIdentifier, GasPaymentKey, HyperlaneDomain, HyperlaneMessage,
     InterchainGasPayment, InterchainGasPaymentMeta, MerkleTreeInsertion, PendingOperationStatus,
-    H256,
+    H256, H512,
 };
 
 mod error;
@@ -173,4 +173,10 @@ pub trait HyperlaneDb: Send + Sync {
         &self,
         message_id: &H256,
     ) -> DbResult<Option<Vec<UniqueIdentifier>>>;
+
+    /// Store message_id by dispatch transaction_id (reverse lookup: tx_id -> message_id)
+    fn store_message_id_by_dispatch_tx(&self, dispatch_tx_id: &H512, message_id: &H256) -> DbResult<()>;
+
+    /// Retrieve message_id by dispatch transaction_id
+    fn retrieve_message_id_by_dispatch_tx(&self, dispatch_tx_id: &H512) -> DbResult<Option<H256>>;
 }

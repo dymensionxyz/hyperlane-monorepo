@@ -85,6 +85,7 @@ impl hyperlane_core::DeliveryDb for HyperlaneRocksDB {
         }
     }
 
+    /* 
     fn retrieve_message_id_by_tx(&self, destination_tx: &H512) -> Result<Option<H256>> {
         warn!(
             destination_tx = ?destination_tx,
@@ -116,5 +117,6 @@ impl hyperlane_core::DeliveryDb for HyperlaneRocksDB {
             }
         }
     }
+    */
 }
 

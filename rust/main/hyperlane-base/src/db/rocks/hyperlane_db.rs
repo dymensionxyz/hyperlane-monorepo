@@ -8,7 +8,7 @@ use hyperlane_core::{
     identifiers::UniqueIdentifier, Decode, Encode, GasPaymentKey, HyperlaneDomain,
     HyperlaneLogStore, HyperlaneMessage, HyperlaneSequenceAwareIndexerStoreReader,
     HyperlaneWatermarkedLogStore, Indexed, InterchainGasExpenditure, InterchainGasPayment,
-    InterchainGasPaymentMeta, LogMeta, MerkleTreeInsertion, PendingOperationStatus, H256,
+    InterchainGasPaymentMeta, LogMeta, MerkleTreeInsertion, PendingOperationStatus, H256, H512,
 };
 
 use crate::db::{
@@ -40,6 +40,7 @@ const MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX: &str =
     "merkle_tree_insertion_block_number_by_leaf_index_";
 const LATEST_INDEXED_GAS_PAYMENT_BLOCK: &str = "latest_indexed_gas_payment_block";
 const PAYLOAD_UUIDS_BY_MESSAGE_ID: &str = "payload_uuids_by_message_id_";
+const MESSAGE_ID_BY_DISPATCH_TX: &str = "message_id_by_dispatch_tx_";
 
 /// Rocks DB result type
 pub type DbResult<T> = std::result::Result<T, DbError>;
@@ -78,6 +79,19 @@ impl HyperlaneRocksDB {
     pub fn domain(&self) -> &HyperlaneDomain {
         &self.0
     }
+
+    pub fn store_message_with_dispatch_tx(
+        &self,
+        message: &HyperlaneMessage,
+        dispatched_block_number: u64,
+        dispatch_tx_id: &H512,
+    ) -> DbResult<bool> {
+        self.store_message(message, dispatched_block_number)?;
+        // - `dispatch_tx_id` --> `message_id` (for /delivered/by_tx API)
+        self.store_message_id_by_dispatch_tx(dispatch_tx_id, &message.id())?;
+        Ok(true)
+    }
+
 
     /// Store a raw committed message. If message already exists, then do nothing.
     ///
@@ -315,7 +329,7 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
     async fn store_logs(&self, messages: &[(Indexed<HyperlaneMessage>, LogMeta)]) -> Result<u32> {
         let mut stored: u32 = 0;
         for (message, meta) in messages {
-            let stored_message = self.store_message(message.inner(), meta.block_number)?;
+            let stored_message = self.store_message_with_dispatch_tx(message.inner(), meta.block_number, &meta.transaction_id)?;
             if stored_message {
                 stored = stored.saturating_add(1);
             }
@@ -697,6 +711,23 @@ impl HyperlaneDb for HyperlaneRocksDB {
         message_id: &H256,
     ) -> DbResult<Option<Vec<UniqueIdentifier>>> {
         self.retrieve_value_by_key(PAYLOAD_UUIDS_BY_MESSAGE_ID, message_id)
+    }
+
+    fn store_message_id_by_dispatch_tx(&self, dispatch_tx_id: &H512, message_id: &H256) -> DbResult<()> {
+        warn!(
+            dispatch_tx_id = ?dispatch_tx_id,
+            message_id = ?message_id,
+            "STORING MESSAGE ID BY DISPATCH TX"
+        );
+        self.store_value_by_key(MESSAGE_ID_BY_DISPATCH_TX, dispatch_tx_id, message_id)
+    }
+
+    fn retrieve_message_id_by_dispatch_tx(&self, dispatch_tx_id: &H512) -> DbResult<Option<H256>> {
+        warn!(
+            dispatch_tx_id = ?dispatch_tx_id,
+            "RETRIEVING MESSAGE ID BY DISPATCH TX"
+        );
+        self.retrieve_value_by_key(MESSAGE_ID_BY_DISPATCH_TX, dispatch_tx_id)
     }
 }
 
