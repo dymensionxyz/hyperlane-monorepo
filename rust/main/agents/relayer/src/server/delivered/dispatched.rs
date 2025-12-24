@@ -24,8 +24,8 @@ pub struct QueryParams {
     /// For Sealevel: base58 string, e.g. "kKe43MZtkjypsbgwKvrCVZWNmsYFm2aqTUyWzHPEAqWq5f3kwegKKjbPpjsP8MvcTRzbgZ1mg4sfqxRcwJGZ2ZD"
     /// For others: hex string (with or without 0x prefix), e.g. "0xabc123..."
     pub tx_hash: String,
-    /// The origin domain ID (where the transaction hash is from)
-    pub origin_domain_id: u32,
+    /// The domain ID (where the transaction hash is from)
+    pub domain_id: u32,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -42,26 +42,26 @@ pub async fn handler(
     Query(query_params): Query<QueryParams>,
 ) -> ServerResult<ServerSuccessResponse<MessageIdResponse>> {
     let tx_hash_str = query_params.tx_hash.clone();
-    let origin_domain_id = query_params.origin_domain_id;
+    let domain_id = query_params.domain_id;
 
-    // Get the database for the origin domain (where the tx hash is from)
-    let db = match state.dbs.get(&origin_domain_id) {
+    // Get the database for the domain (where the tx hash is from)
+    let db = match state.dbs.get(&domain_id) {
         Some(db) => {
             db
         }
         None => {
             warn!(
                 %tx_hash_str,
-                %origin_domain_id,
+                %domain_id,
                 available_domains = ?state.dbs.keys().collect::<Vec<_>>(),
-                "DELIVERY_API_BY_TX: No database found for origin domain"
+                "DISPATCHED_API: No database found for origin domain"
             );
             return Err(ServerErrorResponse::new(
                 StatusCode::NOT_FOUND,
                 ServerErrorBody {
                     message: format!(
                         "No database found for origin domain: {}. Available domains: {:?}",
-                        origin_domain_id,
+                        domain_id,
                         state.dbs.keys().collect::<Vec<_>>()
                     ),
                 },
@@ -78,17 +78,17 @@ pub async fn handler(
         // For Sealevel, parse as base58
         warn!(
             %tx_hash_str,
-            %origin_domain_id,
-            "DELIVERY_API_BY_TX: Parsing tx_hash as base58 (Sealevel)"
+            %domain_id,
+            "DISPATCHED_API: Parsing tx_hash as base58 (Sealevel)"
         );
         match bs58::decode(&tx_hash_str).into_vec() {
             Ok(bytes) => {
                 if bytes.len() != 64 {
                     warn!(
                         %tx_hash_str,
-                        %origin_domain_id,
+                        %domain_id,
                         bytes_len = %bytes.len(),
-                        "DELIVERY_API_BY_TX: Invalid base58 tx_hash length - expected 64 bytes"
+                        "DISPATCHED_API: Invalid base58 tx_hash length - expected 64 bytes"
                     );
                     return Err(ServerErrorResponse::new(
                         StatusCode::BAD_REQUEST,
@@ -105,9 +105,9 @@ pub async fn handler(
             Err(e) => {
                 warn!(
                     %tx_hash_str,
-                    %origin_domain_id,
+                    %domain_id,
                     error = %e,
-                    "DELIVERY_API_BY_TX: Failed to parse base58 tx_hash"
+                    "DISPATCHED_API: Failed to parse base58 tx_hash"
                 );
                 return Err(ServerErrorResponse::new(
                     StatusCode::BAD_REQUEST,
@@ -124,9 +124,9 @@ pub async fn handler(
             Err(e) => {
                 warn!(
                     %tx_hash_str,
-                    %origin_domain_id,
+                    %domain_id,
                     error = %e,
-                    "DELIVERY_API_BY_TX: Failed to parse hex tx_hash"
+                    "DISPATCHED_API: Failed to parse hex tx_hash"
                 );
                 return Err(ServerErrorResponse::new(
                     StatusCode::BAD_REQUEST,
@@ -146,24 +146,24 @@ pub async fn handler(
         Ok(Some(message_id)) => {
             warn!(
                 %tx_hash_str,
-                %origin_domain_id,
+                %domain_id,
                 message_id = ?message_id,
-                "DELIVERY_API_BY_TX: Found message_id in database"
+                "DISPATCHED_API: Found message_id in database"
             );
             message_id
         }
         Ok(None) => {
             warn!(
                 %tx_hash_str,
-                %origin_domain_id,
-                "DELIVERY_API_BY_TX: No message_id found in database"
+                %domain_id,
+                "DISPATCHED_API: No message_id found in database"
             );
             return Err(ServerErrorResponse::new(
                 StatusCode::NOT_FOUND,
                 ServerErrorBody {
                     message: format!(
                         "No message found for tx_hash: {} on origin domain: {}",
-                        tx_hash_str, origin_domain_id
+                        tx_hash_str, domain_id
                     ),
                 },
             ));
@@ -171,9 +171,9 @@ pub async fn handler(
         Err(e) => {
             warn!(
                 %tx_hash_str,
-                %origin_domain_id,
+                %domain_id,
                 error = %e,
-                "DELIVERY_API_BY_TX: Database error when retrieving message_id"
+                "DISPATCHED_API: Database error when retrieving message_id"
             );
             return Err(ServerErrorResponse::new(
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -189,19 +189,19 @@ pub async fn handler(
         Ok(Some(message)) => {
             warn!(
                 %tx_hash_str,
-                %origin_domain_id,
+                %domain_id,
                 message_id = ?message_id,
                 destination_domain_id = %message.destination,
-                "DELIVERY_API_BY_TX: Successfully retrieved message from database"
+                "DISPATCHED_API: Successfully retrieved message from database"
             );
             message
         }
         Ok(None) => {
             warn!(
                 %tx_hash_str,
-                %origin_domain_id,
+                %domain_id,
                 message_id = ?message_id,
-                "DELIVERY_API_BY_TX: message_id found in database but full message not found"
+                "DISPATCHED_API: message_id found in database but full message not found"
             );
             return Err(ServerErrorResponse::new(
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -213,10 +213,10 @@ pub async fn handler(
         Err(e) => {
             warn!(
                 %tx_hash_str,
-                %origin_domain_id,
+                %domain_id,
                 message_id = ?message_id,
                 error = %e,
-                "DELIVERY_API_BY_TX: Database error retrieving full message"
+                "DISPATCHED_API: Database error retrieving full message"
             );
             return Err(ServerErrorResponse::new(
                 StatusCode::INTERNAL_SERVER_ERROR,

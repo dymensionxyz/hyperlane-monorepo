@@ -6,7 +6,7 @@ use hyperlane_base::{ContractSyncer, db::HyperlaneRocksDB};
 use hyperlane_core::HyperlaneMessage;
 use tower_http::cors::{Any, CorsLayer};
 
-pub mod by_tx;
+pub mod dispatched;
 pub mod handler;
 
 #[derive(Clone)]
@@ -43,7 +43,7 @@ impl ServerState {
 
         Router::new()
             .route("/delivered", get(handler::handler))
-            .route("/delivered/by_tx", get(by_tx::handler))
+            .route("/dispatched", get(dispatched::handler))
             .layer(cors)
             .with_state(self)
     }
