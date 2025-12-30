@@ -14,15 +14,14 @@ use tracing::info;
 
 fn proto_to_outpoint(
     proto: Option<&ProtoTransactionOutpoint>,
-    field_name: &str,
 ) -> Result<TransactionOutpoint, ValidationError> {
-    let o = proto.ok_or_else(|| ValidationError::OutpointMissing {
-        description: format!("{} in progress indication", field_name),
+    let o = proto.ok_or(ValidationError::OutpointMissing {
+        description: "outpoint in progress indication".to_string(),
     })?;
     Ok(TransactionOutpoint {
         transaction_id: KaspaHash::from_bytes(o.transaction_id.as_slice().try_into().map_err(
             |e| ValidationError::InvalidOutpointData {
-                reason: format!("Invalid {} transaction ID: {}", field_name, e),
+                reason: format!("invalid transaction ID: {}", e),
             },
         )?),
         index: o.index,
@@ -42,10 +41,8 @@ pub async fn validate_confirmed_withdrawals(
 
     let untrusted_progress = &fxg.progress_indication;
 
-    let proposed_hub_anchor_old =
-        proto_to_outpoint(untrusted_progress.old_outpoint.as_ref(), "old outpoint")?;
-    let proposed_hub_anchor_new =
-        proto_to_outpoint(untrusted_progress.new_outpoint.as_ref(), "new outpoint")?;
+    let proposed_hub_anchor_old = proto_to_outpoint(untrusted_progress.old_outpoint.as_ref())?;
+    let proposed_hub_anchor_new = proto_to_outpoint(untrusted_progress.new_outpoint.as_ref())?;
 
     // Validate the progress indication is correct according to the cache
     let outpoint_sequence = &fxg.outpoints;
