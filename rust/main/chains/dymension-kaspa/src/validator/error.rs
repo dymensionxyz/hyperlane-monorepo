@@ -113,7 +113,7 @@ pub enum ValidationError {
     #[error("More than one anchor candidate in PSKT outputs")]
     MultipleAnchors,
 
-    #[error("PSKT payload doesn't match inteded HL messages")]
+    #[error("PSKT payload doesn't match intended HL messages")]
     PayloadMismatch,
 
     #[error("Outpoint not found in PSKT chain: outpoint={o:?}")]
