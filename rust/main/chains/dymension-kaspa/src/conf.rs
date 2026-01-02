@@ -1,11 +1,22 @@
 use std::str::FromStr;
 
 use derive_new::new;
+use serde::Deserialize;
 use url::Url;
 
 use hyperlane_core::{
     config::OpSubmissionConfig, ChainCommunicationError, FixedPointNumber, H256, U256,
 };
+
+/// Unified validator configuration object.
+/// Each entry contains all info for one validator, keeping host/ism_address/escrow_pub together.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KaspaValidatorInfo {
+    pub host: String,
+    pub ism_address: String,
+    pub escrow_pub: String,
+}
 
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
@@ -52,8 +63,7 @@ pub use dym_kas_kms::AwsKeyConfig;
 
 #[derive(Debug, Clone)]
 pub struct RelayerStuff {
-    pub validator_hosts: Vec<String>,
-    pub validator_ism_addresses: Vec<String>,
+    pub validators: Vec<KaspaValidatorInfo>,
     pub deposit_timings: RelayerDepositTimings,
     pub tx_fee_multiplier: f64,
     pub max_sweep_inputs: Option<usize>,
@@ -108,9 +118,7 @@ impl ConnectionConf {
         wallet_dir: Option<String>,
         kaspa_urls_wrpc: Vec<String>,
         kaspa_urls_rest: Vec<Url>,
-        validator_hosts: Vec<String>,
-        validator_ism_addresses: Vec<String>,
-        validator_pub_keys: Vec<String>,
+        kaspa_validators: Vec<KaspaValidatorInfo>,
         kaspa_escrow_key_source: Option<KaspaEscrowKeySource>,
         kaspa_urls_grpc: Vec<String>,
         multisig_threshold_hub_ism: usize,
@@ -131,6 +139,15 @@ impl ConnectionConf {
         max_sweep_inputs: Option<usize>,
         validator_request_timeout: std::time::Duration,
     ) -> Self {
+        // Extract escrow pub keys for ConnectionConf (used by both validator and relayer)
+        let validator_pub_keys: Vec<String> = kaspa_validators
+            .iter()
+            .map(|v| v.escrow_pub.clone())
+            .collect();
+
+        // Check if this is a relayer config (has validator hosts configured)
+        let has_relayer_config = kaspa_validators.iter().any(|v| !v.host.is_empty());
+
         let v = match kaspa_escrow_key_source {
             Some(kas_escrow_key_source) => {
                 if hub_domain == 0
@@ -159,22 +176,18 @@ impl ConnectionConf {
             None => None,
         };
 
-        let r = match validator_hosts.len() {
-            0 => None,
-            _ => {
-                let deposit_timings = kaspa_time_config.unwrap_or_default();
-                Some(RelayerStuff {
-                    validator_hosts,
-                    validator_ism_addresses,
-                    deposit_timings,
-                    tx_fee_multiplier: kas_tx_fee_multiplier,
-                    max_sweep_inputs, // None by default, only enforced if configured
-                    // Validator accepts 10 MB body limit. Use 8 MB for sweeping bundle
-                    // to leave 2 MB margin for messages, anchors, and protobuf overhead
-                    max_sweep_bundle_bytes: 8 * 1024 * 1024,
-                    validator_request_timeout,
-                })
-            }
+        let r = if has_relayer_config {
+            let deposit_timings = kaspa_time_config.unwrap_or_default();
+            Some(RelayerStuff {
+                validators: kaspa_validators,
+                deposit_timings,
+                tx_fee_multiplier: kas_tx_fee_multiplier,
+                max_sweep_inputs,
+                max_sweep_bundle_bytes: 8 * 1024 * 1024,
+                validator_request_timeout,
+            })
+        } else {
+            None
         };
 
         Self {

@@ -43,22 +43,12 @@ impl BlockNumberGetter for ValidatorsClient {
 }
 
 impl ValidatorsClient {
-    fn hosts(&self) -> Vec<String> {
-        self.conf
-            .relayer_stuff
-            .as_ref()
-            .unwrap()
-            .validator_hosts
-            .clone()
+    fn validators(&self) -> &[crate::KaspaValidatorInfo] {
+        &self.conf.relayer_stuff.as_ref().unwrap().validators
     }
 
-    fn ism_addresses(&self) -> Vec<String> {
-        self.conf
-            .relayer_stuff
-            .as_ref()
-            .unwrap()
-            .validator_ism_addresses
-            .clone()
+    fn hosts(&self) -> Vec<String> {
+        self.validators().iter().map(|v| v.host.clone()).collect()
     }
 
     async fn collect_with_threshold<T, F, V>(
@@ -206,11 +196,18 @@ impl ValidatorsClient {
         let threshold = self.multisig_threshold_hub_ism();
         let client = self.http_client.clone();
         let hosts = self.hosts();
-        let expected_addresses = self.ism_addresses();
+        // Extract ISM addresses from validators for signature verification
+        let expected_addresses: Vec<String> = self
+            .validators()
+            .iter()
+            .map(|v| v.ism_address.clone())
+            .collect();
         let metrics = self.metrics.clone();
         let fxg = fxg.clone();
 
-        let validator = if expected_addresses.is_empty() {
+        // Only validate signatures if ISM addresses are configured (non-empty)
+        let has_ism_addresses = expected_addresses.iter().any(|a| !a.is_empty());
+        let validator = if !has_ism_addresses {
             None
         } else {
             Some(
@@ -218,6 +215,9 @@ impl ValidatorsClient {
                       host: &String,
                       signed_checkpoint: &SignedCheckpointWithMessageId| {
                     if let Some(expected) = expected_addresses.get(index) {
+                        if expected.is_empty() {
+                            return true;
+                        }
                         match H160::from_str(expected) {
                             Ok(expected_h160) => match signed_checkpoint.recover() {
                                 Ok(recovered_signer) => {
@@ -239,7 +239,7 @@ impl ValidatorsClient {
                                         validator = ?host,
                                         validator_index = index,
                                         error = ?e,
-                                        "kaspa: failed to recover signer from signature"
+                                        "kaspa: signature recovery failed"
                                     );
                                     false
                                 }
@@ -250,7 +250,7 @@ impl ValidatorsClient {
                                     validator_index = index,
                                     expected_address = ?expected,
                                     error = ?e,
-                                    "kaspa: failed to parse expected ISM address"
+                                    "kaspa: invalid ISM address format"
                                 );
                                 false
                             }
