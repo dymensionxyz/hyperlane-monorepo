@@ -10,6 +10,18 @@ use hyperlane_core::{
 
 /// Unified validator configuration object.
 /// Each entry contains all info for one validator, keeping host/ism_address/escrow_pub together.
+///
+/// # Ordering Requirements
+///
+/// The order of validators in the config array is significant:
+///
+/// 1. **Escrow public keys order**: The `escrow_pub` keys are extracted in config order to derive
+///    the Kaspa multisig escrow address. Changing the order will produce a different escrow address.
+///    The order must match the existing production escrow for backwards compatibility.
+///
+/// 2. **ISM signature ordering**: Signatures for deposits and confirmations are sorted by ISM address
+///    at runtime (lexicographic order of H160 bytes) before submission to the Hub ISM.
+///    The relayer handles this sorting automatically.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KaspaValidatorInfo {
