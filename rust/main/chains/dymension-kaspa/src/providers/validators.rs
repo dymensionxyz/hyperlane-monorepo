@@ -43,12 +43,25 @@ impl BlockNumberGetter for ValidatorsClient {
 }
 
 impl ValidatorsClient {
+    /// Escrow signers (for withdrawals and migration)
     fn validators(&self) -> &[crate::KaspaValidatorInfo] {
         &self.conf.relayer_stuff.as_ref().unwrap().validators
     }
 
+    /// ISM signers (for deposits and confirmations). Falls back to validators if not set.
+    fn ism_validators(&self) -> &[crate::KaspaValidatorInfo] {
+        self.conf.relayer_stuff.as_ref().unwrap().ism_validators()
+    }
+
     fn hosts(&self) -> Vec<String> {
         self.validators().iter().map(|v| v.host.clone()).collect()
+    }
+
+    fn ism_hosts(&self) -> Vec<String> {
+        self.ism_validators()
+            .iter()
+            .map(|v| v.host.clone())
+            .collect()
     }
 
     /// Collects responses from validators until threshold is met.
@@ -197,10 +210,11 @@ impl ValidatorsClient {
     ) -> ChainResult<Vec<SignedCheckpointWithMessageId>> {
         let threshold = self.multisig_threshold_hub_ism();
         let client = self.http_client.clone();
-        let hosts = self.hosts();
-        // Extract ISM addresses from validators for signature verification
+        // Use ISM validators for deposit signatures
+        let hosts = self.ism_hosts();
+        // Extract ISM addresses from ISM validators for signature verification
         let expected_addresses: Vec<String> = self
-            .validators()
+            .ism_validators()
             .iter()
             .map(|v| v.ism_address.clone())
             .collect();
@@ -296,13 +310,14 @@ impl ValidatorsClient {
     ) -> ChainResult<Vec<Signature>> {
         let threshold = self.multisig_threshold_hub_ism();
         let client = self.http_client.clone();
-        let hosts = self.hosts();
+        // Use ISM validators for confirmation signatures
+        let hosts = self.ism_hosts();
         let metrics = self.metrics.clone();
         let fxg = fxg.clone();
 
-        // Get ISM addresses for sorting
+        // Get ISM addresses for sorting from ISM validators
         let ism_addresses: Vec<H160> = self
-            .validators()
+            .ism_validators()
             .iter()
             .enumerate()
             .map(|(idx, v)| {
@@ -311,7 +326,7 @@ impl ValidatorsClient {
                         validator_index = idx,
                         ism_address = %v.ism_address,
                         error = ?e,
-                        "kaspa: failed to parse ISM address, using default for sorting"
+                        "kaspa: ISM address parse failed, using default for sorting"
                     );
                     H160::default()
                 })

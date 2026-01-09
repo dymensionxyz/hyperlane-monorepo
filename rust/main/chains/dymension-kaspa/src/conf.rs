@@ -75,12 +75,22 @@ pub use dym_kas_kms::AwsKeyConfig;
 
 #[derive(Debug, Clone)]
 pub struct RelayerStuff {
+    /// Escrow signers (for withdrawals and migration)
     pub validators: Vec<KaspaValidatorInfo>,
+    /// ISM signers for deposits/confirmations. If None, uses `validators`.
+    pub ism_validators: Option<Vec<KaspaValidatorInfo>>,
     pub deposit_timings: RelayerDepositTimings,
     pub tx_fee_multiplier: f64,
     pub max_sweep_inputs: Option<usize>,
     pub max_sweep_bundle_bytes: usize,
     pub validator_request_timeout: std::time::Duration,
+}
+
+impl RelayerStuff {
+    /// Returns ISM validators if configured, otherwise falls back to escrow validators.
+    pub fn ism_validators(&self) -> &[KaspaValidatorInfo] {
+        self.ism_validators.as_deref().unwrap_or(&self.validators)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -192,6 +202,7 @@ impl ConnectionConf {
             let deposit_timings = kaspa_time_config.unwrap_or_default();
             Some(RelayerStuff {
                 validators: kaspa_validators,
+                ism_validators: None, // Set via config parsing, not constructor
                 deposit_timings,
                 tx_fee_multiplier: kas_tx_fee_multiplier,
                 max_sweep_inputs,

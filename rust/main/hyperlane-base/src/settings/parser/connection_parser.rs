@@ -530,32 +530,43 @@ pub fn build_kaspa_connection_conf(
         .end()
         .unwrap_or(std::time::Duration::from_secs(15));
 
-    Some(ChainConnectionConf::Kaspa(
-        dymension_kaspa::ConnectionConf::new(
-            wallet_secret.to_owned(),
-            wallet_dir,
-            wrpc_urls,
-            rest_urls,
-            kaspa_validators,
-            kaspa_escrow_key_source,
-            grpc_urls,
-            threshold_ism as usize,
-            threshold_escrow as usize,
-            grpcs,
-            hub_mailbox_id.to_owned(),
-            operation_batch,
-            validation_conf,
-            kaspa_min_deposit_sompi,
-            kaspa_time_config,
-            hub_domain,
-            hub_token_id,
-            kas_domain,
-            kas_token_placeholder,
-            kaspa_tx_fee_multiplier,
-            max_sweep_inputs,
-            validator_request_timeout,
-        ),
-    ))
+    // Parse optional kaspaIsmValidators for separate ISM signing set
+    let kaspa_ism_validators: Option<Vec<dymension_kaspa::KaspaValidatorInfo>> =
+        parse_kaspa_ism_validators(chain, err);
+
+    let mut conf = dymension_kaspa::ConnectionConf::new(
+        wallet_secret.to_owned(),
+        wallet_dir,
+        wrpc_urls,
+        rest_urls,
+        kaspa_validators,
+        kaspa_escrow_key_source,
+        grpc_urls,
+        threshold_ism as usize,
+        threshold_escrow as usize,
+        grpcs,
+        hub_mailbox_id.to_owned(),
+        operation_batch,
+        validation_conf,
+        kaspa_min_deposit_sompi,
+        kaspa_time_config,
+        hub_domain,
+        hub_token_id,
+        kas_domain,
+        kas_token_placeholder,
+        kaspa_tx_fee_multiplier,
+        max_sweep_inputs,
+        validator_request_timeout,
+    );
+
+    // Set ISM validators if provided (for dual-list mode during key rotation)
+    if let Some(ism_vals) = kaspa_ism_validators {
+        if let Some(ref mut relayer_stuff) = conf.relayer_stuff {
+            relayer_stuff.ism_validators = Some(ism_vals);
+        }
+    }
+
+    Some(ChainConnectionConf::Kaspa(conf))
 }
 
 fn build_sealevel_connection_conf(
@@ -870,6 +881,26 @@ fn parse_kaspa_validators(
             Some(validators)
         }
         None => Some(Vec::new()),
+    }
+}
+
+/// Parse optional kaspaIsmValidators for separate ISM signing set (used during key rotation).
+/// Returns None if field is missing (normal operation mode uses kaspaValidators for both).
+fn parse_kaspa_ism_validators(
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+) -> Option<Vec<dymension_kaspa::KaspaValidatorInfo>> {
+    let validators_opt = chain.chain(err).get_opt_key("kaspaIsmValidators").end();
+
+    match validators_opt {
+        Some(value_parser) => {
+            let validators: Vec<dymension_kaspa::KaspaValidatorInfo> = value_parser
+                .chain(err)
+                .parse_value("failed to parse kaspaIsmValidators array")
+                .end()?;
+            Some(validators)
+        }
+        None => None,
     }
 }
 
