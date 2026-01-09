@@ -108,9 +108,9 @@ impl Default for RelayerDepositTimings {
 
 #[derive(Debug, Clone)]
 pub struct ValidationConf {
-    pub deposit_enabled: bool,
-    pub withdrawal_enabled: bool,
-    pub withdrawal_confirmation_enabled: bool,
+    pub validate_deposits: bool,
+    pub validate_withdrawals: bool,
+    pub validate_confirmations: bool,
     /// When set, enables migration mode. Only migration TX signing and confirmation are allowed.
     /// During migration, current escrow is treated as "old" and this address as "new".
     pub migration_target_address: Option<String>,
@@ -119,9 +119,9 @@ pub struct ValidationConf {
 impl Default for ValidationConf {
     fn default() -> Self {
         Self {
-            deposit_enabled: true,
-            withdrawal_enabled: true,
-            withdrawal_confirmation_enabled: true,
+            validate_deposits: true,
+            validate_withdrawals: true,
+            validate_confirmations: true,
             migration_target_address: None,
         }
     }
