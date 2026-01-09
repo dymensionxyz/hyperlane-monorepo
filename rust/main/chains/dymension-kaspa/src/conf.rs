@@ -112,9 +112,8 @@ pub struct ValidationConf {
     pub withdrawal_enabled: bool,
     pub withdrawal_confirmation_enabled: bool,
     /// When set, enables migration mode. Only migration TX signing and confirmation are allowed.
+    /// During migration, current escrow is treated as "old" and this address as "new".
     pub migration_target_address: Option<String>,
-    /// Previous escrow address for confirmation validation across escrow boundary during migration.
-    pub previous_escrow_address: Option<String>,
 }
 
 impl Default for ValidationConf {
@@ -124,7 +123,6 @@ impl Default for ValidationConf {
             withdrawal_enabled: true,
             withdrawal_confirmation_enabled: true,
             migration_target_address: None,
-            previous_escrow_address: None,
         }
     }
 }
