@@ -287,6 +287,14 @@ async fn respond_validate_new_deposits<
     body: Bytes,
 ) -> HandlerResult<Json<SignedCheckpointWithMessageId>> {
     info!("validator: checking new kaspa deposit");
+
+    // Migration mode: deposits are disabled
+    if res.must_val_stuff().toggles.is_migration_mode() {
+        return Err(AppError(eyre::eyre!(
+            "Migration mode active: deposits disabled"
+        )));
+    }
+
     let deposits: DepositFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
     if res.must_val_stuff().toggles.deposit_enabled {
         validate_new_deposit(
@@ -346,6 +354,13 @@ async fn respond_sign_pskts<
     body: Bytes,
 ) -> HandlerResult<Json<Bundle>> {
     info!("validator: signing pskts");
+
+    // Migration mode: withdrawals are disabled
+    if res.must_val_stuff().toggles.is_migration_mode() {
+        return Err(AppError(eyre::eyre!(
+            "Migration mode active: withdrawals disabled"
+        )));
+    }
 
     let fxg: WithdrawFXG = body.try_into().map_err(|e: Report| AppError(e))?;
     let escrow = res.must_escrow();

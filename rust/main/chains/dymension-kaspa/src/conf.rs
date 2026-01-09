@@ -111,6 +111,10 @@ pub struct ValidationConf {
     pub deposit_enabled: bool,
     pub withdrawal_enabled: bool,
     pub withdrawal_confirmation_enabled: bool,
+    /// When set, enables migration mode. Only migration TX signing and confirmation are allowed.
+    pub migration_target_address: Option<String>,
+    /// Previous escrow address for confirmation validation across escrow boundary during migration.
+    pub previous_escrow_address: Option<String>,
 }
 
 impl Default for ValidationConf {
@@ -119,7 +123,16 @@ impl Default for ValidationConf {
             deposit_enabled: true,
             withdrawal_enabled: true,
             withdrawal_confirmation_enabled: true,
+            migration_target_address: None,
+            previous_escrow_address: None,
         }
+    }
+}
+
+impl ValidationConf {
+    /// Returns true if migration mode is active.
+    pub fn is_migration_mode(&self) -> bool {
+        self.migration_target_address.is_some()
     }
 }
 
@@ -138,7 +151,7 @@ impl ConnectionConf {
         hub_grpc_urls: Vec<Url>,
         hub_mailbox_id: String,
         op_submission_config: OpSubmissionConfig,
-        _validation_conf: ValidationConf,
+        validation_conf: ValidationConf,
         min_deposit_sompi: U256,
         kaspa_time_config: Option<RelayerDepositTimings>,
 
@@ -177,11 +190,7 @@ impl ConnectionConf {
                         hub_mailbox_id,
                         kas_escrow_key_source,
                         kaspa_grpc_urls: kaspa_urls_grpc,
-                        toggles: ValidationConf {
-                            deposit_enabled: true,
-                            withdrawal_enabled: true,
-                            withdrawal_confirmation_enabled: true,
-                        },
+                        toggles: validation_conf,
                     })
                 }
             }
