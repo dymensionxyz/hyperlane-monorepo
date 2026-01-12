@@ -1,5 +1,6 @@
 use crate::ops::migration::MigrationFXG;
 use crate::ops::payload::MessageIDs;
+use crate::ops::withdraw::query_hub_anchor;
 use crate::validator::error::ValidationError;
 use crate::validator::withdraw::{
     calculate_escrow_input_sum, escrow_input_selector, safe_bundle, sign_withdrawal_fxg,
@@ -92,8 +93,13 @@ where
         });
     }
 
-    // Query hub for current anchor
-    let hub_anchor = query_hub_anchor(hub_rpc).await?;
+    // Query hub for current anchor (uses withdrawal_status with empty list)
+    let hub_anchor =
+        query_hub_anchor(hub_rpc)
+            .await
+            .map_err(|e| ValidationError::HubQueryError {
+                reason: e.to_string(),
+            })?;
     info!(
         tx_id = %hub_anchor.transaction_id,
         index = hub_anchor.index,
@@ -132,41 +138,6 @@ where
     )?;
 
     Ok(())
-}
-
-async fn query_hub_anchor(
-    hub_rpc: &ModuleQueryClient,
-) -> Result<TransactionOutpoint, ValidationError> {
-    let resp = hub_rpc
-        .outpoint(None)
-        .await
-        .map_err(|e| ValidationError::HubQueryError {
-            reason: format!("Query hub outpoint: {}", e),
-        })?;
-
-    let outpoint = resp
-        .outpoint
-        .ok_or_else(|| ValidationError::HubQueryError {
-            reason: "No outpoint in hub response".to_string(),
-        })?;
-
-    if outpoint.transaction_id.len() != 32 {
-        return Err(ValidationError::HubQueryError {
-            reason: format!(
-                "Invalid hub anchor transaction ID length: expected 32, got {}",
-                outpoint.transaction_id.len()
-            ),
-        });
-    }
-
-    let tx_id =
-        kaspa_hashes::Hash::from_bytes(outpoint.transaction_id.as_slice().try_into().map_err(
-            |_| ValidationError::HubQueryError {
-                reason: "Failed to convert hub anchor tx ID".to_string(),
-            },
-        )?);
-
-    Ok(TransactionOutpoint::new(tx_id, outpoint.index))
 }
 
 async fn query_escrow_utxos_with_amounts<R>(
