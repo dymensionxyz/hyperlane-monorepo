@@ -109,7 +109,7 @@ where
     }
 
     // Only sign escrow inputs
-    let bundle = sign_withdrawal_fxg(&b, load_key, Some(escrow_input_selector(&escrow_public)))
+    let bundle = sign_pskt_bundle(&b, load_key, Some(escrow_input_selector(&escrow_public)))
         .await
         .map_err(|e| eyre::eyre!("Failed to sign withdrawal: {e}"))?;
 
@@ -416,7 +416,9 @@ fn validate_pskt_application_semantics(
     next_anchor_idx.ok_or(ValidationError::NextAnchorNotFound)
 }
 
-pub async fn sign_withdrawal_fxg<F, Fut>(
+/// Sign a PSKT bundle with an optional input filter.
+/// Used by both withdrawal and migration signing.
+pub async fn sign_pskt_bundle<F, Fut>(
     bundle: &Bundle,
     load_key: F,
     input_filter: Option<impl Fn(&Input) -> bool>,

@@ -3,7 +3,7 @@ use crate::ops::payload::MessageIDs;
 use crate::ops::withdraw::query_hub_anchor;
 use crate::validator::error::ValidationError;
 use crate::validator::withdraw::{
-    calculate_escrow_input_sum, escrow_input_selector, safe_bundle, sign_withdrawal_fxg,
+    calculate_escrow_input_sum, escrow_input_selector, safe_bundle, sign_pskt_bundle,
 };
 use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::pskt::is_valid_sighash_type;
@@ -30,10 +30,11 @@ struct UtxoWithAmount {
 /// Migration validation checks:
 /// 1. Query hub for current anchor and verify PSKT spends it
 /// 2. Query Kaspa for ALL escrow UTXOs and verify PSKT spends ALL of them with correct amounts
-/// 3. Verify escrow funds are 100% preserved (escrow_input_sum == output)
-/// 4. Verify exactly ONE output goes to the configured migration target address
+/// 3. Verify exactly ONE output goes to the configured migration target address
+/// 4. Verify escrow funds are 100% preserved (escrow_input_sum == target_output)
 /// 5. Verify payload is empty MessageIDs (no withdrawals processed)
 /// 6. Allow relayer fee inputs (non-escrow inputs are permitted)
+/// 7. Allow relayer change outputs (additional outputs beyond migration target)
 pub async fn validate_sign_migration_fxg<F, Fut, R>(
     fxg: MigrationFXG,
     escrow_public: EscrowPublic,
@@ -62,7 +63,7 @@ where
     info!("Validator: migration PSKT is valid");
 
     // Sign escrow inputs using the same selector as withdrawals
-    let signed = sign_withdrawal_fxg(
+    let signed = sign_pskt_bundle(
         &bundle,
         load_key,
         Some(escrow_input_selector(&escrow_public)),
@@ -231,21 +232,6 @@ fn validate_migration_pskt(
     // 2. Hub anchor is spent (checked above)
     // 3. Non-escrow inputs are permitted (relayer pays fees from their own UTXOs)
 
-    // Verify exactly ONE output to migration target
-    if pskt.outputs.len() != 1 {
-        return Err(ValidationError::FailedGeneralVerification {
-            reason: format!(
-                "Migration PSKT must have exactly 1 output, got {}",
-                pskt.outputs.len()
-            ),
-        });
-    }
-    if &pskt.outputs[0].script_public_key != target_script {
-        return Err(ValidationError::FailedGeneralVerification {
-            reason: "Migration PSKT output must go to target address".to_string(),
-        });
-    }
-
     // Verify payload is empty MessageIDs (migration TX processes no withdrawals)
     let expected_payload = MessageIDs::new(vec![]).to_bytes();
     let actual_payload = pskt.global.payload.clone().unwrap_or_default();
@@ -256,15 +242,34 @@ fn validate_migration_pskt(
         });
     }
 
-    // Verify escrow funds are 100% preserved: escrow_input_sum == output
-    // Relayer pays fees from their own inputs, so escrow funds should be fully transferred
+    // Calculate escrow input sum
     let escrow_input_sum = calculate_escrow_input_sum(pskt, escrow_public);
-    let output_sum = pskt.outputs[0].amount;
 
-    if escrow_input_sum != output_sum {
+    // Find exactly ONE output to migration target with correct amount
+    // Additional outputs are allowed (relayer change from fee inputs)
+    let target_outputs: Vec<_> = pskt
+        .outputs
+        .iter()
+        .filter(|o| &o.script_public_key == target_script)
+        .collect();
+
+    if target_outputs.len() != 1 {
+        return Err(ValidationError::FailedGeneralVerification {
+            reason: format!(
+                "Migration PSKT must have exactly 1 output to target address, got {}",
+                target_outputs.len()
+            ),
+        });
+    }
+
+    let target_output_amount = target_outputs[0].amount;
+
+    // Verify escrow funds are 100% preserved: escrow_input_sum == target_output
+    // Relayer pays fees from their own inputs, so escrow funds should be fully transferred
+    if escrow_input_sum != target_output_amount {
         return Err(ValidationError::EscrowAmountMismatch {
             input_amount: escrow_input_sum,
-            output_amount: output_sum,
+            output_amount: target_output_amount,
         });
     }
 
@@ -273,7 +278,10 @@ fn validate_migration_pskt(
 
     info!(
         escrow_input_sum,
-        output_sum, total_inputs_sum, "Migration PSKT validated: escrow funds fully preserved"
+        target_output_amount,
+        total_inputs_sum,
+        num_outputs = pskt.outputs.len(),
+        "Migration PSKT validated: escrow funds fully preserved"
     );
 
     Ok(())

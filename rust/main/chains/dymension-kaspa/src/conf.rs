@@ -71,6 +71,21 @@ pub enum KaspaEscrowKeySource {
     Aws(dym_kas_kms::AwsKeyConfig),
 }
 
+impl KaspaEscrowKeySource {
+    /// Load the Kaspa escrow keypair from the configured source.
+    pub async fn load_keypair(&self) -> eyre::Result<kaspa_bip32::secp256k1::Keypair> {
+        match self {
+            KaspaEscrowKeySource::Direct(json_str) => serde_json::from_str(json_str)
+                .map_err(|e| eyre::eyre!("parse Kaspa keypair from JSON: {}", e)),
+            KaspaEscrowKeySource::Aws(aws_config) => {
+                dym_kas_kms::load_kaspa_keypair_from_aws(aws_config)
+                    .await
+                    .map_err(|e| eyre::eyre!("load Kaspa keypair from AWS: {}", e))
+            }
+        }
+    }
+}
+
 pub use dym_kas_kms::AwsKeyConfig;
 
 #[derive(Debug, Clone)]

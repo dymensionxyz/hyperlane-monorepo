@@ -380,19 +380,7 @@ async fn respond_sign_pskts<
         val_stuff.toggles.validate_withdrawals,
         res.must_hub_rpc().query(),
         escrow,
-        || async move {
-            match &kas_key_source {
-                crate::conf::KaspaEscrowKeySource::Direct(json_str) => {
-                    serde_json::from_str(json_str)
-                        .map_err(|e| eyre::eyre!("parse Kaspa keypair from JSON: {}", e))
-                }
-                crate::conf::KaspaEscrowKeySource::Aws(aws_config) => {
-                    dym_kas_kms::load_kaspa_keypair_from_aws(aws_config)
-                        .await
-                        .map_err(|e| eyre::eyre!("load Kaspa keypair from AWS: {}", e))
-                }
-            }
-        },
+        || async move { kas_key_source.load_keypair().await },
         WithdrawMustMatch::new(
             res.must_wallet().net.address_prefix,
             res.must_escrow(),
@@ -552,19 +540,7 @@ async fn respond_sign_migration<
         &migration_target_addr,
         res.must_hub_rpc().query(),
         &kaspa_grpc,
-        || async move {
-            match &kas_key_source {
-                crate::conf::KaspaEscrowKeySource::Direct(json_str) => {
-                    serde_json::from_str(json_str)
-                        .map_err(|e| eyre::eyre!("parse Kaspa keypair from JSON: {}", e))
-                }
-                crate::conf::KaspaEscrowKeySource::Aws(aws_config) => {
-                    dym_kas_kms::load_kaspa_keypair_from_aws(aws_config)
-                        .await
-                        .map_err(|e| eyre::eyre!("load Kaspa keypair from AWS: {}", e))
-                }
-            }
-        },
+        || async move { kas_key_source.load_keypair().await },
     )
     .await
     .map_err(|e| {
