@@ -1,7 +1,9 @@
 use crate::ops::migration::MigrationFXG;
 use crate::ops::payload::MessageIDs;
 use crate::validator::error::ValidationError;
-use crate::validator::withdraw::{escrow_input_selector, safe_bundle, sign_withdrawal_fxg};
+use crate::validator::withdraw::{
+    calculate_escrow_input_sum, escrow_input_selector, safe_bundle, sign_withdrawal_fxg,
+};
 use dym_kas_core::escrow::EscrowPublic;
 use dym_kas_core::pskt::is_valid_sighash_type;
 use eyre::Result;
@@ -13,16 +15,24 @@ use kaspa_rpc_core::api::rpc::RpcApi;
 use kaspa_txscript::pay_to_address_script;
 use kaspa_wallet_pskt::prelude::*;
 use kaspa_wallet_pskt::pskt::{Signer, PSKT};
-use std::collections::HashSet;
 use tracing::info;
+
+/// UTXO with outpoint and amount from Kaspa query.
+#[derive(Debug, Clone)]
+struct UtxoWithAmount {
+    outpoint: TransactionOutpoint,
+    amount: u64,
+}
 
 /// Validate and sign a migration PSKT.
 ///
 /// Migration validation checks:
 /// 1. Query hub for current anchor and verify PSKT spends it
-/// 2. Query Kaspa for ALL escrow UTXOs and verify PSKT spends ALL of them
-/// 3. Verify exactly ONE output goes to the configured migration target address
-/// 4. Verify payload is empty MessageIDs (no withdrawals processed)
+/// 2. Query Kaspa for ALL escrow UTXOs and verify PSKT spends ALL of them with correct amounts
+/// 3. Verify escrow funds are 100% preserved (escrow_input_sum == output)
+/// 4. Verify exactly ONE output goes to the configured migration target address
+/// 5. Verify payload is empty MessageIDs (no withdrawals processed)
+/// 6. Allow relayer fee inputs (non-escrow inputs are permitted)
 pub async fn validate_sign_migration_fxg<F, Fut, R>(
     fxg: MigrationFXG,
     escrow_public: EscrowPublic,
@@ -90,8 +100,8 @@ where
         "Migration: got hub anchor"
     );
 
-    // Query Kaspa for ALL escrow UTXOs
-    let escrow_utxos = query_escrow_utxos(kaspa_rpc, &escrow_public.addr).await?;
+    // Query Kaspa for ALL escrow UTXOs (with amounts for verification)
+    let escrow_utxos = query_escrow_utxos_with_amounts(kaspa_rpc, &escrow_public.addr).await?;
     info!(
         utxo_count = escrow_utxos.len(),
         "Migration: got escrow UTXOs"
@@ -113,7 +123,13 @@ where
             })?;
     let pskt = PSKT::<Signer>::from(pskt_inner.clone());
 
-    validate_migration_pskt(&pskt, &hub_anchor, &escrow_utxos, &target_script)?;
+    validate_migration_pskt(
+        &pskt,
+        &hub_anchor,
+        &escrow_utxos,
+        escrow_public,
+        &target_script,
+    )?;
 
     Ok(())
 }
@@ -153,10 +169,10 @@ async fn query_hub_anchor(
     Ok(TransactionOutpoint::new(tx_id, outpoint.index))
 }
 
-async fn query_escrow_utxos<R>(
+async fn query_escrow_utxos_with_amounts<R>(
     kaspa_rpc: &R,
     escrow_addr: &Address,
-) -> Result<Vec<TransactionOutpoint>, ValidationError>
+) -> Result<Vec<UtxoWithAmount>, ValidationError>
 where
     R: RpcApi + ?Sized,
 {
@@ -169,14 +185,18 @@ where
 
     Ok(utxos
         .into_iter()
-        .map(|u| TransactionOutpoint::from(u.outpoint))
+        .map(|u| UtxoWithAmount {
+            outpoint: TransactionOutpoint::from(u.outpoint),
+            amount: u.utxo_entry.amount,
+        })
         .collect())
 }
 
 fn validate_migration_pskt(
     pskt: &PSKT<Signer>,
     hub_anchor: &TransactionOutpoint,
-    expected_utxos: &[TransactionOutpoint],
+    escrow_utxos: &[UtxoWithAmount],
+    escrow_public: &EscrowPublic,
     target_script: &ScriptPublicKey,
 ) -> Result<(), ValidationError> {
     // Check sighash types
@@ -198,43 +218,49 @@ fn validate_migration_pskt(
         return Err(ValidationError::AnchorNotFound { o: *hub_anchor });
     }
 
-    // Build set of expected inputs: all escrow UTXOs + hub anchor
-    let mut expected_inputs: HashSet<TransactionOutpoint> =
-        expected_utxos.iter().cloned().collect();
-    expected_inputs.insert(*hub_anchor);
+    // Verify ALL escrow UTXOs are spent with correct amounts
+    for expected in escrow_utxos {
+        let input = pskt
+            .inputs
+            .iter()
+            .find(|i| i.previous_outpoint == expected.outpoint)
+            .ok_or_else(|| ValidationError::FailedGeneralVerification {
+                reason: format!(
+                    "Migration PSKT missing escrow UTXO: {}:{}",
+                    expected.outpoint.transaction_id, expected.outpoint.index
+                ),
+            })?;
 
-    // Collect all input outpoints from the PSKT
-    let pskt_input_outpoints: HashSet<TransactionOutpoint> =
-        pskt.inputs.iter().map(|i| i.previous_outpoint).collect();
+        // Verify UTXO entry exists (don't silently default to 0)
+        let utxo_entry = input.utxo_entry.as_ref().ok_or_else(|| {
+            ValidationError::FailedGeneralVerification {
+                reason: format!(
+                    "Migration PSKT input {}:{} missing UTXO entry",
+                    expected.outpoint.transaction_id, expected.outpoint.index
+                ),
+            }
+        })?;
 
-    // Verify PSKT inputs match exactly: all expected inputs and nothing extra
-    // This prevents malicious PSKTs from including unexpected inputs
-    if pskt_input_outpoints != expected_inputs {
-        // Find missing inputs
-        for expected in &expected_inputs {
-            if !pskt_input_outpoints.contains(expected) {
-                return Err(ValidationError::FailedGeneralVerification {
-                    reason: format!(
-                        "Migration PSKT missing expected input: {}:{}",
-                        expected.transaction_id, expected.index
-                    ),
-                });
-            }
-        }
-        // Find unexpected inputs
-        for actual in &pskt_input_outpoints {
-            if !expected_inputs.contains(actual) {
-                return Err(ValidationError::FailedGeneralVerification {
-                    reason: format!(
-                        "Migration PSKT has unexpected input: {}:{}",
-                        actual.transaction_id, actual.index
-                    ),
-                });
-            }
+        // Verify amount matches what Kaspa reports
+        if utxo_entry.amount != expected.amount {
+            return Err(ValidationError::FailedGeneralVerification {
+                reason: format!(
+                    "Migration PSKT input {}:{} amount mismatch: PSKT={}, Kaspa={}",
+                    expected.outpoint.transaction_id,
+                    expected.outpoint.index,
+                    utxo_entry.amount,
+                    expected.amount
+                ),
+            });
         }
     }
 
-    // Verify exactly ONE output to migration target (and no other outputs)
+    // Relayer fee inputs are allowed - we only need to verify:
+    // 1. All escrow UTXOs are spent (checked above)
+    // 2. Hub anchor is spent (checked above)
+    // 3. Non-escrow inputs are permitted (relayer pays fees from their own UTXOs)
+
+    // Verify exactly ONE output to migration target
     if pskt.outputs.len() != 1 {
         return Err(ValidationError::FailedGeneralVerification {
             reason: format!(
@@ -259,29 +285,24 @@ fn validate_migration_pskt(
         });
     }
 
-    // Calculate total input and output sums
-    let total_inputs_sum: u64 = pskt
-        .inputs
-        .iter()
-        .map(|i| i.utxo_entry.as_ref().map_or(0, |u| u.amount))
-        .sum();
-    let output_sum: u64 = pskt.outputs.iter().map(|o| o.amount).sum();
+    // Verify escrow funds are 100% preserved: escrow_input_sum == output
+    // Relayer pays fees from their own inputs, so escrow funds should be fully transferred
+    let escrow_input_sum = calculate_escrow_input_sum(pskt, escrow_public);
+    let output_sum = pskt.outputs[0].amount;
 
-    // Verify output doesn't exceed inputs (would indicate invalid transaction)
-    if output_sum > total_inputs_sum {
-        return Err(ValidationError::FailedGeneralVerification {
-            reason: format!(
-                "Migration PSKT output ({}) exceeds inputs ({})",
-                output_sum, total_inputs_sum
-            ),
+    if escrow_input_sum != output_sum {
+        return Err(ValidationError::EscrowAmountMismatch {
+            input_amount: escrow_input_sum,
+            output_amount: output_sum,
         });
     }
 
+    // Calculate total for logging (includes relayer fee inputs)
+    let total_inputs_sum: u64 = escrow_utxos.iter().map(|u| u.amount).sum();
+
     info!(
-        total_inputs_sum,
-        output_sum,
-        fee = total_inputs_sum - output_sum,
-        "Migration PSKT validated"
+        escrow_input_sum,
+        output_sum, total_inputs_sum, "Migration PSKT validated: escrow funds fully preserved"
     );
 
     Ok(())
