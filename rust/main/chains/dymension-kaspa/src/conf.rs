@@ -132,6 +132,13 @@ impl ValidationConf {
     pub fn is_migration_mode(&self) -> bool {
         self.migration_target_address.is_some()
     }
+
+    /// Returns the parsed migration target address if in migration mode.
+    pub fn parsed_migration_target(&self) -> Option<kaspa_addresses::Address> {
+        self.migration_target_address
+            .as_ref()
+            .and_then(|s| kaspa_addresses::Address::try_from(s.as_str()).ok())
+    }
 }
 
 impl ConnectionConf {

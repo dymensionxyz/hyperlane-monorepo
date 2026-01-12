@@ -535,36 +535,37 @@ async fn respond_sign_migration<
         )));
     }
 
-    let migration_target = val_stuff
-        .toggles
-        .migration_target_address
-        .as_ref()
-        .ok_or_else(|| AppError(eyre::eyre!("Migration target address not configured")))?;
-
-    let migration_target_addr = kaspa_addresses::Address::try_from(migration_target.as_str())
-        .map_err(|e| {
-            AppError(eyre::eyre!(
-                "Invalid migration target address '{}': {}",
-                migration_target,
-                e
-            ))
-        })?;
+    let migration_target_addr = val_stuff.toggles.parsed_migration_target().ok_or_else(|| {
+        AppError(eyre::eyre!(
+            "Migration target address not configured or invalid"
+        ))
+    })?;
 
     let fxg: MigrationFXG = body.try_into().map_err(|e: eyre::Report| AppError(e))?;
     let escrow = res.must_escrow();
     let kas_key_source = res.kas_key_source().clone();
+    let kaspa_grpc = res.must_kaspa_grpc_client();
 
-    let bundle = validate_sign_migration_fxg(fxg, escrow, &migration_target_addr, || async move {
-        match &kas_key_source {
-            crate::conf::KaspaEscrowKeySource::Direct(json_str) => serde_json::from_str(json_str)
-                .map_err(|e| eyre::eyre!("parse Kaspa keypair from JSON: {}", e)),
-            crate::conf::KaspaEscrowKeySource::Aws(aws_config) => {
-                dym_kas_kms::load_kaspa_keypair_from_aws(aws_config)
-                    .await
-                    .map_err(|e| eyre::eyre!("load Kaspa keypair from AWS: {}", e))
+    let bundle = validate_sign_migration_fxg(
+        fxg,
+        escrow,
+        &migration_target_addr,
+        res.must_hub_rpc().query(),
+        &kaspa_grpc,
+        || async move {
+            match &kas_key_source {
+                crate::conf::KaspaEscrowKeySource::Direct(json_str) => {
+                    serde_json::from_str(json_str)
+                        .map_err(|e| eyre::eyre!("parse Kaspa keypair from JSON: {}", e))
+                }
+                crate::conf::KaspaEscrowKeySource::Aws(aws_config) => {
+                    dym_kas_kms::load_kaspa_keypair_from_aws(aws_config)
+                        .await
+                        .map_err(|e| eyre::eyre!("load Kaspa keypair from AWS: {}", e))
+                }
             }
-        }
-    })
+        },
+    )
     .await
     .map_err(|e| {
         eprintln!("Migration validation and signing failed: {:?}", e);
