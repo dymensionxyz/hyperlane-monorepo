@@ -84,7 +84,6 @@ pub struct RelayerStuff {
     pub max_sweep_inputs: Option<usize>,
     pub max_sweep_bundle_bytes: usize,
     pub validator_request_timeout: std::time::Duration,
-    pub migrate_escrow_to: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -155,7 +154,6 @@ impl ConnectionConf {
         kas_tx_fee_multiplier: f64,
         max_sweep_inputs: Option<usize>,
         validator_request_timeout: std::time::Duration,
-        migrate_escrow_to: Option<String>,
     ) -> Self {
         // Extract escrow pub keys from escrow validators (used by both validator and relayer)
         let validator_pub_keys: Vec<String> = validators_escrow
@@ -204,7 +202,6 @@ impl ConnectionConf {
                 max_sweep_inputs,
                 max_sweep_bundle_bytes: 8 * 1024 * 1024,
                 validator_request_timeout,
-                migrate_escrow_to,
             })
         } else {
             None

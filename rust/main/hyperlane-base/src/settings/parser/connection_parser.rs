@@ -532,14 +532,6 @@ pub fn build_kaspa_connection_conf(
         .end()
         .unwrap_or(std::time::Duration::from_secs(15));
 
-    // Parse optional migrateEscrowTo for migration mode
-    let migrate_escrow_to: Option<String> = chain
-        .chain(err)
-        .get_opt_key("migrateEscrowTo")
-        .parse_string()
-        .end()
-        .map(|s| s.to_string());
-
     let conf = dymension_kaspa::ConnectionConf::new(
         wallet_secret.to_owned(),
         wallet_dir,
@@ -564,7 +556,6 @@ pub fn build_kaspa_connection_conf(
         kaspa_tx_fee_multiplier,
         max_sweep_inputs,
         validator_request_timeout,
-        migrate_escrow_to,
     );
 
     Some(ChainConnectionConf::Kaspa(conf))

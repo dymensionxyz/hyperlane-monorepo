@@ -53,14 +53,14 @@ impl ValidatorsClient {
         &self.conf.relayer_stuff.as_ref().unwrap().validators_ism
     }
 
-    fn escrow_hosts(&self) -> Vec<String> {
+    fn hosts_escrow(&self) -> Vec<String> {
         self.validators_escrow()
             .iter()
             .map(|v| v.host.clone())
             .collect()
     }
 
-    fn ism_hosts(&self) -> Vec<String> {
+    fn hosts_ism(&self) -> Vec<String> {
         self.validators_ism()
             .iter()
             .map(|v| v.host.clone())
@@ -214,7 +214,7 @@ impl ValidatorsClient {
         let threshold = self.multisig_threshold_hub_ism();
         let client = self.http_client.clone();
         // Use ISM validators for deposit signatures
-        let hosts = self.ism_hosts();
+        let hosts = self.hosts_ism();
         // Extract ISM addresses from ISM validators for signature verification
         let expected_addresses: Vec<String> = self
             .validators_ism()
@@ -314,7 +314,7 @@ impl ValidatorsClient {
         let threshold = self.multisig_threshold_hub_ism();
         let client = self.http_client.clone();
         // Use ISM validators for confirmation signatures
-        let hosts = self.ism_hosts();
+        let hosts = self.hosts_ism();
         let metrics = self.metrics.clone();
         let fxg = fxg.clone();
 
@@ -367,7 +367,7 @@ impl ValidatorsClient {
 
     pub async fn get_withdraw_sigs(&self, fxg: Arc<WithdrawFXG>) -> ChainResult<Vec<Bundle>> {
         let threshold = self.multisig_threshold_escrow();
-        let hosts = self.escrow_hosts();
+        let hosts = self.hosts_escrow();
         let client = self.http_client.clone();
         let metrics = self.metrics.clone();
 
