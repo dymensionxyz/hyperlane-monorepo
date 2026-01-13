@@ -2,11 +2,16 @@ use dymension_kaspa::ops::confirmation::ConfirmationFXG;
 use dymension_kaspa::relayer::confirm::expensive_trace_transactions;
 use dymension_kaspa::KaspaProvider;
 use eyre::Result;
-use hyperlane_core::{ChainResult, HyperlaneChain, Signature};
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, Checkpoint, CheckpointWithMessageId, HyperlaneChain,
+    MultisigSignedCheckpoint, Signature, H256,
+};
 use hyperlane_cosmos::native::{h512_to_cosmos_hash, CosmosNativeMailbox, ModuleQueryClient};
 use hyperlane_cosmos::CosmosProvider;
 use kaspa_consensus_core::tx::TransactionOutpoint;
 use tracing::{error, info};
+
+use super::logic_loop::MetadataConstructor;
 
 /// Ensures the hub anchor is in sync with the Kaspa escrow state.
 ///
@@ -202,4 +207,42 @@ where
 
     info!(tx_hash = ?tx_hash, "Confirmation submitted to hub");
     Ok(())
+}
+
+/// Format signatures for hub submission using a metadata constructor.
+pub fn format_ad_hoc_signatures<C: MetadataConstructor>(
+    metadata_constructor: &C,
+    sigs: &mut Vec<Signature>,
+    min: usize,
+) -> ChainResult<Vec<u8>> {
+    if sigs.len() < min {
+        return Err(ChainCommunicationError::InvalidRequest {
+            msg: format!(
+                "insufficient validator signatures: got {}, need {}",
+                sigs.len(),
+                min
+            ),
+        });
+    }
+
+    // Checkpoint struct not used in metadata formatting, only signatures matter.
+    let ckpt = MultisigSignedCheckpoint {
+        checkpoint: CheckpointWithMessageId {
+            checkpoint: Checkpoint {
+                merkle_tree_hook_address: H256::default(),
+                mailbox_domain: 0,
+                root: H256::default(),
+                index: 0,
+            },
+            message_id: H256::default(),
+        },
+        signatures: sigs.clone(),
+    };
+
+    let meta = metadata_constructor
+        .metadata(&ckpt)
+        .map_err(|e| ChainCommunicationError::InvalidRequest {
+            msg: format!("metadata formatting: {}", e),
+        })?;
+    Ok(meta.to_vec())
 }

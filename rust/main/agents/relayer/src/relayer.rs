@@ -42,8 +42,8 @@ use crate::{
     settings::{matching_list::MatchingList, RelayerSettings},
 };
 use dymension_kaspa::{is_dym, is_kas, KaspaProvider};
-use hyperlane_base::kas_hack::logic_loop::{Foo as KaspaBridgeFoo, MetadataConstructor};
-use hyperlane_base::kas_hack::run_migration_with_sync;
+use hyperlane_base::kas_hack::logic_loop::Foo as KaspaBridgeFoo;
+use hyperlane_base::kas_hack::{format_ad_hoc_signatures, run_migration_with_sync};
 use hyperlane_base::{
     broadcast::BroadcastMpscSender,
     cache::{LocalCache, MeteredCache, MeteredCacheConfig, OptionalCache},
@@ -54,10 +54,9 @@ use hyperlane_base::{
     HyperlaneAgentCore, RuntimeMetrics, SyncOptions,
 };
 use hyperlane_core::{
-    rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, Checkpoint,
-    CheckpointWithMessageId, ContractSyncCursor, HyperlaneDomain, HyperlaneMessage,
-    InterchainGasPayment, MerkleTreeInsertion, MultisigSignedCheckpoint, QueueOperation, Signature,
-    H256, H512, U256,
+    rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
+    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, QueueOperation,
+    Signature, H512, U256,
 };
 use hyperlane_cosmos::native::CosmosNativeMailbox;
 use lander::DispatcherMetrics;
@@ -1269,43 +1268,6 @@ impl Relayer {
         )
         .await
     }
-}
-
-/// Format signatures for hub submission.
-fn format_ad_hoc_signatures<C: MetadataConstructor>(
-    metadata_constructor: &C,
-    sigs: &mut Vec<Signature>,
-    min: usize,
-) -> ChainResult<Vec<u8>> {
-    if sigs.len() < min {
-        return Err(ChainCommunicationError::InvalidRequest {
-            msg: format!(
-                "insufficient validator signatures: got {}, need {}",
-                sigs.len(),
-                min
-            ),
-        });
-    }
-
-    let ckpt = MultisigSignedCheckpoint {
-        checkpoint: CheckpointWithMessageId {
-            checkpoint: Checkpoint {
-                merkle_tree_hook_address: H256::default(),
-                mailbox_domain: 0,
-                root: H256::default(),
-                index: 0,
-            },
-            message_id: H256::default(),
-        },
-        signatures: sigs.clone(),
-    };
-
-    let meta = metadata_constructor
-        .metadata(&ckpt)
-        .map_err(|e| ChainCommunicationError::InvalidRequest {
-            msg: format!("metadata formatting: {}", e),
-        })?;
-    Ok(meta.to_vec())
 }
 
 #[cfg(test)]
