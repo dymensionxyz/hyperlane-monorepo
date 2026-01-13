@@ -76,21 +76,15 @@ pub use dym_kas_kms::AwsKeyConfig;
 #[derive(Debug, Clone)]
 pub struct RelayerStuff {
     /// Escrow signers (for withdrawals and migration)
-    pub validators: Vec<KaspaValidatorInfo>,
-    /// ISM signers for deposits/confirmations. If None, uses `validators`.
-    pub ism_validators: Option<Vec<KaspaValidatorInfo>>,
+    pub validators_escrow: Vec<KaspaValidatorInfo>,
+    /// ISM signers (for deposits and confirmations)
+    pub validators_ism: Vec<KaspaValidatorInfo>,
     pub deposit_timings: RelayerDepositTimings,
     pub tx_fee_multiplier: f64,
     pub max_sweep_inputs: Option<usize>,
     pub max_sweep_bundle_bytes: usize,
     pub validator_request_timeout: std::time::Duration,
-}
-
-impl RelayerStuff {
-    /// Returns ISM validators if configured, otherwise falls back to escrow validators.
-    pub fn ism_validators(&self) -> &[KaspaValidatorInfo] {
-        self.ism_validators.as_deref().unwrap_or(&self.validators)
-    }
+    pub migrate_escrow_to: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -140,7 +134,8 @@ impl ConnectionConf {
         wallet_dir: Option<String>,
         kaspa_urls_wrpc: Vec<String>,
         kaspa_urls_rest: Vec<Url>,
-        kaspa_validators: Vec<KaspaValidatorInfo>,
+        validators_escrow: Vec<KaspaValidatorInfo>,
+        validators_ism: Vec<KaspaValidatorInfo>,
         kaspa_escrow_key_source: Option<KaspaEscrowKeySource>,
         kaspa_urls_grpc: Vec<String>,
         multisig_threshold_hub_ism: usize,
@@ -160,15 +155,16 @@ impl ConnectionConf {
         kas_tx_fee_multiplier: f64,
         max_sweep_inputs: Option<usize>,
         validator_request_timeout: std::time::Duration,
+        migrate_escrow_to: Option<String>,
     ) -> Self {
-        // Extract escrow pub keys for ConnectionConf (used by both validator and relayer)
-        let validator_pub_keys: Vec<String> = kaspa_validators
+        // Extract escrow pub keys from escrow validators (used by both validator and relayer)
+        let validator_pub_keys: Vec<String> = validators_escrow
             .iter()
             .map(|v| v.escrow_pub.clone())
             .collect();
 
         // Check if this is a relayer config (has validator hosts configured)
-        let has_relayer_config = kaspa_validators.iter().any(|v| !v.host.is_empty());
+        let has_relayer_config = validators_escrow.iter().any(|v| !v.host.is_empty());
 
         let v = match kaspa_escrow_key_source {
             Some(kas_escrow_key_source) => {
@@ -201,13 +197,14 @@ impl ConnectionConf {
         let r = if has_relayer_config {
             let deposit_timings = kaspa_time_config.unwrap_or_default();
             Some(RelayerStuff {
-                validators: kaspa_validators,
-                ism_validators: None, // Set via config parsing, not constructor
+                validators_escrow,
+                validators_ism,
                 deposit_timings,
                 tx_fee_multiplier: kas_tx_fee_multiplier,
                 max_sweep_inputs,
                 max_sweep_bundle_bytes: 8 * 1024 * 1024,
                 validator_request_timeout,
+                migrate_escrow_to,
             })
         } else {
             None

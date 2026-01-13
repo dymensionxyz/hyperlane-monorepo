@@ -44,21 +44,24 @@ impl BlockNumberGetter for ValidatorsClient {
 
 impl ValidatorsClient {
     /// Escrow signers (for withdrawals and migration)
-    fn validators(&self) -> &[crate::KaspaValidatorInfo] {
-        &self.conf.relayer_stuff.as_ref().unwrap().validators
+    fn validators_escrow(&self) -> &[crate::KaspaValidatorInfo] {
+        &self.conf.relayer_stuff.as_ref().unwrap().validators_escrow
     }
 
-    /// ISM signers (for deposits and confirmations). Falls back to validators if not set.
-    fn ism_validators(&self) -> &[crate::KaspaValidatorInfo] {
-        self.conf.relayer_stuff.as_ref().unwrap().ism_validators()
+    /// ISM signers (for deposits and confirmations)
+    fn validators_ism(&self) -> &[crate::KaspaValidatorInfo] {
+        &self.conf.relayer_stuff.as_ref().unwrap().validators_ism
     }
 
-    fn hosts(&self) -> Vec<String> {
-        self.validators().iter().map(|v| v.host.clone()).collect()
+    fn escrow_hosts(&self) -> Vec<String> {
+        self.validators_escrow()
+            .iter()
+            .map(|v| v.host.clone())
+            .collect()
     }
 
     fn ism_hosts(&self) -> Vec<String> {
-        self.ism_validators()
+        self.validators_ism()
             .iter()
             .map(|v| v.host.clone())
             .collect()
@@ -214,7 +217,7 @@ impl ValidatorsClient {
         let hosts = self.ism_hosts();
         // Extract ISM addresses from ISM validators for signature verification
         let expected_addresses: Vec<String> = self
-            .ism_validators()
+            .validators_ism()
             .iter()
             .map(|v| v.ism_address.clone())
             .collect();
@@ -317,7 +320,7 @@ impl ValidatorsClient {
 
         // Get ISM addresses for sorting from ISM validators
         let ism_addresses: Vec<H160> = self
-            .ism_validators()
+            .validators_ism()
             .iter()
             .enumerate()
             .map(|(idx, v)| {
@@ -364,7 +367,7 @@ impl ValidatorsClient {
 
     pub async fn get_withdraw_sigs(&self, fxg: Arc<WithdrawFXG>) -> ChainResult<Vec<Bundle>> {
         let threshold = self.multisig_threshold_escrow();
-        let hosts = self.hosts();
+        let hosts = self.escrow_hosts();
         let client = self.http_client.clone();
         let metrics = self.metrics.clone();
 
