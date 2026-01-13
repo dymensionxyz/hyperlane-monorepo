@@ -736,6 +736,10 @@ pub mod test {
             fn store_payload_uuids_by_message_id(&self, message_id: &H256, payload_uuids: Vec<UniqueIdentifier>) -> DbResult<()>;
 
             fn retrieve_payload_uuids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
+
+            fn store_message_id_by_dispatch_tx(&self, dispatch_tx_id: &hyperlane_core::H512, message_id: &H256) -> DbResult<()>;
+
+            fn retrieve_message_id_by_dispatch_tx(&self, dispatch_tx_id: &hyperlane_core::H512) -> DbResult<Option<H256>>;
         }
     }
 

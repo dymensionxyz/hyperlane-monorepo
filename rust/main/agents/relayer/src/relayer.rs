@@ -54,8 +54,8 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
-    HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, QueueOperation,
-    H512, U256,
+    DeliveryDb, HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion,
+    QueueOperation, H512, U256,
 };
 use hyperlane_cosmos::native::CosmosNativeMailbox;
 use lander::DispatcherMetrics;
@@ -67,7 +67,7 @@ mod origin;
 
 const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
-const ADVANCED_LOG_META: bool = false;
+const ADVANCED_LOG_META: bool = true;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 struct ContextKey {
@@ -255,6 +255,14 @@ impl BaseAgent for Relayer {
                     origin_chain_setup.ignore_reorg_reports,
                 );
 
+                // Create destination_db for storing delivery info
+                let destination_db: Arc<dyn DeliveryDb> =
+                    Arc::new(destination.database.clone());
+                
+                // Create origin_db_delivery for reverse lookup (tx_hash -> message_id)
+                let origin_db_delivery: Arc<dyn DeliveryDb> =
+                    Arc::new(db.clone());
+
                 msg_ctxs.insert(
                     ContextKey {
                         origin: origin_domain.clone(),
@@ -263,6 +271,8 @@ impl BaseAgent for Relayer {
                     Arc::new(MessageContext {
                         destination_mailbox: destination_mailbox.clone(),
                         origin_db: Arc::new(db.clone()),
+                        origin_db_delivery,
+                        destination_db,
                         cache: cache.clone(),
                         metadata_builder: Arc::new(metadata_builder),
                         origin_gas_payment_enforcer,
@@ -566,6 +576,11 @@ impl BaseAgent for Relayer {
             .iter()
             .map(|(key, origin)| (key.id(), origin.prover_sync.clone()))
             .collect();
+        let message_syncs: HashMap<_, _> = self
+            .origins
+            .iter()
+            .map(|(key, origin)| (key.id(), origin.message_sync.clone()))
+            .collect();
 
         let relayer_router = relayer_server::Server::new(self.destinations.len())
             .with_op_retry(sender.clone())
@@ -574,6 +589,7 @@ impl BaseAgent for Relayer {
             .with_gas_enforcers(gas_enforcers)
             .with_msg_ctxs(msg_ctxs)
             .with_prover_sync(prover_syncs)
+            .with_message_syncs(message_syncs)
             .with_kaspa_db(
                 self.dymension_kaspa_args
                     .as_ref()

@@ -96,6 +96,7 @@ where
         self.broadcast_sender.clone()
     }
 
+
     /// Sync logs and write them to the LogStore
     #[instrument(name = "ContractSync", fields(domain=self.domain().name()), skip(self, opts))]
     pub async fn sync(&self, label: &'static str, opts: SyncOptions<T>) {
