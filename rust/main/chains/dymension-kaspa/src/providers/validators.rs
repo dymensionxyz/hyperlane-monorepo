@@ -43,28 +43,31 @@ impl BlockNumberGetter for ValidatorsClient {
 }
 
 impl ValidatorsClient {
-    /// Escrow signers (for withdrawals and migration)
-    fn validators_escrow(&self) -> &[crate::KaspaValidatorInfo] {
-        &self.conf.relayer_stuff.as_ref().unwrap().validators_escrow
+    fn relayer_stuff(&self) -> &crate::RelayerStuff {
+        self.conf
+            .relayer_stuff
+            .as_ref()
+            .expect("ValidatorsClient methods require relayer config")
     }
 
-    /// ISM signers (for deposits and confirmations)
+    fn validators_escrow(&self) -> &[crate::KaspaValidatorInfo] {
+        &self.relayer_stuff().validators_escrow
+    }
+
     fn validators_ism(&self) -> &[crate::KaspaValidatorInfo] {
-        &self.conf.relayer_stuff.as_ref().unwrap().validators_ism
+        &self.relayer_stuff().validators_ism
+    }
+
+    fn hosts_from(validators: &[crate::KaspaValidatorInfo]) -> Vec<String> {
+        validators.iter().map(|v| v.host.clone()).collect()
     }
 
     fn hosts_escrow(&self) -> Vec<String> {
-        self.validators_escrow()
-            .iter()
-            .map(|v| v.host.clone())
-            .collect()
+        Self::hosts_from(self.validators_escrow())
     }
 
     fn hosts_ism(&self) -> Vec<String> {
-        self.validators_ism()
-            .iter()
-            .map(|v| v.host.clone())
-            .collect()
+        Self::hosts_from(self.validators_ism())
     }
 
     /// Collects responses from validators until threshold is met.
