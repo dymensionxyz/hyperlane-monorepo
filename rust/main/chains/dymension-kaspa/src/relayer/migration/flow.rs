@@ -32,7 +32,6 @@ pub async fn execute_migration(
     let easy_wallet = provider.wallet();
     let validators_client = provider.validators();
     let hub_rpc = provider.hub_rpc().query();
-    info!("Starting escrow key migration");
 
     // 1. Query hub for current anchor
     let hub_anchor = query_hub_anchor(hub_rpc)
@@ -226,10 +225,9 @@ pub async fn execute_migration(
     // 15. Submit transactions
     let mut tx_ids = Vec::new();
     for tx in finalized {
-        let tx_clone = tx.clone();
         let tx_id = easy_wallet
             .rpc_with_reconnect(|api| {
-                let tx = tx_clone.clone();
+                let tx = tx.clone();
                 async move {
                     api.submit_transaction(tx, false)
                         .await
