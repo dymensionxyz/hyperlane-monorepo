@@ -313,10 +313,18 @@ pub fn build_kaspa_connection_conf(
     };
 
     // Parse kaspaValidatorsEscrow and kaspaValidatorsIsm as arrays of validator objects
-    let validators_escrow: Vec<dymension_kaspa::KaspaValidatorInfo> =
-        parse_kaspa_validators_escrow(chain, err)?;
-    let validators_ism: Vec<dymension_kaspa::KaspaValidatorInfo> =
-        parse_kaspa_validators_ism(chain, err)?;
+    let validators_escrow: Vec<dymension_kaspa::KaspaValidatorInfo> = parse_kaspa_validators(
+        chain,
+        err,
+        "kaspaValidatorsEscrow",
+        "failed to parse kaspaValidatorsEscrow array",
+    )?;
+    let validators_ism: Vec<dymension_kaspa::KaspaValidatorInfo> = parse_kaspa_validators(
+        chain,
+        err,
+        "kaspaValidatorsIsm",
+        "failed to parse kaspaValidatorsIsm array",
+    )?;
 
     let kaspa_escrow_key_source =
         if let Some(key_config) = chain.chain(err).get_opt_key("kaspaKey").end() {
@@ -856,43 +864,20 @@ pub fn build_radix_connection_conf(
     }
 }
 
-/// Parse kaspaValidatorsEscrow as an array of objects with {host, ismAddress, escrowPub}.
+/// Parse a kaspa validators array from config.
 /// Returns empty vec if the field is missing (valid for validator-only configs).
-fn parse_kaspa_validators_escrow(
+fn parse_kaspa_validators(
     chain: &ValueParser,
     err: &mut ConfigParsingError,
+    key: &str,
+    err_msg: &'static str,
 ) -> Option<Vec<dymension_kaspa::KaspaValidatorInfo>> {
-    let validators_opt = chain
-        .chain(err)
-        .get_opt_key("kaspaValidatorsEscrow")
-        .end();
+    let validators_opt = chain.chain(err).get_opt_key(key).end();
 
     match validators_opt {
         Some(value_parser) => {
-            let validators: Vec<dymension_kaspa::KaspaValidatorInfo> = value_parser
-                .chain(err)
-                .parse_value("failed to parse kaspaValidatorsEscrow array")
-                .end()?;
-            Some(validators)
-        }
-        None => Some(Vec::new()),
-    }
-}
-
-/// Parse kaspaValidatorsIsm as an array of objects with {host, ismAddress, escrowPub}.
-/// Returns empty vec if the field is missing (valid for validator-only configs).
-fn parse_kaspa_validators_ism(
-    chain: &ValueParser,
-    err: &mut ConfigParsingError,
-) -> Option<Vec<dymension_kaspa::KaspaValidatorInfo>> {
-    let validators_opt = chain.chain(err).get_opt_key("kaspaValidatorsIsm").end();
-
-    match validators_opt {
-        Some(value_parser) => {
-            let validators: Vec<dymension_kaspa::KaspaValidatorInfo> = value_parser
-                .chain(err)
-                .parse_value("failed to parse kaspaValidatorsIsm array")
-                .end()?;
+            let validators: Vec<dymension_kaspa::KaspaValidatorInfo> =
+                value_parser.chain(err).parse_value(err_msg).end()?;
             Some(validators)
         }
         None => Some(Vec::new()),
