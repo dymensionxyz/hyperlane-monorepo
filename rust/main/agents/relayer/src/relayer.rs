@@ -43,7 +43,7 @@ use crate::{
 };
 use dymension_kaspa::{is_dym, is_kas, KaspaProvider};
 use hyperlane_base::kas_hack::logic_loop::{Foo as KaspaBridgeFoo, MetadataConstructor};
-use hyperlane_base::kas_hack::ensure_hub_synced;
+use hyperlane_base::kas_hack::run_migration_with_sync;
 use hyperlane_base::{
     broadcast::BroadcastMpscSender,
     cache::{LocalCache, MeteredCache, MeteredCacheConfig, OptionalCache},
@@ -1252,16 +1252,7 @@ impl Relayer {
     }
 
     async fn run_escrow_migration(&self, target_address: &str) -> Result<Vec<String>> {
-        use dymension_kaspa::relayer::execute_migration;
-        use dymension_kaspa::KaspaAddress;
-        use std::time::Duration;
-
         let args = self.dymension_kaspa_args.as_ref().unwrap();
-        let target_addr = KaspaAddress::try_from(target_address)
-            .map_err(|e| eyre::eyre!("Invalid target address '{}': {}", target_address, e))?;
-
-        let old_escrow = args.kas_provider.escrow_address().to_string();
-        let new_escrow = target_address.to_string();
         let min_sigs = args.kas_provider.validators().multisig_threshold_hub_ism() as usize;
 
         // Signature formatter using PendingMessageMetadataGetter
@@ -1270,77 +1261,17 @@ impl Relayer {
             format_ad_hoc_signatures(&metadata_getter, sigs, min_sigs)
         };
 
-        const MAX_ATTEMPTS: u32 = 10;
-        let mut attempt = 0;
-
-        loop {
-            attempt += 1;
-            info!(attempt, max_attempts = MAX_ATTEMPTS, "Migration attempt");
-
-            // Step 1: Optional sync before migration
-            // Handles edge case where hub anchor is already spent but not yet confirmed
-            if let Err(e) = ensure_hub_synced(
-                &args.kas_provider,
-                &args.dym_mailbox,
-                &old_escrow,
-                &old_escrow,
-                &format_sigs,
-            )
-            .await
-            {
-                // Non-fatal: hub may already be synced or anchor may not be spent yet
-                info!(error = ?e, "Pre-migration sync check (non-fatal)");
-            }
-
-            // Step 2: Execute migration
-            let migration_result = execute_migration(&args.kas_provider, &target_addr).await;
-
-            match migration_result {
-                Ok(tx_ids) => {
-                    info!(tx_count = tx_ids.len(), "Migration transactions submitted");
-
-                    // Step 3: Required sync after migration to update hub anchor
-                    // Uses src=old_escrow, dst=new_escrow to trace across migration boundary
-                    match ensure_hub_synced(
-                        &args.kas_provider,
-                        &args.dym_mailbox,
-                        &old_escrow,
-                        &new_escrow,
-                        &format_sigs,
-                    )
-                    .await
-                    {
-                        Ok(_) => {
-                            info!("Post-migration hub sync completed");
-                            return Ok(tx_ids.into_iter().map(|h| h.to_string()).collect());
-                        }
-                        Err(e) => {
-                            error!(error = ?e, attempt, "Post-migration sync failed, will retry");
-                        }
-                    }
-                }
-                Err(e) => {
-                    error!(error = ?e, attempt, "Migration failed, will retry");
-                }
-            }
-
-            if attempt >= MAX_ATTEMPTS {
-                return Err(eyre::eyre!(
-                    "Migration failed after {} attempts",
-                    MAX_ATTEMPTS
-                ));
-            }
-
-            // Exponential backoff: 5s, 10s, 20s, 40s, ... capped at 5 minutes
-            let delay = Duration::from_secs(5 * (1 << (attempt - 1)).min(60));
-            info!(delay_secs = delay.as_secs(), "Waiting before retry");
-            tokio::time::sleep(delay).await;
-        }
+        run_migration_with_sync(
+            &args.kas_provider,
+            &args.dym_mailbox,
+            target_address,
+            format_sigs,
+        )
+        .await
     }
 }
 
 /// Format signatures for hub submission.
-/// Mimics `format_ad_hoc_signatures` from logic_loop.rs.
 fn format_ad_hoc_signatures<C: MetadataConstructor>(
     metadata_constructor: &C,
     sigs: &mut Vec<Signature>,
@@ -1356,7 +1287,6 @@ fn format_ad_hoc_signatures<C: MetadataConstructor>(
         });
     }
 
-    // Checkpoint struct not actually used in metadata formatting, only signatures matter.
     let ckpt = MultisigSignedCheckpoint {
         checkpoint: CheckpointWithMessageId {
             checkpoint: Checkpoint {
