@@ -14,7 +14,7 @@ use super::ensure_hub_synced;
 /// 1. Optionally syncs hub before migration (handles edge case where anchor is already spent)
 /// 2. Executes the migration transaction
 /// 3. Syncs hub after migration (required to update anchor to new escrow)
-/// 4. Retries on failure with exponential backoff
+/// 4. Retries on failure with fixed 1 minute delay
 ///
 /// # Arguments
 /// * `provider` - Kaspa provider
@@ -98,8 +98,7 @@ where
             ));
         }
 
-        // Exponential backoff: 5s, 10s, 20s, 40s, ... capped at 5 minutes
-        let delay = Duration::from_secs(5 * (1 << (attempt - 1)).min(60));
+        let delay = Duration::from_secs(60);
         info!(delay_secs = delay.as_secs(), "Waiting before retry");
         tokio::time::sleep(delay).await;
     }

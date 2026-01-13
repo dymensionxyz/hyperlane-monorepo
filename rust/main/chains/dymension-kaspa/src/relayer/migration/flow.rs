@@ -3,11 +3,10 @@ use crate::ops::payload::MessageIDs;
 use crate::ops::withdraw::query_hub_anchor;
 use crate::providers::KaspaProvider;
 use crate::relayer::withdraw::hub_to_kaspa::{
-    combine_all_bundles, create_pskt, fetch_input_utxos, finalize_migration_txs,
-    get_normal_bucket_feerate, sign_pay_fee,
+    combine_all_bundles, create_pskt, fetch_input_utxos, finalize_txs, get_normal_bucket_feerate,
+    sign_relayer_fee,
 };
 use dym_kas_core::pskt::{PopulatedInput, PopulatedInputBuilder};
-use dym_kas_core::wallet::EasyKaspaWallet;
 use eyre::{eyre, Result};
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionOutput;
@@ -172,7 +171,7 @@ pub async fn execute_migration(
 
     // 9. Build PSKT with empty MessageIDs payload (required by validation)
     let empty_payload = MessageIDs::new(vec![]).to_bytes();
-    let pskt = create_pskt(inputs, outputs, Some(empty_payload))?;
+    let pskt = create_pskt(inputs, outputs, empty_payload)?;
     let bundle = Bundle::from(pskt);
     let fxg = Arc::new(MigrationFXG::new(bundle));
 
@@ -193,13 +192,13 @@ pub async fn execute_migration(
     );
 
     // 11. Sign relayer fee inputs
-    let relayer_bundle = sign_relayer_fee(easy_wallet, &fxg).await?;
+    let relayer_bundle = sign_relayer_fee(easy_wallet, &fxg.bundle).await?;
     bundles.push(relayer_bundle);
     info!("Signed relayer fee inputs");
 
     // 12. Combine signatures and finalize
     let combined = combine_all_bundles(bundles)?;
-    let finalized = finalize_migration_txs(
+    let finalized = finalize_txs(
         combined,
         &escrow,
         easy_wallet.pub_key().await?,
@@ -255,15 +254,4 @@ fn estimate_migration_tx_mass(escrow_input_count: usize, relayer_input_count: us
         + (escrow_input_count as u64 * ESCROW_INPUT_MASS)
         + (relayer_input_count as u64 * RELAYER_INPUT_MASS)
         + (NUM_OUTPUTS * OUTPUT_MASS)
-}
-
-/// Sign relayer fee inputs in the migration PSKT.
-async fn sign_relayer_fee(easy_wallet: &EasyKaspaWallet, fxg: &MigrationFXG) -> Result<Bundle> {
-    let resources = easy_wallet.signing_resources().await?;
-    let mut signed = Vec::new();
-    for pskt in fxg.bundle.iter() {
-        let pskt = PSKT::<Signer>::from(pskt.clone());
-        signed.push(sign_pay_fee(pskt, &resources).await?);
-    }
-    Ok(Bundle::from(signed))
 }
