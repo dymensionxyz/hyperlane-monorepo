@@ -152,9 +152,10 @@ where
     use dym_kas_core::finality::is_safe_against_reorg;
 
     // Check finality of the new anchor
-    let anchor_new = fxg.outpoints.last().ok_or_else(|| {
-        eyre::eyre!("No outpoints in confirmation FXG")
-    })?;
+    let anchor_new = fxg
+        .outpoints
+        .last()
+        .ok_or_else(|| eyre::eyre!("No outpoints in confirmation FXG"))?;
 
     let finality = is_safe_against_reorg(
         &provider.rest().client.client,
@@ -187,8 +188,8 @@ where
     info!(sig_count = sigs.len(), "Got confirmation signatures");
 
     // Format signatures
-    let formatted = format_signatures(&mut sigs)
-        .map_err(|e| eyre::eyre!("Format signatures: {}", e))?;
+    let formatted =
+        format_signatures(&mut sigs).map_err(|e| eyre::eyre!("Format signatures: {}", e))?;
 
     // Submit to hub
     let outcome = hub_mailbox
@@ -239,10 +240,10 @@ pub fn format_ad_hoc_signatures<C: MetadataConstructor>(
         signatures: sigs.clone(),
     };
 
-    let meta = metadata_constructor
-        .metadata(&ckpt)
-        .map_err(|e| ChainCommunicationError::InvalidRequest {
+    let meta = metadata_constructor.metadata(&ckpt).map_err(|e| {
+        ChainCommunicationError::InvalidRequest {
             msg: format!("metadata formatting: {}", e),
-        })?;
+        }
+    })?;
     Ok(meta.to_vec())
 }
