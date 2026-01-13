@@ -38,11 +38,6 @@ pub async fn ensure_hub_synced<F>(
 where
     F: Fn(&mut Vec<Signature>) -> ChainResult<Vec<u8>>,
 {
-    info!(
-        src_escrow,
-        dst_escrow, "Checking if hub is out of sync with Kaspa escrow"
-    );
-
     // Query hub for current anchor
     let provider_box = hub_mailbox.provider();
     let cosmos_prov = provider_box
@@ -113,7 +108,7 @@ where
 
         match trace_result {
             Ok(fxg) => {
-                info!("Traced lineage, submitting confirmation to hub");
+                info!("Traced transaction lineage from UTXO to anchor");
                 confirm_withdrawal_on_hub(provider, hub_mailbox, fxg, &format_signatures).await?;
                 found = true;
                 break;
