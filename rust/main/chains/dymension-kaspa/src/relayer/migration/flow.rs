@@ -6,7 +6,7 @@ use crate::relayer::withdraw::hub_to_kaspa::{
     combine_all_bundles, create_pskt, fetch_input_utxos, finalize_txs, get_normal_bucket_feerate,
     sign_relayer_fee,
 };
-use dym_kas_core::pskt::{PopulatedInput, PopulatedInputBuilder};
+use dym_kas_core::pskt::{estimate_mass, PopulatedInput, PopulatedInputBuilder};
 use eyre::{eyre, Result};
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionOutput;
@@ -132,16 +132,35 @@ pub async fn execute_migration(
         relayer_sum, "Fetched relayer UTXOs for fee"
     );
 
-    // 6. Calculate fee
+    // 6. Build inputs: escrow + relayer
+    let mut inputs = escrow_inputs;
+    inputs.extend(relayer_inputs);
+    let num_inputs = inputs.len();
+
+    // 7. Build placeholder outputs to calculate mass (amounts don't affect mass)
+    let new_escrow_script = pay_to_address_script(new_escrow_address);
+    let relayer_change_script = pay_to_address_script(&relayer_addr);
+    let placeholder_outputs = vec![
+        TransactionOutput::new(escrow_sum, new_escrow_script.clone()),
+        TransactionOutput::new(0, relayer_change_script.clone()), // placeholder
+    ];
+
+    // 8. Calculate actual mass using Kaspa's mass calculator
+    let empty_payload = MessageIDs::new(vec![]).to_bytes();
+    let tx_mass = estimate_mass(
+        inputs.clone(),
+        placeholder_outputs,
+        empty_payload.clone(),
+        easy_wallet.net.network_id,
+        escrow.m() as u16,
+    )
+    .map_err(|e| eyre!("Estimate migration TX mass: {}", e))?;
+
+    // 9. Calculate fee and relayer change
     let feerate = easy_wallet
         .rpc_with_reconnect(|api| async move { get_normal_bucket_feerate(&api).await })
         .await?;
-
-    // Estimate transaction mass (escrow inputs are heavier due to multisig)
-    let num_inputs = escrow_inputs.len() + relayer_inputs.len();
-    let num_outputs = 2; // migration target + relayer change
-    let estimated_mass = estimate_migration_tx_mass(escrow_inputs.len(), relayer_inputs.len());
-    let tx_fee = (estimated_mass as f64 * feerate).round() as u64;
+    let tx_fee = (tx_mass as f64 * feerate).round() as u64;
 
     if relayer_sum <= tx_fee {
         return Err(eyre!(
@@ -154,23 +173,17 @@ pub async fn execute_migration(
 
     info!(
         feerate,
-        estimated_mass, tx_fee, relayer_change, "Calculated migration fee"
+        tx_mass, tx_fee, relayer_change, "Calculated migration fee"
     );
 
-    // 7. Build inputs: escrow + relayer
-    let mut inputs = escrow_inputs;
-    inputs.extend(relayer_inputs);
-
-    // 8. Build outputs: migration target (100% escrow funds) + relayer change
-    let new_escrow_script = pay_to_address_script(new_escrow_address);
-    let relayer_change_script = pay_to_address_script(&relayer_addr);
+    // 10. Build final outputs with correct relayer change
+    let num_outputs = 2;
     let outputs = vec![
         TransactionOutput::new(escrow_sum, new_escrow_script),
         TransactionOutput::new(relayer_change, relayer_change_script),
     ];
 
-    // 9. Build PSKT with empty MessageIDs payload (required by validation)
-    let empty_payload = MessageIDs::new(vec![]).to_bytes();
+    // 11. Build PSKT
     let pskt = create_pskt(inputs, outputs, empty_payload)?;
     let bundle = Bundle::from(pskt);
     let fxg = Arc::new(MigrationFXG::new(bundle));
@@ -180,7 +193,7 @@ pub async fn execute_migration(
         num_outputs, escrow_sum, "Built migration PSKT, collecting validator signatures"
     );
 
-    // 10. Collect signatures from validators
+    // 12. Collect signatures from validators
     let mut bundles = validators_client
         .get_migration_sigs(fxg.clone())
         .await
@@ -191,12 +204,12 @@ pub async fn execute_migration(
         "Collected validator signatures"
     );
 
-    // 11. Sign relayer fee inputs
+    // 13. Sign relayer fee inputs
     let relayer_bundle = sign_relayer_fee(easy_wallet, &fxg.bundle).await?;
     bundles.push(relayer_bundle);
     info!("Signed relayer fee inputs");
 
-    // 12. Combine signatures and finalize
+    // 14. Combine signatures and finalize
     let combined = combine_all_bundles(bundles)?;
     let finalized = finalize_txs(
         combined,
@@ -210,7 +223,7 @@ pub async fn execute_migration(
         "Finalized migration transactions"
     );
 
-    // 13. Submit transactions
+    // 15. Submit transactions
     let mut tx_ids = Vec::new();
     for tx in finalized {
         let tx_clone = tx.clone();
@@ -234,24 +247,4 @@ pub async fn execute_migration(
     );
 
     Ok(tx_ids)
-}
-
-/// Estimate transaction mass for migration.
-/// Escrow inputs are heavier due to multisig redeem script.
-fn estimate_migration_tx_mass(escrow_input_count: usize, relayer_input_count: usize) -> u64 {
-    // Base transaction overhead
-    const BASE_MASS: u64 = 100;
-    // Escrow input mass (multisig with redeem script is heavier)
-    const ESCROW_INPUT_MASS: u64 = 500;
-    // Relayer input mass (simple P2PK)
-    const RELAYER_INPUT_MASS: u64 = 150;
-    // Output mass
-    const OUTPUT_MASS: u64 = 50;
-    // Outputs: migration target + relayer change
-    const NUM_OUTPUTS: u64 = 2;
-
-    BASE_MASS
-        + (escrow_input_count as u64 * ESCROW_INPUT_MASS)
-        + (relayer_input_count as u64 * RELAYER_INPUT_MASS)
-        + (NUM_OUTPUTS * OUTPUT_MASS)
 }
