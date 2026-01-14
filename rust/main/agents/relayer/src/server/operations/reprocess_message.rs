@@ -2,6 +2,7 @@ use std::{cmp::Reverse, collections::HashMap, str::FromStr, sync::Arc};
 
 use axum::{extract::State, http::StatusCode, routing, Json, Router};
 use derive_new::new;
+use tower_http::cors::{Any, CorsLayer};
 use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB},
     server::utils::{ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse},
@@ -23,8 +24,14 @@ pub struct ServerState {
 
 impl ServerState {
     pub fn router(self) -> Router {
+        let cors = CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any);
+
         Router::new()
             .route("/reprocess_message", routing::post(handler))
+            .layer(cors)
             .with_state(self)
     }
 }
