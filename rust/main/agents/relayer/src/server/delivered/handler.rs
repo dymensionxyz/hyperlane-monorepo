@@ -12,8 +12,6 @@ use hyperlane_core::{h512_to_bytes, DeliveryDb, HyperlaneDomainProtocol, H256};
 
 // For converting H512 to base58 for Solana transaction signatures
 use bs58;
-// For converting bytes to hex string
-use hex;
 
 use crate::server::delivered::ServerState;
 
@@ -122,7 +120,14 @@ pub async fn handler(
                 // h512_to_bytes will extract the last 32 bytes if the first 32 bytes are zeros
                 // This handles the case where Ethereum tx hashes (H256) are stored as H512
                 let tx_bytes = h512_to_bytes(&tx);
-                let hex_tx = format!("0x{}", hex::encode(&tx_bytes));
+                
+                // Convert bytes to hex string manually
+                let mut hex_tx = String::with_capacity(2 + tx_bytes.len() * 2);
+                hex_tx.push_str("0x");
+                for byte in tx_bytes.iter() {
+                    hex_tx.push_str(&format!("{:02x}", byte));
+                }
+                
                 warn!(
                     %message_id_str,
                     %domain_id,
