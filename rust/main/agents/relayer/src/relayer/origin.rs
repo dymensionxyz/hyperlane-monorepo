@@ -99,7 +99,16 @@ impl Factory for OriginFactory {
         chain_conf: &ChainConf,
         gas_payment_enforcement: Vec<GasPaymentEnforcementConf>,
     ) -> Result<Origin, FactoryError> {
-        let db = HyperlaneRocksDB::new(&domain, self.db.clone());
+        let mut db = HyperlaneRocksDB::new(&domain, self.db.clone());
+        
+        // Set destination domain filter for logging
+        // Only log dispatch storage for destination domains we care about
+        let destination_domain_ids: std::collections::HashSet<u32> = self
+            .destination_domains
+            .iter()
+            .map(|d| d.id())
+            .collect();
+        db.set_destination_domain_filter(Some(destination_domain_ids));
 
         let validator_announce = {
             let start_entity_init = Instant::now();
