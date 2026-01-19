@@ -120,6 +120,13 @@ pub struct PendingMessage {
     #[new(default)]
     #[serde(skip_serializing)]
     metric: Option<Arc<IntGauge>>,
+    #[new(default)]
+    #[serde(skip_serializing)]
+    /// Timestamp when transaction was actually submitted to the chain
+    tx_submitted_at: Option<Instant>,
+    #[new(default)]
+    /// Number of times we've checked delivery status in confirm phase
+    confirm_attempts: u32,
 }
 
 impl Debug for PendingMessage {
@@ -439,6 +446,8 @@ impl PendingOperation for PendingMessage {
                     destination = ?self.message.destination,
                     "SUBMIT: Process transaction submitted successfully, setting operation outcome"
                 );
+                // Record when we actually submitted
+                self.tx_submitted_at = Some(Instant::now());
                 self.set_operation_outcome(outcome, state.gas_limit).await;
                 PendingOperationResult::Confirm(ConfirmReason::SubmittedBySelf)
             }
@@ -468,11 +477,17 @@ impl PendingOperation for PendingMessage {
             return PendingOperationResult::NotReady;
         }
 
-        debug!(
+        self.confirm_attempts += 1;
+
+        warn!(
             message_id = ?self.message.id(),
             submission_outcome = ?self.submission_outcome,
+            has_submission_outcome = self.submission_outcome.is_some(),
+            tx_submitted_at = ?self.tx_submitted_at,
+            confirm_attempts = self.confirm_attempts,
+            submitted_flag = self.submitted,
             destination = ?self.message.destination,
-            "Checking message delivery status on destination chain"
+            "CONFIRM: Starting delivery status check"
         );
 
         let is_delivered = match self
@@ -482,14 +497,21 @@ impl PendingOperation for PendingMessage {
             .await
         {
             Ok(is_delivered) => {
-                debug!(
+                warn!(
                     message_id = ?self.message.id(),
                     is_delivered = is_delivered,
-                    "Delivery status check result"
+                    confirm_attempts = self.confirm_attempts,
+                    "CONFIRM: Delivery status check completed"
                 );
                 is_delivered
             }
             Err(err) => {
+                warn!(
+                    message_id = ?self.message.id(),
+                    error = ?err,
+                    confirm_attempts = self.confirm_attempts,
+                    "CONFIRM: Error checking delivery status"
+                );
                 return self.on_reconfirm(Some(err), "Error confirming message delivery");
             }
         };
@@ -499,6 +521,8 @@ impl PendingOperation for PendingMessage {
                 message_id = ?self.message.id(),
                 submission_outcome = ?self.submission_outcome,
                 has_submission_outcome = self.submission_outcome.is_some(),
+                tx_submitted_at = ?self.tx_submitted_at,
+                confirm_attempts = self.confirm_attempts,
                 destination = ?self.message.destination,
                 "CONFIRM: Message confirmed as delivered, about to record success"
             );
@@ -514,19 +538,67 @@ impl PendingOperation for PendingMessage {
             );
             PendingOperationResult::Success
         } else {
+            // Transaction not delivered yet - could be pending or reverted
+            let time_since_submission = self.tx_submitted_at
+                .map(|t| Instant::now().duration_since(t).as_secs())
+                .unwrap_or(0);
+            
+            // Calculate max wait time based on chain characteristics
+            // Ethereum can take 15-30 seconds during congestion, so be more patient
+            let max_wait_time_secs = if self.confirm_attempts < 3 {
+                // Give it more time on early attempts
+                60  // 1 minute
+            } else if self.confirm_attempts < 6 {
+                120  // 2 minutes
+            } else {
+                180  // 3 minutes before giving up
+            };
+
             warn!(
                 message_id = ?self.message.id(),
                 tx_outcome = ?self.submission_outcome,
                 has_tx_outcome = self.submission_outcome.is_some(),
+                tx_submitted_at = ?self.tx_submitted_at,
+                time_since_submission_secs = time_since_submission,
+                confirm_attempts = self.confirm_attempts,
+                max_wait_time_secs = max_wait_time_secs,
                 destination = ?self.message.destination,
                 num_retries = self.num_retries,
-                "Transaction attempting to process message either reverted or was reorged"
+                "CONFIRM: Transaction not delivered yet - checking if pending or reverted"
             );
+
+            // If we have a submission time and haven't waited long enough, keep confirming
+            if let Some(_submitted_at) = self.tx_submitted_at {
+                if time_since_submission < max_wait_time_secs {
+                    warn!(
+                        message_id = ?self.message.id(),
+                        time_since_submission_secs = time_since_submission,
+                        max_wait_time_secs = max_wait_time_secs,
+                        "CONFIRM: Transaction still pending, will check again (not treating as reorg/revert yet)"
+                    );
+                    // Wait a bit before checking again
+                    self.set_next_attempt_after(Duration::from_secs(10));
+                    return PendingOperationResult::NotReady;
+                }
+            }
+
+            // If we've waited long enough or never submitted, assume revert/reorg
+            warn!(
+                message_id = ?self.message.id(),
+                time_since_submission_secs = time_since_submission,
+                confirm_attempts = self.confirm_attempts,
+                "CONFIRM: Treating as reverted or reorged after waiting"
+            );
+            
             let span = info_span!(
                 "Error: Transaction attempting to process message either reverted or was reorged",
                 tx_outcome=?self.submission_outcome,
-                message_id=?self.message.id()
+                message_id=?self.message.id(),
+                time_since_submission_secs=time_since_submission
             );
+            
+            // IMPORTANT: Don't reset tx_submitted_at or submission_outcome on reprepare
+            // in case the transaction actually succeeded but we just haven't seen it yet
             self.on_reprepare::<String>(None, ReprepareReason::RevertedOrReorged)
                 .instrument(span)
                 .into_inner()
@@ -543,13 +615,17 @@ impl PendingOperation for PendingMessage {
             message_id = ?message_id,
             tx_id = ?submission_outcome.transaction_id,
             destination = ?self.message.destination,
+            has_submission_data = self.submission_data.is_some(),
+            tx_submitted_at = ?self.tx_submitted_at,
             "SET_OUTCOME: Setting operation outcome for message"
         );
         
         let Some(operation_estimate) = self.get_tx_cost_estimate() else {
             warn!(
                 message_id = ?message_id,
-                "SET_OUTCOME: Cannot set operation outcome without a cost estimate set previously"
+                has_submission_data = self.submission_data.is_some(),
+                tx_id = ?submission_outcome.transaction_id,
+                "SET_OUTCOME: Cannot set operation outcome without a cost estimate - submission_data is missing! This means submission_outcome will NOT be recorded."
             );
             return;
         };
@@ -924,7 +1000,26 @@ impl PendingMessage {
         reason: ReprepareReason,
     ) -> PendingOperationResult {
         self.inc_attempts();
-        self.submitted = false;
+        
+        // CRITICAL FIX: Don't reset submitted if we actually submitted a transaction
+        // This preserves our knowledge that we sent something, even if we need to reprepare
+        let previously_submitted = self.tx_submitted_at.is_some();
+        
+        warn!(
+            message_id = ?self.message.id(),
+            reason = ?reason,
+            error = ?err,
+            previously_submitted = previously_submitted,
+            has_submission_outcome = self.submission_outcome.is_some(),
+            tx_submitted_at = ?self.tx_submitted_at,
+            "REPREPARE: Repreparing message (preserving submission state if tx was sent)"
+        );
+        
+        // Only reset submitted flag if we never actually sent a transaction
+        if !previously_submitted {
+            self.submitted = false;
+        }
+        
         if let Some(e) = err {
             warn!(error = ?e, "Repreparing message: {}", reason.clone());
         } else {
