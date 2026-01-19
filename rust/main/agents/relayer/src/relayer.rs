@@ -1005,6 +1005,7 @@ impl Relayer {
             ADVANCED_LOG_META,
             settings.tx_id_indexing_enabled,
             settings.igp_indexing_enabled,
+            settings.destination_chains.clone(),
         );
 
         let origin_futures: Vec<_> = settings

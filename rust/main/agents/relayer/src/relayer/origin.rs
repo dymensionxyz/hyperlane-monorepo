@@ -70,6 +70,7 @@ pub struct OriginFactory {
     advanced_log_meta: bool,
     tx_id_indexing_enabled: bool,
     igp_indexing_enabled: bool,
+    destination_domains: std::collections::HashSet<hyperlane_core::HyperlaneDomain>,
 }
 
 impl OriginFactory {
@@ -80,6 +81,7 @@ impl OriginFactory {
         advanced_log_meta: bool,
         tx_id_indexing_enabled: bool,
         igp_indexing_enabled: bool,
+        destination_domains: std::collections::HashSet<hyperlane_core::HyperlaneDomain>,
     ) -> Self {
         Self {
             db,
@@ -88,6 +90,7 @@ impl OriginFactory {
             advanced_log_meta,
             tx_id_indexing_enabled,
             igp_indexing_enabled,
+            destination_domains,
         }
     }
 }
