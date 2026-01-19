@@ -14,6 +14,7 @@ mod settings;
 mod test_utils;
 
 pub mod server;
+pub mod scraper_db;
 
 pub use msg::GAS_EXPENDITURE_LOG_MESSAGE;
 pub use relayer::*;

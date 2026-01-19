@@ -49,6 +49,8 @@ pub struct Server {
     kaspa_db: Option<Arc<dyn KaspaDb>>,
     #[new(default)]
     message_syncs: Option<HashMap<u32, Arc<dyn ContractSyncer<HyperlaneMessage>>>>,
+    #[new(default)]
+    scraper_db: Option<crate::scraper_db::ScraperDb>,
 }
 
 impl Server {
@@ -104,6 +106,11 @@ impl Server {
         self
     }
 
+    pub fn with_scraper_db(mut self, scraper_db: Option<crate::scraper_db::ScraperDb>) -> Self {
+        self.scraper_db = scraper_db;
+        self
+    }
+
     // return a custom router that can be used in combination with other routers
     pub fn router(self) -> Router {
         let mut router = Router::new();
@@ -133,11 +140,15 @@ impl Server {
                 .merge(merkle_tree_insertions::ServerState::new(dbs.clone()).router());
             if let Some(message_syncs) = self.message_syncs.as_ref() {
                 router = router.merge(
-                    delivered::ServerState::new(dbs.clone(), message_syncs.clone()).router()
+                    delivered::ServerState::new(dbs.clone(), message_syncs.clone())
+                        .with_scraper_db(self.scraper_db.clone())
+                        .router()
                 );
             } else {
                 router = router.merge(
-                    delivered::ServerState::new(dbs.clone(), HashMap::new()).router()
+                    delivered::ServerState::new(dbs.clone(), HashMap::new())
+                        .with_scraper_db(self.scraper_db.clone())
+                        .router()
                 );
             }
         } else {

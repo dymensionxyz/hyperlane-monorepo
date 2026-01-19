@@ -63,6 +63,7 @@ hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
 hyperlane-metric = { path = "../../hyperlane-metric" }
 hyperlane-operation-verifier = { path = "../../applications/hyperlane-operation-verifier" }
 lander = { path = "../../lander" }
+scraper = { path = "../scraper" }
 mockall.workspace = true
 
 [dev-dependencies]

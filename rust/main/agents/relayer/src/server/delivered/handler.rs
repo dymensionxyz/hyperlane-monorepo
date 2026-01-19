@@ -8,12 +8,50 @@ use tracing::warn;
 use hyperlane_base::server::utils::{
     ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse,
 };
-use hyperlane_core::{h512_to_bytes, DeliveryDb, HyperlaneDomainProtocol, H256};
+use hyperlane_core::{h512_to_bytes, DeliveryDb, HyperlaneDomainProtocol, H256, H512};
 
 // For converting H512 to base58 for Solana transaction signatures
 use bs58;
 
 use crate::server::delivered::ServerState;
+
+/// Helper function to format transaction hash based on domain protocol
+fn format_tx_hash(tx: H512, protocol: HyperlaneDomainProtocol, message_id_str: &str, domain_id: u32) -> String {
+    if protocol == HyperlaneDomainProtocol::Sealevel {
+        // Convert H512 to base58 for Solana transaction signatures
+        let base58_tx = bs58::encode(tx.as_bytes()).into_string();
+        warn!(
+            %message_id_str,
+            %domain_id,
+            tx_hash_base58 = %base58_tx,
+            tx_hash_h512 = ?tx,
+            "DELIVERY_API: Found delivery tx hash in database (Sealevel - converted to base58)"
+        );
+        base58_tx
+    } else {
+        // For other chains (like Ethereum), convert H512 to bytes intelligently
+        // h512_to_bytes will extract the last 32 bytes if the first 32 bytes are zeros
+        // This handles the case where Ethereum tx hashes (H256) are stored as H512
+        let tx_bytes = h512_to_bytes(&tx);
+        
+        // Convert bytes to hex string manually
+        let mut hex_tx = String::with_capacity(2 + tx_bytes.len() * 2);
+        hex_tx.push_str("0x");
+        for byte in tx_bytes.iter() {
+            hex_tx.push_str(&format!("{:02x}", byte));
+        }
+        
+        warn!(
+            %message_id_str,
+            %domain_id,
+            tx_hash_hex = %hex_tx,
+            tx_hash_h512 = ?tx,
+            tx_bytes_len = tx_bytes.len(),
+            "DELIVERY_API: Found delivery tx hash in database (non-Sealevel - hex format)"
+        );
+        hex_tx
+    }
+}
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct QueryParams {
@@ -98,62 +136,68 @@ pub async fn handler(
         }
     };
 
-    // Retrieve the delivery tx hash from the database
+    // Retrieve the delivery tx hash from the relayer's local database
     let tx_hash = match db.retrieve_delivery_tx(&message_id) {
         Ok(Some(tx)) => {
-            // Check if this is a Sealevel domain - if so, convert H512 to base58
-            // Otherwise, return as hex
+            // Found in local relayer database
             let domain = db.domain();
-            let tx_hash_str = if domain.domain_protocol() == HyperlaneDomainProtocol::Sealevel {
-                // Convert H512 to base58 for Solana transaction signatures
-                let base58_tx = bs58::encode(tx.as_bytes()).into_string();
-                warn!(
-                    %message_id_str,
-                    %domain_id,
-                    tx_hash_base58 = %base58_tx,
-                    tx_hash_h512 = ?tx,
-                    "DELIVERY_API: Found delivery tx hash in database (Sealevel - converted to base58)"
-                );
-                base58_tx
-            } else {
-                // For other chains (like Ethereum), convert H512 to bytes intelligently
-                // h512_to_bytes will extract the last 32 bytes if the first 32 bytes are zeros
-                // This handles the case where Ethereum tx hashes (H256) are stored as H512
-                let tx_bytes = h512_to_bytes(&tx);
-                
-                // Convert bytes to hex string manually
-                let mut hex_tx = String::with_capacity(2 + tx_bytes.len() * 2);
-                hex_tx.push_str("0x");
-                for byte in tx_bytes.iter() {
-                    hex_tx.push_str(&format!("{:02x}", byte));
-                }
-                
-                warn!(
-                    %message_id_str,
-                    %domain_id,
-                    tx_hash_hex = %hex_tx,
-                    tx_hash_h512 = ?tx,
-                    tx_bytes_len = tx_bytes.len(),
-                    "DELIVERY_API: Found delivery tx hash in database (non-Sealevel - hex format)"
-                );
-                hex_tx
-            };
+            let tx_hash_str = format_tx_hash(tx, domain.domain_protocol(), &message_id_str, domain_id);
             Some(tx_hash_str)
         }
         Ok(None) => {
+            // Not found in local relayer database, try scraper DB as fallback
             warn!(
                 %message_id_str,
                 %domain_id,
-                "DELIVERY_API: No delivery tx hash found in database (message not delivered or not stored)"
+                "DELIVERY_API: No delivery tx hash found in relayer database, trying scraper database fallback"
             );
-            None
+            
+            if let Some(scraper_db) = &state.scraper_db {
+                match scraper_db.retrieve_delivery_tx_by_message_id(&message_id).await {
+                    Ok(Some(tx)) => {
+                        warn!(
+                            %message_id_str,
+                            %domain_id,
+                            tx_hash = ?tx,
+                            "DELIVERY_API: Found delivery tx hash in SCRAPER database (fallback)"
+                        );
+                        let domain = db.domain();
+                        let tx_hash_str = format_tx_hash(tx, domain.domain_protocol(), &message_id_str, domain_id);
+                        Some(tx_hash_str)
+                    }
+                    Ok(None) => {
+                        warn!(
+                            %message_id_str,
+                            %domain_id,
+                            "DELIVERY_API: No delivery tx hash found in scraper database either"
+                        );
+                        None
+                    }
+                    Err(e) => {
+                        warn!(
+                            %message_id_str,
+                            %domain_id,
+                            error = ?e,
+                            "DELIVERY_API: Error querying scraper database, continuing without it"
+                        );
+                        None
+                    }
+                }
+            } else {
+                warn!(
+                    %message_id_str,
+                    %domain_id,
+                    "DELIVERY_API: No scraper database configured for fallback lookup"
+                );
+                None
+            }
         }
         Err(e) => {
             warn!(
                 %message_id_str,
                 %domain_id,
                 error = %e,
-                "DELIVERY_API: Error retrieving delivery tx from database"
+                "DELIVERY_API: Error retrieving delivery tx from relayer database"
             );
             return Err(ServerErrorResponse::new(
                 StatusCode::INTERNAL_SERVER_ERROR,

@@ -74,6 +74,8 @@ pub struct RelayerSettings {
     pub tx_id_indexing_enabled: bool,
     /// Whether to enable IGP indexing.
     pub igp_indexing_enabled: bool,
+    /// Optional scraper database URL for fallback delivery lookups
+    pub scraper_db: Option<String>,
 }
 
 /// Config for gas payment enforcement
@@ -369,6 +371,13 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .parse_bool()
             .unwrap_or(true);
 
+        let scraper_db = p
+            .chain(&mut err)
+            .get_opt_key("scraperDb")
+            .parse_string()
+            .end()
+            .map(|s| s.to_owned());
+
         err.into_result(RelayerSettings {
             base,
             db,
@@ -387,6 +396,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             max_retries: max_message_retries,
             tx_id_indexing_enabled,
             igp_indexing_enabled,
+            scraper_db,
         })
     }
 }

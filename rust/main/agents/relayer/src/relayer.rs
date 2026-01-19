@@ -582,6 +582,26 @@ impl BaseAgent for Relayer {
             .map(|(key, origin)| (key.id(), origin.message_sync.clone()))
             .collect();
 
+        // Initialize scraper database if configured
+        let scraper_db = if let Some(ref scraper_db_url) = self.as_ref().settings.scraper_db {
+            match crate::scraper_db::ScraperDb::connect(scraper_db_url).await {
+                Ok(db) => {
+                    info!(scraper_db_url = %scraper_db_url, "Connected to scraper database for delivery fallback lookups");
+                    Some(db)
+                }
+                Err(e) => {
+                    warn!(
+                        scraper_db_url = %scraper_db_url,
+                        error = ?e,
+                        "Failed to connect to scraper database. Delivery lookups will only use local relayer database."
+                    );
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         let relayer_router = relayer_server::Server::new(self.destinations.len())
             .with_op_retry(sender.clone())
             .with_message_queue(prep_queues)
@@ -595,6 +615,7 @@ impl BaseAgent for Relayer {
                     .as_ref()
                     .and_then(|dym_args| dym_args.kas_provider.kaspa_db().cloned()),
             ) // Set kaspa_db to server_builder from dymension_args provider if available
+            .with_scraper_db(scraper_db)
             .router();
 
         let server = self

@@ -8,14 +8,14 @@ use sea_orm::{
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
-    address_to_bytes, bytes_to_address, h256_to_bytes, Delivery, HyperlaneMessage, LogMeta, H256,
+    address_to_bytes, bytes_to_address, bytes_to_h512, h256_to_bytes, Delivery, HyperlaneMessage, LogMeta, H256, H512,
 };
 use migration::OnConflict;
 
 use crate::date_time;
 use crate::db::ScraperDb;
 
-use super::generated::{delivered_message, message};
+use super::generated::{delivered_message, message, transaction};
 
 #[derive(Debug, Clone)]
 pub struct StorableDelivery<'a> {
@@ -180,6 +180,43 @@ impl ScraperDb {
             "Wrote new delivered messages to database"
         );
         Ok(new_deliveries_count)
+    }
+
+    /// Retrieve delivery transaction hash by message ID from the scraper database
+    #[instrument(skip(self))]
+    pub async fn retrieve_delivery_tx_by_message_id(
+        &self,
+        message_id: &H256,
+    ) -> Result<Option<H512>> {
+        let msg_id_bytes = h256_to_bytes(message_id);
+        
+        // Query the delivered_message table and join with transaction table
+        let result = delivered_message::Entity::find()
+            .filter(delivered_message::Column::MsgId.eq(msg_id_bytes))
+            .find_also_related(transaction::Entity)
+            .one(&self.0)
+            .await?;
+
+        match result {
+            Some((_delivered_msg, Some(tx))) => {
+                let tx_hash = bytes_to_h512(&tx.hash)?;
+                Ok(Some(tx_hash))
+            }
+            Some((_delivered_msg, None)) => {
+                debug!(
+                    message_id = ?message_id,
+                    "Delivered message found but transaction not found in database"
+                );
+                Ok(None)
+            }
+            None => {
+                debug!(
+                    message_id = ?message_id,
+                    "No delivery found for message_id in scraper database"
+                );
+                Ok(None)
+            }
+        }
     }
 
     /// Get the dispatched message associated with a nonce.
