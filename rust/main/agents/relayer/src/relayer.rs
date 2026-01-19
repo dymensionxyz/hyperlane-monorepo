@@ -103,6 +103,8 @@ pub struct Relayer {
     /// Tokio console server
     pub tokio_console_server: Option<console_subscriber::Server>,
     dymension_kaspa_args: Option<DymensionKaspaArgs>,
+    /// Optional scraper database URL for fallback delivery lookups
+    scraper_db: Option<String>,
 
     /// The origin chains and their associated structures
     origins: HashMap<HyperlaneDomain, Origin>,
@@ -310,6 +312,7 @@ impl BaseAgent for Relayer {
             runtime_metrics,
             tokio_console_server: Some(tokio_console_server),
             dymension_kaspa_args: dymension_args,
+            scraper_db: settings.scraper_db,
             origins,
             destinations,
         })
@@ -583,7 +586,7 @@ impl BaseAgent for Relayer {
             .collect();
 
         // Initialize scraper database if configured
-        let scraper_db = if let Some(ref scraper_db_url) = self.as_ref().settings.scraper_db {
+        let scraper_db = if let Some(ref scraper_db_url) = self.scraper_db {
             match crate::scraper_db::ScraperDb::connect(scraper_db_url).await {
                 Ok(db) => {
                     info!(scraper_db_url = %scraper_db_url, "Connected to scraper database for delivery fallback lookups");

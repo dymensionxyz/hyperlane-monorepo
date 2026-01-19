@@ -199,7 +199,7 @@ impl ScraperDb {
 
         match result {
             Some((_delivered_msg, Some(tx))) => {
-                let tx_hash = bytes_to_h512(&tx.hash)?;
+                let tx_hash = bytes_to_h512(&tx.hash);
                 Ok(Some(tx_hash))
             }
             Some((_delivered_msg, None)) => {

@@ -211,11 +211,19 @@ impl Scraper {
         info!(domain = domain.name(), "create HyperlaneProvider");
         let provider = chain_setup.build_provider(&metrics).await?.into();
         info!(domain = domain.name(), "create HyperlaneDbStore");
+        // Use the first interchain gas paymaster address if available, otherwise use a zero address
+        let interchain_gas_paymaster = chain_setup
+            .addresses
+            .interchain_gas_paymasters
+            .first()
+            .copied()
+            .unwrap_or_default();
+        
         let store = HyperlaneDbStore::new(
             scraper_db,
             domain.clone(),
             chain_setup.addresses.mailbox,
-            chain_setup.addresses.interchain_gas_paymaster,
+            interchain_gas_paymaster,
             provider,
             &chain_setup.index.clone(),
         )
@@ -426,13 +434,13 @@ mod test {
                         .unwrap()
                         .as_slice(),
                     ),
-                    interchain_gas_paymaster: H256::from_slice(
+                    interchain_gas_paymasters: vec![H256::from_slice(
                         hex::decode(
                             "000000000000000000000000c756cFc1b7d0d4646589EDf10eD54b201237F5e8",
                         )
                         .unwrap()
                         .as_slice(),
-                    ),
+                    )],
                     validator_announce: H256::from_slice(
                         hex::decode(
                             "0000000000000000000000001b33611fCc073aB0737011d5512EF673Bff74962",
