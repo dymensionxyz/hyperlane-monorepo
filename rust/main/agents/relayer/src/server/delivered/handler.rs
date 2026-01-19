@@ -12,6 +12,8 @@ use hyperlane_core::{h512_to_bytes, DeliveryDb, HyperlaneDomainProtocol, H256};
 
 // For converting H512 to base58 for Solana transaction signatures
 use bs58;
+// For converting bytes to hex string
+use hex;
 
 use crate::server::delivered::ServerState;
 
