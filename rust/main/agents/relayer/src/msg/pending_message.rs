@@ -250,7 +250,12 @@ impl PendingOperation for PendingMessage {
             }
         };
         if is_already_delivered {
-            debug!("Message has already been delivered, marking as submitted.");
+            warn!(
+                message_id = ?self.message.id(),
+                destination = ?self.message.destination,
+                has_submission_outcome = self.submission_outcome.is_some(),
+                "PREPARE: Message has already been delivered (possibly by another relayer or already on-chain), marking as submitted without setting submission_outcome"
+            );
             self.submitted = true;
             self.set_next_attempt_after(CONFIRM_DELAY);
             return PendingOperationResult::Confirm(ConfirmReason::AlreadySubmitted);
@@ -414,6 +419,12 @@ impl PendingOperation for PendingMessage {
             destination = ?self.message.destination,
             "Submitting message process transaction"
         );
+        warn!(
+            message_id = ?self.message.id(),
+            destination = ?self.message.destination,
+            "SUBMIT: About to submit message to destination chain"
+        );
+        
         let tx_outcome = self
             .ctx
             .destination_mailbox
@@ -421,11 +432,12 @@ impl PendingOperation for PendingMessage {
             .await;
         match tx_outcome {
             Ok(outcome) => {
-                info!(
+                warn!(
                     message_id = ?self.message.id(),
                     tx_id = ?outcome.transaction_id,
                     gas_used = ?outcome.gas_used,
-                    "Process transaction submitted successfully"
+                    destination = ?self.message.destination,
+                    "SUBMIT: Process transaction submitted successfully, setting operation outcome"
                 );
                 self.set_operation_outcome(outcome, state.gas_limit).await;
                 PendingOperationResult::Confirm(ConfirmReason::SubmittedBySelf)
@@ -483,6 +495,14 @@ impl PendingOperation for PendingMessage {
         };
 
         if is_delivered {
+            warn!(
+                message_id = ?self.message.id(),
+                submission_outcome = ?self.submission_outcome,
+                has_submission_outcome = self.submission_outcome.is_some(),
+                destination = ?self.message.destination,
+                "CONFIRM: Message confirmed as delivered, about to record success"
+            );
+            
             if let Err(err) = self.record_message_process_success() {
                 return self
                     .on_reconfirm(Some(err), "Error when recording message process success");
@@ -518,8 +538,19 @@ impl PendingOperation for PendingMessage {
         submission_outcome: TxOutcome,
         submission_estimated_cost: U256,
     ) {
+        let message_id = self.message.id();
+        warn!(
+            message_id = ?message_id,
+            tx_id = ?submission_outcome.transaction_id,
+            destination = ?self.message.destination,
+            "SET_OUTCOME: Setting operation outcome for message"
+        );
+        
         let Some(operation_estimate) = self.get_tx_cost_estimate() else {
-            warn!("Cannot set operation outcome without a cost estimate set previously");
+            warn!(
+                message_id = ?message_id,
+                "SET_OUTCOME: Cannot set operation outcome without a cost estimate set previously"
+            );
             return;
         };
         // calculate the gas used by the operation
@@ -530,7 +561,11 @@ impl PendingOperation for PendingMessage {
         ) {
             Ok(gas_used_by_operation) => gas_used_by_operation,
             Err(e) => {
-                warn!(error = %e, "Error when calculating gas used by operation, falling back to charging the full cost of the tx. Are gas estimates enabled for this chain?");
+                warn!(
+                    message_id = ?message_id,
+                    error = %e,
+                    "SET_OUTCOME: Error when calculating gas used by operation, falling back to charging the full cost of the tx. Are gas estimates enabled for this chain?"
+                );
                 submission_outcome.gas_used
             }
         };
@@ -546,16 +581,21 @@ impl PendingOperation for PendingMessage {
             .await
             .record_tx_outcome(&self.message, operation_outcome.clone())
         {
-            error!(error=?e, "Error when recording tx outcome");
+            error!(
+                message_id = ?message_id,
+                error=?e,
+                "SET_OUTCOME: Error when recording tx outcome"
+            );
         }
         // set the outcome in `Self` as well, for later logging
-        self.set_submission_outcome(operation_outcome);
-        debug!(
+        self.set_submission_outcome(operation_outcome.clone());
+        warn!(
+            message_id = ?message_id,
+            tx_id = ?operation_outcome.transaction_id,
             actual_gas_for_message = ?gas_used_by_operation,
             message_gas_estimate = ?operation_estimate,
             submission_gas_estimate = ?submission_estimated_cost,
-            hyp_message = ?self.message,
-            "Gas used by message submission"
+            "SET_OUTCOME: Successfully set submission_outcome for message"
         );
     }
 
@@ -952,7 +992,9 @@ impl PendingMessage {
             warn!(
                 message_id = ?self.message.id(),
                 destination = ?self.message.destination,
-                "DELIVERY_STORAGE: No submission_outcome available, cannot store delivery tx hash"
+                origin = ?self.message.origin,
+                submitted = self.submitted,
+                "DELIVERY_STORAGE: No submission_outcome available - this message was likely delivered by another relayer or was already delivered when checked. The delivery tx hash will NOT be available in the local database for the /delivered endpoint. To see all deliveries, query the scraper database directly."
             );
         }
 

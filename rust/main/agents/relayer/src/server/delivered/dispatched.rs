@@ -11,7 +11,7 @@ use hyperlane_base::{
         ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse,
     },
 };
-use hyperlane_core::{HyperlaneDomainProtocol, H512};
+use hyperlane_core::{HyperlaneDomainProtocol, H256, H512};
 
 // For parsing base58 transaction signatures for Solana
 use bs58;
@@ -119,25 +119,95 @@ pub async fn handler(
         }
     } else {
         // For other chains, parse as hex
-        match tx_hash_str.parse() {
-            Ok(hash) => hash,
-            Err(e) => {
-                warn!(
-                    %tx_hash_str,
-                    %domain_id,
-                    error = %e,
-                    "DISPATCHED_API: Failed to parse hex tx_hash"
-                );
-                return Err(ServerErrorResponse::new(
-                    StatusCode::BAD_REQUEST,
-                    ServerErrorBody {
-                        message: format!(
-                            "Invalid hex tx_hash format: {}. Expected 128 hex characters (64 bytes), with or without 0x prefix",
-                            e
-                        ),
-                    },
-                ));
+        // Accept both H256 (64 hex chars / 32 bytes) and H512 (128 hex chars / 64 bytes)
+        let tx_hash_without_prefix = tx_hash_str.strip_prefix("0x").unwrap_or(&tx_hash_str);
+        let hex_len = tx_hash_without_prefix.len();
+        
+        warn!(
+            %tx_hash_str,
+            %domain_id,
+            hex_len = %hex_len,
+            "DISPATCHED_API: Parsing tx_hash as hex (detected length: {} chars)",
+            hex_len
+        );
+        
+        if hex_len == 64 {
+            // H256 format (32 bytes / 64 hex chars) - convert to H512
+            match tx_hash_str.parse::<H256>() {
+                Ok(hash_h256) => {
+                    let hash_h512: H512 = hash_h256.into();
+                    warn!(
+                        %tx_hash_str,
+                        %domain_id,
+                        hash_h512 = ?hash_h512,
+                        "DISPATCHED_API: Parsed as H256 and converted to H512"
+                    );
+                    hash_h512
+                }
+                Err(e) => {
+                    warn!(
+                        %tx_hash_str,
+                        %domain_id,
+                        error = %e,
+                        "DISPATCHED_API: Failed to parse as H256"
+                    );
+                    return Err(ServerErrorResponse::new(
+                        StatusCode::BAD_REQUEST,
+                        ServerErrorBody {
+                            message: format!(
+                                "Invalid hex tx_hash format: {}. Expected 64 hex characters (32 bytes) or 128 hex characters (64 bytes), with or without 0x prefix",
+                                e
+                            ),
+                        },
+                    ));
+                }
             }
+        } else if hex_len == 128 {
+            // H512 format (64 bytes / 128 hex chars)
+            match tx_hash_str.parse::<H512>() {
+                Ok(hash) => {
+                    warn!(
+                        %tx_hash_str,
+                        %domain_id,
+                        hash_h512 = ?hash,
+                        "DISPATCHED_API: Parsed as H512"
+                    );
+                    hash
+                }
+                Err(e) => {
+                    warn!(
+                        %tx_hash_str,
+                        %domain_id,
+                        error = %e,
+                        "DISPATCHED_API: Failed to parse as H512"
+                    );
+                    return Err(ServerErrorResponse::new(
+                        StatusCode::BAD_REQUEST,
+                        ServerErrorBody {
+                            message: format!(
+                                "Invalid hex tx_hash format: {}. Expected 128 hex characters (64 bytes), with or without 0x prefix",
+                                e
+                            ),
+                        },
+                    ));
+                }
+            }
+        } else {
+            warn!(
+                %tx_hash_str,
+                %domain_id,
+                hex_len = %hex_len,
+                "DISPATCHED_API: Invalid tx_hash length"
+            );
+            return Err(ServerErrorResponse::new(
+                StatusCode::BAD_REQUEST,
+                ServerErrorBody {
+                    message: format!(
+                        "Invalid tx_hash length: expected 64 hex characters (32 bytes) or 128 hex characters (64 bytes), got {} characters",
+                        hex_len
+                    ),
+                },
+            ));
         }
     };
 

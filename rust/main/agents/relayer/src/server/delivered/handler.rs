@@ -8,7 +8,7 @@ use tracing::warn;
 use hyperlane_base::server::utils::{
     ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse,
 };
-use hyperlane_core::{DeliveryDb, HyperlaneDomainProtocol, H256};
+use hyperlane_core::{h512_to_bytes, DeliveryDb, HyperlaneDomainProtocol, H256};
 
 // For converting H512 to base58 for Solana transaction signatures
 use bs58;
@@ -111,16 +111,22 @@ pub async fn handler(
                     %message_id_str,
                     %domain_id,
                     tx_hash_base58 = %base58_tx,
+                    tx_hash_h512 = ?tx,
                     "DELIVERY_API: Found delivery tx hash in database (Sealevel - converted to base58)"
                 );
                 base58_tx
             } else {
-                // For other chains, return hex format
-                let hex_tx = format!("{:x}", tx);
+                // For other chains (like Ethereum), convert H512 to bytes intelligently
+                // h512_to_bytes will extract the last 32 bytes if the first 32 bytes are zeros
+                // This handles the case where Ethereum tx hashes (H256) are stored as H512
+                let tx_bytes = h512_to_bytes(&tx);
+                let hex_tx = format!("0x{}", hex::encode(&tx_bytes));
                 warn!(
                     %message_id_str,
                     %domain_id,
                     tx_hash_hex = %hex_tx,
+                    tx_hash_h512 = ?tx,
+                    tx_bytes_len = tx_bytes.len(),
                     "DELIVERY_API: Found delivery tx hash in database (non-Sealevel - hex format)"
                 );
                 hex_tx
