@@ -7,6 +7,7 @@ use crate::relayer::withdraw::hub_to_kaspa::{
     sign_relayer_fee,
 };
 use dym_kas_core::pskt::{estimate_mass, PopulatedInput, PopulatedInputBuilder};
+use dym_kas_hardcode::tx::RELAYER_SWEEPING_PRIORITY_FEE;
 use eyre::{eyre, Result};
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionOutput;
@@ -158,7 +159,7 @@ pub async fn execute_migration(
         escrow.m() as u16,
     )
     .map_err(|e| eyre!("Estimate migration TX mass (pass 1): {}", e))?;
-    let initial_fee = (initial_mass as f64 * feerate).ceil() as u64;
+    let initial_fee = (initial_mass as f64 * feerate).ceil() as u64 + RELAYER_SWEEPING_PRIORITY_FEE;
 
     // Pass 2: recalculate with fee-adjusted change output
     let estimated_change = relayer_sum.saturating_sub(initial_fee);
@@ -181,7 +182,7 @@ pub async fn execute_migration(
         escrow.m() as u16,
     )
     .map_err(|e| eyre!("Estimate migration TX mass (pass 2): {}", e))?;
-    let tx_fee = (tx_mass as f64 * feerate).ceil() as u64;
+    let tx_fee = (tx_mass as f64 * feerate).ceil() as u64 + RELAYER_SWEEPING_PRIORITY_FEE;
 
     if relayer_sum <= tx_fee {
         return Err(eyre!(
