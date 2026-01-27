@@ -13,7 +13,11 @@ use hyperlane_core::{
 };
 use hyperlane_cosmos::native::{h512_to_cosmos_hash, CosmosNativeMailbox};
 use std::{collections::HashSet, fmt::Debug, hash::Hash, sync::Arc, time::Duration};
-use tokio::{sync::Mutex, task::JoinHandle, time};
+use tokio::{
+    sync::{mpsc, Mutex},
+    task::JoinHandle,
+    time,
+};
 use tokio_metrics::TaskMonitor;
 use tracing::{debug, error, info, info_span, Instrument};
 
@@ -22,6 +26,9 @@ use super::{
     error::KaspaDepositError,
 };
 use dymension_kaspa::conf::RelayerDepositTimings;
+
+pub type DepositForceSender = mpsc::Sender<Deposit>;
+pub type DepositForceReceiver = mpsc::Receiver<Deposit>;
 
 enum DepositRelayResult {
     Success {
@@ -51,6 +58,8 @@ pub struct Foo<C: MetadataConstructor> {
     metadata_constructor: C,
     deposit_tracker: Mutex<DepositTracker>,
     config: RelayerDepositTimings,
+    force_sender: DepositForceSender,
+    force_receiver: Mutex<DepositForceReceiver>,
 }
 
 impl<C: MetadataConstructor> Foo<C>
@@ -64,13 +73,21 @@ where
     ) -> Self {
         // Get config from provider, or use defaults if not available
         let config = provider.must_relayer_stuff().deposit_timings.clone();
+        let (force_sender, force_receiver) = mpsc::channel(100);
         Self {
             provider,
             hub_mailbox,
             metadata_constructor,
             deposit_tracker: Mutex::new(DepositTracker::new()),
             config,
+            force_sender,
+            force_receiver: Mutex::new(force_receiver),
         }
+    }
+
+    /// Get a sender for submitting deposits to be recovered/reprocessed
+    pub fn force_sender(&self) -> DepositForceSender {
+        self.force_sender.clone()
     }
 
     /// Run deposit and progress indication loops
@@ -122,6 +139,7 @@ where
 
         loop {
             self.process_deposit_queue().await;
+            self.process_force_requests().await;
 
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -186,6 +204,15 @@ where
             if let Err(e) = self.provider.update_balance_metrics().await {
                 error!("Failed to update balance metrics: {:?}", e);
             }
+        }
+    }
+
+    /// Process deposits submitted via the force channel
+    async fn process_force_requests(&self) {
+        let mut receiver = self.force_receiver.lock().await;
+        while let Ok(deposit) = receiver.try_recv() {
+            info!(deposit_id = %deposit.id, "Processing forced deposit");
+            self.queue_new_deposits(vec![deposit]).await;
         }
     }
 
