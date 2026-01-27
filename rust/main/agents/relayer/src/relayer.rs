@@ -585,6 +585,27 @@ impl BaseAgent for Relayer {
             .map(|(key, origin)| (key.id(), origin.prover_sync.clone()))
             .collect();
 
+        // Build deposit-force config if available (requires sender AND REST URL)
+        let deposit_force = if let Some(dym_args) = self.dymension_kaspa_args.as_ref() {
+            let sender_guard = dym_args.force_sender.read().unwrap();
+            let rest_url = dym_args
+                .kas_provider
+                .conf()
+                .kaspa_urls_rest
+                .first()
+                .map(|u| u.to_string());
+
+            match (sender_guard.as_ref(), rest_url) {
+                (Some(sender), Some(url)) => Some(relayer_server::DepositForceConfig {
+                    sender: sender.clone(),
+                    rest_api_url: url,
+                }),
+                _ => None,
+            }
+        } else {
+            None
+        };
+
         let relayer_router = relayer_server::Server::new(self.destinations.len())
             .with_op_retry(sender.clone())
             .with_message_queue(prep_queues)
@@ -596,7 +617,8 @@ impl BaseAgent for Relayer {
                 self.dymension_kaspa_args
                     .as_ref()
                     .and_then(|dym_args| dym_args.kas_provider.kaspa_db().cloned()),
-            ) // Set kaspa_db to server_builder from dymension_args provider if available
+            )
+            .with_deposit_force(deposit_force)
             .router();
 
         let server = self
@@ -1126,6 +1148,8 @@ impl Relayer {
 struct DymensionKaspaArgs {
     kas_provider: Box<KaspaProvider>,
     dym_mailbox: Arc<CosmosNativeMailbox>,
+    /// Sender for force-deposit requests, populated when Foo is created
+    force_sender: Arc<std::sync::RwLock<Option<hyperlane_base::kas_hack::DepositForceSender>>>,
 }
 
 // Manual Debug since KaspaMailbox now has a trait object
@@ -1135,6 +1159,7 @@ impl std::fmt::Debug for DymensionKaspaArgs {
             .field("kas_provider", &self.kas_provider)
             .field("kas_mailbox", &"KaspaMailbox")
             .field("dym_mailbox", &self.dym_mailbox)
+            .field("force_sender", &"<RwLock>")
             .finish()
     }
 }
@@ -1197,6 +1222,7 @@ impl Relayer {
         Ok(Some(DymensionKaspaArgs {
             kas_provider,
             dym_mailbox,
+            force_sender: Arc::new(std::sync::RwLock::new(None)),
         }))
     }
 
@@ -1217,6 +1243,12 @@ impl Relayer {
         let metadata_getter = PendingMessageMetadataGetter::new();
 
         let b = KaspaBridgeFoo::new(kas_provider.clone(), hub_mailbox.clone(), metadata_getter);
+
+        // Store the force sender for use by the server endpoint
+        {
+            let mut sender_guard = args.force_sender.write().unwrap();
+            *sender_guard = Some(b.force_sender());
+        }
 
         // sync relayer before starting other tasks
         b.sync_hub_if_needed().await.unwrap();

@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use axum::Router;
 use derive_new::new;
+use hyperlane_base::kas_hack::DepositForceSender;
 use hyperlane_core::HyperlaneDomain;
 use tokio::sync::broadcast::Sender;
 
@@ -27,6 +28,12 @@ pub mod messages;
 pub mod operations;
 pub mod proofs;
 
+/// Config for deposit-force endpoint
+pub struct DepositForceConfig {
+    pub sender: DepositForceSender,
+    pub rest_api_url: String,
+}
+
 #[derive(new)]
 pub struct Server {
     destination_chains: usize,
@@ -45,6 +52,8 @@ pub struct Server {
     prover_syncs: Option<HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>>,
     #[new(default)]
     kaspa_db: Option<Arc<dyn KaspaDb>>,
+    #[new(default)]
+    deposit_force: Option<DepositForceConfig>,
 }
 
 impl Server {
@@ -92,6 +101,11 @@ impl Server {
         self
     }
 
+    pub fn with_deposit_force(mut self, config: Option<DepositForceConfig>) -> Self {
+        self.deposit_force = config;
+        self
+    }
+
     // return a custom router that can be used in combination with other routers
     pub fn router(self) -> Router {
         let mut router = Router::new();
@@ -127,7 +141,13 @@ impl Server {
             router = router.merge(proofs::ServerState::new(prover_syncs).router());
         }
         if let Some(kaspa_db) = self.kaspa_db {
-            router = router.merge(kaspa::ServerState::new(kaspa_db).router());
+            let kaspa_state = kaspa::ServerState::new(kaspa_db);
+            let kaspa_state = if let Some(df) = self.deposit_force {
+                kaspa_state.with_deposit_force(df.sender, df.rest_api_url)
+            } else {
+                kaspa_state
+            };
+            router = router.merge(kaspa_state.router());
         }
 
         let expose_environment_variable_endpoint =
