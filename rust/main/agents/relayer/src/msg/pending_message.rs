@@ -68,9 +68,7 @@ pub struct MessageContext {
     pub destination_mailbox: Arc<dyn Mailbox>,
     /// Origin chain database to verify gas payments.
     pub origin_db: Arc<dyn HyperlaneDb>,
-    /// Origin chain database for reverse lookup (tx_hash -> message_id).
-    pub origin_db_delivery: Arc<dyn DeliveryDb>,
-    /// Destination chain database for storing delivery info.
+    /// Destination chain database for storing delivery tx hashes.
     pub destination_db: Arc<dyn DeliveryDb>,
     /// Cache to store commonly used data calls.
     pub cache: OptionalCache<MeteredCache<LocalCache>>,
@@ -933,27 +931,14 @@ impl PendingMessage {
                 .destination_db
                 .store_delivery_tx(&message_id, &outcome.transaction_id)
             {
-                warn!(
+                error!(
                     message_id = ?message_id,
                     tx_id = ?outcome.transaction_id,
                     destination = ?self.message.destination,
                     error = %e,
-                    "DELIVERY_STORAGE: Failed to store delivery tx hash on destination"
-                );
-            } else {
-                warn!(
-                    message_id = ?message_id,
-                    tx_id = ?outcome.transaction_id,
-                    destination = ?self.message.destination,
-                    "DELIVERY_STORAGE: Successfully stored delivery tx hash on destination"
+                    "failed to store delivery tx hash"
                 );
             }
-        } else {
-            warn!(
-                message_id = ?self.message.id(),
-                destination = ?self.message.destination,
-                "DELIVERY_STORAGE: No submission_outcome available, cannot store delivery tx hash"
-            );
         }
 
         Ok(())

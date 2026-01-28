@@ -256,13 +256,9 @@ impl BaseAgent for Relayer {
                     origin_chain_setup.ignore_reorg_reports,
                 );
 
-                // Create destination_db for storing delivery info
+                // Create destination_db for storing delivery tx hashes
                 let destination_db: Arc<dyn DeliveryDb> =
                     Arc::new(destination.database.clone());
-                
-                // Create origin_db_delivery for reverse lookup (tx_hash -> message_id)
-                let origin_db_delivery: Arc<dyn DeliveryDb> =
-                    Arc::new(db.clone());
 
                 msg_ctxs.insert(
                     ContextKey {
@@ -272,7 +268,6 @@ impl BaseAgent for Relayer {
                     Arc::new(MessageContext {
                         destination_mailbox: destination_mailbox.clone(),
                         origin_db: Arc::new(db.clone()),
-                        origin_db_delivery,
                         destination_db,
                         cache: cache.clone(),
                         metadata_builder: Arc::new(metadata_builder),

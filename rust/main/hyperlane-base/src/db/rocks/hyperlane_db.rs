@@ -89,14 +89,6 @@ impl HyperlaneRocksDB {
         dispatch_tx_id: &H512,
     ) -> DbResult<bool> {
         self.store_message(message, dispatched_block_number)?;
-        // - `dispatch_tx_id` --> `message_id` (for /delivered/by_tx API)
-        warn!(
-            dispatch_tx_id = ?dispatch_tx_id,
-            message_id = ?message.id(),
-            origin_domain = %message.origin,
-            destination_domain = %message.destination,
-            "STORING MESSAGE ID BY DISPATCH TX"
-        );
         self.store_message_id_by_dispatch_tx(dispatch_tx_id, &message.id())?;
         Ok(true)
     }
