@@ -925,13 +925,13 @@ impl PendingMessage {
         if let Some(outcome) = &self.submission_outcome {
             let message_id = self.message.id();
             
-            // Store on destination: message_id -> tx_hash (for /delivered endpoint)
+            // Best-effort: store delivery tx hash for /delivered endpoint
             if let Err(e) = self
                 .ctx
                 .destination_db
                 .store_delivery_tx(&message_id, &outcome.transaction_id)
             {
-                error!(
+                debug!(
                     message_id = ?message_id,
                     tx_id = ?outcome.transaction_id,
                     destination = ?self.message.destination,

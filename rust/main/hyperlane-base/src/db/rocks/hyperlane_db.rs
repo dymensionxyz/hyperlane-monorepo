@@ -2,8 +2,7 @@ use std::ops::Add;
 
 use async_trait::async_trait;
 use eyre::{bail, Result};
-use tracing::{debug, instrument, trace, warn};
-
+use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
     identifiers::UniqueIdentifier, Decode, Encode, GasPaymentKey, HyperlaneDomain,
@@ -82,17 +81,19 @@ impl HyperlaneRocksDB {
     }
 
     /// Store a message with its dispatch transaction ID.
+    /// Returns true if the message was newly stored, false if it already existed.
     pub fn store_message_with_dispatch_tx(
         &self,
         message: &HyperlaneMessage,
         dispatched_block_number: u64,
         dispatch_tx_id: &H512,
     ) -> DbResult<bool> {
-        self.store_message(message, dispatched_block_number)?;
-        self.store_message_id_by_dispatch_tx(dispatch_tx_id, &message.id())?;
-        Ok(true)
+        let newly_stored = self.store_message(message, dispatched_block_number)?;
+        if newly_stored {
+            self.store_message_id_by_dispatch_tx(dispatch_tx_id, &message.id())?;
+        }
+        Ok(newly_stored)
     }
-
 
     /// Store a raw committed message. If message already exists, then do nothing.
     ///
