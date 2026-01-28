@@ -68,7 +68,7 @@ mod origin;
 
 const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
-const ADVANCED_LOG_META: bool = true;
+const ADVANCED_LOG_META: bool = false;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 struct ContextKey {
@@ -594,11 +594,6 @@ impl BaseAgent for Relayer {
             .iter()
             .map(|(key, origin)| (key.id(), origin.prover_sync.clone()))
             .collect();
-        let message_syncs: HashMap<_, _> = self
-            .origins
-            .iter()
-            .map(|(key, origin)| (key.id(), origin.message_sync.clone()))
-            .collect();
 
         // Build deposit-force config if available (requires sender AND REST URL)
         let deposit_force = if let Some(dym_args) = self.dymension_kaspa_args.as_ref() {
@@ -628,7 +623,6 @@ impl BaseAgent for Relayer {
             .with_gas_enforcers(gas_enforcers)
             .with_msg_ctxs(msg_ctxs)
             .with_prover_sync(prover_syncs)
-            .with_message_syncs(message_syncs)
             .with_kaspa_db(
                 self.dymension_kaspa_args
                     .as_ref()

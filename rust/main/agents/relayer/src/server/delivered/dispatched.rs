@@ -3,7 +3,7 @@ use axum::{
     http::StatusCode,
 };
 use serde::{Deserialize, Serialize};
-use tracing::warn;
+use tracing::{debug, error};
 
 use hyperlane_base::{
     db::HyperlaneDb,
@@ -13,16 +13,16 @@ use hyperlane_base::{
 };
 use hyperlane_core::{HyperlaneDomainProtocol, H512};
 
-// For parsing base58 transaction signatures for Solana
 use bs58;
 
 use crate::server::delivered::ServerState;
 
+/// Solana transaction signatures are 64 bytes
+const SOLANA_SIGNATURE_BYTES: usize = 64;
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct QueryParams {
     /// The transaction hash (base58 for Sealevel, hex for others)
-    /// For Sealevel: base58 string, e.g. "kKe43MZtkjypsbgwKvrCVZWNmsYFm2aqTUyWzHPEAqWq5f3kwegKKjbPpjsP8MvcTRzbgZ1mg4sfqxRcwJGZ2ZD"
-    /// For others: hex string (with or without 0x prefix), e.g. "0xabc123..."
     pub tx_hash: String,
     /// The domain ID (where the transaction hash is from)
     pub domain_id: u32,
@@ -41,20 +41,17 @@ pub async fn handler(
     State(state): State<ServerState>,
     Query(query_params): Query<QueryParams>,
 ) -> ServerResult<ServerSuccessResponse<MessageIdResponse>> {
-    let tx_hash_str = query_params.tx_hash.clone();
+    let tx_hash_str = &query_params.tx_hash;
     let domain_id = query_params.domain_id;
 
-    // Get the database for the domain (where the tx hash is from)
     let db = match state.dbs.get(&domain_id) {
-        Some(db) => {
-            db
-        }
+        Some(db) => db,
         None => {
-            warn!(
+            debug!(
                 %tx_hash_str,
                 %domain_id,
                 available_domains = ?state.dbs.keys().collect::<Vec<_>>(),
-                "DISPATCHED_API: No database found for origin domain"
+                "no database found for origin domain"
             );
             return Err(ServerErrorResponse::new(
                 StatusCode::NOT_FOUND,
@@ -69,32 +66,26 @@ pub async fn handler(
         }
     };
 
-    // Get the domain to determine the protocol
     let domain = db.domain();
     let is_sealevel = domain.domain_protocol() == HyperlaneDomainProtocol::Sealevel;
 
-    // Parse the tx_hash based on the domain protocol
     let tx_hash_h512: H512 = if is_sealevel {
-        // For Sealevel, parse as base58
-        warn!(
-            %tx_hash_str,
-            %domain_id,
-            "DISPATCHED_API: Parsing tx_hash as base58 (Sealevel)"
-        );
-        match bs58::decode(&tx_hash_str).into_vec() {
+        debug!(%tx_hash_str, %domain_id, "parsing tx_hash as base58 (Sealevel)");
+        match bs58::decode(tx_hash_str).into_vec() {
             Ok(bytes) => {
-                if bytes.len() != 64 {
-                    warn!(
+                if bytes.len() != SOLANA_SIGNATURE_BYTES {
+                    debug!(
                         %tx_hash_str,
                         %domain_id,
                         bytes_len = %bytes.len(),
-                        "DISPATCHED_API: Invalid base58 tx_hash length - expected 64 bytes"
+                        "invalid base58 tx_hash length"
                     );
                     return Err(ServerErrorResponse::new(
                         StatusCode::BAD_REQUEST,
                         ServerErrorBody {
                             message: format!(
-                                "Invalid base58 tx_hash length: expected 64 bytes, got {}",
+                                "Invalid base58 tx_hash length: expected {} bytes, got {}",
+                                SOLANA_SIGNATURE_BYTES,
                                 bytes.len()
                             ),
                         },
@@ -103,12 +94,7 @@ pub async fn handler(
                 H512::from_slice(&bytes)
             }
             Err(e) => {
-                warn!(
-                    %tx_hash_str,
-                    %domain_id,
-                    error = %e,
-                    "DISPATCHED_API: Failed to parse base58 tx_hash"
-                );
+                debug!(%tx_hash_str, %domain_id, error = %e, "failed to parse base58 tx_hash");
                 return Err(ServerErrorResponse::new(
                     StatusCode::BAD_REQUEST,
                     ServerErrorBody {
@@ -118,16 +104,10 @@ pub async fn handler(
             }
         }
     } else {
-        // For other chains, parse as hex
         match tx_hash_str.parse() {
             Ok(hash) => hash,
             Err(e) => {
-                warn!(
-                    %tx_hash_str,
-                    %domain_id,
-                    error = %e,
-                    "DISPATCHED_API: Failed to parse hex tx_hash"
-                );
+                debug!(%tx_hash_str, %domain_id, error = %e, "failed to parse hex tx_hash");
                 return Err(ServerErrorResponse::new(
                     StatusCode::BAD_REQUEST,
                     ServerErrorBody {
@@ -141,23 +121,13 @@ pub async fn handler(
         }
     };
 
-    // Retrieve from database (where relayer stores dispatch tx -> message_id mappings)
     let message_id = match db.retrieve_message_id_by_dispatch_tx(&tx_hash_h512) {
         Ok(Some(message_id)) => {
-            warn!(
-                %tx_hash_str,
-                %domain_id,
-                message_id = ?message_id,
-                "DISPATCHED_API: Found message_id in database"
-            );
+            debug!(%tx_hash_str, %domain_id, message_id = ?message_id, "found message_id");
             message_id
         }
         Ok(None) => {
-            warn!(
-                %tx_hash_str,
-                %domain_id,
-                "DISPATCHED_API: No message_id found in database"
-            );
+            debug!(%tx_hash_str, %domain_id, "no message_id found");
             return Err(ServerErrorResponse::new(
                 StatusCode::NOT_FOUND,
                 ServerErrorBody {
@@ -169,12 +139,7 @@ pub async fn handler(
             ));
         }
         Err(e) => {
-            warn!(
-                %tx_hash_str,
-                %domain_id,
-                error = %e,
-                "DISPATCHED_API: Database error when retrieving message_id"
-            );
+            error!(%tx_hash_str, %domain_id, error = %e, "database error retrieving message_id");
             return Err(ServerErrorResponse::new(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 ServerErrorBody {
@@ -184,24 +149,23 @@ pub async fn handler(
         }
     };
 
-    // Get the full message to extract destination_domain_id
     let message = match db.retrieve_message_by_id(&message_id) {
         Ok(Some(message)) => {
-            warn!(
+            debug!(
                 %tx_hash_str,
                 %domain_id,
                 message_id = ?message_id,
                 destination_domain_id = %message.destination,
-                "DISPATCHED_API: Successfully retrieved message from database"
+                "retrieved message"
             );
             message
         }
         Ok(None) => {
-            warn!(
+            error!(
                 %tx_hash_str,
                 %domain_id,
                 message_id = ?message_id,
-                "DISPATCHED_API: message_id found in database but full message not found"
+                "message_id found but full message missing"
             );
             return Err(ServerErrorResponse::new(
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -211,12 +175,12 @@ pub async fn handler(
             ));
         }
         Err(e) => {
-            warn!(
+            error!(
                 %tx_hash_str,
                 %domain_id,
                 message_id = ?message_id,
                 error = %e,
-                "DISPATCHED_API: Database error retrieving full message"
+                "database error retrieving message"
             );
             return Err(ServerErrorResponse::new(
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -234,4 +198,3 @@ pub async fn handler(
 
     Ok(ServerSuccessResponse::new(response))
 }
-

@@ -9,8 +9,7 @@ use hyperlane_core::HyperlaneDomain;
 use tokio::sync::broadcast::Sender;
 
 use hyperlane_base::db::HyperlaneRocksDB;
-use hyperlane_core::{HyperlaneMessage, KaspaDb};
-use hyperlane_base::ContractSyncer;
+use hyperlane_core::KaspaDb;
 use tokio::sync::RwLock;
 
 use crate::merkle_tree::builder::MerkleTreeBuilder;
@@ -56,8 +55,6 @@ pub struct Server {
     kaspa_db: Option<Arc<dyn KaspaDb>>,
     #[new(default)]
     deposit_force: Option<DepositForceConfig>,
-    #[new(default)]
-    message_syncs: Option<HashMap<u32, Arc<dyn ContractSyncer<HyperlaneMessage>>>>,
 }
 
 impl Server {
@@ -110,14 +107,6 @@ impl Server {
         self
     }
 
-    pub fn with_message_syncs(
-        mut self,
-        message_syncs: HashMap<u32, Arc<dyn ContractSyncer<HyperlaneMessage>>>,
-    ) -> Self {
-        self.message_syncs = Some(message_syncs);
-        self
-    }
-
     // return a custom router that can be used in combination with other routers
     pub fn router(self) -> Router {
         let mut router = Router::new();
@@ -144,19 +133,8 @@ impl Server {
         if let Some(dbs) = self.dbs.as_ref() {
             router = router
                 .merge(messages::ServerState::new(dbs.clone()).router())
-                .merge(merkle_tree_insertions::ServerState::new(dbs.clone()).router());
-            if let Some(message_syncs) = self.message_syncs.as_ref() {
-                router = router.merge(
-                    delivered::ServerState::new(dbs.clone(), message_syncs.clone()).router()
-                );
-            } else {
-                router = router.merge(
-                    delivered::ServerState::new(dbs.clone(), HashMap::new()).router()
-                );
-            }
-        } else {
-            use tracing::warn;
-            warn!("DELIVERY_API: No databases available, /delivered endpoint will not be registered");
+                .merge(merkle_tree_insertions::ServerState::new(dbs.clone()).router())
+                .merge(delivered::ServerState::new(dbs.clone()).router());
         }
         if let Some(gas_enforcers) = self.gas_enforcers {
             router = router.merge(igp::ServerState::new(gas_enforcers.clone()).router());
