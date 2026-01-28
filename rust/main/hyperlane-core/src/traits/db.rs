@@ -112,3 +112,17 @@ pub trait KaspaDb: Send + Sync + Debug {
         hub_tx: &H256,
     ) -> Result<()>;
 }
+
+/// Trait for tracking message delivery across all destination chains.
+#[auto_impl(&, Box, Arc)]
+pub trait DeliveryDb: Send + Sync + Debug {
+    /// Store the destination transaction hash for a delivered message
+    fn store_delivery_tx(
+        &self,
+        message_id: &H256,
+        destination_tx: &crate::H512,
+    ) -> Result<()>;
+
+    /// Retrieve the destination transaction hash for a message
+    fn retrieve_delivery_tx(&self, message_id: &H256) -> Result<Option<crate::H512>>;
+}

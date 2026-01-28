@@ -118,6 +118,8 @@ pub fn dummy_message_context(
     MessageContext {
         destination_mailbox: Arc::new(MockMailboxContract::new_with_default_ism(H256::zero())),
         origin_db: Arc::new(db.clone()),
+        origin_db_delivery: Arc::new(db.clone()),
+        destination_db: Arc::new(db.clone()),
         cache,
         metadata_builder: base_metadata_builder,
         origin_gas_payment_enforcer: Arc::new(RwLock::new(GasPaymentEnforcer::new([], db.clone()))),
