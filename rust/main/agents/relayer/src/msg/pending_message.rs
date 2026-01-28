@@ -20,7 +20,7 @@ use hyperlane_base::{
 };
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
-    FixedPointNumber, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox,
+    DeliveryDb, FixedPointNumber, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox,
     MessageSubmissionData, PendingOperation, PendingOperationResult, PendingOperationStatus,
     ReprepareReason, TryBatchAs, TxCostEstimate, TxOutcome, H256, U256,
 };
@@ -68,6 +68,8 @@ pub struct MessageContext {
     pub destination_mailbox: Arc<dyn Mailbox>,
     /// Origin chain database to verify gas payments.
     pub origin_db: Arc<dyn HyperlaneDb>,
+    /// Destination chain database for storing delivery tx hashes.
+    pub destination_db: Arc<dyn DeliveryDb>,
     /// Cache to store commonly used data calls.
     pub cache: OptionalCache<MeteredCache<LocalCache>>,
     /// Used to construct the ISM metadata needed to verify a message from the
@@ -918,6 +920,27 @@ impl PendingMessage {
             .store_processed_by_nonce(&self.message.nonce, &true)?;
         self.ctx.metrics.update_nonce(&self.message);
         self.ctx.metrics.messages_processed.inc();
+
+        // Store delivery tx hash for all destinations
+        if let Some(outcome) = &self.submission_outcome {
+            let message_id = self.message.id();
+            
+            // Best-effort: store delivery tx hash for /delivered endpoint
+            if let Err(e) = self
+                .ctx
+                .destination_db
+                .store_delivery_tx(&message_id, &outcome.transaction_id)
+            {
+                debug!(
+                    message_id = ?message_id,
+                    tx_id = ?outcome.transaction_id,
+                    destination = ?self.message.destination,
+                    error = %e,
+                    "failed to store delivery tx hash"
+                );
+            }
+        }
+
         Ok(())
     }
 
@@ -1248,6 +1271,8 @@ mod test {
             fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
             fn store_payload_uuids_by_message_id(&self, message_id: &H256, payload_uuids: Vec<UniqueIdentifier>) -> DbResult<()>;
             fn retrieve_payload_uuids_by_message_id(&self, message_id: &H256) -> DbResult<Option<Vec<UniqueIdentifier>>>;
+            fn store_message_id_by_dispatch_tx(&self, dispatch_tx_id: &hyperlane_core::H512, message_id: &H256) -> DbResult<()>;
+            fn retrieve_message_id_by_dispatch_tx(&self, dispatch_tx_id: &hyperlane_core::H512) -> DbResult<Option<H256>>;
         }
     }
 
