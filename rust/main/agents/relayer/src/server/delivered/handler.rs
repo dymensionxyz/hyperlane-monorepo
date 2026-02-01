@@ -3,12 +3,12 @@ use axum::{
     http::StatusCode,
 };
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error};
+use tracing::error;
 
 use hyperlane_base::server::utils::{
     ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse,
 };
-use hyperlane_core::{DeliveryDb, HyperlaneDomainProtocol, H256};
+use hyperlane_core::{h512_to_bytes, DeliveryDb, HyperlaneDomainProtocol, H256};
 
 use bs58;
 
@@ -34,22 +34,15 @@ pub struct DeliveredResponse {
 pub async fn handler(
     State(state): State<ServerState>,
     Query(query_params): Query<QueryParams>,
-) -> ServerResult<ServerSuccessResponse<DeliveredResponse>> {
-    let message_id_str = &query_params.message_id;
+) -> ServerResult<ServerSuccessResponse<DeliveredResponse>> {    
+    let message_id_str = query_params.message_id.clone();
     let domain_id = query_params.domain_id;
 
+    // Parse the message ID (accepts hex with or without 0x prefix)
+    // Expected format: 64 hex characters (32 bytes), e.g. "0x8ebdc20c6c728c5715412ee928599c7286151f76d9079c8bdee08a335c7d072f"
     let message_id: H256 = match message_id_str.parse() {
-        Ok(id) => {
-            debug!(%message_id_str, %domain_id, message_id = ?id, "parsed message_id");
-            id
-        }
+        Ok(id) => id,
         Err(e) => {
-            debug!(
-                %message_id_str,
-                %domain_id,
-                error = %e,
-                "invalid message_id format"
-            );
             return Err(ServerErrorResponse::new(
                 StatusCode::BAD_REQUEST,
                 ServerErrorBody {
@@ -58,19 +51,13 @@ pub async fn handler(
                         e
                     ),
                 },
-            ));
+            ))
         }
     };
 
     let db = match state.dbs.get(&domain_id) {
         Some(db) => db,
         None => {
-            debug!(
-                %message_id_str,
-                %domain_id,
-                available_domains = ?state.dbs.keys().collect::<Vec<_>>(),
-                "no database found for domain"
-            );
             return Err(ServerErrorResponse::new(
                 StatusCode::NOT_FOUND,
                 ServerErrorBody {
@@ -84,22 +71,33 @@ pub async fn handler(
         }
     };
 
+    // Retrieve the delivery tx hash from the database
     let tx_hash = match db.retrieve_delivery_tx(&message_id) {
         Ok(Some(tx)) => {
+            // Check if this is a Sealevel domain - if so, convert H512 to base58
+            // Otherwise, return as hex
             let domain = db.domain();
             let tx_hash_str = if domain.domain_protocol() == HyperlaneDomainProtocol::Sealevel {
+                // Convert H512 to base58 for Solana transaction signatures
                 let base58_tx = bs58::encode(tx.as_bytes()).into_string();
-                debug!(%message_id_str, %domain_id, tx_hash = %base58_tx, "found delivery tx (base58)");
                 base58_tx
             } else {
-                let hex_tx = format!("{:x}", tx);
-                debug!(%message_id_str, %domain_id, tx_hash = %hex_tx, "found delivery tx (hex)");
+                // For other chains (like Ethereum), convert H512 to bytes intelligently
+                // h512_to_bytes will extract the last 32 bytes if the first 32 bytes are zeros
+                // This handles the case where Ethereum tx hashes (H256) are stored as H512
+                let tx_bytes = h512_to_bytes(&tx);
+                
+                // Convert bytes to hex string manually
+                let mut hex_tx = String::with_capacity(2 + tx_bytes.len() * 2);
+                hex_tx.push_str("0x");
+                for byte in tx_bytes.iter() {
+                    hex_tx.push_str(&format!("{:02x}", byte));
+                }
                 hex_tx
             };
             Some(tx_hash_str)
         }
         Ok(None) => {
-            debug!(%message_id_str, %domain_id, "no delivery tx found");
             None
         }
         Err(e) => {
