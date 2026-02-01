@@ -13,16 +13,16 @@ use hyperlane_base::{
 };
 use hyperlane_core::{HyperlaneDomainProtocol, H256, H512};
 
-// For parsing base58 transaction signatures for Solana
 use bs58;
 
 use crate::server::delivered::ServerState;
 
+/// Solana transaction signatures are 64 bytes
+const SOLANA_SIGNATURE_BYTES: usize = 64;
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct QueryParams {
     /// The transaction hash (base58 for Sealevel, hex for others)
-    /// For Sealevel: base58 string, e.g. "kKe43MZtkjypsbgwKvrCVZWNmsYFm2aqTUyWzHPEAqWq5f3kwegKKjbPpjsP8MvcTRzbgZ1mg4sfqxRcwJGZ2ZD"
-    /// For others: hex string (with or without 0x prefix), e.g. "0xabc123..."
     pub tx_hash: String,
     /// The domain ID (where the transaction hash is from)
     pub domain_id: u32,
@@ -67,26 +67,15 @@ pub async fn handler(
 
     // Parse the tx_hash based on the domain protocol
     let tx_hash_h512: H512 = if is_sealevel {
-        // For Sealevel, parse as base58
-        warn!(
-            %tx_hash_str,
-            %domain_id,
-            "DISPATCHED_API: Parsing tx_hash as base58 (Sealevel)"
-        );
         match bs58::decode(&tx_hash_str).into_vec() {
             Ok(bytes) => {
-                if bytes.len() != 64 {
-                    warn!(
-                        %tx_hash_str,
-                        %domain_id,
-                        bytes_len = %bytes.len(),
-                        "DISPATCHED_API: Invalid base58 tx_hash length - expected 64 bytes"
-                    );
+                if bytes.len() != SOLANA_SIGNATURE_BYTES {
                     return Err(ServerErrorResponse::new(
                         StatusCode::BAD_REQUEST,
                         ServerErrorBody {
                             message: format!(
-                                "Invalid base58 tx_hash length: expected 64 bytes, got {}",
+                                "Invalid base58 tx_hash length: expected {} bytes, got {}",
+                                SOLANA_SIGNATURE_BYTES,
                                 bytes.len()
                             ),
                         },
@@ -95,12 +84,6 @@ pub async fn handler(
                 H512::from_slice(&bytes)
             }
             Err(e) => {
-                warn!(
-                    %tx_hash_str,
-                    %domain_id,
-                    error = %e,
-                    "DISPATCHED_API: Failed to parse base58 tx_hash"
-                );
                 return Err(ServerErrorResponse::new(
                     StatusCode::BAD_REQUEST,
                     ServerErrorBody {
@@ -115,34 +98,14 @@ pub async fn handler(
         let tx_hash_without_prefix = tx_hash_str.strip_prefix("0x").unwrap_or(&tx_hash_str);
         let hex_len = tx_hash_without_prefix.len();
         
-        warn!(
-            %tx_hash_str,
-            %domain_id,
-            hex_len = %hex_len,
-            "DISPATCHED_API: Parsing tx_hash as hex (detected length: {} chars)",
-            hex_len
-        );
-        
         if hex_len == 64 {
             // H256 format (32 bytes / 64 hex chars) - convert to H512
             match tx_hash_str.parse::<H256>() {
                 Ok(hash_h256) => {
                     let hash_h512: H512 = hash_h256.into();
-                    warn!(
-                        %tx_hash_str,
-                        %domain_id,
-                        hash_h512 = ?hash_h512,
-                        "DISPATCHED_API: Parsed as H256 and converted to H512"
-                    );
                     hash_h512
                 }
                 Err(e) => {
-                    warn!(
-                        %tx_hash_str,
-                        %domain_id,
-                        error = %e,
-                        "DISPATCHED_API: Failed to parse as H256"
-                    );
                     return Err(ServerErrorResponse::new(
                         StatusCode::BAD_REQUEST,
                         ServerErrorBody {
@@ -157,22 +120,8 @@ pub async fn handler(
         } else if hex_len == 128 {
             // H512 format (64 bytes / 128 hex chars)
             match tx_hash_str.parse::<H512>() {
-                Ok(hash) => {
-                    warn!(
-                        %tx_hash_str,
-                        %domain_id,
-                        hash_h512 = ?hash,
-                        "DISPATCHED_API: Parsed as H512"
-                    );
-                    hash
-                }
+                Ok(hash) => hash,
                 Err(e) => {
-                    warn!(
-                        %tx_hash_str,
-                        %domain_id,
-                        error = %e,
-                        "DISPATCHED_API: Failed to parse as H512"
-                    );
                     return Err(ServerErrorResponse::new(
                         StatusCode::BAD_REQUEST,
                         ServerErrorBody {
@@ -185,12 +134,6 @@ pub async fn handler(
                 }
             }
         } else {
-            warn!(
-                %tx_hash_str,
-                %domain_id,
-                hex_len = %hex_len,
-                "DISPATCHED_API: Invalid tx_hash length"
-            );
             return Err(ServerErrorResponse::new(
                 StatusCode::BAD_REQUEST,
                 ServerErrorBody {
@@ -205,21 +148,8 @@ pub async fn handler(
 
     // Retrieve from database (where relayer stores dispatch tx -> message_id mappings)
     let message_id = match db.retrieve_message_id_by_dispatch_tx(&tx_hash_h512) {
-        Ok(Some(message_id)) => {
-            warn!(
-                %tx_hash_str,
-                %domain_id,
-                message_id = ?message_id,
-                "DISPATCHED_API: Found message_id in database"
-            );
-            message_id
-        }
+        Ok(Some(message_id)) => message_id,
         Ok(None) => {
-            warn!(
-                %tx_hash_str,
-                %domain_id,
-                "DISPATCHED_API: No message_id found in database"
-            );
             return Err(ServerErrorResponse::new(
                 StatusCode::NOT_FOUND,
                 ServerErrorBody {
@@ -231,6 +161,7 @@ pub async fn handler(
             ));
         }
         Err(e) => {
+            error!(%tx_hash_str, %domain_id, error = %e, "database error retrieving message_id");
             return Err(ServerErrorResponse::new(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 ServerErrorBody {

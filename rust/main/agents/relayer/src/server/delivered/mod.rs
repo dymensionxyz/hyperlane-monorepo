@@ -36,6 +36,7 @@ impl ServerState {
 
 impl ServerState {
     pub fn router(self) -> Router {
+        // Note: CORS is permissive (Any origin/method/header) as these are public read-only APIs
         let cors = CorsLayer::new()
             .allow_origin(Any)
             .allow_methods(Any)

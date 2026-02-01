@@ -10,7 +10,6 @@ use hyperlane_base::server::utils::{
 };
 use hyperlane_core::{h512_to_bytes, DeliveryDb, HyperlaneDomainProtocol, H256};
 
-// For converting H512 to base58 for Solana transaction signatures
 use bs58;
 
 use crate::server::delivered::ServerState;
@@ -18,8 +17,6 @@ use crate::server::delivered::ServerState;
 #[derive(Clone, Debug, Deserialize)]
 pub struct QueryParams {
     /// The Hyperlane message ID (hex string, 64 characters, with or without 0x prefix)
-    /// Example: "0x8ebdc20c6c728c5715412ee928599c7286151f76d9079c8bdee08a335c7d072f"
-    /// or: "8ebdc20c6c728c5715412ee928599c7286151f76d9079c8bdee08a335c7d072f"
     pub message_id: String,
     /// The destination domain ID
     pub domain_id: u32,
@@ -104,6 +101,7 @@ pub async fn handler(
             None
         }
         Err(e) => {
+            error!(%message_id_str, %domain_id, error = %e, "database error retrieving delivery tx");
             return Err(ServerErrorResponse::new(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 ServerErrorBody {
