@@ -1,10 +1,10 @@
 use super::confirmation_queue::PendingConfirmation;
 use super::validators::ValidatorsClient;
 use super::RestProvider;
-use crate::kas_relayer::withdraw::hub_to_kaspa::combine_bundles_with_fee;
-use crate::kas_relayer::withdraw::messages::on_new_withdrawals;
-use crate::kas_relayer::KaspaBridgeMetrics;
 use crate::ops::confirmation::ConfirmationFXG;
+use crate::relayer::withdraw::hub_to_kaspa::combine_bundles_with_fee;
+use crate::relayer::withdraw::messages::on_new_withdrawals;
+use crate::relayer::KaspaBridgeMetrics;
 use crate::util::domain_to_kas_network;
 use crate::withdrawal_utils::{record_withdrawal_batch_metrics, WithdrawalStage};
 use crate::ConnectionConf;
@@ -314,6 +314,10 @@ impl KaspaProvider {
             .expect("Kaspa key source not configured")
     }
 
+    pub fn try_kas_key_source(&self) -> Option<&crate::conf::KaspaEscrowKeySource> {
+        self.kas_key_source.as_ref()
+    }
+
     pub fn rest(&self) -> &RestProvider {
         &self.rest
     }
@@ -346,6 +350,10 @@ impl KaspaProvider {
 
     pub fn must_relayer_stuff(&self) -> &RelayerStuff {
         self.conf.relayer_stuff.as_ref().unwrap()
+    }
+
+    pub fn conf(&self) -> &ConnectionConf {
+        &self.conf
     }
 
     pub fn grpc_client(&self) -> Option<kaspa_grpc_client::GrpcClient> {

@@ -48,4 +48,3 @@ impl ServerState {
             .with_state(self)
     }
 }
-

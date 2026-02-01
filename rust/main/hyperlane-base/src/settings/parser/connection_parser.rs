@@ -312,32 +312,19 @@ pub fn build_kaspa_connection_conf(
             .collect()
     };
 
-    let validator_hosts: Vec<String> = chain
-        .chain(err)
-        .get_key("validatorHosts")
-        .parse_string()
-        .end()?
-        .split(',')
-        .map(|s| s.trim().to_string())
-        .collect();
-
-    let validator_ism_addresses: Vec<String> = chain
-        .chain(err)
-        .get_key("validatorIsmAddresses")
-        .parse_string()
-        .end()?
-        .split(',')
-        .map(|s| s.trim().to_string())
-        .collect();
-
-    let validator_pubks: Vec<String> = chain
-        .chain(err)
-        .get_key("validatorPubsKaspa")
-        .parse_string()
-        .end()?
-        .split(',')
-        .map(|s| s.trim().to_string())
-        .collect();
+    // Parse kaspaValidatorsEscrow and kaspaValidatorsIsm as arrays of validator objects
+    let validators_escrow: Vec<dymension_kaspa::KaspaValidatorEscrow> = parse_kaspa_validators(
+        chain,
+        err,
+        "kaspaValidatorsEscrow",
+        "failed to parse kaspaValidatorsEscrow array",
+    )?;
+    let validators_ism: Vec<dymension_kaspa::KaspaValidatorIsm> = parse_kaspa_validators(
+        chain,
+        err,
+        "kaspaValidatorsIsm",
+        "failed to parse kaspaValidatorsIsm array",
+    )?;
 
     let kaspa_escrow_key_source =
         if let Some(key_config) = chain.chain(err).get_opt_key("kaspaKey").end() {
@@ -427,24 +414,24 @@ pub fn build_kaspa_connection_conf(
 
     let validation_conf = {
         let mut conf = dymension_kaspa::ValidationConf::default();
-        conf.deposit_enabled = chain
+        conf.validate_deposits = chain
             .chain(err)
             .get_opt_key("validateDeposit")
             .parse_bool()
             .end()
-            .unwrap_or(conf.deposit_enabled);
-        conf.withdrawal_enabled = chain
+            .unwrap_or(conf.validate_deposits);
+        conf.validate_withdrawals = chain
             .chain(err)
             .get_opt_key("validateWithdrawal")
             .parse_bool()
             .end()
-            .unwrap_or(conf.withdrawal_enabled);
-        conf.withdrawal_confirmation_enabled = chain
+            .unwrap_or(conf.validate_withdrawals);
+        conf.validate_confirmations = chain
             .chain(err)
             .get_opt_key("validateWithdrawalConfirmation")
             .parse_bool()
             .end()
-            .unwrap_or(conf.withdrawal_confirmation_enabled);
+            .unwrap_or(conf.validate_confirmations);
         conf
     };
 
@@ -502,8 +489,8 @@ pub fn build_kaspa_connection_conf(
         .end()
         .map(|v| v as usize);
 
-    // Parse KaspaTimeConfig if provided
-    let kaspa_time_config = if validator_hosts.len() > 0 {
+    // Parse KaspaTimeConfig if provided (only for relayer configs with validators)
+    let kaspa_time_config = if !validators_escrow.is_empty() {
         Some(dymension_kaspa::RelayerDepositTimings {
             poll_interval: chain
                 .chain(err)
@@ -553,34 +540,41 @@ pub fn build_kaspa_connection_conf(
         .end()
         .unwrap_or(std::time::Duration::from_secs(15));
 
-    Some(ChainConnectionConf::Kaspa(
-        dymension_kaspa::ConnectionConf::new(
-            wallet_secret.to_owned(),
-            wallet_dir,
-            wrpc_urls,
-            rest_urls,
-            validator_hosts,
-            validator_ism_addresses,
-            validator_pubks,
-            kaspa_escrow_key_source,
-            grpc_urls,
-            threshold_ism as usize,
-            threshold_escrow as usize,
-            grpcs,
-            hub_mailbox_id.to_owned(),
-            operation_batch,
-            validation_conf,
-            kaspa_min_deposit_sompi,
-            kaspa_time_config,
-            hub_domain,
-            hub_token_id,
-            kas_domain,
-            kas_token_placeholder,
-            kaspa_tx_fee_multiplier,
-            max_sweep_inputs,
-            validator_request_timeout,
-        ),
-    ))
+    let migrate_escrow_to = chain
+        .chain(err)
+        .get_opt_key("migrateEscrowTo")
+        .parse_string()
+        .end()
+        .map(|s| s.to_string());
+
+    let conf = dymension_kaspa::ConnectionConf::new(
+        wallet_secret.to_owned(),
+        wallet_dir,
+        wrpc_urls,
+        rest_urls,
+        validators_escrow,
+        validators_ism,
+        kaspa_escrow_key_source,
+        grpc_urls,
+        threshold_ism as usize,
+        threshold_escrow as usize,
+        grpcs,
+        hub_mailbox_id.to_owned(),
+        operation_batch,
+        validation_conf,
+        kaspa_min_deposit_sompi,
+        kaspa_time_config,
+        hub_domain,
+        hub_token_id,
+        kas_domain,
+        kas_token_placeholder,
+        kaspa_tx_fee_multiplier,
+        max_sweep_inputs,
+        validator_request_timeout,
+        migrate_escrow_to,
+    );
+
+    Some(ChainConnectionConf::Kaspa(conf))
 }
 
 fn build_sealevel_connection_conf(
@@ -875,6 +869,28 @@ pub fn build_radix_connection_conf(
                 gateway_header,
             ),
         ))
+    }
+}
+
+/// Parse a kaspa validators array from config.
+/// Returns empty vec if the field is missing (valid for validator-only configs).
+fn parse_kaspa_validators<T>(
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+    key: &str,
+    err_msg: &'static str,
+) -> Option<Vec<T>>
+where
+    T: serde::de::DeserializeOwned,
+{
+    let validators_opt = chain.chain(err).get_opt_key(key).end();
+
+    match validators_opt {
+        Some(value_parser) => {
+            let validators: Vec<T> = value_parser.chain(err).parse_value(err_msg).end()?;
+            Some(validators)
+        }
+        None => Some(Vec::new()),
     }
 }
 

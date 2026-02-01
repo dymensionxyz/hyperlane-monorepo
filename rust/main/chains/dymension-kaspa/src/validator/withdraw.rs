@@ -1,10 +1,10 @@
 // We call the signers 'validators'
 
 use crate::consts::ALLOWED_HL_MESSAGE_VERSION;
-use crate::kas_validator::error::ValidationError;
 use crate::ops::addr::h256_to_script_pubkey;
 use crate::ops::payload::MessageIDs;
 use crate::ops::withdraw::{filter_pending_withdrawals, WithdrawFXG};
+use crate::validator::error::{validate_hl_message_fields, ValidationError};
 use dym_kas_core::escrow::*;
 use dym_kas_core::pskt::is_valid_sighash_type;
 use eyre::Result;
@@ -21,6 +21,28 @@ use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
 use tracing::{debug, info};
+
+/// Returns an input selector closure that matches escrow inputs by redeem script.
+/// Used by both migration and withdrawal signing.
+pub fn escrow_input_selector(escrow_public: &EscrowPublic) -> impl Fn(&Input) -> bool + '_ {
+    move |i: &Input| match i.redeem_script.as_ref() {
+        Some(rs) => rs == &escrow_public.redeem_script,
+        None => false,
+    }
+}
+
+/// Calculate the sum of escrow inputs in a PSKT.
+/// Used by both migration and withdrawal validation.
+pub fn calculate_escrow_input_sum(pskt: &PSKT<Signer>, escrow_public: &EscrowPublic) -> u64 {
+    pskt.inputs.iter().fold(0, |acc, i| {
+        let rs = i.redeem_script.clone().unwrap_or_default();
+        if rs == escrow_public.redeem_script {
+            acc + i.utxo_entry.as_ref().map_or(0, |u| u.amount)
+        } else {
+            acc
+        }
+    })
+}
 
 #[derive(Clone)]
 pub struct MustMatch {
@@ -57,42 +79,7 @@ impl MustMatch {
     }
 
     fn is_match(&self, other: &HyperlaneMessage) -> Result<()> {
-        if self.partial_message.version != other.version {
-            return Err(eyre::eyre!(
-                "version is incorrect, expected: {}, got: {}",
-                self.partial_message.version,
-                other.version
-            ));
-        }
-        if self.partial_message.origin != other.origin {
-            return Err(eyre::eyre!(
-                "origin is incorrect, expected: {}, got: {}",
-                self.partial_message.origin,
-                other.origin
-            ));
-        }
-        if self.partial_message.sender != other.sender {
-            return Err(eyre::eyre!(
-                "sender is incorrect, expected: {}, got: {}",
-                self.partial_message.sender,
-                other.sender
-            ));
-        }
-        if self.partial_message.destination != other.destination {
-            return Err(eyre::eyre!(
-                "destination is incorrect, expected: {}, got: {}",
-                self.partial_message.destination,
-                other.destination
-            ));
-        }
-        if self.partial_message.recipient != other.recipient {
-            return Err(eyre::eyre!(
-                "recipient is incorrect, expected: {}, got: {}",
-                self.partial_message.recipient,
-                other.recipient
-            ));
-        }
-        Ok(())
+        validate_hl_message_fields(&self.partial_message, other).map_err(|e| eyre::eyre!("{}", e))
     }
 }
 
@@ -122,12 +109,7 @@ where
     }
 
     // Only sign escrow inputs
-    let input_selector = move |i: &Input| match i.redeem_script.as_ref() {
-        Some(rs) => rs == &escrow_public.redeem_script,
-        None => false,
-    };
-
-    let bundle = sign_withdrawal_fxg(&b, load_key, Some(input_selector))
+    let bundle = sign_pskt_bundle(&b, load_key, Some(escrow_input_selector(&escrow_public)))
         .await
         .map_err(|e| eyre::eyre!("Failed to sign withdrawal: {e}"))?;
 
@@ -354,16 +336,7 @@ fn validate_pskt_application_semantics(
     }
 
     // Check that UTXO outputs align with withdrawals
-    // Find escrow input amount
-    let escrow_inputs_sum = pskt.inputs.iter().fold(0, |acc, i| {
-        // redeem_script is None for relayer input
-        let rs = i.redeem_script.clone().unwrap_or_default();
-        if rs == escrow_public.redeem_script {
-            acc + i.utxo_entry.as_ref().unwrap().amount
-        } else {
-            acc
-        }
-    });
+    let escrow_inputs_sum = calculate_escrow_input_sum(pskt, escrow_public);
 
     // Construct a multiset of expected outputs from HL messages.
     // Key:   recipiend + amount
@@ -443,7 +416,9 @@ fn validate_pskt_application_semantics(
     next_anchor_idx.ok_or(ValidationError::NextAnchorNotFound)
 }
 
-pub async fn sign_withdrawal_fxg<F, Fut>(
+/// Sign a PSKT bundle with an optional input filter.
+/// Used by both withdrawal and migration signing.
+pub async fn sign_pskt_bundle<F, Fut>(
     bundle: &Bundle,
     load_key: F,
     input_filter: Option<impl Fn(&Input) -> bool>,

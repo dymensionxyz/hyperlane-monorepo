@@ -3,7 +3,7 @@ use axum::{
     http::StatusCode,
 };
 use serde::{Deserialize, Serialize};
-use tracing::warn;
+use tracing::{debug, error};
 
 use hyperlane_base::{
     db::HyperlaneDb,
@@ -46,16 +46,8 @@ pub async fn handler(
 
     // Get the database for the domain (where the tx hash is from)
     let db = match state.dbs.get(&domain_id) {
-        Some(db) => {
-            db
-        }
+        Some(db) => db,
         None => {
-            warn!(
-                %tx_hash_str,
-                %domain_id,
-                available_domains = ?state.dbs.keys().collect::<Vec<_>>(),
-                "DISPATCHED_API: No database found for origin domain"
-            );
             return Err(ServerErrorResponse::new(
                 StatusCode::NOT_FOUND,
                 ServerErrorBody {
@@ -239,12 +231,6 @@ pub async fn handler(
             ));
         }
         Err(e) => {
-            warn!(
-                %tx_hash_str,
-                %domain_id,
-                error = %e,
-                "DISPATCHED_API: Database error when retrieving message_id"
-            );
             return Err(ServerErrorResponse::new(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 ServerErrorBody {
@@ -256,22 +242,13 @@ pub async fn handler(
 
     // Get the full message to extract destination_domain_id
     let message = match db.retrieve_message_by_id(&message_id) {
-        Ok(Some(message)) => {
-            warn!(
-                %tx_hash_str,
-                %domain_id,
-                message_id = ?message_id,
-                destination_domain_id = %message.destination,
-                "DISPATCHED_API: Successfully retrieved message from database"
-            );
-            message
-        }
+        Ok(Some(message)) => message,
         Ok(None) => {
-            warn!(
+            error!(
                 %tx_hash_str,
                 %domain_id,
                 message_id = ?message_id,
-                "DISPATCHED_API: message_id found in database but full message not found"
+                "message_id found but full message missing"
             );
             return Err(ServerErrorResponse::new(
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -281,12 +258,12 @@ pub async fn handler(
             ));
         }
         Err(e) => {
-            warn!(
+            error!(
                 %tx_hash_str,
                 %domain_id,
                 message_id = ?message_id,
                 error = %e,
-                "DISPATCHED_API: Database error retrieving full message"
+                "database error retrieving message"
             );
             return Err(ServerErrorResponse::new(
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -304,4 +281,3 @@ pub async fn handler(
 
     Ok(ServerSuccessResponse::new(response))
 }
-

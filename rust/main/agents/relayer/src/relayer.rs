@@ -43,6 +43,7 @@ use crate::{
 };
 use dymension_kaspa::{is_dym, is_kas, KaspaProvider};
 use hyperlane_base::kas_hack::logic_loop::Foo as KaspaBridgeFoo;
+use hyperlane_base::kas_hack::{format_ad_hoc_signatures, run_migration_with_sync};
 use hyperlane_base::{
     broadcast::BroadcastMpscSender,
     cache::{LocalCache, MeteredCache, MeteredCacheConfig, OptionalCache},
@@ -55,7 +56,7 @@ use hyperlane_base::{
 use hyperlane_core::{
     rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, ContractSyncCursor,
     DeliveryDb, HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion,
-    QueueOperation, H512, U256,
+    QueueOperation, Signature, H512, U256,
 };
 use hyperlane_cosmos::native::CosmosNativeMailbox;
 use lander::DispatcherMetrics;
@@ -255,7 +256,7 @@ impl BaseAgent for Relayer {
                     origin_chain_setup.ignore_reorg_reports,
                 );
 
-                // Create destination_db for storing delivery info
+                // Create destination_db for storing delivery tx hashes
                 let destination_db: Arc<dyn DeliveryDb> =
                     Arc::new(destination.database.clone());
                 
@@ -317,6 +318,23 @@ impl BaseAgent for Relayer {
 
     #[allow(clippy::async_yields_async)]
     async fn run(mut self) {
+        // If migration mode is enabled, run migration and exit
+        if let Some(target) = self.get_migration_target() {
+            info!(target, "Migration mode: migrating escrow to new address");
+            match self.run_escrow_migration(&target).await {
+                Ok(tx_ids) => {
+                    info!(tx_count = tx_ids.len(), "Migration completed successfully");
+                    for (i, tx_id) in tx_ids.iter().enumerate() {
+                        info!(index = i, tx_id = tx_id, "Migration transaction");
+                    }
+                }
+                Err(e) => {
+                    error!(error = ?e, "Migration failed");
+                }
+            }
+            return;
+        }
+
         let start = Instant::now();
         let mut start_entity_init = Instant::now();
 
@@ -582,6 +600,27 @@ impl BaseAgent for Relayer {
             .map(|(key, origin)| (key.id(), origin.message_sync.clone()))
             .collect();
 
+        // Build deposit-force config if available (requires sender AND REST URL)
+        let deposit_force = if let Some(dym_args) = self.dymension_kaspa_args.as_ref() {
+            let sender_guard = dym_args.force_sender.read().unwrap();
+            let rest_url = dym_args
+                .kas_provider
+                .conf()
+                .kaspa_urls_rest
+                .first()
+                .map(|u| u.to_string());
+
+            match (sender_guard.as_ref(), rest_url) {
+                (Some(sender), Some(url)) => Some(relayer_server::DepositForceConfig {
+                    sender: sender.clone(),
+                    rest_api_url: url,
+                }),
+                _ => None,
+            }
+        } else {
+            None
+        };
+
         let relayer_router = relayer_server::Server::new(self.destinations.len())
             .with_op_retry(sender.clone())
             .with_message_queue(prep_queues)
@@ -594,7 +633,8 @@ impl BaseAgent for Relayer {
                 self.dymension_kaspa_args
                     .as_ref()
                     .and_then(|dym_args| dym_args.kas_provider.kaspa_db().cloned()),
-            ) // Set kaspa_db to server_builder from dymension_args provider if available
+            )
+            .with_deposit_force(deposit_force)
             .router();
 
         let server = self
@@ -1125,6 +1165,8 @@ impl Relayer {
 struct DymensionKaspaArgs {
     kas_provider: Box<KaspaProvider>,
     dym_mailbox: Arc<CosmosNativeMailbox>,
+    /// Sender for force-deposit requests, populated when Foo is created
+    force_sender: Arc<std::sync::RwLock<Option<hyperlane_base::kas_hack::DepositForceSender>>>,
 }
 
 // Manual Debug since KaspaMailbox now has a trait object
@@ -1134,6 +1176,7 @@ impl std::fmt::Debug for DymensionKaspaArgs {
             .field("kas_provider", &self.kas_provider)
             .field("kas_mailbox", &"KaspaMailbox")
             .field("dym_mailbox", &self.dym_mailbox)
+            .field("force_sender", &"<RwLock>")
             .finish()
     }
 }
@@ -1196,6 +1239,7 @@ impl Relayer {
         Ok(Some(DymensionKaspaArgs {
             kas_provider,
             dym_mailbox,
+            force_sender: Arc::new(std::sync::RwLock::new(None)),
         }))
     }
 
@@ -1216,6 +1260,12 @@ impl Relayer {
         let metadata_getter = PendingMessageMetadataGetter::new();
 
         let b = KaspaBridgeFoo::new(kas_provider.clone(), hub_mailbox.clone(), metadata_getter);
+
+        // Store the force sender for use by the server endpoint
+        {
+            let mut sender_guard = args.force_sender.write().unwrap();
+            *sender_guard = Some(b.force_sender());
+        }
 
         // sync relayer before starting other tasks
         b.sync_hub_if_needed().await.unwrap();
@@ -1238,6 +1288,31 @@ impl Relayer {
                 }
             };
         tasks.push(message_db_loader);
+    }
+
+    fn get_migration_target(&self) -> Option<String> {
+        self.dymension_kaspa_args
+            .as_ref()
+            .and_then(|args| args.kas_provider.conf().migrate_escrow_to.clone())
+    }
+
+    async fn run_escrow_migration(&self, target_address: &str) -> Result<Vec<String>> {
+        let args = self.dymension_kaspa_args.as_ref().unwrap();
+        let min_sigs = args.kas_provider.validators().multisig_threshold_hub_ism() as usize;
+
+        // Signature formatter using PendingMessageMetadataGetter
+        let metadata_getter = PendingMessageMetadataGetter::new();
+        let format_sigs = |sigs: &mut Vec<Signature>| -> ChainResult<Vec<u8>> {
+            format_ad_hoc_signatures(&metadata_getter, sigs, min_sigs)
+        };
+
+        run_migration_with_sync(
+            &args.kas_provider,
+            &args.dym_mailbox,
+            target_address,
+            format_sigs,
+        )
+        .await
     }
 }
 

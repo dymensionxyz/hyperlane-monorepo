@@ -97,6 +97,7 @@ impl HyperlaneRocksDB {
     }
 
     /// Store a message with its dispatch transaction ID.
+    /// Returns true if the message was newly stored, false if it already existed.
     pub fn store_message_with_dispatch_tx(
         &self,
         message: &HyperlaneMessage,

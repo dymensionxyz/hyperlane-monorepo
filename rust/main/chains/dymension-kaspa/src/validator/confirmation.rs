@@ -1,62 +1,55 @@
-use crate::kas_validator::error::ValidationError;
 use crate::ops::confirmation::ConfirmationFXG;
 use crate::ops::payload::{MessageID, MessageIDs};
-use dym_kas_api::models::{TxModel, TxOutput};
+use crate::util::get_output_address;
+use crate::validator::error::ValidationError;
+use dym_kas_api::models::TxModel;
 use dym_kas_core::api::client::HttpClient;
 use dym_kas_core::finality::is_safe_against_reorg;
+use dym_kas_core::hash::hex_to_kaspa_hash;
 use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::ProgressIndication;
+use hyperlane_cosmos_rs::dymensionxyz::dymension::kas::TransactionOutpoint as ProtoTransactionOutpoint;
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionOutpoint;
 use kaspa_hashes::Hash as KaspaHash;
 use std::collections::HashSet;
 use tracing::info;
 
-// FIXME: add address validation
+fn proto_to_outpoint(
+    proto: Option<&ProtoTransactionOutpoint>,
+) -> Result<TransactionOutpoint, ValidationError> {
+    let o = proto.ok_or(ValidationError::OutpointMissing {
+        description: "outpoint in progress indication".to_string(),
+    })?;
+    Ok(TransactionOutpoint {
+        transaction_id: KaspaHash::from_bytes(o.transaction_id.as_slice().try_into().map_err(
+            |e| ValidationError::InvalidOutpointData {
+                reason: format!("invalid transaction ID: {}", e),
+            },
+        )?),
+        index: o.index,
+    })
+}
 
 /// Validator is given a progress indication to sign, and a cache of outpoints,
 /// that should start from the current hub anchor and end with the new one.
 /// The validator checks that indeed that set of outpoints is from a real withdrawal
 /// sequence on Kaspa chain.
+///
+/// `src_escrow` and `dst_escrow` define valid escrow addresses for the confirmation trace.
+/// Normally these are the same address. During migration, `src_escrow` is the old escrow
+/// and `dst_escrow` is the new escrow, allowing the trace to cross the migration boundary.
 pub async fn validate_confirmed_withdrawals(
     fxg: &ConfirmationFXG,
     client_rest: &HttpClient,
-    escrow_address: &Address,
+    src_escrow: &Address,
+    dst_escrow: &Address,
 ) -> Result<(), ValidationError> {
     info!("Validator: Starting validation of withdrawals confirmation");
 
     let untrusted_progress = &fxg.progress_indication;
 
-    let proposed_hub_anchor_old = {
-        let o = untrusted_progress.old_outpoint.as_ref().ok_or_else(|| {
-            ValidationError::OutpointMissing {
-                description: "old outpoint in progress indication".to_string(),
-            }
-        })?;
-        TransactionOutpoint {
-            transaction_id: KaspaHash::from_bytes(o.transaction_id.as_slice().try_into().map_err(
-                |e| ValidationError::InvalidOutpointData {
-                    reason: format!("Invalid anchor outpoint transaction ID: {}", e),
-                },
-            )?),
-            index: o.index,
-        }
-    };
-
-    let proposed_hub_anchor_new = {
-        let o = untrusted_progress.new_outpoint.as_ref().ok_or_else(|| {
-            ValidationError::OutpointMissing {
-                description: "new outpoint in progress indication".to_string(),
-            }
-        })?;
-        TransactionOutpoint {
-            transaction_id: KaspaHash::from_bytes(o.transaction_id.as_slice().try_into().map_err(
-                |e| ValidationError::InvalidOutpointData {
-                    reason: format!("Invalid new outpoint transaction ID: {}", e),
-                },
-            )?),
-            index: o.index,
-        }
-    };
+    let proposed_hub_anchor_old = proto_to_outpoint(untrusted_progress.old_outpoint.as_ref())?;
+    let proposed_hub_anchor_new = proto_to_outpoint(untrusted_progress.new_outpoint.as_ref())?;
 
     // Validate the progress indication is correct according to the cache
     let outpoint_sequence = &fxg.outpoints;
@@ -103,17 +96,16 @@ pub async fn validate_confirmed_withdrawals(
         }
 
         // Validate that this transaction creates the current outpoint
-        escrow_outpoint_in_outputs(&tx, o, escrow_address)?;
+        escrow_outpoint_in_outputs(&tx, o, src_escrow, dst_escrow)?;
 
-        let p = tx
-            .payload
-            .clone()
-            .ok_or(ValidationError::MissingTransactionPayload)?;
-
-        let message_ids =
-            MessageIDs::from_tx_payload(&p).map_err(|e| ValidationError::PayloadParseError {
-                reason: format!("Failed to parse message IDs: {}", e),
-            })?;
+        let message_ids = match tx.payload.clone() {
+            Some(p) => {
+                MessageIDs::from_tx_payload(&p).map_err(|e| ValidationError::PayloadParseError {
+                    reason: format!("Failed to parse message IDs: {}", e),
+                })?
+            }
+            None => MessageIDs::new(vec![]),
+        };
 
         // If the last TX in sequence is final then the others must be too
         if i == outpoint_sequence.len() - 1 {
@@ -164,18 +156,12 @@ fn outpoint_in_inputs(
         .ok_or(ValidationError::MissingTransactionInputs)?;
 
     for input in inputs {
-        // Properly decode the hex values like in the relayer
         let input_utxo = TransactionOutpoint {
-            transaction_id: kaspa_hashes::Hash::from_bytes(
-                hex::decode(&input.previous_outpoint_hash)
-                    .map_err(|e| ValidationError::InvalidOutpointData {
-                        reason: format!("Invalid hex in previous_outpoint_hash: {}", e),
-                    })?
-                    .try_into()
-                    .map_err(|_| ValidationError::InvalidOutpointData {
-                        reason: "Invalid hex length in previous_outpoint_hash".to_string(),
-                    })?,
-            ),
+            transaction_id: hex_to_kaspa_hash(&input.previous_outpoint_hash).map_err(|e| {
+                ValidationError::InvalidOutpointData {
+                    reason: e.to_string(),
+                }
+            })?,
             index: input.previous_outpoint_index.parse().map_err(|e| {
                 ValidationError::InvalidOutpointData {
                     reason: format!("Failed to parse previous_outpoint_index: {}", e),
@@ -192,32 +178,26 @@ fn outpoint_in_inputs(
 }
 
 /// Validate that the anchor is referenced in the current transaction's outputs
-/// and it is an escrow change
+/// and it is an escrow change (either src or dst escrow).
 fn escrow_outpoint_in_outputs(
     tx_trusted: &TxModel,
-    escrow_outpoint_unstrusted: &TransactionOutpoint,
-    escrow_address: &Address,
+    escrow_outpoint_untrusted: &TransactionOutpoint,
+    src_escrow: &Address,
+    dst_escrow: &Address,
 ) -> Result<(), ValidationError> {
-    let outs = tx_trusted
-        .outputs
-        .as_ref()
-        .ok_or(ValidationError::MissingTransactionOutputs)?;
+    // We already know this TX spends escrow funds, so it must be signed by validators.
+    // Validators only sign withdrawals containing exactly one change output back to escrow.
+    // We accept both src and dst because the trace may span the migration boundary:
+    // pre-migration TXs output to src, the migration TX outputs to dst.
+    let recipient_actual =
+        get_output_address(tx_trusted, escrow_outpoint_untrusted.index as usize)?;
 
-    let out_actual: &TxOutput = outs
-        .get(escrow_outpoint_unstrusted.index as usize)
-        .ok_or(ValidationError::NextAnchorNotFound)?;
+    let src_str = src_escrow.address_to_string();
+    let dst_str = dst_escrow.address_to_string();
 
-    // We already know this TX spends escrow funds, so it must be signed by validators
-    // Validators only sign withdrawals containing exactly one change output back to the escrow
-    // So this must be the unique change output
-    let recipient_actual = out_actual
-        .script_public_key_address
-        .clone()
-        .ok_or(ValidationError::MissingScriptPubKeyAddress)?;
-
-    if recipient_actual != escrow_address.address_to_string() {
+    if recipient_actual != src_str && recipient_actual != dst_str {
         return Err(ValidationError::NonEscrowAnchor {
-            o: *escrow_outpoint_unstrusted,
+            o: *escrow_outpoint_untrusted,
         });
     }
 
