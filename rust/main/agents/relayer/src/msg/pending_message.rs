@@ -68,8 +68,6 @@ pub struct MessageContext {
     pub destination_mailbox: Arc<dyn Mailbox>,
     /// Origin chain database to verify gas payments.
     pub origin_db: Arc<dyn HyperlaneDb>,
-    /// Origin chain database for reverse lookup (tx_hash -> message_id).
-    pub origin_db_delivery: Arc<dyn DeliveryDb>,
     /// Destination chain database for storing delivery tx hashes.
     pub destination_db: Arc<dyn DeliveryDb>,
     /// Cache to store commonly used data calls.
@@ -947,7 +945,7 @@ impl PendingMessage {
                 destination = ?self.message.destination,
                 origin = ?self.message.origin,
                 submitted = self.submitted,
-                "No submission_outcome available - this message was likely delivered by another relayer or was already delivered when checked. The delivery tx hash will NOT be available in the local database for the /delivered endpoint. To see all deliveries, query the scraper database directly."
+                "No submission_outcome available - this message was likely delivered by another relayer or was already delivered when checked."
             );
         }
 

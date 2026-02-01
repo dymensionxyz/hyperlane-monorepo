@@ -68,6 +68,7 @@ mod origin;
 
 const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
+// required for tx hash when storing dispatched messages
 const ADVANCED_LOG_META: bool = true;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
@@ -259,10 +260,6 @@ impl BaseAgent for Relayer {
                 // Create destination_db for storing delivery tx hashes
                 let destination_db: Arc<dyn DeliveryDb> =
                     Arc::new(destination.database.clone());
-                
-                // Create origin_db_delivery for reverse lookup (tx_hash -> message_id)
-                let origin_db_delivery: Arc<dyn DeliveryDb> =
-                    Arc::new(db.clone());
 
                 msg_ctxs.insert(
                     ContextKey {
@@ -272,7 +269,6 @@ impl BaseAgent for Relayer {
                     Arc::new(MessageContext {
                         destination_mailbox: destination_mailbox.clone(),
                         origin_db: Arc::new(db.clone()),
-                        origin_db_delivery,
                         destination_db,
                         cache: cache.clone(),
                         metadata_builder: Arc::new(metadata_builder),
@@ -594,11 +590,6 @@ impl BaseAgent for Relayer {
             .iter()
             .map(|(key, origin)| (key.id(), origin.prover_sync.clone()))
             .collect();
-        let message_syncs: HashMap<_, _> = self
-            .origins
-            .iter()
-            .map(|(key, origin)| (key.id(), origin.message_sync.clone()))
-            .collect();
 
         // Build deposit-force config if available (requires sender AND REST URL)
         let deposit_force = if let Some(dym_args) = self.dymension_kaspa_args.as_ref() {
@@ -628,7 +619,6 @@ impl BaseAgent for Relayer {
             .with_gas_enforcers(gas_enforcers)
             .with_msg_ctxs(msg_ctxs)
             .with_prover_sync(prover_syncs)
-            .with_message_syncs(message_syncs)
             .with_kaspa_db(
                 self.dymension_kaspa_args
                     .as_ref()

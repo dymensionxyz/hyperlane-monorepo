@@ -215,7 +215,12 @@ impl Scraper {
             scraper_db,
             domain.clone(),
             chain_setup.addresses.mailbox,
-            chain_setup.addresses.interchain_gas_paymasters.first().copied().unwrap_or_default(),
+            chain_setup
+                .addresses
+                .interchain_gas_paymasters
+                .first()
+                .cloned()
+                .unwrap_or_default(),
             provider,
             &chain_setup.index.clone(),
         )

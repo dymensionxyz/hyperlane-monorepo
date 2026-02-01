@@ -9,8 +9,7 @@ use hyperlane_core::HyperlaneDomain;
 use tokio::sync::broadcast::Sender;
 
 use hyperlane_base::db::HyperlaneRocksDB;
-use hyperlane_core::{HyperlaneMessage, KaspaDb};
-use hyperlane_base::ContractSyncer;
+use hyperlane_core::KaspaDb;
 use tokio::sync::RwLock;
 
 use crate::merkle_tree::builder::MerkleTreeBuilder;
@@ -54,8 +53,6 @@ pub struct Server {
     prover_syncs: Option<HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>>,
     #[new(default)]
     kaspa_db: Option<Arc<dyn KaspaDb>>,
-    #[new(default)]
-    message_syncs: Option<HashMap<u32, Arc<dyn ContractSyncer<HyperlaneMessage>>>>,
     #[new(default)]
     deposit_force: Option<DepositForceConfig>,
 }
@@ -105,14 +102,6 @@ impl Server {
         self
     }
 
-    pub fn with_message_syncs(
-        mut self,
-        message_syncs: HashMap<u32, Arc<dyn ContractSyncer<HyperlaneMessage>>>,
-    ) -> Self {
-        self.message_syncs = Some(message_syncs);
-        self
-    }
-
     pub fn with_deposit_force(mut self, config: Option<DepositForceConfig>) -> Self {
         self.deposit_force = config;
         self
@@ -144,16 +133,8 @@ impl Server {
         if let Some(dbs) = self.dbs.as_ref() {
             router = router
                 .merge(messages::ServerState::new(dbs.clone()).router())
-                .merge(merkle_tree_insertions::ServerState::new(dbs.clone()).router());
-            if let Some(message_syncs) = self.message_syncs.as_ref() {
-                router = router.merge(
-                    delivered::ServerState::new(dbs.clone(), message_syncs.clone()).router()
-                );
-            } else {
-                router = router.merge(
-                    delivered::ServerState::new(dbs.clone(), HashMap::new()).router()
-                );
-            }
+                .merge(merkle_tree_insertions::ServerState::new(dbs.clone()).router())
+                .merge(delivered::ServerState::new(dbs.clone()).router());
         }
         if let Some(gas_enforcers) = self.gas_enforcers {
             router = router.merge(igp::ServerState::new(gas_enforcers.clone()).router());

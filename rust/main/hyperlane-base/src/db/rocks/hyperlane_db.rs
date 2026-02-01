@@ -4,7 +4,6 @@ use async_trait::async_trait;
 use eyre::{bail, Result};
 use tracing::{debug, instrument, trace, warn};
 
-
 use hyperlane_core::{
     identifiers::UniqueIdentifier, Decode, Encode, GasPaymentKey, HyperlaneDomain,
     HyperlaneLogStore, HyperlaneMessage, HyperlaneSequenceAwareIndexerStoreReader,
@@ -104,9 +103,7 @@ impl HyperlaneRocksDB {
         dispatched_block_number: u64,
         dispatch_tx_id: &H512,
     ) -> DbResult<bool> {
-        self.store_message(message, dispatched_block_number)?;
-        // - `dispatch_tx_id` --> `message_id` (for /delivered/by_tx API)
-        // Only log if this destination domain is one we care about
+        let newly_stored = self.store_message(message, dispatched_block_number)?;
         if self.should_log_for_destination(message.destination) {
             warn!(
                 dispatch_tx_id = ?dispatch_tx_id,
@@ -115,11 +112,10 @@ impl HyperlaneRocksDB {
                 destination_domain = %message.destination,
                 "STORING MESSAGE ID BY DISPATCH TX"
             );
+            self.store_message_id_by_dispatch_tx(dispatch_tx_id, &message.id())?;
         }
-        self.store_message_id_by_dispatch_tx(dispatch_tx_id, &message.id())?;
-        Ok(true)
+        Ok(newly_stored)
     }
-
 
     /// Store a raw committed message. If message already exists, then do nothing.
     ///
