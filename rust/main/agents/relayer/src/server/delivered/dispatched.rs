@@ -3,7 +3,7 @@ use axum::{
     http::StatusCode,
 };
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error};
+use tracing::error;
 
 use hyperlane_base::{
     db::HyperlaneDb,

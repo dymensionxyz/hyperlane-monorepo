@@ -1,5 +1,5 @@
 use eyre::Result;
-use tracing::{debug, error, warn};
+use tracing::error;
 
 use hyperlane_core::{Encode, H256, H512};
 
@@ -21,7 +21,7 @@ impl hyperlane_core::DeliveryDb for HyperlaneRocksDB {
                         Ok(())
                     }
                     Err(e) => {
-                        Err!(
+                        error!(
                             message_id = ?message_id,
                             destination_tx = ?destination_tx,
                             error = %e,
@@ -32,7 +32,7 @@ impl hyperlane_core::DeliveryDb for HyperlaneRocksDB {
                 }
             }
             Err(e) => {
-                Err!(
+                error!(
                     message_id = ?message_id,
                     destination_tx = ?destination_tx,
                     error = %e,

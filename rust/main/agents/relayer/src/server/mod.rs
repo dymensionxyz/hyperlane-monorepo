@@ -56,6 +56,7 @@ pub struct Server {
     kaspa_db: Option<Arc<dyn KaspaDb>>,
     #[new(default)]
     message_syncs: Option<HashMap<u32, Arc<dyn ContractSyncer<HyperlaneMessage>>>>,
+    #[new(default)]
     deposit_force: Option<DepositForceConfig>,
 }
 
