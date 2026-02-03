@@ -37,7 +37,7 @@ pub const GAS_LIMIT_BUFFER: u32 = 75_000;
 pub const DEFAULT_GAS_LIMIT_MULTIPLIER_NUMERATOR: u32 = 11;
 pub const DEFAULT_GAS_LIMIT_MULTIPLIER_DENOMINATOR: u32 = 10;
 
-pub const PENDING_TX_TIMEOUT_SECS: u64 = 90;
+pub const PENDING_TX_TIMEOUT_SECS: u64 = 300;
 
 // We have 2 to 4 multiples of the default percentile, and we limit it to 100% percentile.
 static PERCENTILES: Lazy<Vec<f64>> = Lazy::new(|| {
