@@ -481,7 +481,7 @@ impl PendingOperation for PendingMessage {
         };
 
         if is_delivered {
-            if let Err(err) = self.record_message_process_success() {
+            if let Err(err) = self.record_message_process_success().await {
                 return self
                     .on_reconfirm(Some(err), "Error when recording message process success");
             }
@@ -914,7 +914,7 @@ impl PendingMessage {
     /// `return Ok(())`, then without a wiped HyperlaneDB, we will never
     /// re-attempt processing for this message again, even after the relayer
     /// restarts.
-    fn record_message_process_success(&mut self) -> Result<()> {
+    async fn record_message_process_success(&mut self) -> Result<()> {
         self.ctx
             .origin_db
             .store_processed_by_nonce(&self.message.nonce, &true)?;
@@ -922,9 +922,9 @@ impl PendingMessage {
         self.ctx.metrics.messages_processed.inc();
 
         // Store delivery tx hash for all destinations
+        let message_id = self.message.id();
+        
         if let Some(outcome) = &self.submission_outcome {
-            let message_id = self.message.id();
-            
             // Best-effort: store delivery tx hash for /delivered endpoint
             if let Err(e) = self
                 .ctx
@@ -940,13 +940,58 @@ impl PendingMessage {
                 );
             }
         } else {
+            // No submission_outcome means the tx we tracked was dropped (likely due to gas escalation),
+            // but the message was still delivered. Try to fetch the actual delivery tx from on-chain events.
             warn!(
-                message_id = ?self.message.id(),
-                destination = ?self.message.destination,
-                origin = ?self.message.origin,
-                submitted = self.submitted,
-                "No submission_outcome available - this message was likely delivered by another relayer or was already delivered when checked."
+                message_id = ?message_id,
+                "No submission_outcome, attempting to retrieve delivery tx hash from ProcessId event"
             );
+            
+            match self
+                .ctx
+                .destination_mailbox
+                .get_delivery_tx_hash(message_id)
+                .await
+            {
+                Ok(Some(delivery_tx_hash)) => {
+                    // Successfully retrieved the tx hash from events
+                    if let Err(e) = self
+                        .ctx
+                        .destination_db
+                        .store_delivery_tx(&message_id, &delivery_tx_hash)
+                    {
+                        warn!(
+                            message_id = ?message_id,
+                            tx_id = ?delivery_tx_hash,
+                            destination = ?self.message.destination,
+                            error = %e,
+                            "failed to store delivery tx hash retrieved from event"
+                        );
+                    } else {
+                        warn!(
+                            message_id = ?message_id,
+                            tx_hash = ?delivery_tx_hash,
+                            destination = ?self.message.destination,
+                            "Retrieved and stored delivery tx hash from ProcessId event (gas escalation case)"
+                        );
+                    }
+                }
+                Ok(None) => {
+                    warn!(
+                        message_id = ?message_id,
+                        destination = ?self.message.destination,
+                        "Message delivered but ProcessId event not found"
+                    );
+                }
+                Err(e) => {
+                    warn!(
+                        message_id = ?message_id,
+                        destination = ?self.message.destination,
+                        error = %e,
+                        "Failed to query delivery tx hash from events"
+                    );
+                }
+            }
         }
 
         Ok(())

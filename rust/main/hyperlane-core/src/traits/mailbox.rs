@@ -6,7 +6,7 @@ use downcast_rs::{impl_downcast, DowncastSync};
 
 use crate::{
     traits::TxOutcome, utils::domain_hash, ChainCommunicationError, ChainResult, HyperlaneContract,
-    HyperlaneMessage, QueueOperation, ReorgPeriod, TxCostEstimate, H256, U256,
+    HyperlaneMessage, QueueOperation, ReorgPeriod, TxCostEstimate, H256, H512, U256,
 };
 
 /// Interface for the Mailbox chain contract. Allows abstraction over different
@@ -75,6 +75,16 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug + DowncastSync {
 
     /// Get the calldata for a call which allows to check if a particular messages was delivered
     fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>>;
+
+    /// Get the transaction hash that delivered a message by querying on-chain events.
+    /// This is useful when the relayer's tracked tx was replaced by gas escalation,
+    /// but we still want to record which tx actually delivered the message.
+    /// Returns None if message is not delivered or event cannot be found.
+    async fn get_delivery_tx_hash(&self, _message_id: H256) -> ChainResult<Option<H512>> {
+        // Default implementation returns None
+        // Chains that support this should override
+        Ok(None)
+    }
 }
 
 impl_downcast!(sync Mailbox);

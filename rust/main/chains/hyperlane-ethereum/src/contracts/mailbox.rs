@@ -697,6 +697,45 @@ where
         let data = (call.tx, call.function);
         serde_json::to_vec(&data).map(Some).map_err(Into::into)
     }
+
+    #[instrument(skip(self))]
+    async fn get_delivery_tx_hash(&self, message_id: H256) -> ChainResult<Option<H512>> {
+        // First check if the message is actually delivered
+        let is_delivered = self.contract.delivered(message_id.into()).call().await?;
+        if !is_delivered {
+            return Ok(None);
+        }
+
+        // Get the current block number
+        let current_block = self
+            .provider
+            .get_block_number()
+            .await
+            .map_err(ChainCommunicationError::from_other)?;
+        
+        // Search for ProcessId event in the last 1,000 blocks
+        let search_from_block = current_block.saturating_sub(1000.into());
+
+        // Query ProcessId events in recent blocks
+        let events = self
+            .contract
+            .process_id_filter()
+            .from_block(search_from_block)
+            .to_block(current_block)
+            .query_with_meta()
+            .await?;
+
+        // Find the event matching our message_id
+        for (event, meta) in events {
+            if H256::from(event.message_id) == message_id {
+                return Ok(Some(meta.transaction_hash.into()));
+            }
+        }
+
+        // Message is delivered but event not found in recent blocks
+        // This could happen if the message was delivered >10k blocks ago
+        Ok(None)
+    }
 }
 
 pub struct EthereumMailboxAbi;
