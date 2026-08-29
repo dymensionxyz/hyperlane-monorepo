@@ -68,7 +68,8 @@ mod origin;
 
 const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
-const ADVANCED_LOG_META: bool = false;
+// required for tx hash when storing dispatched messages
+const ADVANCED_LOG_META: bool = true;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 struct ContextKey {
@@ -1034,6 +1035,7 @@ impl Relayer {
             ADVANCED_LOG_META,
             settings.tx_id_indexing_enabled,
             settings.igp_indexing_enabled,
+            settings.destination_chains.clone(),
         );
 
         let origin_futures: Vec<_> = settings

@@ -931,7 +931,7 @@ impl PendingMessage {
                 .destination_db
                 .store_delivery_tx(&message_id, &outcome.transaction_id)
             {
-                debug!(
+                warn!(
                     message_id = ?message_id,
                     tx_id = ?outcome.transaction_id,
                     destination = ?self.message.destination,
@@ -939,6 +939,14 @@ impl PendingMessage {
                     "failed to store delivery tx hash"
                 );
             }
+        } else {
+            warn!(
+                message_id = ?self.message.id(),
+                destination = ?self.message.destination,
+                origin = ?self.message.origin,
+                submitted = self.submitted,
+                "No submission_outcome available - this message was likely delivered by another relayer or was already delivered when checked."
+            );
         }
 
         Ok(())

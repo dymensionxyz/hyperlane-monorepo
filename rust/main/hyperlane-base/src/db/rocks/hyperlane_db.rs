@@ -2,7 +2,7 @@ use std::ops::Add;
 
 use async_trait::async_trait;
 use eyre::{bail, Result};
-use tracing::{debug, instrument, trace};
+use tracing::{debug, instrument, trace, warn};
 
 use hyperlane_core::{
     identifiers::UniqueIdentifier, Decode, Encode, GasPaymentKey, HyperlaneDomain,
@@ -47,13 +47,28 @@ pub type DbResult<T> = std::result::Result<T, DbError>;
 
 /// DB handle for storing data tied to a specific Mailbox.
 #[derive(Debug, Clone)]
-pub struct HyperlaneRocksDB(HyperlaneDomain, TypedDB);
+pub struct HyperlaneRocksDB(HyperlaneDomain, TypedDB, Option<std::collections::HashSet<u32>>);
 
 impl std::ops::Deref for HyperlaneRocksDB {
     type Target = TypedDB;
 
     fn deref(&self) -> &Self::Target {
         &self.1
+    }
+}
+
+impl HyperlaneRocksDB {
+    /// Set the destination domains to log for. If None, logs for all domains.
+    pub fn set_destination_domain_filter(&mut self, domains: Option<std::collections::HashSet<u32>>) {
+        self.2 = domains;
+    }
+    
+    /// Check if we should log for this destination domain
+    fn should_log_for_destination(&self, destination_domain: u32) -> bool {
+        match &self.2 {
+            None => true, // No filter set, log everything
+            Some(domains) => domains.contains(&destination_domain),
+        }
     }
 }
 
@@ -72,7 +87,7 @@ impl AsRef<DB> for HyperlaneRocksDB {
 impl HyperlaneRocksDB {
     /// Instantiated new `HyperlaneRocksDB`
     pub fn new(domain: &HyperlaneDomain, db: DB) -> Self {
-        Self(domain.clone(), TypedDB::new(domain, db))
+        Self(domain.clone(), TypedDB::new(domain, db), None)
     }
 
     /// Get the domain this database is scoped to
@@ -89,7 +104,14 @@ impl HyperlaneRocksDB {
         dispatch_tx_id: &H512,
     ) -> DbResult<bool> {
         let newly_stored = self.store_message(message, dispatched_block_number)?;
-        if newly_stored {
+        if self.should_log_for_destination(message.destination) {
+            warn!(
+                dispatch_tx_id = ?dispatch_tx_id,
+                message_id = ?message.id(),
+                origin_domain = %message.origin,
+                destination_domain = %message.destination,
+                "STORING MESSAGE ID BY DISPATCH TX"
+            );
             self.store_message_id_by_dispatch_tx(dispatch_tx_id, &message.id())?;
         }
         Ok(newly_stored)

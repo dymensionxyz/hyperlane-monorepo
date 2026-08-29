@@ -3,7 +3,7 @@ use axum::{
     http::StatusCode,
 };
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error};
+use tracing::error;
 
 use hyperlane_base::{
     db::HyperlaneDb,
@@ -11,7 +11,7 @@ use hyperlane_base::{
         ServerErrorBody, ServerErrorResponse, ServerResult, ServerSuccessResponse,
     },
 };
-use hyperlane_core::{HyperlaneDomainProtocol, H512};
+use hyperlane_core::{HyperlaneDomainProtocol, H256, H512};
 
 use bs58;
 
@@ -41,18 +41,13 @@ pub async fn handler(
     State(state): State<ServerState>,
     Query(query_params): Query<QueryParams>,
 ) -> ServerResult<ServerSuccessResponse<MessageIdResponse>> {
-    let tx_hash_str = &query_params.tx_hash;
+    let tx_hash_str = query_params.tx_hash.clone();
     let domain_id = query_params.domain_id;
 
+    // Get the database for the domain (where the tx hash is from)
     let db = match state.dbs.get(&domain_id) {
         Some(db) => db,
         None => {
-            debug!(
-                %tx_hash_str,
-                %domain_id,
-                available_domains = ?state.dbs.keys().collect::<Vec<_>>(),
-                "no database found for origin domain"
-            );
             return Err(ServerErrorResponse::new(
                 StatusCode::NOT_FOUND,
                 ServerErrorBody {
@@ -66,20 +61,15 @@ pub async fn handler(
         }
     };
 
+    // Get the domain to determine the protocol
     let domain = db.domain();
     let is_sealevel = domain.domain_protocol() == HyperlaneDomainProtocol::Sealevel;
 
+    // Parse the tx_hash based on the domain protocol
     let tx_hash_h512: H512 = if is_sealevel {
-        debug!(%tx_hash_str, %domain_id, "parsing tx_hash as base58 (Sealevel)");
-        match bs58::decode(tx_hash_str).into_vec() {
+        match bs58::decode(&tx_hash_str).into_vec() {
             Ok(bytes) => {
                 if bytes.len() != SOLANA_SIGNATURE_BYTES {
-                    debug!(
-                        %tx_hash_str,
-                        %domain_id,
-                        bytes_len = %bytes.len(),
-                        "invalid base58 tx_hash length"
-                    );
                     return Err(ServerErrorResponse::new(
                         StatusCode::BAD_REQUEST,
                         ServerErrorBody {
@@ -94,7 +84,6 @@ pub async fn handler(
                 H512::from_slice(&bytes)
             }
             Err(e) => {
-                debug!(%tx_hash_str, %domain_id, error = %e, "failed to parse base58 tx_hash");
                 return Err(ServerErrorResponse::new(
                     StatusCode::BAD_REQUEST,
                     ServerErrorBody {
@@ -104,30 +93,63 @@ pub async fn handler(
             }
         }
     } else {
-        match tx_hash_str.parse() {
-            Ok(hash) => hash,
-            Err(e) => {
-                debug!(%tx_hash_str, %domain_id, error = %e, "failed to parse hex tx_hash");
-                return Err(ServerErrorResponse::new(
-                    StatusCode::BAD_REQUEST,
-                    ServerErrorBody {
-                        message: format!(
-                            "Invalid hex tx_hash format: {}. Expected 128 hex characters (64 bytes), with or without 0x prefix",
-                            e
-                        ),
-                    },
-                ));
+        // For other chains, parse as hex
+        // Accept both H256 (64 hex chars / 32 bytes) and H512 (128 hex chars / 64 bytes)
+        let tx_hash_without_prefix = tx_hash_str.strip_prefix("0x").unwrap_or(&tx_hash_str);
+        let hex_len = tx_hash_without_prefix.len();
+        
+        if hex_len == 64 {
+            // H256 format (32 bytes / 64 hex chars) - convert to H512
+            match tx_hash_str.parse::<H256>() {
+                Ok(hash_h256) => {
+                    let hash_h512: H512 = hash_h256.into();
+                    hash_h512
+                }
+                Err(e) => {
+                    return Err(ServerErrorResponse::new(
+                        StatusCode::BAD_REQUEST,
+                        ServerErrorBody {
+                            message: format!(
+                                "Invalid hex tx_hash format: {}. Expected 64 hex characters (32 bytes) or 128 hex characters (64 bytes), with or without 0x prefix",
+                                e
+                            ),
+                        },
+                    ));
+                }
             }
+        } else if hex_len == 128 {
+            // H512 format (64 bytes / 128 hex chars)
+            match tx_hash_str.parse::<H512>() {
+                Ok(hash) => hash,
+                Err(e) => {
+                    return Err(ServerErrorResponse::new(
+                        StatusCode::BAD_REQUEST,
+                        ServerErrorBody {
+                            message: format!(
+                                "Invalid hex tx_hash format: {}. Expected 128 hex characters (64 bytes), with or without 0x prefix",
+                                e
+                            ),
+                        },
+                    ));
+                }
+            }
+        } else {
+            return Err(ServerErrorResponse::new(
+                StatusCode::BAD_REQUEST,
+                ServerErrorBody {
+                    message: format!(
+                        "Invalid tx_hash length: expected 64 hex characters (32 bytes) or 128 hex characters (64 bytes), got {} characters",
+                        hex_len
+                    ),
+                },
+            ));
         }
     };
 
+    // Retrieve from database (where relayer stores dispatch tx -> message_id mappings)
     let message_id = match db.retrieve_message_id_by_dispatch_tx(&tx_hash_h512) {
-        Ok(Some(message_id)) => {
-            debug!(%tx_hash_str, %domain_id, message_id = ?message_id, "found message_id");
-            message_id
-        }
+        Ok(Some(message_id)) => message_id,
         Ok(None) => {
-            debug!(%tx_hash_str, %domain_id, "no message_id found");
             return Err(ServerErrorResponse::new(
                 StatusCode::NOT_FOUND,
                 ServerErrorBody {
@@ -149,17 +171,9 @@ pub async fn handler(
         }
     };
 
+    // Get the full message to extract destination_domain_id
     let message = match db.retrieve_message_by_id(&message_id) {
-        Ok(Some(message)) => {
-            debug!(
-                %tx_hash_str,
-                %domain_id,
-                message_id = ?message_id,
-                destination_domain_id = %message.destination,
-                "retrieved message"
-            );
-            message
-        }
+        Ok(Some(message)) => message,
         Ok(None) => {
             error!(
                 %tx_hash_str,
