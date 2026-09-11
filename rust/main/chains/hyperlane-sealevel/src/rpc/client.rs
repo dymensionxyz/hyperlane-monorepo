@@ -102,9 +102,13 @@ impl SealevelRpcClient {
         slot: u64,
         commitment: CommitmentConfig,
     ) -> ChainResult<UiConfirmedBlock> {
+        // Rewards are never read, and Agave keeps adding RewardType variants
+        // (e.g. DeactivatedStake) that the pinned SDK cannot deserialize, which
+        // poisons every epoch-boundary block.
         let config = RpcBlockConfig {
             commitment: Some(commitment),
             max_supported_transaction_version: Some(0),
+            rewards: Some(false),
             ..Default::default()
         };
         self.0
