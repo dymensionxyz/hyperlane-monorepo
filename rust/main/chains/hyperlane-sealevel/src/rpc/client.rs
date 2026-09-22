@@ -22,6 +22,15 @@ use hyperlane_core::{rpc_clients::BlockNumberGetter, ChainCommunicationError, Ch
 
 use crate::error::HyperlaneSealevelError;
 
+/// Highest Solana transaction version this client declares to RPC nodes.
+///
+/// Solana mainnet has produced transaction v1 (SIMD-0385) since 2026-09-15.
+/// getBlock refuses the whole block with -32015 if any transaction exceeds the
+/// declared version, which jammed every indexer cursor on the first v1 block.
+/// The pinned solana-transaction-status parses v1 fine: the version is an
+/// untagged u8 and the new `transactionConfig` message field is ignored.
+pub const MAX_SUPPORTED_TRANSACTION_VERSION: u8 = 1;
+
 /// Wrapper struct around Solana's RpcClient
 #[derive(Clone)]
 pub struct SealevelRpcClient(Arc<RpcClient>);
@@ -107,7 +116,7 @@ impl SealevelRpcClient {
         // poisons every epoch-boundary block.
         let config = RpcBlockConfig {
             commitment: Some(commitment),
-            max_supported_transaction_version: Some(0),
+            max_supported_transaction_version: Some(MAX_SUPPORTED_TRANSACTION_VERSION),
             rewards: Some(false),
             ..Default::default()
         };
@@ -221,7 +230,7 @@ impl SealevelRpcClient {
         let config = RpcTransactionConfig {
             encoding: Some(UiTransactionEncoding::JsonParsed),
             commitment: Some(commitment),
-            max_supported_transaction_version: Some(0),
+            max_supported_transaction_version: Some(MAX_SUPPORTED_TRANSACTION_VERSION),
         };
         self.0
             .get_transaction_with_config(signature, config)
